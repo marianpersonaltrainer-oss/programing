@@ -65,64 +65,64 @@ export default function MethodPanel({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-2xl bg-[#111] border border-white/8 rounded-2xl flex flex-col max-h-[90vh]">
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-2xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] shadow-2xl overflow-hidden animate-fade-in">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+        <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between flex-shrink-0 bg-white">
           <div>
-            <h2 className="text-sm font-bold text-white">Tu Método EVO</h2>
-            <p className="text-[10px] text-evo-muted mt-0.5">
-              Documento vivo — edítalo cuando quieras. Se incluye en cada generación automáticamente.
+            <h2 className="text-display text-base font-bold text-evo-text uppercase tracking-tight">Tu Método EVO</h2>
+            <p className="text-[10px] text-evo-muted font-bold mt-1 uppercase tracking-widest">
+              REGLAS FIJAS DE PROGRAMACIÓN · DOCUMENTO VIVO
             </p>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-evo-muted hover:text-white transition-colors">
-            ×
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-evo-muted hover:text-red-500 transition-all shadow-sm border border-black/5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
-        {/* Info */}
-        <div className="px-6 pt-3 flex-shrink-0">
-          <div className="flex items-start gap-2 px-3 py-2.5 bg-[#7B2FBE]/10 border border-[#7B2FBE]/20 rounded-xl">
-            <span className="text-[#A855F7] text-xs flex-shrink-0 mt-0.5">✦</span>
-            <p className="text-[10px] text-evo-muted leading-relaxed">
-              Escribe aquí tus reglas de programación, filosofía, restricciones y preferencias.
-              La IA lo leerá siempre antes de generar. Añade, quita o cambia lo que necesites según va evolucionando EVO.
+        {/* Info Banner */}
+        <div className="px-8 pt-4 flex-shrink-0">
+          <div className="flex items-start gap-3 px-4 py-3 bg-evo-accent/5 border border-evo-accent/10 rounded-2xl shadow-sm">
+            <span className="text-evo-accent text-lg flex-shrink-0 mt--0.5">✦</span>
+            <p className="text-[10px] text-evo-text font-medium leading-relaxed">
+              Define aquí la filosofía de EVO, restricciones de material o reglas de timings.
+              El agente leerá este texto <span className="font-bold text-evo-accent">siempre</span> antes de generar cualquier sesión o semana completa.
             </p>
           </div>
         </div>
 
-        {/* Editor */}
-        <div className="flex-1 px-6 py-3 min-h-0">
+        {/* Editor Area */}
+        <div className="flex-1 px-8 py-4 min-h-0">
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value); setSaved(false) }}
             spellCheck={false}
-            className="w-full h-full min-h-[400px] bg-[#0D0D0D] border border-white/8 rounded-xl px-4 py-3 text-xs text-gray-300 font-mono leading-relaxed focus:outline-none focus:border-[#7B2FBE]/40 resize-none"
+            className="w-full h-full min-h-[400px] bg-gray-50/50 border border-black/5 rounded-2xl px-6 py-5 text-xs text-evo-text font-mono leading-relaxed focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all shadow-inner resize-none"
+            placeholder="Escribe aquí las reglas maestras..."
           />
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/5 flex items-center justify-between flex-shrink-0">
+        {/* Footer Actions */}
+        <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50">
           <button
             onClick={handleReset}
-            className="text-xs text-evo-muted hover:text-white transition-colors"
+            className="text-[10px] text-evo-muted font-bold uppercase tracking-widest hover:text-red-500 transition-all"
           >
-            Restaurar por defecto
+            Restaurar Valores EVO
           </button>
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} className="text-xs text-evo-muted hover:text-white transition-colors">
+          <div className="flex items-center gap-4">
+            <button onClick={onClose} className="text-[10px] text-evo-muted font-bold uppercase tracking-widest hover:text-evo-text transition-all">
               Cerrar
             </button>
             <button
               onClick={handleSave}
-              className={`px-5 py-2 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
                 saved
-                  ? 'bg-[#2FBE7B]/20 text-[#2FBE7B] border border-[#2FBE7B]/30'
-                  : 'bg-[#7B2FBE] hover:bg-[#9B4FDE] text-white'
+                  ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                  : 'bg-evo-accent text-white shadow-purple-500/20 hover:bg-evo-accent-hover'
               }`}
             >
-              {saved ? '✓ Guardado' : 'Guardar cambios'}
+              {saved ? '✓ Guardado' : 'Guardar Cambios'}
             </button>
           </div>
         </div>

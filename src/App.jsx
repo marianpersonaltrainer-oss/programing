@@ -73,7 +73,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#0A0A0A] overflow-hidden">
+    <div className="h-screen flex flex-col bg-evo-bg studio-bg overflow-hidden font-body selection:bg-evo-accent/10">
       {/* Main layout: Week panel + Chat */}
       <div className="flex flex-1 min-h-0">
         {/* Week Panel — left sidebar */}
@@ -134,40 +134,40 @@ export default function App() {
       )}
 
       {/* Bottom bar */}
-      <div className="px-4 py-2 border-t border-white/5 bg-[#0D0D0D] flex justify-between items-center flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="px-6 py-3 border-t border-black/5 bg-white/80 backdrop-blur-md flex justify-between items-center flex-shrink-0 shadow-soft">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setShowMethodPanel(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-evo-muted hover:text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-black/5 text-evo-muted hover:text-evo-text text-xs font-semibold transition-all shadow-sm"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
             Tu Método
           </button>
           <button
             onClick={() => setShowCodeConfig((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-evo-muted hover:text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-black/5 text-evo-muted hover:text-evo-text text-xs font-semibold transition-all shadow-sm"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
             Código coach
           </button>
           <button
             onClick={() => setShowLibrary(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-evo-muted hover:text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-black/5 text-evo-muted hover:text-evo-text text-xs font-semibold transition-all shadow-sm"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
             </svg>
             Biblioteca
           </button>
           <button
             onClick={() => setShowCoachReview(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7B2FBE]/10 hover:bg-[#7B2FBE]/20 border border-[#7B2FBE]/20 text-[#A855F7] text-xs font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-evo-accent/5 hover:bg-evo-accent/10 border border-evo-accent/10 text-evo-accent text-xs font-semibold transition-all shadow-sm"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
             Conversaciones
@@ -175,9 +175,9 @@ export default function App() {
         </div>
         <button
           onClick={() => setShowExcelModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#2FBE7B]/20 hover:bg-[#2FBE7B]/30 border border-[#2FBE7B]/30 text-[#2FBE7B] text-xs font-medium transition-colors"
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold transition-all shadow-lg shadow-emerald-500/20"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />

@@ -154,15 +154,13 @@ export default function CoachView() {
     } finally {
       setIsTyping(false)
     }
-  }
-
-  // ── LOADING ───────────────────────────────────────────────────────────────
+   // ── LOADING ───────────────────────────────────────────────────────────────
   if (step === 'loading') {
     return (
-      <div className="h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="flex gap-1.5">
+      <div className="h-screen bg-white flex items-center justify-center">
+        <div className="flex gap-2.5">
           {[0, 150, 300].map((d) => (
-            <div key={d} className="w-2 h-2 rounded-full bg-[#7B2FBE] animate-bounce" style={{ animationDelay: `${d}ms` }} />
+            <div key={d} className="w-2.5 h-2.5 rounded-full bg-evo-accent animate-pulse" style={{ animationDelay: `${d}ms` }} />
           ))}
         </div>
       </div>
@@ -172,14 +170,15 @@ export default function CoachView() {
   // ── SIN SEMANA ────────────────────────────────────────────────────────────
   if (step === 'noweek') {
     return (
-      <div className="h-screen bg-[#0A0A0A] flex items-center justify-center p-6">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-[#7B2FBE]/20 flex items-center justify-center mx-auto">
-            <span className="text-xl">📋</span>
+      <div className="h-screen bg-white flex items-center justify-center p-8">
+        <div className="text-center space-y-4 max-w-xs">
+          <div className="w-16 h-16 rounded-2xl bg-evo-accent/5 border border-evo-accent/10 flex items-center justify-center mx-auto shadow-sm">
+            <span className="text-2xl opacity-60">📋</span>
           </div>
-          <p className="text-white font-medium">No hay semana publicada</p>
-          <p className="text-evo-muted text-sm">El programador aún no ha publicado la semana en curso.</p>
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <p className="text-evo-text font-bold text-lg uppercase tracking-tight">No hay semana activa</p>
+          <p className="text-evo-muted text-xs font-medium leading-relaxed uppercase tracking-widest">
+            {error || 'El programador jefe aún no ha publicado la programación de esta semana.'}
+          </p>
         </div>
       </div>
     )
@@ -188,37 +187,37 @@ export default function CoachView() {
   // ── CÓDIGO DE ACCESO ─────────────────────────────────────────────────────
   if (step === 'code') {
     return (
-      <div className="h-screen bg-[#0A0A0A] flex items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl gradient-evo flex items-center justify-center mx-auto shadow-lg shadow-[#7B2FBE]/30">
-              <span className="text-display text-2xl font-bold text-white">E</span>
+      <div className="h-screen bg-white flex items-center justify-center p-8">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-3xl bg-evo-bg flex items-center justify-center mx-auto shadow-elevated border border-black/5 animate-fade-in">
+              <span className="text-display text-3xl font-black text-evo-accent">E</span>
             </div>
-            <h1 className="text-white font-bold text-lg">Soporte EVO</h1>
-            <p className="text-evo-muted text-sm">Introduce el código de acceso</p>
+            <h1 className="text-evo-text font-bold text-xl uppercase tracking-tighter">Soporte EVO</h1>
+            <p className="text-evo-muted text-[10px] font-bold uppercase tracking-widest">Introduce tu contraseña de acceso</p>
           </div>
-          <form onSubmit={handleCodeSubmit} className="space-y-3">
+          <form onSubmit={handleCodeSubmit} className="space-y-4">
             <input
               autoFocus
               type="text"
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-              placeholder="Código de acceso"
-              className={`w-full bg-[#1A1A1A] border rounded-xl px-4 py-3 text-white text-sm text-center tracking-widest font-mono focus:outline-none placeholder-evo-muted transition-colors ${
+              placeholder="CÓDIGO"
+              className={`w-full bg-gray-50/50 border rounded-2xl px-6 py-4 text-evo-text text-sm text-center tracking-[0.5em] font-mono focus:outline-none placeholder-gray-300 transition-all shadow-inner ${
                 codeError
-                  ? 'border-red-500/50 bg-red-500/5'
-                  : 'border-white/10 focus:border-[#7B2FBE]/50'
+                  ? 'border-red-500 bg-red-50/50'
+                  : 'border-black/5 focus:border-evo-accent/30 focus:bg-white'
               }`}
             />
             {codeError && (
-              <p className="text-red-400 text-xs text-center">Código incorrecto</p>
+              <p className="text-red-500 text-[10px] font-bold text-center uppercase tracking-widest animate-shake">Error de autenticación</p>
             )}
             <button
               type="submit"
               disabled={!codeInput.trim()}
-              className="w-full py-3 rounded-xl bg-[#7B2FBE] hover:bg-[#9B4FDE] disabled:opacity-40 text-white font-medium text-sm transition-colors"
+              className="w-full py-4 rounded-2xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-30 disabled:grayscale text-white font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 active:scale-95"
             >
-              Entrar
+              Verificar
             </button>
           </form>
         </div>
@@ -229,30 +228,30 @@ export default function CoachView() {
   // ── NOMBRE ────────────────────────────────────────────────────────────────
   if (step === 'name') {
     return (
-      <div className="h-screen bg-[#0A0A0A] flex items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl gradient-evo flex items-center justify-center mx-auto shadow-lg shadow-[#7B2FBE]/30">
-              <span className="text-display text-2xl font-bold text-white">E</span>
+      <div className="h-screen bg-white flex items-center justify-center p-8">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-3xl bg-evo-bg flex items-center justify-center mx-auto shadow-elevated border border-black/5">
+              <span className="text-display text-3xl font-black text-evo-accent">E</span>
             </div>
-            <h1 className="text-white font-bold text-lg">Soporte EVO</h1>
-            <p className="text-evo-muted text-sm">¿Cómo te llamas?</p>
+            <h1 className="text-evo-text font-bold text-xl uppercase tracking-tighter">Identificación</h1>
+            <p className="text-evo-muted text-[10px] font-bold uppercase tracking-widest">¿Cómo te llamas, Coach?</p>
           </div>
-          <form onSubmit={handleNameSubmit} className="space-y-3">
+          <form onSubmit={handleNameSubmit} className="space-y-4">
             <input
               autoFocus
               type="text"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
-              placeholder="Tu nombre"
-              className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#7B2FBE]/50 placeholder-evo-muted"
+              placeholder="Escribe tu nombre..."
+              className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-6 py-4 text-evo-text text-sm focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all shadow-inner placeholder-gray-300"
             />
             <button
               type="submit"
               disabled={!nameInput.trim()}
-              className="w-full py-3 rounded-xl bg-[#7B2FBE] hover:bg-[#9B4FDE] disabled:opacity-40 text-white font-medium text-sm transition-colors"
+              className="w-full py-4 rounded-2xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-30 disabled:grayscale text-white font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 active:scale-95"
             >
-              Entrar
+              Comenzar Turno
             </button>
           </form>
         </div>
@@ -264,72 +263,72 @@ export default function CoachView() {
   const dias = weekData?.dias || []
 
   return (
-    <div className="h-screen bg-[#0A0A0A] flex flex-col overflow-hidden">
+    <div className="h-screen bg-white flex flex-col overflow-hidden">
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/5 bg-[#0D0D0D] flex items-center justify-between flex-shrink-0">
+      <div className="px-6 py-4 border-b border-black/5 bg-white flex items-center justify-between flex-shrink-0 shadow-sm relative z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg gradient-evo flex items-center justify-center">
-            <span className="text-display text-sm font-bold text-white">E</span>
+          <div className="w-10 h-10 rounded-xl bg-evo-bg border border-black/5 flex items-center justify-center shadow-sm">
+            <span className="text-display text-base font-black text-evo-accent">E</span>
           </div>
           <div>
-            <p className="text-white text-xs font-semibold">Soporte EVO · {coachName}</p>
-            <p className="text-evo-muted text-[10px]">{weekData?.titulo || 'Semana en curso'}</p>
+            <p className="text-evo-text text-xs font-bold uppercase tracking-tight">EvoCoach Support · {coachName}</p>
+            <p className="text-evo-muted text-[9px] font-bold uppercase tracking-widest">{weekData?.titulo || 'Semana Activa'}</p>
           </div>
         </div>
         <button
           onClick={() => setActiveDay((d) => d ? null : 'show')}
-          className="text-[10px] text-evo-muted hover:text-white border border-white/10 px-2.5 py-1.5 rounded-lg transition-colors"
+          className="text-[10px] text-evo-muted font-bold uppercase tracking-widest border border-black/10 px-4 py-2 rounded-xl transition-all shadow-sm hover:text-evo-text hover:bg-gray-50"
         >
-          Ver semana
+          {activeDay ? 'Cerrar Programación' : 'Ver Semana'}
         </button>
       </div>
 
-      {/* Panel semana */}
+      {/* Week Preview Overlay */}
       {activeDay === 'show' && (
-        <div className="flex-shrink-0 border-b border-white/5 bg-[#111] max-h-64 overflow-y-auto">
-          {/* Resumen */}
+        <div className="flex-shrink-0 border-b border-black/5 bg-gray-50/50 max-h-72 overflow-y-auto animate-slide-down relative z-10">
+          {/* Summary Banner */}
           {weekData?.resumen && (
-            <div className="px-4 py-3 border-b border-white/5">
-              <p className="text-[9px] font-bold text-[#A855F7] uppercase mb-1">Resumen de semana</p>
-              <p className="text-[10px] text-white">{weekData.resumen.estimulo} · {weekData.resumen.intensidad}</p>
-              <p className="text-[10px] text-evo-muted mt-0.5">{weekData.resumen.nota}</p>
+            <div className="px-6 py-4 border-b border-black/5 bg-indigo-50/30">
+              <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5">Orientación Semanal</p>
+              <p className="text-[11px] text-evo-text font-bold leading-tight uppercase tracking-tight">
+                {weekData.resumen.estimulo} · {weekData.resumen.intensidad}
+              </p>
+              <p className="text-[10px] text-evo-muted font-medium mt-1 leading-relaxed">{weekData.resumen.nota}</p>
             </div>
           )}
-          {/* Días */}
-          <div className="flex gap-1.5 px-4 py-2 flex-wrap">
+          {/* Day Tags */}
+          <div className="flex gap-2 px-6 py-3 flex-wrap">
             {dias.map((dia) => (
               <button
                 key={dia.nombre}
                 onClick={() => setActiveDay((d) => d === dia.nombre ? 'show' : dia.nombre)}
-                className={`text-[10px] px-3 py-1.5 rounded-lg border transition-colors ${
+                className={`text-[10px] px-4 py-1.5 rounded-xl border font-bold uppercase tracking-widest transition-all shadow-sm ${
                   activeDay === dia.nombre
-                    ? 'bg-[#7B2FBE]/30 border-[#7B2FBE]/50 text-white'
-                    : 'bg-white/5 border-white/10 text-evo-muted hover:text-white'
+                    ? 'bg-evo-accent border-evo-accent text-white'
+                    : 'bg-white border-black/5 text-evo-muted hover:text-evo-text'
                 }`}
               >
                 {dia.nombre}
               </button>
             ))}
           </div>
-          {/* Contenido día */}
+          {/* Day Content */}
           {activeDay && activeDay !== 'show' && (() => {
             const dia = dias.find((d) => d.nombre === activeDay)
             if (!dia) return null
             const clases = [
-              { label: 'EvoFuncional',  color: '#2F7BBE', key: 'evofuncional'  },
-              { label: 'EvoBasics',     color: '#E07B39', key: 'evobasics'     },
-              { label: 'EvoFit',        color: '#2FBE7B', key: 'evofit'        },
-              { label: 'EvoHybrix',     color: '#BE2F2F', key: 'evohybrix'     },
-              { label: 'EvoFuerza',     color: '#92400E', key: 'evofuerza'     },
-              { label: 'EvoGimnástica', color: '#6D28D9', key: 'evogimnastica' },
+              { label: 'Funcional', color: '#2F7BBE', key: 'evofuncional'  },
+              { label: 'Basics',    color: '#E07B39', key: 'evobasics'     },
+              { label: 'Fit',       color: '#2FBE7B', key: 'evofit'        },
+              { label: 'Hybrix',    color: '#BE2F2F', key: 'evohybrix'     },
             ].filter(({ key }) => dia[key])
             return (
-              <div className="px-4 pb-3 space-y-2">
+              <div className="px-6 pb-5 space-y-3">
                 {clases.map(({ label, color, key }) => (
-                  <div key={key} className="rounded-lg p-2.5" style={{ backgroundColor: `${color}11`, border: `1px solid ${color}22` }}>
-                    <p className="text-[9px] font-bold mb-1" style={{ color }}>{label}</p>
-                    <pre className="text-[9px] text-gray-300 whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                  <div key={key} className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
+                    <pre className="text-[11px] text-gray-500 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
                   </div>
                 ))}
               </div>
@@ -338,23 +337,28 @@ export default function CoachView() {
         </div>
       )}
 
-      {/* Mensajes */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-6 py-8 space-y-6 scrollbar-elegant bg-gray-50/20">
         {messages.length === 0 && (
-          <div className="text-center py-12 space-y-3">
-            <p className="text-evo-muted text-sm">Hola {coachName} 👋</p>
-            <p className="text-evo-muted text-xs max-w-xs mx-auto">Pregúntame lo que necesites sobre la clase de hoy — adaptaciones, tiempos, escalados, plan B...</p>
-            <div className="flex flex-wrap gap-2 justify-center mt-4">
+          <div className="text-center py-16 space-y-5">
+            <div className="w-14 h-14 rounded-2xl bg-evo-accent/5 border border-evo-accent/10 flex items-center justify-center mx-auto text-xl shadow-soft">
+              👋
+            </div>
+            <div className="space-y-1">
+              <p className="text-evo-text font-bold text-lg uppercase tracking-tight">Hola, Coach {coachName}</p>
+              <p className="text-evo-muted text-[10px] font-bold uppercase tracking-widest max-w-xs mx-auto px-4">Estoy aquí para ayudarte con adaptaciones, timings y cualquier duda de la programación.</p>
+            </div>
+            <div className="flex flex-wrap gap-2.5 justify-center mt-6 px-4">
               {[
-                'El WOD se nos va a ir de tiempo, ¿qué recorto?',
-                'Tengo un alumno con dolor de rodilla, alternativa',
-                '¿Cómo escalo el ejercicio principal para principiantes?',
-                'Dame el vídeo del landmine clean',
+                '¿Cómo escalo el ejercicio de hoy?',
+                'Tengo poco material, dame plan B',
+                'El WOD va largo, ¿qué quito?',
+                'Dudas con el landmine',
               ].map((q) => (
                 <button
                   key={q}
                   onClick={() => setInput(q)}
-                  className="text-[10px] px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-evo-muted hover:text-white hover:border-white/20 transition-colors text-left"
+                  className="text-[10px] px-4 py-2.5 rounded-xl bg-white border border-black/5 text-evo-muted font-bold uppercase tracking-widest hover:text-evo-accent hover:border-evo-accent/20 transition-all shadow-sm active:scale-95 text-left"
                 >
                   {q}
                 </button>
@@ -364,12 +368,12 @@ export default function CoachView() {
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
             <div
-              className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+              className={`max-w-[88%] px-5 py-4 rounded-3xl text-[13px] font-medium leading-relaxed whitespace-pre-wrap shadow-soft ${
                 msg.role === 'user'
-                  ? 'bg-[#7B2FBE] text-white rounded-br-sm'
-                  : 'bg-[#1A1A1A] text-gray-200 rounded-bl-sm border border-white/5'
+                  ? 'bg-evo-accent text-white rounded-br-sm'
+                  : 'bg-white text-evo-text rounded-bl-sm border border-black/5 text-gray-700'
               }`}
             >
               {msg.content}
@@ -379,35 +383,39 @@ export default function CoachView() {
 
         {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-[#1A1A1A] border border-white/5 px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1">
+            <div className="bg-white border border-black/5 px-6 py-4 rounded-3xl rounded-bl-sm flex gap-1.5 shadow-soft">
               {[0, 150, 300].map((d) => (
-                <div key={d} className="w-1.5 h-1.5 rounded-full bg-evo-muted animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                <div key={d} className="w-2 h-2 rounded-full bg-evo-accent/30 animate-pulse" style={{ animationDelay: `${d}ms` }} />
               ))}
             </div>
           </div>
         )}
 
-        {error && <p className="text-center text-xs text-red-400">{error}</p>}
+        {error && (
+          <div className="px-4 py-2 bg-red-50 border border-red-100 rounded-xl text-center">
+             <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest">{error}</p>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-white/5 bg-[#0D0D0D] flex-shrink-0">
-        <form onSubmit={handleSend} className="flex gap-2">
+      <div className="px-6 py-5 border-t border-black/5 bg-white flex-shrink-0 pb-8 relative z-20 shadow-elevated">
+        <form onSubmit={handleSend} className="flex gap-3 max-w-4xl mx-auto">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Pregunta sobre la clase de hoy..."
+            placeholder="Escribe tu duda al asistente..."
             disabled={isTyping}
-            className="flex-1 bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-evo-muted focus:outline-none focus:border-[#7B2FBE]/40 disabled:opacity-50"
+            className="flex-1 bg-gray-50 border border-black/10 rounded-2xl px-6 py-4 text-sm text-evo-text placeholder-gray-400 focus:outline-none focus:border-evo-accent/30 focus:bg-white disabled:opacity-50 shadow-inner transition-all"
           />
           <button
             type="submit"
             disabled={!input.trim() || isTyping}
-            className="px-4 py-3 rounded-xl bg-[#7B2FBE] hover:bg-[#9B4FDE] disabled:opacity-40 text-white transition-colors"
+            className="w-14 h-14 rounded-2xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-40 disabled:grayscale text-white flex items-center justify-center transition-all shadow-lg shadow-purple-500/20 active:scale-90"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>

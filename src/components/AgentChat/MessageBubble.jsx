@@ -5,31 +5,31 @@ export default function MessageBubble({ message, isLast }) {
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
       {/* Avatar */}
       {!isUser && (
-        <div className="w-6 h-6 rounded-full bg-[#7B2FBE] flex items-center justify-center text-[10px] font-bold text-white mr-2 mt-1 flex-shrink-0">
+        <div className="w-7 h-7 rounded-full bg-evo-accent flex items-center justify-center text-[10px] font-bold text-white mr-2 mt-1 flex-shrink-0 shadow-lg shadow-purple-500/20">
           E
         </div>
       )}
 
       <div
         className={`
-          max-w-[88%] rounded-2xl px-4 py-3
+          max-w-[85%] rounded-2xl px-5 py-3.5 shadow-soft border animate-slide-up
           ${isUser
-            ? 'bg-[#7B2FBE]/20 border border-[#7B2FBE]/30 text-white rounded-tr-sm'
-            : 'bg-[#1A1A1A] border border-white/5 text-white rounded-tl-sm'
+            ? 'bg-evo-accent border-evo-accent/20 text-white rounded-tr-sm shadow-purple-500/10'
+            : 'bg-white border-black/5 text-evo-text rounded-tl-sm'
           }
         `}
       >
         {isUser ? (
-          <p className="text-sm leading-relaxed">{message.content}</p>
+          <p className="text-sm font-medium leading-relaxed">{message.content}</p>
         ) : (
-          <div className="session-content text-[12px] leading-relaxed text-gray-200">
+          <div className="session-content text-[12px] leading-relaxed text-evo-text/90 font-medium">
             {message.content}
           </div>
         )}
       </div>
 
       {isUser && (
-        <div className="w-6 h-6 rounded-full bg-[#2A2A2A] flex items-center justify-center text-[10px] font-bold text-evo-muted ml-2 mt-1 flex-shrink-0">
+        <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500 ml-2 mt-1 flex-shrink-0 border border-white shadow-sm">
           M
         </div>
       )}

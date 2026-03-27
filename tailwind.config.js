@@ -8,26 +8,26 @@ export default {
     extend: {
       colors: {
         evo: {
-          bg: '#0A0A0A',
-          card: '#111111',
-          card2: '#1A1A1A',
+          bg: '#F9FAFB',
+          card: '#FFFFFF',
+          card2: '#F3F4F6',
           accent: '#7B2FBE',
           'accent-hover': '#9B4FDE',
-          text: '#FFFFFF',
-          muted: '#A0A0A0',
+          text: '#1F2937',
+          muted: '#6B7280',
         },
         clase: {
-          funcional: '#2F7BBE',
-          basics: '#E07B39',
-          fit: '#2FBE7B',
-          fuerza: '#BE2F2F',
-          gimnasticos: '#D93F8E',
-          hybrix: '#E0C12F',
+          funcional: '#3B82F6', // Blue
+          basics: '#F59E0B',    // Amber
+          fit: '#10B981',       // Emerald
+          fuerza: '#EF4444',    // Red
+          gimnasticos: '#EC4899', // Pink
+          hybrix: '#8B5CF6',    // Violet
         },
       },
       fontFamily: {
-        display: ['Space Grotesk', 'DM Mono', 'monospace'],
-        body: ['DM Sans', 'Inter', 'sans-serif'],
+        display: ['Outfit', 'Space Grotesk', 'sans-serif'],
+        body: ['Inter', 'DM Sans', 'sans-serif'],
         mono: ['DM Mono', 'monospace'],
       },
     },

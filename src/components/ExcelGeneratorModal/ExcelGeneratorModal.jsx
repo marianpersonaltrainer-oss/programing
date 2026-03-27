@@ -243,22 +243,22 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-3xl bg-[#111] border border-white/8 rounded-2xl flex flex-col max-h-[90vh] animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-3xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] animate-fade-in shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+        <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between flex-shrink-0 bg-white shadow-sm">
           <div>
-            <h2 className="text-display text-sm font-bold text-white">Generar semana completa → Excel</h2>
-            <p className="text-[10px] text-evo-muted mt-0.5">
+            <h2 className="text-display text-base font-bold text-evo-text uppercase tracking-tight">Generar Programación Semanal</h2>
+            <p className="text-[10px] text-evo-muted font-bold mt-1 uppercase tracking-widest">
               {weekState.mesocycle
                 ? `${weekState.mesocycle} · S${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` · ${weekState.phase}` : ''}`
-                : 'Configura primero el mesociclo en el panel izquierdo'
+                : 'Configuración pendiente'
               }
             </p>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-evo-muted hover:text-white transition-colors">
-            ×
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-evo-muted hover:text-red-500 transition-all shadow-sm border border-black/5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
@@ -268,10 +268,10 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
           {(status === 'idle' || status === 'error') && (
             <>
               {/* Contexto histórico */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-white">
-                    Contexto de semanas anteriores
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-evo-text uppercase tracking-wider">
+                    Contexto de Programación Anterior
                   </label>
                   <div className="flex items-center gap-2">
                     {fileName && (
@@ -283,7 +283,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={fileLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#7B2FBE]/20 hover:bg-[#7B2FBE]/30 border border-[#7B2FBE]/30 text-[#9B4FDE] text-[10px] font-medium transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-evo-accent/5 hover:bg-evo-accent/10 border border-evo-accent/10 text-evo-accent text-[10px] font-bold uppercase transition-all shadow-sm"
                     >
                       {fileLoading ? (
                         <>Leyendo...</>
@@ -307,28 +307,27 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-evo-muted mb-1.5">Sube un archivo .docx, .xlsx o .txt — o pega el texto directamente</p>
+                <p className="text-[10px] text-evo-muted mb-1 font-medium">Sube archivos (.docx, .xlsx, .txt) o pega la programación previa.</p>
                 <textarea
                   value={context}
                   onChange={(e) => setContext(e.target.value)}
-                  placeholder="Sube un archivo o pega aquí la programación de las semanas anteriores del mesociclo. El agente la usará como referencia para mantener coherencia y progresión..."
+                  placeholder="Ej: Durante las últimas 3 semanas hemos trabajado fuerza máxima en sentadilla. Los alumnos están fatigados de tracción..."
                   rows={6}
-                  className="w-full bg-[#0D0D0D] border border-white/8 rounded-xl px-4 py-3 text-xs text-gray-300 placeholder-evo-muted focus:outline-none focus:border-[#7B2FBE]/40 font-mono leading-relaxed"
+                  className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs text-evo-text placeholder-evo-muted focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all font-mono leading-relaxed shadow-inner"
                 />
               </div>
 
               {/* Instrucciones específicas */}
-              <div>
-                <label className="block text-xs font-medium text-white mb-1.5">
-                  Instrucciones específicas para esta semana
-                  <span className="text-evo-muted font-normal ml-1">(opcional)</span>
+              <div className="space-y-3">
+                <label className="block text-[11px] font-bold text-evo-text uppercase tracking-wider">
+                  Instrucciones para esta Semana
                 </label>
                 <textarea
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Ej: Esta semana quiero hacer hincapié en la sentadilla trasera. El lunes y miércoles hay competición de box, así que el jueves y viernes tienen que ser más suaves..."
+                  placeholder="Ej: Quiero que esta semana sea de descarga. El sábado hay evento especial de CrossFit..."
                   rows={3}
-                  className="w-full bg-[#0D0D0D] border border-white/8 rounded-xl px-4 py-3 text-xs text-gray-300 placeholder-evo-muted focus:outline-none focus:border-[#7B2FBE]/40 leading-relaxed"
+                  className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs text-evo-text placeholder-evo-muted focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed shadow-inner"
                 />
               </div>
 
@@ -340,31 +339,31 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
 
               {/* Historial del mesociclo */}
               {history.length > 0 && (
-                <div className="border border-white/8 rounded-xl overflow-hidden">
+                <div className="border border-black/5 rounded-2xl overflow-hidden shadow-soft bg-white">
                   <button
                     onClick={() => setShowHistory((v) => !v)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 bg-[#1A1A1A] hover:bg-[#222] transition-colors text-left"
+                    className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50/50 hover:bg-gray-100/50 transition-colors text-left"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-white">Historial del mesociclo</span>
-                      <span className="text-[9px] bg-[#7B2FBE]/30 text-[#A855F7] px-1.5 py-0.5 rounded-full">{history.length} semana{history.length > 1 ? 's' : ''} guardada{history.length > 1 ? 's' : ''}</span>
+                      <span className="text-[11px] font-bold text-evo-text uppercase tracking-widest">Historial del Mesociclo</span>
+                      <span className="text-[9px] bg-evo-accent/10 text-evo-accent px-2 py-0.5 rounded-full font-bold">{history.length} SEMANAS</span>
                     </div>
                     <span className="text-evo-muted text-xs">{showHistory ? '▲' : '▼'}</span>
                   </button>
                   {showHistory && (
-                    <div>
-                      <div className="divide-y divide-white/5">
+                    <div className="animate-fade-in">
+                      <div className="divide-y divide-black/5">
                         {history.map((entry) => (
-                          <div key={entry.semana} className="px-4 py-2.5 bg-[#111] flex items-start justify-between gap-3">
+                          <div key={entry.semana} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50/30 transition-all">
                             <div>
-                              <p className="text-[10px] font-medium text-white">S{entry.semana} — {entry.titulo || ''}</p>
+                              <p className="text-[10px] font-bold text-evo-text uppercase tracking-tight">Semana {entry.semana} — {entry.titulo || 'Sin título'}</p>
                               {entry.resumen && (
-                                <p className="text-[9px] text-evo-muted mt-0.5">
+                                <p className="text-[9px] text-evo-muted font-medium mt-1">
                                   {entry.resumen.estimulo} · {entry.resumen.foco}
                                 </p>
                               )}
-                              <p className="text-[9px] text-white/20 mt-0.5">
-                                Guardada {new Date(entry.savedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              <p className="text-[9px] text-gray-400 mt-1">
+                                {new Date(entry.savedAt).toLocaleDateString()}
                               </p>
                             </div>
                             <button
@@ -372,53 +371,40 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                                 deleteWeekFromHistory(weekState.mesocycle, entry.semana)
                                 setHistory(getHistoryForMesocycle(weekState.mesocycle))
                               }}
-                              className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5 px-2 py-1 rounded hover:bg-red-400/10"
-                              title="Quitar esta semana del historial"
+                              className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
                             >
-                              ✕ quitar
+                              Eliminar
                             </button>
                           </div>
                         ))}
-                      </div>
-                      <div className="px-4 py-2 bg-[#0D0D0D] flex justify-end">
-                        <button
-                          onClick={() => {
-                            clearHistoryForMesocycle(weekState.mesocycle)
-                            setHistory([])
-                            setShowHistory(false)
-                          }}
-                          className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors"
-                        >
-                          Borrar historial completo
-                        </button>
                       </div>
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="flex items-center gap-2 text-[10px] text-evo-muted bg-[#1A1A1A] rounded-xl px-4 py-3 border border-white/5">
-                <span>💡</span>
-                <span>El agente generará los 6 días completos (Lunes→Sábado) con EvoFuncional, EvoBasics y EvoFit. Puede tardar ~30 segundos.</span>
+              <div className="flex items-center gap-2 text-[10px] text-indigo-600 font-bold bg-indigo-50/50 rounded-2xl px-5 py-4 border border-indigo-100/50 uppercase tracking-tight shadow-sm">
+                <span className="text-sm">💡</span>
+                <span>Generaremos Lunes→Sábado (Funcional + Basics + Fit). Tiempo estimado: 45s.</span>
               </div>
             </>
           )}
 
           {/* GENERATING */}
           {status === 'generating' && (
-            <div className="flex flex-col items-center justify-center py-16 space-y-4">
-              <div className="w-12 h-12 rounded-xl gradient-evo flex items-center justify-center shadow-lg shadow-[#7B2FBE]/20">
-                <span className="text-display text-lg font-bold text-white">E</span>
+            <div className="flex flex-col items-center justify-center py-24 space-y-6">
+              <div className="w-20 h-20 rounded-3xl bg-evo-bg flex items-center justify-center shadow-elevated border border-black/5 animate-bounce">
+                <span className="text-display text-4xl font-black text-evo-accent">E</span>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white text-center">
-                  {genStep || 'Preparando generación...'}
+              <div className="space-y-2">
+                <p className="text-base font-bold text-evo-text text-center uppercase tracking-tight">
+                  {genStep || 'Iniciando generación...'}
                 </p>
-                <p className="text-xs text-evo-muted text-center mt-1">2 llamadas · 3 días cada una · ~45 segundos en total</p>
+                <p className="text-[11px] text-evo-muted text-center font-bold uppercase tracking-widest">Memoria AI activa · Coherencia EVO</p>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-2.5">
                 {[0, 150, 300].map((delay) => (
-                  <div key={delay} className="w-2 h-2 rounded-full bg-[#7B2FBE] animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                  <div key={delay} className="w-2.5 h-2.5 rounded-full bg-evo-accent animate-pulse" style={{ animationDelay: `${delay}ms` }} />
                 ))}
               </div>
             </div>
@@ -426,9 +412,9 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
 
           {/* PREVIEW */}
           {status === 'previewing' && weekData && (
-            <div className="space-y-3">
+            <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <div className="flex gap-1">
+                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-black/5">
                   {[
                     { id: 'resumen',   label: 'Resumen' },
                     { id: 'wodbuster', label: 'WodBuster' },
@@ -437,68 +423,71 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                     <button
                       key={tab.id}
                       onClick={() => { setPreviewTab(tab.id); setEditingJson(tab.id === 'json') }}
-                      className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition-colors ${
+                      className={`text-[10px] px-4 py-1.5 rounded-lg transition-all font-bold uppercase tracking-tight ${
                         previewTab === tab.id
-                          ? 'bg-white/10 border-white/20 text-white'
-                          : 'border-white/10 text-evo-muted hover:text-white'
+                          ? 'bg-white shadow-sm text-evo-accent'
+                          : 'text-evo-muted hover:text-evo-text'
                       }`}
                     >
                       {tab.label}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs font-medium text-white">✓ Semana generada</p>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-xl">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Listo para Exportar</p>
+                </div>
               </div>
 
               {/* Campos editables: título y pestaña */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="text-[10px] text-evo-muted mb-1 block">Título del Excel (editable)</label>
+                  <label className="text-[10px] text-evo-muted font-bold uppercase tracking-widest mb-1.5 block ml-1">Título del Documento</label>
                   <input
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    placeholder="Ej: S4 – MESOCICLO FUERZA · 80-85% · Del 6 al 11 de abril 2026"
-                    className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7B2FBE]/50"
+                    placeholder="Ej: S4 – MESOCICLO FUERZA · 80-85%"
+                    className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs text-evo-text font-medium focus:outline-none focus:border-evo-accent shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-evo-muted mb-1 block">Nombre pestaña</label>
+                  <label className="text-[10px] text-evo-muted font-bold uppercase tracking-widest mb-1.5 block ml-1">Pestaña</label>
                   <input
                     type="text"
                     value={editSheetName}
                     onChange={(e) => setEditSheetName(e.target.value)}
                     placeholder="S4"
-                    className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7B2FBE]/50"
+                    className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs text-evo-text font-medium focus:outline-none focus:border-evo-accent shadow-sm"
                   />
                 </div>
               </div>
 
               {isExcelFile && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-[#2FBE7B]/10 border border-[#2FBE7B]/20 rounded-lg">
-                  <span className="text-[#2FBE7B] text-xs">●</span>
-                  <p className="text-[10px] text-[#2FBE7B]">
-                    Se añadirá como pestaña <strong>"{editSheetName}"</strong> en <strong>{fileName}</strong>
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl shadow-sm">
+                  <span className="text-emerald-500 text-xs">●</span>
+                  <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-tight">
+                    Excel Detectado: Se añadirá como pestaña <span className="text-emerald-900">"{editSheetName}"</span>
                   </p>
                 </div>
               )}
 
               {/* Resumen de semana */}
               {weekData.resumen && !editingJson && (
-                <div className="bg-[#7B2FBE]/10 border border-[#7B2FBE]/25 rounded-xl p-3 space-y-1.5">
-                  <p className="text-[9px] font-bold text-[#A855F7] uppercase tracking-wider">Resumen de semana</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <p className="text-[9px] text-[#A855F7] font-medium">Estímulo</p>
-                      <p className="text-[9px] text-white">{weekData.resumen.estimulo}</p>
+                <div className="bg-evo-accent/5 border border-evo-accent/10 rounded-2xl p-5 space-y-3 shadow-soft">
+                  <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">Resumen de Orientación Semanal</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Estímulo</p>
+                      <p className="text-[11px] text-evo-text font-semibold">{weekData.resumen.estimulo}</p>
                     </div>
-                    <div>
-                      <p className="text-[9px] text-[#A855F7] font-medium">Intensidad · Foco</p>
-                      <p className="text-[9px] text-white">{weekData.resumen.intensidad} · {weekData.resumen.foco}</p>
+                    <div className="space-y-1">
+                      <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Intensidad · Foco</p>
+                      <p className="text-[11px] text-evo-text font-semibold">{weekData.resumen.intensidad} · {weekData.resumen.foco}</p>
                     </div>
-                    <div>
-                      <p className="text-[9px] text-[#A855F7] font-medium">Nota coach</p>
-                      <p className="text-[9px] text-white">{weekData.resumen.nota}</p>
+                    <div className="space-y-1">
+                      <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Nota Metodológica</p>
+                      <p className="text-[11px] text-evo-text font-semibold leading-relaxed">{weekData.resumen.nota}</p>
                     </div>
                   </div>
                 </div>
@@ -511,25 +500,25 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                   .join('\n\n─────────────────────\n\n')
 
                 return (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-evo-muted">Versión para alumnos — copia y pega en WodBuster</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">Vista Alumno (WodBuster)</p>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(wbText)
                           setWbCopied(true)
                           setTimeout(() => setWbCopied(false), 2000)
                         }}
-                        className={`text-[10px] px-3 py-1.5 rounded-lg border transition-colors ${
+                        className={`text-[10px] px-4 py-1.5 rounded-xl transition-all shadow-sm font-bold uppercase ${
                           wbCopied
-                            ? 'bg-[#2FBE7B]/20 border-[#2FBE7B]/30 text-[#2FBE7B]'
-                            : 'border-white/10 text-evo-muted hover:text-white'
+                            ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                            : 'bg-white border border-black/10 text-evo-text hover:bg-gray-50'
                         }`}
                       >
-                        {wbCopied ? '✓ Copiado' : 'Copiar todo'}
+                        {wbCopied ? '✓ Copiado' : 'Copiar Todo'}
                       </button>
                     </div>
-                    <pre className="w-full bg-[#0D0D0D] border border-white/8 rounded-xl px-4 py-3 text-[10px] text-gray-300 leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto font-sans">
+                    <pre className="w-full bg-gray-50 border border-black/5 rounded-2xl px-5 py-5 text-[11px] text-evo-text font-medium leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto font-sans shadow-inner">
                       {wbText || 'Sin datos WodBuster — regenera la semana para obtener esta versión'}
                     </pre>
                   </div>
@@ -541,26 +530,24 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                   value={rawJson}
                   onChange={(e) => setRawJson(e.target.value)}
                   rows={18}
-                  className="w-full bg-[#0D0D0D] border border-white/8 rounded-xl px-4 py-3 text-[10px] text-gray-300 font-mono focus:outline-none focus:border-[#7B2FBE]/40 leading-relaxed"
+                  className="w-full bg-gray-900 border border-gray-800 rounded-2xl px-5 py-5 text-[10px] text-emerald-400 font-mono focus:outline-none leading-relaxed shadow-2xl"
                   spellCheck={false}
                 />
               )}
 
               {previewTab === 'resumen' && (
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                   {weekData.dias?.map((dia) => {
                     const ALL = [
-                      { key: 'evofuncional', label: 'EvoFuncional', color: '#2F7BBE' },
-                      { key: 'evobasics',    label: 'EvoBasics',    color: '#E07B39' },
-                      { key: 'evofit',       label: 'EvoFit',       color: '#2FBE7B' },
-                      { key: 'evohybrix',    label: 'EvoHybrix',    color: '#BE2F2F' },
-                      { key: 'evofuerza',    label: 'EvoFuerza',    color: '#78350F' },
-                      { key: 'evogimnastica',label: 'EvoGimnástica',color: '#4C1D95' },
+                      { key: 'evofuncional', label: 'Funcional', color: '#2F7BBE' },
+                      { key: 'evobasics',    label: 'Basics',    color: '#E07B39' },
+                      { key: 'evofit',       label: 'Fit',       color: '#2FBE7B' },
+                      { key: 'evohybrix',    label: 'Hybrix',    color: '#BE2F2F' },
                     ]
                     const active = ALL.filter((c) => dia[c.key])
                     return (
-                      <div key={dia.nombre} className="bg-[#1A1A1A] rounded-xl p-3 border border-white/5">
-                        <p className="text-xs font-semibold text-white mb-2">{dia.nombre}</p>
+                      <div key={dia.nombre} className="bg-white rounded-2xl p-4 border border-black/5 shadow-soft">
+                        <p className="text-[11px] font-bold text-evo-text uppercase tracking-widest mb-3 ml-1">{dia.nombre}</p>
                         <div className={`grid gap-2 ${active.length <= 3 ? 'grid-cols-3' : 'grid-cols-3'}`}>
                           {active.map(({ key, label, color }) => (
                             <div key={key} className="relative rounded-lg p-2 group/class" style={{ backgroundColor: `${color}11`, border: `1px solid ${color}33` }}>
@@ -615,15 +602,15 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/5 flex items-center justify-between flex-shrink-0">
-          <button onClick={onClose} className="text-xs text-evo-muted hover:text-white transition-colors">
-            Cerrar
+        <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50 backdrop-blur-md">
+          <button onClick={onClose} className="text-[10px] text-evo-muted font-bold uppercase tracking-widest hover:text-evo-text transition-all">
+            Cancelar
           </button>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             {status === 'previewing' && (
               <button
                 onClick={handleGenerate}
-                className="px-4 py-2 rounded-lg border border-white/10 text-evo-muted hover:text-white text-xs transition-colors"
+                className="px-5 py-2.5 rounded-xl border border-black/10 bg-white text-evo-muted hover:text-evo-text hover:bg-gray-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
               >
                 Regenerar
               </button>
@@ -632,9 +619,9 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
               <button
                 onClick={handleGenerate}
                 disabled={!weekState.mesocycle}
-                className="px-5 py-2 rounded-lg bg-[#7B2FBE] hover:bg-[#9B4FDE] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium transition-colors"
+                className="px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-30 disabled:grayscale text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 active:scale-95"
               >
-                Generar semana
+                Empezar Generación
               </button>
             )}
             {status === 'previewing' && (
@@ -642,15 +629,15 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                 <button
                   onClick={handlePublish}
                   disabled={publishing || published}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#7B2FBE]/40 bg-[#7B2FBE]/10 hover:bg-[#7B2FBE]/20 disabled:opacity-50 text-[#A855F7] text-xs font-medium transition-colors"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-evo-accent/20 bg-evo-accent/5 hover:bg-evo-accent/10 disabled:opacity-50 text-evo-accent text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
                 >
-                  {published ? '✓ Publicada para entrenadores' : publishing ? 'Publicando...' : '↑ Publicar para entrenadores'}
+                  {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}
                 </button>
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#2FBE7B] hover:bg-[#3FDE9B] text-white text-xs font-medium transition-colors"
+                  className="flex items-center gap-2 px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />

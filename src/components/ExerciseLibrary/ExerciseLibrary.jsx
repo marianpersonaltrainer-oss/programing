@@ -15,12 +15,12 @@ export default function ExerciseLibrary({ onClose }) {
   }
 
   const catColors = {
-    todos:         'bg-white/10 text-white',
-    calentamiento: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    landmine:      'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    accesorios:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    kettlebell:    'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    olimpicos:     'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    todos:         'bg-gray-100 text-gray-600 border-gray-200',
+    calentamiento: 'bg-blue-50 text-blue-600 border-blue-100',
+    landmine:      'bg-purple-50 text-purple-600 border-purple-100',
+    accesorios:    'bg-emerald-50 text-emerald-600 border-emerald-100',
+    kettlebell:    'bg-amber-50 text-amber-600 border-amber-100',
+    olimpicos:     'bg-rose-50 text-rose-600 border-rose-100',
   }
 
   // Aplanar ejercicios para búsqueda global
@@ -39,18 +39,18 @@ export default function ExerciseLibrary({ onClose }) {
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl bg-[#111] border border-white/8 rounded-2xl flex flex-col h-[85vh] animate-fade-in shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-4xl bg-white border border-black/5 rounded-3xl flex flex-col h-[85vh] animate-fade-in shadow-2xl overflow-hidden">
         
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+        <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between flex-shrink-0 bg-white">
           <div>
-            <h2 className="text-display text-lg font-bold text-white tracking-tight">Biblioteca de Vídeos EVO</h2>
-            <p className="text-xs text-evo-muted mt-1">Busca ejercicios y accede a los tutoriales oficiales directamente.</p>
+            <h2 className="text-display text-xl font-bold text-evo-text uppercase tracking-tight">Biblioteca de Vídeos EVO</h2>
+            <p className="text-[10px] text-evo-muted font-bold mt-1 uppercase tracking-widest">TUTORIALES OFICIALES · EVOLUTION BOUTIQUE FITNESS</p>
           </div>
           <button 
             onClick={onClose} 
-            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-evo-muted hover:text-white transition-all transform hover:rotate-90"
+            className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-evo-muted hover:text-red-500 transition-all shadow-sm border border-black/5"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -59,10 +59,10 @@ export default function ExerciseLibrary({ onClose }) {
         </div>
 
         {/* Search & Categories */}
-        <div className="px-6 py-4 bg-[#0D0D0D] border-b border-white/5 space-y-4 flex-shrink-0">
+        <div className="px-8 py-5 bg-gray-50/50 border-b border-black/5 space-y-5 flex-shrink-0">
           <div className="relative group">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-evo-muted group-focus-within:text-[#7B2FBE] transition-colors">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-evo-accent transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
             </span>
@@ -70,20 +70,20 @@ export default function ExerciseLibrary({ onClose }) {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Ej: landmine clean, back squat, wall slide..."
-              className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-sm text-white placeholder-evo-muted focus:outline-none focus:border-[#7B2FBE]/50 focus:ring-1 focus:ring-[#7B2FBE]/20 transition-all shadow-inner"
+              placeholder="Buscar por nombre: landmine, back squat, wall slide..."
+              className="w-full bg-white border border-black/10 rounded-2xl pl-14 pr-6 py-4 text-sm text-evo-text placeholder-evo-muted focus:outline-none focus:border-evo-accent focus:ring-4 focus:ring-evo-accent/5 transition-all shadow-soft"
             />
           </div>
 
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap gap-2.5">
             {Object.keys(catLabels).map(cat => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all shadow-sm ${
                   activeCategory === cat
-                    ? 'bg-[#7B2FBE] border-[#7B2FBE] text-white shadow-lg shadow-[#7B2FBE]/20'
-                    : 'bg-white/5 border-white/10 text-evo-muted hover:bg-white/10 hover:border-white/20'
+                    ? 'bg-evo-accent border-evo-accent text-white shadow-purple-500/20 active:scale-95'
+                    : 'bg-white border-black/5 text-evo-muted hover:bg-gray-100 hover:text-evo-text'
                 }`}
               >
                 {catLabels[cat]}
@@ -93,43 +93,43 @@ export default function ExerciseLibrary({ onClose }) {
         </div>
 
         {/* Exercises Grid */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-elegant">
+        <div className="flex-1 overflow-y-auto p-8 scrollbar-elegant">
           {filtered.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center py-20 opacity-40">
-              <span className="text-4xl mb-4">🔍</span>
-              <p className="text-white font-medium">No hay resultados para "{searchTerm}"</p>
-              <p className="text-xs text-evo-muted mt-2">Prueba con otros términos o cambia la categoría.</p>
+              <span className="text-5xl mb-6">🔍</span>
+              <p className="text-evo-text font-bold text-lg uppercase tracking-tight">No hay resultados</p>
+              <p className="text-xs text-evo-muted mt-2 font-medium">Prueba con otros términos o cambia la categoría.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map(ex => (
                 <a 
                   key={ex.name}
                   href={ex.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/8 hover:border-[#7B2FBE]/30 transition-all duration-300 transform hover:-translate-y-1 shadow-sm"
+                  className="group block p-5 rounded-2xl bg-white border border-black/5 hover:border-evo-accent/30 transition-all duration-500 transform hover:-translate-y-1.5 shadow-soft hover:shadow-elevated"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${catColors[ex.category] || 'bg-white/5 text-evo-muted'}`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-widest border shadow-sm ${catColors[ex.category] || 'bg-gray-50 text-evo-muted border-gray-100'}`}>
                       {catLabels[ex.category] || 'General'}
                     </span>
-                    <span className="text-white/20 group-hover:text-[#7B2FBE] transition-colors">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <span className="text-gray-300 group-hover:text-evo-accent transition-colors transform group-hover:translate-x-1 group-hover:-translate-y-1">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                       </svg>
                     </span>
                   </div>
-                  <h3 className="text-sm font-bold text-white mb-4 group-hover:text-[#7B2FBE] transition-colors capitalize">
+                  <h3 className="text-[13px] font-bold text-evo-text mb-5 group-hover:text-evo-accent transition-colors uppercase tracking-tight leading-snug h-8 line-clamp-2">
                     {ex.name}
                   </h3>
-                  <div className="flex items-center gap-2 text-[11px] font-medium text-[#7B2FBE]">
-                    <span className="w-5 h-5 rounded-full bg-[#7B2FBE]/10 flex items-center justify-center">
+                  <div className="flex items-center gap-2.5 text-[10px] font-bold text-evo-accent uppercase tracking-widest">
+                    <span className="w-6 h-6 rounded-lg bg-evo-accent/10 flex items-center justify-center group-hover:bg-evo-accent group-hover:text-white transition-all shadow-sm">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5 3 19 12 5 21 5 3"/>
                       </svg>
                     </span>
-                    Ver Tutorial
+                    Ver Tutorial Master
                   </div>
                 </a>
               ))}
@@ -138,8 +138,8 @@ export default function ExerciseLibrary({ onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/5 bg-[#0D0D0D] text-center flex-shrink-0">
-          <p className="text-[10px] text-white/20 font-medium tracking-tight">E V O L U T I O N   B O U T I Q U E   F I T N E S S</p>
+        <div className="px-8 py-4 border-t border-black/5 bg-gray-50 text-center flex-shrink-0">
+          <p className="text-[10px] text-evo-muted font-bold tracking-widest uppercase">E V O L U T I O N   P R O G R A M I N G   H U B</p>
         </div>
       </div>
     </div>

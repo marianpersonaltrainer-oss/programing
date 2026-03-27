@@ -24,19 +24,19 @@ export default function WeekPanel({
   }
 
   return (
-    <aside className="flex flex-col h-full bg-[#0D0D0D] border-r border-white/5">
+    <aside className="flex flex-col h-full bg-white border-r border-black/5 shadow-sm">
       {/* Header */}
       <div className="px-4 py-4 border-b border-white/5">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-display text-sm font-bold text-white tracking-tight">
-              PROGRAMINGEVO
+            <h1 className="text-display text-sm font-bold text-evo-text tracking-tight uppercase">
+              ProgramingEvo
             </h1>
-            <p className="text-[10px] text-evo-muted mt-0.5">Evolution Boutique Fitness</p>
+            <p className="text-[10px] text-evo-muted font-medium mt-0.5">Evolution Boutique Fitness</p>
           </div>
           <button
             onClick={onReset}
-            className="text-[10px] text-evo-muted hover:text-red-400 transition-colors px-2 py-1 rounded border border-white/5 hover:border-red-500/30"
+            className="text-[10px] text-evo-muted hover:text-red-500 transition-all px-2.5 py-1.5 rounded-lg border border-black/5 hover:border-red-500/20 bg-gray-50 hover:bg-red-50"
             title="Nueva semana"
           >
             Nueva semana
@@ -49,7 +49,7 @@ export default function WeekPanel({
             onClick={() => setShowMesoForm(true)}
             className="w-full text-left group"
           >
-            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#7B2FBE]/10 border border-[#7B2FBE]/20 hover:border-[#7B2FBE]/40 transition-colors">
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-evo-accent/5 border border-evo-accent/10 group-hover:border-evo-accent/30 transition-all shadow-sm">
               <div>
                 <span className="text-[10px] text-[#9B4FDE] font-medium uppercase tracking-wider">
                   {weekState.mesocycle} · S{weekState.week}/{weekState.totalWeeks}
@@ -75,7 +75,7 @@ export default function WeekPanel({
                 setWeekVal(1)
                 setPhaseVal('')
               }}
-              className="w-full bg-[#111] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#7B2FBE]/50"
+              className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-xs text-evo-text focus:outline-none focus:border-evo-accent/50 shadow-sm"
             >
               {MESOCYCLES.map((m) => (
                 <option key={m.value} value={m.value}>
@@ -86,23 +86,23 @@ export default function WeekPanel({
             {/* Week number */}
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="text-[10px] text-evo-muted">Semana</label>
+                <label className="text-[10px] text-evo-muted font-semibold ml-1">Semana</label>
                 <input
                   type="number"
                   min={1}
                   max={selectedMeso?.weeks || 6}
                   value={weekVal}
                   onChange={(e) => setWeekVal(parseInt(e.target.value) || 1)}
-                  className="w-full bg-[#111] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#7B2FBE]/50 mt-0.5"
+                  className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-xs text-evo-text focus:outline-none focus:border-evo-accent/50 mt-1 shadow-sm"
                 />
               </div>
               {mesoVal === 'autocarga' && (
                 <div className="flex-1">
-                  <label className="text-[10px] text-evo-muted">Fase</label>
+                  <label className="text-[10px] text-evo-muted font-semibold ml-1">Fase</label>
                   <select
                     value={phaseVal}
                     onChange={(e) => setPhaseVal(e.target.value)}
-                    className="w-full bg-[#111] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#7B2FBE]/50 mt-0.5"
+                    className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-xs text-evo-text focus:outline-none focus:border-evo-accent/50 mt-1 shadow-sm"
                   >
                     <option value="">—</option>
                     {AUTOCARGA_PHASES.map((p) => (
@@ -114,9 +114,9 @@ export default function WeekPanel({
             </div>
             <button
               onClick={handleApplyMeso}
-              className="w-full py-1.5 rounded-lg bg-[#7B2FBE] hover:bg-[#9B4FDE] text-white text-xs font-medium transition-colors"
+              className="w-full py-2.5 rounded-xl bg-evo-accent hover:bg-evo-accent-hover text-white text-xs font-bold transition-all shadow-lg shadow-purple-500/20 active:scale-95"
             >
-              Aplicar
+              Aplicar Cambios
             </button>
           </div>
         )}
@@ -137,15 +137,15 @@ export default function WeekPanel({
       </div>
 
       {/* Footer stats */}
-      <div className="px-4 py-3 border-t border-white/5">
-        <div className="flex justify-between text-[10px] text-evo-muted">
-          <span>{confirmedCount} sesiones confirmadas</span>
-          <span>{6 - confirmedCount} restantes</span>
+      <div className="px-5 py-4 border-t border-black/5 bg-gray-50/50">
+        <div className="flex justify-between text-[10px] text-evo-muted font-bold tracking-tight">
+          <span>{confirmedCount} SESIONES LISTAS</span>
+          <span>{6 - confirmedCount} PENDIENTES</span>
         </div>
         {/* Progress bar */}
-        <div className="mt-1.5 h-0.5 bg-white/5 rounded-full overflow-hidden">
+        <div className="mt-2.5 h-1.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
           <div
-            className="h-full bg-[#7B2FBE] rounded-full transition-all duration-500"
+            className="h-full bg-evo-accent rounded-full transition-all duration-700 ease-out"
             style={{ width: `${(confirmedCount / 6) * 100}%` }}
           />
         </div>

@@ -12,6 +12,7 @@ import {
 } from '../../hooks/useWeekHistory.js'
 import { publishWeek } from '../../lib/supabase.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
+import { AI_CONFIG } from '../../constants/config.js'
 
 async function extractTextFromFile(file) {
   const ext = file.name.split('.').pop().toLowerCase()
@@ -118,8 +119,8 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 8000,
+          model: AI_CONFIG.model,
+          max_tokens: AI_CONFIG.maxTokens,
           system: SYSTEM_PROMPT_EXCEL,
           messages: [{ role: 'user', content: userMessage }],
         }),
@@ -183,7 +184,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
       // — Parte 2: Jueves, Viernes, Sábado —
       setGenStep('Generando Jueves · Viernes · Sábado...')
       const part2 = await callApi(
-        `${baseContext}\n\nYa tienes programados LUNES, MARTES y MIÉRCOLES. Genera SOLO los días JUEVES, VIERNES y SÁBADO en formato JSON, manteniendo coherencia muscular con los primeros tres días.`
+        `${baseContext}\n\nYA HAS GENERADO LOS PRIMEROS 3 DÍAS:\n${JSON.stringify(part1, null, 2)}\n\nAhora genera SOLO los días JUEVES, VIERNES y SÁBADO en formato JSON, manteniendo una coherencia muscular estricta con los primeros tres días y respetando la distribución semanal de EVO.`
       )
 
       // — Combinar —
@@ -562,8 +563,24 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                         <p className="text-xs font-semibold text-white mb-2">{dia.nombre}</p>
                         <div className={`grid gap-2 ${active.length <= 3 ? 'grid-cols-3' : 'grid-cols-3'}`}>
                           {active.map(({ key, label, color }) => (
-                            <div key={key} className="rounded-lg p-2" style={{ backgroundColor: `${color}11`, border: `1px solid ${color}33` }}>
-                              <p className="text-[9px] font-medium mb-1" style={{ color }}>{label}</p>
+                            <div key={key} className="relative rounded-lg p-2 group/class" style={{ backgroundColor: `${color}11`, border: `1px solid ${color}33` }}>
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-[9px] font-medium" style={{ color }}>{label}</p>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    navigator.clipboard.writeText(dia[key])
+                                    const btn = e.currentTarget
+                                    const oldHtml = btn.innerHTML
+                                    btn.innerHTML = '✓'
+                                    setTimeout(() => btn.innerHTML = oldHtml, 2000)
+                                  }}
+                                  className="opacity-0 group-hover/class:opacity-100 transition-opacity text-[8px] bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded border border-white/10 text-evo-muted hover:text-white"
+                                  title={`Copiar sesión de ${label}`}
+                                >
+                                  Copiar
+                                </button>
+                              </div>
                               <p className="text-[9px] text-evo-muted leading-relaxed line-clamp-4" style={{ whiteSpace: 'pre-line' }}>
                                 {dia[key]?.slice(0, 200) || '—'}
                               </p>

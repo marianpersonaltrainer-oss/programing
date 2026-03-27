@@ -8,6 +8,7 @@ import CoachView from './components/CoachView/CoachView.jsx'
 import CoachReview from './components/CoachReview/CoachReview.jsx'
 import MethodPanel from './components/MethodPanel/MethodPanel.jsx'
 import { COACH_CODE_KEY } from './components/CoachView/CoachView.jsx'
+import ExerciseLibrary from './components/ExerciseLibrary/ExerciseLibrary.jsx'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
 
@@ -39,6 +40,7 @@ export default function App() {
   const [showExcelModal, setShowExcelModal] = useState(false)
   const [showCoachReview, setShowCoachReview] = useState(false)
   const [showMethodPanel, setShowMethodPanel] = useState(false)
+  const [showLibrary, setShowLibrary]         = useState(false)
   const [showCodeConfig, setShowCodeConfig]   = useState(false)
   const [codeValue, setCodeValue]             = useState(() => localStorage.getItem(COACH_CODE_KEY) || 'EVO2025')
   const [codeSaved, setCodeSaved]             = useState(false)
@@ -153,6 +155,15 @@ export default function App() {
             Código coach
           </button>
           <button
+            onClick={() => setShowLibrary(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-evo-muted hover:text-white text-xs font-medium transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            Biblioteca
+          </button>
+          <button
             onClick={() => setShowCoachReview(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7B2FBE]/10 hover:bg-[#7B2FBE]/20 border border-[#7B2FBE]/20 text-[#A855F7] text-xs font-medium transition-colors"
           >
@@ -207,6 +218,11 @@ export default function App() {
       {/* Method Panel */}
       {showMethodPanel && (
         <MethodPanel onClose={() => setShowMethodPanel(false)} />
+      )}
+
+      {/* Exercise Library */}
+      {showLibrary && (
+        <ExerciseLibrary onClose={() => setShowLibrary(false)} />
       )}
     </div>
   )

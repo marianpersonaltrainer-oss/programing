@@ -116,15 +116,12 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
         system: SYSTEM_PROMPT_EXCEL,
         messages: [{ role: 'user', content: userMessage }],
       }
-      console.log('API Request:', { model: body.model, attempt })
+      console.log('API Request (Proxy):', { model: body.model, attempt })
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/anthropic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify(body),
       })

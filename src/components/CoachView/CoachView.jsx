@@ -158,13 +158,10 @@ export default function CoachView() {
     try {
       const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
       const history = [...messages, { role: 'user', content: userMsg }]
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/anthropic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
           model: AI_CONFIG.model,

@@ -1,6 +1,6 @@
 export const AI_CONFIG = {
-  model: 'claude-3-5-sonnet-20240620',
+  model: 'claude-3-sonnet-20240229',
   anthropicVersion: '2023-06-01',
-  maxTokens: 8000,
+  maxTokens: 4000,
   coachMaxTokens: 2048,
 }

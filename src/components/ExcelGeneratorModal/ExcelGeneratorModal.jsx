@@ -110,6 +110,14 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   async function callApi(userMessage, retries = 3) {
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
     for (let attempt = 0; attempt <= retries; attempt++) {
+      const body = {
+        model: AI_CONFIG.model,
+        max_tokens: AI_CONFIG.maxTokens,
+        system: SYSTEM_PROMPT_EXCEL,
+        messages: [{ role: 'user', content: userMessage }],
+      }
+      console.log('API Request:', { model: body.model, attempt })
+
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -118,18 +126,13 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: JSON.stringify({
-          model: AI_CONFIG.model,
-          max_tokens: AI_CONFIG.maxTokens,
-          system: SYSTEM_PROMPT_EXCEL,
-          messages: [{ role: 'user', content: userMessage }],
-        }),
+        body: JSON.stringify(body),
       })
 
       if (response.status === 529 || response.status === 503 || response.status === 429) {
         if (attempt < retries) {
           const wait = (attempt + 1) * 10 // 10s, 20s, 30s
-          setGenStep(`API saturada — reintentando en ${wait}s (intento ${attempt + 2}/${retries + 1})...`)
+          setGenStep(`API saturada — reintentando en ${wait}s...`)
           await new Promise((r) => setTimeout(r, wait * 1000))
           continue
         }
@@ -137,6 +140,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
+        console.error('API Error Response:', err)
         throw new Error(err?.error?.message || `Error ${response.status}`)
       }
 

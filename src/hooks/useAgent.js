@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
 import { buildWeekContextMessage } from '../utils/buildWeekContext.js'
+import { AI_CONFIG } from '../constants/config.js'
 
 export function useAgent(weekState) {
   const [messages, setMessages] = useState([])
@@ -44,8 +45,8 @@ export function useAgent(weekState) {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-3-sonnet-20240229',
-          max_tokens: 4000,
+          model: AI_CONFIG.model,
+          max_tokens: AI_CONFIG.maxTokens,
           system: systemWithContext,
           messages: newMessages,
         }),

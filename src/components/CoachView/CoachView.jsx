@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getActiveWeek, createCoachSession, saveMessage, updateSessionActivity } from '../../lib/supabase.js'
+import { AI_CONFIG } from '../../constants/config.js'
 import { buildCoachPrompt } from '../../constants/systemPromptCoach.js'
 
 const COACH_NAME_KEY    = 'evo_coach_name'
@@ -166,7 +167,7 @@ export default function CoachView() {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-3-sonnet-20240229',
+          model: AI_CONFIG.model,
           max_tokens: 1024,
           system: buildCoachPrompt(weekData),
           messages: history.map((m) => ({ role: m.role, content: m.content })),

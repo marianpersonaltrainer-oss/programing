@@ -151,6 +151,12 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   }
 
   async function handleGenerate() {
+    if (!weekState.mesocycle) {
+      setErrorMsg('Primero selecciona el tipo de Mesociclo y la Semana en el panel de la izquierda (aparece como "Configuración pendiente").')
+      setStatus('error')
+      return
+    }
+
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
     if (!apiKey) {
       setErrorMsg('Falta la API key de Anthropic en el archivo .env')
@@ -619,8 +625,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
             {(status === 'idle' || status === 'error') && (
               <button
                 onClick={handleGenerate}
-                disabled={!weekState.mesocycle}
-                className="px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-30 disabled:grayscale text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 active:scale-95"
+                className="px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 active:scale-95"
               >
                 Empezar Generación
               </button>

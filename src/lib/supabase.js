@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Supabase: Missing environment variables! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env')
+} else {
+  console.log('Supabase: Client initialized with URL:', supabaseUrl.slice(0, 15) + '...')
+}
+
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // ── Semanas publicadas ────────────────────────────────────────────────────────

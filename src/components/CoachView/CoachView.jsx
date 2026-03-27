@@ -32,32 +32,55 @@ export default function CoachView() {
   }, [messages, isTyping])
 
   useEffect(() => {
+    let mounted = true
+    const timeout = setTimeout(() => {
+      if (mounted && step === 'loading') {
+        console.error('CoachView: Init timeout reached (8s)')
+        setError('La conexión está tardando demasiado. Prueba a recargar.')
+        setStep('noweek')
+      }
+    }, 8000)
+
     async function init() {
+      console.log('CoachView: Starting init...')
       try {
         const week = await getActiveWeek()
-        if (!week) { setStep('noweek'); return }
+        if (!mounted) return
+        
+        console.log('CoachView: Active week result:', week ? 'Found' : 'Not found')
+        if (!week) {
+          setStep('noweek')
+          return
+        }
         setWeekData(week.data)
 
-        // Verificar si ya está autenticado (mismo dispositivo)
         const authed = localStorage.getItem(COACH_AUTH_KEY)
-        if (authed !== getCoachCode()) {
+        const currentCode = getCoachCode()
+        console.log('CoachView: Auth check:', { authed, currentCode })
+
+        if (authed !== currentCode) {
           setStep('code')
           return
         }
 
         const savedName = localStorage.getItem(COACH_NAME_KEY)
         if (savedName) {
+          console.log('CoachView: Resuming session for:', savedName)
           setCoachName(savedName)
           await startSession(week, savedName)
         } else {
           setStep('name')
         }
-      } catch {
+      } catch (err) {
+        console.error('CoachView: Init crash:', err)
         setError('Error conectando con la base de datos')
         setStep('noweek')
+      } finally {
+        if (mounted) clearTimeout(timeout)
       }
     }
     init()
+    return () => { mounted = false; clearTimeout(timeout) }
   }, [])
 
   async function handleCodeSubmit(e) {
@@ -81,6 +104,7 @@ export default function CoachView() {
   }
 
   async function startSession(week, name) {
+    console.log('CoachView: Starting session for:', name)
     try {
       // Reusar sesión del mismo día si existe
       const savedSession = localStorage.getItem(COACH_SESSION_KEY)
@@ -88,16 +112,20 @@ export default function CoachView() {
         const { id, date } = JSON.parse(savedSession)
         const today = new Date().toDateString()
         if (date === today) {
+          console.log('CoachView: Reusing session:', id)
           setSessionId(id)
           setStep('chat')
           return
         }
       }
+      console.log('CoachView: Creating new Supabase session...')
       const session = await createCoachSession(week.id, name)
+      console.log('CoachView: Session created:', session.id)
       localStorage.setItem(COACH_SESSION_KEY, JSON.stringify({ id: session.id, date: new Date().toDateString() }))
       setSessionId(session.id)
       setStep('chat')
-    } catch {
+    } catch (e) {
+      console.error('CoachView: StartSession error:', e)
       setError('Error iniciando sesión')
       setStep('noweek')
     }

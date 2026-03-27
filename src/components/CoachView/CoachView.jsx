@@ -154,7 +154,9 @@ export default function CoachView() {
     } finally {
       setIsTyping(false)
     }
-   // ── LOADING ───────────────────────────────────────────────────────────────
+  }
+
+  // ── LOADING ───────────────────────────────────────────────────────────────
   if (step === 'loading') {
     return (
       <div className="h-screen bg-white flex items-center justify-center">

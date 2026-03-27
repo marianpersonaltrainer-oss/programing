@@ -74,10 +74,33 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-evo-bg studio-bg overflow-hidden font-body selection:bg-evo-accent/10">
+      {/* Top Header / Logo Bar */}
+      <header className="h-16 flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-black/5 flex items-center px-6 justify-between z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-evo-accent flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
+            <span className="text-xl font-black italic tracking-tighter">E</span>
+          </div>
+          <div>
+            <h1 className="text-sm font-black text-evo-text uppercase tracking-[0.15em] leading-none">EVOLUTION</h1>
+            <p className="text-[9px] font-bold text-evo-muted uppercase tracking-[0.2em] mt-1">Boutique Fitness Granada</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col items-end mr-2">
+            <span className="text-[10px] font-bold text-evo-text uppercase tracking-wider">Coach Dashboard</span>
+            <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-[0.2em]">Connected</span>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-gray-100 border border-black/5 flex items-center justify-center text-evo-muted">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+        </div>
+      </header>
+
       {/* Main layout: Week panel + Chat */}
       <div className="flex flex-1 min-h-0">
         {/* Week Panel — left sidebar */}
-        <div className="w-64 flex-shrink-0 flex flex-col">
+        <div className="w-72 flex-shrink-0 flex flex-col border-r border-black/5 bg-white/40 backdrop-blur-sm">
           <WeekPanel
             weekState={weekState}
             activeDay={activeDay}
@@ -89,7 +112,7 @@ export default function App() {
         </div>
 
         {/* Agent Chat — main area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 bg-white/20">
           <AgentChat
             messages={messages}
             isGenerating={isGenerating}

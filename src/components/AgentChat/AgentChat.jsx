@@ -4,12 +4,12 @@ import SessionPreview from './SessionPreview.jsx'
 import { DAYS_ES } from '../../constants/evoColors.js'
 
 const QUICK_PROMPTS = [
-  'Lunes · EvoFuncional + EvoBasics',
-  'Martes · EvoFit + EvoBasics',
-  'Miércoles · EvoFuncional',
-  'Jueves · EvoBasics + EvoFit',
-  'Viernes · EvoFuncional + EvoBasics + EvoFit',
-  'Sábado · HYBRIX / sesión especial',
+  'Programar sesión de FUERZA',
+  'Programar sesión de GIMNÁSTICOS',
+  'Programar sesión de HYBRIX',
+  'Programar sesión de EVOPARTNER',
+  'Programar sesión de EVOTEAMS',
+  'Programar sesión de TODOS LOS NIVELES',
 ]
 
 export default function AgentChat({
@@ -102,7 +102,7 @@ export default function AgentChat({
             {/* Quick prompts */}
             <div className="w-full max-w-sm space-y-2">
               <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest mb-3">Accesos rápidos</p>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {QUICK_PROMPTS.map((p) => (
                   <button
                     key={p}

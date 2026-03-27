@@ -36,10 +36,39 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
       </div>
 
       {/* Session content preview */}
-      <div className="px-5 py-4 max-h-72 overflow-y-auto bg-white/50">
-        <pre className="session-content text-[11px] text-evo-text/80 whitespace-pre-wrap font-medium">
-          {content}
-        </pre>
+      <div className="px-5 py-4 max-h-80 overflow-y-auto bg-white/50">
+        <div className="space-y-4">
+          <pre className="session-content text-[11px] text-evo-text/80 whitespace-pre-wrap font-medium">
+            {content}
+          </pre>
+          
+          {/* Video Detection & Rendering */}
+          {(content.match(/https?:\/\/[^\s]+|[a-zA-Z0-9_-]{11}(?=\s|$)/g) || []).map((link, idx) => {
+            const isYoutube = link.includes('youtube.com') || link.includes('youtu.be') || link.length === 11
+            const url = link.length === 11 ? `https://youtube.com/watch?v=${link}` : link
+            
+            return (
+              <a 
+                key={idx}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-evo-accent/[0.03] border border-evo-accent/10 hover:bg-evo-accent/10 hover:border-evo-accent/30 transition-all group w-full shadow-sm"
+              >
+                <div className="w-8 h-8 rounded-xl bg-evo-accent/10 flex items-center justify-center text-evo-accent group-hover:scale-110 transition-transform">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-evo-text uppercase tracking-widest">Vídeo de la técnica</span>
+                  <span className="text-[9px] text-evo-muted font-bold truncate max-w-[200px]">{link}</span>
+                </div>
+                <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-evo-accent"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </div>
+              </a>
+            )
+          })}
+        </div>
       </div>
 
       {/* Confirm controls */}

@@ -106,15 +106,20 @@ export default function App() {
 
       {/* Código coach popover */}
       {showCodeConfig && (
-        <div className="fixed bottom-14 left-4 z-40 bg-[#1A1A1A] border border-white/10 rounded-xl p-4 shadow-xl w-72">
-          <p className="text-xs font-medium text-white mb-1">Código de acceso para entrenadores</p>
-          <p className="text-[10px] text-evo-muted mb-3">Los entrenadores lo introducen al entrar en la vista coach.</p>
+        <div className="fixed bottom-24 left-6 z-40 bg-white border border-black/10 rounded-2xl p-6 shadow-elevated w-80 animate-fade-in">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-5 h-5 rounded-md bg-evo-accent/10 flex items-center justify-center text-evo-accent">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <p className="text-[11px] font-bold text-evo-text uppercase tracking-tight">Acceso Coach</p>
+          </div>
+          <p className="text-[10px] text-evo-muted font-bold mb-4 uppercase tracking-widest leading-relaxed">Configura la contraseña para la vista de entrenadores.</p>
           <div className="flex gap-2">
             <input
               type="text"
               value={codeValue}
               onChange={(e) => { setCodeValue(e.target.value.toUpperCase()); setCodeSaved(false) }}
-              className="flex-1 bg-[#0D0D0D] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono tracking-widest focus:outline-none focus:border-[#7B2FBE]/50"
+              className="flex-1 bg-gray-50 border border-black/5 rounded-xl px-4 py-3 text-sm text-evo-text font-mono tracking-[0.2em] focus:outline-none focus:border-evo-accent/30 shadow-inner"
               placeholder="EVO2025"
             />
             <button
@@ -123,11 +128,11 @@ export default function App() {
                 setCodeSaved(true)
                 setTimeout(() => { setCodeSaved(false); setShowCodeConfig(false) }, 1500)
               }}
-              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                codeSaved ? 'bg-[#2FBE7B]/20 text-[#2FBE7B]' : 'bg-[#7B2FBE] text-white hover:bg-[#9B4FDE]'
+              className={`px-4 py-3 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                codeSaved ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-evo-accent text-white hover:bg-evo-accent-hover shadow-purple-500/10'
               }`}
             >
-              {codeSaved ? '✓' : 'Guardar'}
+              {codeSaved ? '✓' : 'OK'}
             </button>
           </div>
         </div>

@@ -9,6 +9,31 @@ const COACH_AUTH_KEY    = 'evo_coach_auth'
 export const COACH_CODE_KEY = 'programingevo_coach_code'
 const DEFAULT_CODE = 'EVO2025'
 
+/** Misma lógica que systemPromptCoach / Excel: todas las sesiones del JSON publicado. */
+const SESSION_BLOCKS = [
+  { key: 'evofuncional',  label: 'EvoFuncional',  color: '#2F7BBE' },
+  { key: 'evobasics',     label: 'EvoBasics',     color: '#E07B39' },
+  { key: 'evofit',        label: 'EvoFit',        color: '#2FBE7B' },
+  { key: 'evohybrix',     label: 'EvoHybrix',     color: '#BE2F2F' },
+  { key: 'evofuerza',     label: 'EvoFuerza',     color: '#BE2F2F' },
+  { key: 'evogimnastica', label: 'EvoGimnástica', color: '#D93F8E' },
+]
+
+const FEEDBACK_BLOCKS = [
+  { key: 'feedback_funcional',   label: 'Feedback · Funcional' },
+  { key: 'feedback_basics',      label: 'Feedback · Basics' },
+  { key: 'feedback_fit',         label: 'Feedback · Fit' },
+  { key: 'feedback_hybrix',      label: 'Feedback · Hybrix' },
+  { key: 'feedback_fuerza',      label: 'Feedback · Fuerza' },
+  { key: 'feedback_gimnastica',  label: 'Feedback · Gimnástica' },
+]
+
+function sessionText(val) {
+  if (val == null) return ''
+  const s = String(val).trim()
+  return s
+}
+
 export function getCoachCode() {
   try { return localStorage.getItem(COACH_CODE_KEY) || DEFAULT_CODE } catch { return DEFAULT_CODE }
 }
@@ -313,7 +338,7 @@ export default function CoachView() {
 
       {/* Week Preview Overlay */}
       {activeDay === 'show' && (
-        <div className="flex-shrink-0 border-b border-black/5 bg-gray-50/50 max-h-72 overflow-y-auto animate-slide-down relative z-10">
+        <div className="flex-shrink-0 border-b border-black/5 bg-gray-50/50 max-h-[min(55vh,28rem)] min-h-[12rem] overflow-y-auto animate-slide-down relative z-10 overscroll-contain">
           {/* Summary Banner */}
           {weekData?.resumen && (
             <div className="px-6 py-4 border-b border-black/5 bg-indigo-50/30">
@@ -342,22 +367,47 @@ export default function CoachView() {
           </div>
           {/* Day Content */}
           {activeDay && activeDay !== 'show' && (() => {
-            const dia = dias.find((d) => d.nombre === activeDay)
-            if (!dia) return null
-            const clases = [
-              { label: 'Funcional', color: '#2F7BBE', key: 'evofuncional'  },
-              { label: 'Basics',    color: '#E07B39', key: 'evobasics'     },
-              { label: 'Fit',       color: '#2FBE7B', key: 'evofit'        },
-              { label: 'Hybrix',    color: '#BE2F2F', key: 'evohybrix'     },
-            ].filter(({ key }) => dia[key])
+            const dia = dias.find(
+              (d) =>
+                d.nombre === activeDay ||
+                (d.nombre && activeDay && String(d.nombre).trim().toUpperCase() === String(activeDay).trim().toUpperCase()),
+            )
+            if (!dia) {
+              return (
+                <div className="px-6 pb-5">
+                  <p className="text-[11px] text-evo-muted font-medium">No hay datos para este día en la semana publicada.</p>
+                </div>
+              )
+            }
+            const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+            const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+            const wb = sessionText(dia.wodbuster)
+            const hasAny = sessions.length > 0 || feedbacks.length > 0 || wb
             return (
               <div className="px-6 pb-5 space-y-3">
-                {clases.map(({ label, color, key }) => (
+                {sessions.map(({ label, color, key }) => (
                   <div key={key} className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
-                    <pre className="text-[11px] text-gray-500 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                    <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
                   </div>
                 ))}
+                {feedbacks.map(({ label, key }) => (
+                  <div key={key} className="rounded-2xl p-4 bg-indigo-50/40 border border-indigo-100/80 shadow-soft">
+                    <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">{label}</p>
+                    <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                  </div>
+                ))}
+                {!hasAny && (
+                  <p className="text-[11px] text-evo-muted font-medium leading-relaxed">
+                    Este día no tiene bloques de sesión en el JSON publicado. Si acabas de generar la semana, republica desde el programador o revisa que el JSON incluya evofuncional / evobasics / etc. para cada día.
+                  </p>
+                )}
+                {wb && (
+                  <div className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
+                    <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-2">Vista alumno (WodBuster)</p>
+                    <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia.wodbuster}</pre>
+                  </div>
+                )}
               </div>
             )
           })()}

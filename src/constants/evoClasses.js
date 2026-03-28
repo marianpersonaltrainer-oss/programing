@@ -2,7 +2,7 @@
  * Clases de sesión EVO — colores alineados con WodBuster (manual de marca).
  * Único origen para Excel, coach badges, prompts y UI.
  *
- * EvoFuerza y EvoGimnástica: solo deben aparecer en programación cuando las instrucciones lo piden explícitamente.
+ * EvoFuerza, EvoGimnástica y EvoTodos: solo cuando las instrucciones lo piden explícitamente.
  */
 
 export const EVO_SESSION_CLASS_DEFS = [
@@ -48,6 +48,13 @@ export const EVO_SESSION_CLASS_DEFS = [
     color: '#E91E8C',
     excelArgb: 'FFE91E8C',
   },
+  {
+    key: 'evotodos',
+    feedbackKey: 'feedback_evotodos',
+    label: 'EvoTodos',
+    color: '#A729AD',
+    excelArgb: 'FFA729AD',
+  },
 ]
 
 /** Misma forma que usaba `generateExcel.js` (ExcelJS argb AARRGGBB). */
@@ -83,4 +90,5 @@ export const CLASS_BAR_HEX = {
   hybrix: '#F4C430',
   fuerza: '#CC0000',
   gimnastica: '#E91E8C',
+  evotodos: '#A729AD',
 }

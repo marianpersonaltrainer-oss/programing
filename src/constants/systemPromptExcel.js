@@ -51,26 +51,26 @@ EVOFIT: Fuerza funcional MODERADA. Solo mancuernas, kettlebells o barra muy lige
 - Técnica simple que cualquier adulto sin experiencia pueda ejecutar bien desde el día 1
 
 ════════════════════════════════════════
-RELACIÓN ENTRE CLASES — MUY IMPORTANTE
+COHERENCIA ENTRE CLASES DEL MISMO DÍA — MUY IMPORTANTE
 ════════════════════════════════════════
 
-Todas las clases nacen de EvoFuncional y comparten el mismo estímulo muscular del día.
-La diferencia es el ENFOQUE, no el músculo trabajado.
+Por lo general las clases del mismo día trabajan el mismo patrón muscular,
+adaptado al estilo y nivel de cada clase. Ejemplo: si en EvoBasics hay deadlift
+con porcentajes, en EvoFuncional puede haber deadlift con mancuernas. El objetivo
+es que a nivel muscular sean compatibles para los alumnos que combinan clases.
+Puede haber excepciones cuando el objetivo pedagógico lo justifique.
 
-Si EvoFuncional hace pierna dominante rodilla:
-- EvoBasics → también pierna, pero con técnica más accesible y pedagógica
-- EvoFit → también pierna, pero con material ligero y sin técnica compleja
-- EvoHybrix → también pierna, pero en formato metabólico por bloques y en equipo
-- EvoFuerza → también pierna, pero con barra y enfoque de fuerza clásica (heavy, bajo volumen)
-- EvoGimnástica → también pierna, pero desde el trabajo corporal (pistol squat progresión, step up, core)
-
-El estímulo muscular del día es COMPARTIDO entre todas las clases. Lo que cambia es la herramienta y el enfoque.
-
-EVOFUERZA y EVOGIMNÁSTICA — OBLIGATORIO:
-- Solo genera bloques/columnas EvoFuerza y EvoGimnástica si las INSTRUCCIONES o el contexto del programador lo piden EXPLÍCITAMENTE.
+EVOFUERZA, EVOGIMNÁSTICA y EVOTODOS — OBLIGATORIO:
+- Solo genera columnas EvoFuerza, EvoGimnástica o EvoTodos si las INSTRUCCIONES o el contexto del programador lo piden EXPLÍCITAMENTE.
 - Si no se mencionan, NO rellenes esos campos (cadena vacía o ausentes en el JSON según el esquema).
 - EvoFuerza = Functional Bodybuilding: progresión por RIR, trisets A1/A2/A3.
 - EvoGimnástica = habilidades gimnásticas (pull-ups, muscle ups scaled, handstands, progresiones técnicas corporales).
+- EvoTodos = clase social/multinivel, juego/equipo, sin técnica compleja ni OLY.
+
+EVOTODOS — SOLO si las instrucciones lo piden explícitamente:
+- Clase abierta a todos los niveles. Juego, equipo o parejas. Sábados o aforo ampliado (12-14 personas).
+- NO técnica compleja ni halterofilia. Movimientos sencillos, ritmo social, disfrute grupal.
+- Sensación: «Me lo he pasado bien y lo he hecho con mi gente».
 
 EVOHYBRIX: Clase metabólica por bloques. Nace de EvoFuncional con foco en acondicionamiento. El objetivo es SUDAR y pasárselo bien en equipo.
 - Formato: bloques de trabajo con intervalos (EMOM, AMRAP, Every X', trabajo:descanso)
@@ -300,12 +300,14 @@ FORMATO JSON — SOLO JSON
       "evohybrix":     "[OPCIONAL — solo si las instrucciones lo piden — sesión metabólica por bloques, sin FEEDBACK]",
       "evofuerza":     "[OPCIONAL — solo si las instrucciones lo piden — sesión fuerza clásica (barbell heavy, bajo volumen), sin FEEDBACK]",
       "evogimnastica": "[OPCIONAL — solo si las instrucciones lo piden — sesión gimnástica/corporal (progresiones habilidad, anillas, core), sin FEEDBACK]",
+      "evotodos": "[OPCIONAL — solo si las instrucciones lo piden — clase multinivel, juego/equipo/parejas, sin técnica compleja ni halterofilia, sin FEEDBACK]",
       "feedback_funcional":  "Objetivo: ...\nEscalado: ...\nCoaching WOD: ...",
       "feedback_basics":     "Objetivo: ...\nEscalado: ...\nCoaching WOD: ...",
       "feedback_fit":        "Objetivo: ...\nEscalado: ...\nCoaching WOD: ...",
       "feedback_hybrix":     "Objetivo: ...\nDinámica de equipo: ...\nCoaching: ...",
       "feedback_fuerza":     "Objetivo: ...\nEscalado: ...\nCoaching: ...",
       "feedback_gimnastica": "Objetivo: ...\nProgresión habilidad: ...\nCoaching: ...",
+      "feedback_evotodos": "Objetivo: ...\nDinámica de grupo: ...\nCoaching: ...",
       "wodbuster": "Versión limpia para alumnos — SIN calentamiento, SIN técnica, SIN feedback, SIN coaching. Solo lo que el alumno necesita saber: nombre de las clases, el trabajo principal (fuerza/técnica) y el WOD con cargas. Formato ejemplo:\n\n📅 LUNES — S3 FUERZA\n\n💪 EvoFuncional\nBack Squat 5x3 @80-85%\nWOD — Chipper FOR TIME TC12':\n30 Wall Balls @9/6kg\n20 KB Swings @32/24kg\n30 Burpees\n\n🟠 EvoBasics\nBulgarian Split Squat 4x8 @moderado\nWOD — AMRAP 12':\n8 Ring Row\n10 KB Goblet Squat @ligero\n12 Hollow Rock\n\n🟢 EvoFit\nDB Romanian Deadlift 4x10 @medio\nWOD — FOR TIME TC15':\n4 rounds: 12 DB RDL + 10 Push-ups + 200m row\n\n🔴 EvoHybrix\nEMOM 20': 15cal machine / 15 Wall Balls / Rest\nParejas AMRAP 10': 200m run + 10 Burpees + 10 KB Swings"
     }
   ]

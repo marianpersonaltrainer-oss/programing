@@ -704,6 +704,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                       { key: 'evohybrix', label: 'Hybrix', color: '#BE2F2F' },
                       { key: 'evofuerza', label: 'Fuerza', color: '#BE2F2F' },
                       { key: 'evogimnastica', label: 'Gimnástica', color: '#D93F8E' },
+                      { key: 'evotodos', label: 'EvoTodos', color: '#A729AD' },
                     ]
                     const active = ALL.filter((c) => dia[c.key])
                     return (

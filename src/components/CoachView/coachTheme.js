@@ -78,6 +78,7 @@ export const CLASS_BADGE_CLASS = {
   EvoHybrix: 'bg-[#F4C430]/18 text-[#6b5900] border-[#F4C430]/55',
   EvoFuerza: 'bg-[#CC0000]/10 text-[#7f1d1d] border-[#CC0000]/45',
   'EvoGimnástica': 'bg-[#E91E8C]/10 text-[#831843] border-[#E91E8C]/45',
+  EvoTodos: 'bg-[#A729AD]/12 text-[#5a0d5c] border-[#A729AD]/45',
 }
 
 export function classBadgeClass(label) {

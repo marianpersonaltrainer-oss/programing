@@ -1,18 +1,23 @@
 import {
   COACH_GUIDE_INTRO_BLURB,
   COACH_CENTRO_PARAS,
+  COACH_CENTRO_VALUES,
+  COACH_CENTRO_MISSION,
+  COACH_CENTRO_TRANSMIT,
   COACH_CENTRO_EXPECT,
   COACH_CLASS_CARDS,
   COACH_CLASSES_FOOTNOTE,
+  COACH_CLASS_DAY_COHERENCE,
   COACH_MESOCICLO_INTRO,
   COACH_MESOCICLO_ROWS,
   COACH_MESOCICLO_COACH,
   COACH_MESOCICLO_FUERZA_TITLE,
   COACH_MESOCICLO_AUTOCARGA_SUB,
   COACH_MESOCICLO_AUTOCARGA_ROWS,
-  COACH_MESOCICLO_FBB_TITLE,
-  COACH_MESOCICLO_FBB_SUB,
-  COACH_MESOCICLO_FBB_ROWS,
+  COACH_MESOCICLO_MIXTO_TITLE,
+  COACH_MESOCICLO_MIXTO_ROWS,
+  COACH_MESOCICLO_ESPECIALIDADES_TITLE,
+  COACH_MESOCICLO_ESPECIALIDADES_PARAS,
   COACH_PROGRESSION_PRINCIPLE_TITLE,
   COACH_PROGRESSION_PRINCIPLE_LINES,
   COACH_USO_SECTIONS,
@@ -69,10 +74,10 @@ export function CoachGuideScroll({ children, className = '' }) {
 export function CoachGuideCentro() {
   return (
     <CoachGuideScroll>
-      <p className={`text-xs font-bold uppercase tracking-widest mb-4 ${coachText.accent}`}>
+      <h1 className="font-evo-display text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-[0.08em] text-[#6A1F6D] mb-3 leading-tight">
         Guía de referencia · ProgramingEvo · EVO Granada
-      </p>
-      <div className={`${coachUi.prose} ${coachText.muted} pb-4`}>
+      </h1>
+      <div className={`${coachUi.prose} ${coachText.muted} pb-6`}>
         {COACH_GUIDE_INTRO_BLURB.map((p, i) => (
           <p key={i}>{p}</p>
         ))}
@@ -80,13 +85,54 @@ export function CoachGuideCentro() {
       <h2 className={coachUi.h2}>1. El centro — Quiénes somos</h2>
       <div className={`${coachUi.prose} space-y-6`}>
         {COACH_CENTRO_PARAS.map((p, i) => (
-          <p key={i}>{p}</p>
+          <p key={i} className={`text-base ${coachText.primary}`}>
+            {p}
+          </p>
         ))}
-        <div className={`${coachUi.card} space-y-4`}>
-          <p className={`text-sm font-bold uppercase tracking-wide ${coachText.accent}`}>Qué esperamos de cada clase</p>
-          <ul className={`list-disc pl-6 space-y-3 ${coachText.muted}`}>
+
+        <div
+          className={`rounded-2xl border-2 border-[#6A1F6D]/40 px-6 py-6 space-y-4 ${coachBg.cardAlt}`}
+        >
+          <p className={`text-xs font-bold uppercase tracking-widest ${coachText.title}`}>Valores EVO</p>
+          <p className="font-evo-display text-2xl sm:text-3xl font-bold text-[#6A1F6D] leading-snug">
+            {COACH_CENTRO_VALUES}
+          </p>
+        </div>
+
+        <div className={`rounded-2xl border ${coachBorder} ${coachBg.card} px-6 py-5 space-y-2`}>
+          <p className={`text-xs font-bold uppercase tracking-widest ${coachText.title}`}>Misión</p>
+          <p className={`text-lg sm:text-xl font-semibold leading-relaxed ${coachText.primary}`}>
+            {COACH_CENTRO_MISSION}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-2xl px-6 py-5 border-2 border-[#6A1F6D]/25`}
+          style={{ backgroundColor: '#FFFF4C14' }}
+        >
+          <p className={`text-xs font-bold uppercase tracking-widest text-[#6A1F6D] mb-2`}>Lo que buscamos transmitir</p>
+          <p className={`text-base sm:text-lg font-medium leading-relaxed ${coachText.primary}`}>
+            {COACH_CENTRO_TRANSMIT}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-2xl border-2 border-[#A729AD]/35 px-6 py-6 space-y-4 shadow-md ${coachBg.card}`}
+        >
+          <p className="font-evo-display text-lg sm:text-xl font-black uppercase tracking-wide text-[#6A1F6D]">
+            Lo que esperamos de cada clase
+          </p>
+          <ul className={`list-none space-y-4 pl-0`}>
             {COACH_CENTRO_EXPECT.map((t, i) => (
-              <li key={i}>{t}</li>
+              <li
+                key={i}
+                className={`flex gap-3 text-base sm:text-lg font-medium leading-snug ${coachText.primary}`}
+              >
+                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#6A1F6D] text-white flex items-center justify-center text-sm font-black font-evo-display">
+                  {i + 1}
+                </span>
+                <span className="pt-0.5">{t}</span>
+              </li>
             ))}
           </ul>
         </div>
@@ -99,10 +145,16 @@ export function CoachGuideClases() {
   return (
     <CoachGuideScroll>
       <h2 className={coachUi.h2}>2. Las clases — Fichas de referencia</h2>
-      <p className={`${coachUi.prose} ${coachText.muted} mb-8`}>
-        EVO tiene seis perfiles de clase en la guía: cuatro son el núcleo diario; EvoFuerza y EvoGimnástica solo aplican cuando la semana
-        publicada incluye esas columnas. No son versiones escaladas unas de otras — cada una tiene objetivo, público y estructura propios.
+      <p className={`${coachUi.prose} ${coachText.muted} mb-6`}>
+        EVO tiene siete perfiles en la guía: cuatro son el núcleo diario; EvoFuerza, EvoGimnástica y EvoTodos solo aplican cuando la semana
+        publicada o las instrucciones lo indican. No son versiones escaladas unas de otras — cada una tiene objetivo, público y estructura propios.
       </p>
+      <div
+        className={`mb-8 rounded-xl border ${coachBorder} px-5 py-4 ${coachBg.cardAlt}`}
+      >
+        <p className={`text-sm font-bold uppercase tracking-wide text-[#6A1F6D] mb-2`}>Coherencia entre clases del mismo día</p>
+        <p className={`text-base leading-relaxed ${coachText.primary}`}>{COACH_CLASS_DAY_COHERENCE}</p>
+      </div>
       <div className="space-y-8">
         {COACH_CLASS_CARDS.map((c) => {
           const bar = CLASS_BAR_HEX[c.id] || '#6A1F6D'
@@ -146,6 +198,9 @@ export function CoachGuideClases() {
                     {c.scale}
                   </p>
                 )}
+                {c.weekNote && (
+                  <p className={`text-sm ${coachText.muted} border-t ${coachBorder} pt-3`}>{c.weekNote}</p>
+                )}
                 <p className={`text-base italic border-t ${coachBorder} pt-4 ${coachText.accent}`}>{c.feel}</p>
               </div>
             </article>
@@ -174,7 +229,7 @@ export function CoachGuideMesociclos() {
           { key: 'semana', label: 'Semana' },
           { key: 'fase', label: 'Fase' },
           { key: 'intensidad', label: 'Intensidad' },
-          { key: 'notas', label: 'Qué significa' },
+          { key: 'notas', label: 'Qué notas en clase' },
         ]}
         rows={COACH_MESOCICLO_ROWS}
         rowKey={(r) => r.semana}
@@ -191,24 +246,33 @@ export function CoachGuideMesociclos() {
           columns={[
             { key: 'semana', label: 'Semana' },
             { key: 'fase', label: 'Fase' },
-            { key: 'notas', label: 'Enfoque' },
+            { key: 'estimulo', label: 'Estímulo' },
+            { key: 'notas', label: 'Qué notas en clase' },
           ]}
           rows={COACH_MESOCICLO_AUTOCARGA_ROWS}
           rowKey={(r) => r.semana}
         />
       </div>
-      <div className={`${coachUi.card} mt-10 space-y-4`}>
-        <h3 className={`text-base font-extrabold uppercase tracking-wide ${coachText.primary} font-evo-display`}>{COACH_MESOCICLO_FBB_TITLE}</h3>
-        <p className={`text-base ${coachText.muted}`}>{COACH_MESOCICLO_FBB_SUB}</p>
-        <MesoTable
-          columns={[
-            { key: 'semana', label: 'Semana' },
-            { key: 'rir', label: 'RIR' },
-            { key: 'notas', label: 'Notas' },
-          ]}
-          rows={COACH_MESOCICLO_FBB_ROWS}
-          rowKey={(r) => r.semana}
-        />
+      <h3 className={`${coachUi.h3} mt-10`}>{COACH_MESOCICLO_MIXTO_TITLE}</h3>
+      <MesoTable
+        columns={[
+          { key: 'semana', label: 'Semana' },
+          { key: 'fase', label: 'Fase' },
+          { key: 'estimulo', label: 'Estímulo' },
+          { key: 'notas', label: 'Qué notas en clase' },
+        ]}
+        rows={COACH_MESOCICLO_MIXTO_ROWS}
+        rowKey={(r) => r.semana}
+      />
+      <div className={`${coachUi.card} mt-10 space-y-3`}>
+        <h3 className={`text-base font-extrabold uppercase tracking-wide ${coachText.title} font-evo-display`}>
+          {COACH_MESOCICLO_ESPECIALIDADES_TITLE}
+        </h3>
+        {COACH_MESOCICLO_ESPECIALIDADES_PARAS.map((line, i) => (
+          <p key={i} className={`text-base leading-relaxed ${coachText.primary}`}>
+            {line}
+          </p>
+        ))}
       </div>
       <div className={`${coachUi.card} mt-10 space-y-4`}>
         <h3 className={`text-base font-extrabold uppercase tracking-wide ${coachText.primary} font-evo-display`}>{COACH_PROGRESSION_PRINCIPLE_TITLE}</h3>
@@ -230,9 +294,11 @@ export function CoachGuideUsoApp() {
         La app del programador genera el JSON que ves aquí. Tú recibes la semana ya publicada: días, bloques por clase y feedback.
       </p>
       {COACH_USO_SECTIONS.map((sec) => (
-        <section key={sec.h} className={`mb-10 ${coachUi.card}`}>
-          <h3 className="text-base font-bold mb-3 text-[#FFFF4C] font-evo-display uppercase tracking-wide">{sec.h}</h3>
-          <ul className={`text-base space-y-3 leading-relaxed list-disc pl-6 ${coachText.muted}`}>
+        <section key={sec.h} className={`mb-10 ${coachUi.card} overflow-hidden`}>
+          <h3 className="text-lg sm:text-xl font-black mb-4 px-5 py-4 -mx-0 -mt-0 bg-[#1A0D1A] text-white font-evo-display uppercase tracking-wide">
+            {sec.h}
+          </h3>
+          <ul className={`text-base space-y-3 leading-relaxed list-disc pl-6 pr-5 pb-5 ${coachText.muted}`}>
             {sec.lines.map((line, i) => (
               <li key={i} className="whitespace-pre-wrap">
                 {line}

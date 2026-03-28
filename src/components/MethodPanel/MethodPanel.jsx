@@ -10,7 +10,7 @@ EvoFuncional: fuerza + habilidad + WOD intenso
 EvoBasics: técnica y progresión, juego siempre en calentamiento
 EvoFit: fuerza moderada, sin técnica compleja, nadie sale destrozado
 EvoHybrix: metabólica por bloques, equipos/parejas, máquinas + cardio
-(EvoFuerza y EvoGimnástica: solo cuando se especifique en instrucciones)
+(EvoFuerza, EvoGimnástica y EvoTodos: solo cuando se especifique en instrucciones)
 
 REGLAS FIJAS
 - No muscle ups, no deficit HSPU, no rope climb, no pegboard

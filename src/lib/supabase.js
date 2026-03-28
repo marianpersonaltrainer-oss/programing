@@ -123,3 +123,25 @@ export async function getCoachGuideSettings() {
   }
   return data
 }
+
+// ── Feedback de sesión (coaches → coach_session_feedback) ─────────────────────
+
+/**
+ * @param {object} row — columnas de `coach_session_feedback`
+ */
+export async function saveCoachSessionFeedback(row) {
+  const { data, error } = await supabase.from('coach_session_feedback').insert(row).select('id').single()
+
+  if (error) throw error
+  return data
+}
+
+export async function listCoachSessionFeedback() {
+  const { data, error } = await supabase
+    .from('coach_session_feedback')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data || []
+}

@@ -12,8 +12,15 @@ export const COACH_GUIDE_INTRO_BLURB = [
 export const COACH_CENTRO_PARAS = [
   'Evolution Boutique Fitness (EVO) es un centro de entrenamiento funcional boutique en Granada Centro. No somos un gimnasio convencional ni un box de CrossFit al uso. Somos un espacio donde la gente vuelve porque le funciona, porque se siente acompañada y porque cada sesión tiene sentido.',
   'Nuestro público es el adulto activo de 28 a 55 años que quiere entrenar con cabeza, progresar de verdad y sentirse parte de algo. Muchos de nuestros alumnos llevan meses o años con nosotros — eso no es casualidad.',
-  'Los tres valores de EVO: Confianza · Esperanza · Familia',
 ]
+
+export const COACH_CENTRO_VALUES = 'Confianza · Esperanza · Familia'
+
+export const COACH_CENTRO_MISSION =
+  'Acompañar a cada persona a entrenar con método y constancia: sesiones con sentido, progresión real y un ambiente en el que se sienta vista y parte de algo.'
+
+export const COACH_CENTRO_TRANSMIT =
+  'Transmitimos que aquí el entrenamiento tiene cabeza y corazón — sin postureo ni extremos. Confianza en el proceso, esperanza de mejora y familia de sala; cada clase debe sonar y sentirse así.'
 
 export const COACH_CENTRO_EXPECT = [
   'Que el alumno entienda qué está entrenando y por qué.',
@@ -80,6 +87,8 @@ export const COACH_CLASS_CARDS = [
     can: 'Back squat, RDL, press, remos, accesorios de brazo y pierna con mancuernas/barras controladas.',
     cannot: 'Sustituir a EvoFuncional u otras clases si la semana no trae columna EvoFuerza.',
     feel: '«He trabajado musculación con intención; sé cuánto me quedaba en depósito.»',
+    weekNote:
+      'Cuando la semana incluye EvoFuerza, la progresión en sala suele seguir lógica RIR (aprox. S1–S5) y test (S6); el detalle concreto viene siempre en la programación publicada.',
   },
   {
     id: 'gimnastica',
@@ -93,14 +102,28 @@ export const COACH_CLASS_CARDS = [
     cannot: 'Improvisar skills de competición si no vienen en la programación.',
     feel: '«He tocado técnica real; salgo con una progresión clara.»',
   },
+  {
+    id: 'evotodos',
+    title: 'EVOTODOS — Abierta a todos los niveles (solo si está en programación)',
+    audience:
+      'Cuando el programador o las instrucciones lo indican. Clase para aforo ampliado (12–14 personas), suele ser sábado u otros días especiales.',
+    has: 'Juego, equipo o parejas. Ritmo social y disfrute sin perder la identidad EVO.',
+    structure: 'Warm up con juego → Bloques accesibles en equipo/parejas → WOD o circuito guiado → Cierre.',
+    can: 'Movimientos sencillos, cardio ligero, KB/mancuernas básicas, trabajo cooperativo.',
+    cannot: 'Técnica compleja ni halterofilia.',
+    feel: '«Me lo he pasado bien y lo he hecho con mi gente.»',
+  },
 ]
 
 export const COACH_CLASSES_FOOTNOTE =
-  'Clave: las clases NO son versiones escaladas unas de otras. Son sesiones distintas con objetivos distintos. EvoFuncional y EvoBasics nunca repiten el mismo ejercicio principal el mismo día. EvoFuerza y EvoGimnástica solo existen en sala cuando vienen publicadas en esa semana.'
+  'Clave: las clases NO son versiones escaladas unas de otras. Son sesiones distintas con objetivos distintos. EvoFuncional y EvoBasics nunca repiten el mismo ejercicio principal el mismo día. EvoFuerza, EvoGimnástica y EvoTodos solo existen en sala cuando vienen publicadas o indicadas en esa semana.'
+
+/** Coherencia muscular entre clases del mismo día (guía + prompts alineados). */
+export const COACH_CLASS_DAY_COHERENCE =
+  'Por lo general las clases del mismo día trabajan el mismo patrón muscular, adaptado al estilo y nivel de cada clase. Ejemplo: si en EvoBasics hay deadlift con porcentajes, en EvoFuncional puede haber deadlift con mancuernas. El objetivo es que a nivel muscular sean compatibles para los alumnos que combinan clases. Puede haber excepciones cuando el objetivo pedagógico lo justifique.'
 
 export const COACH_MESOCICLO_INTRO = [
-  'Un mesociclo es un bloque de entrenamiento con un objetivo claro que dura varias semanas. En EVO trabajamos con mesociclos de 6 semanas. Cada semana tiene una fase distinta que va aumentando la intensidad de forma progresiva.',
-  'Estructura de un mesociclo de fuerza (ejemplo)',
+  'Un mesociclo es un bloque de entrenamiento con un objetivo claro. En EVO usamos tres duraciones según el tipo: Fuerza 6 semanas, Gimnástico/Autocarga 5 semanas, Mixto 4 semanas. Cada semana tiene una fase que ordena el estímulo y lo que deberías notar en sala.',
 ]
 
 export const COACH_MESOCICLO_ROWS = [
@@ -121,34 +144,81 @@ export const COACH_MESOCICLO_COACH = [
   'La semana de test (S6) es especial: ayuda a los alumnos a registrar sus marcas en la app o en la pizarra.',
 ]
 
-export const COACH_MESOCICLO_FUERZA_TITLE = 'Mesociclo de fuerza (referencia)'
+export const COACH_MESOCICLO_FUERZA_TITLE = 'Mesociclo de Fuerza (6 semanas)'
 
-/** Autocarga / bodyweight — 6 semanas. */
-export const COACH_MESOCICLO_AUTOCARGA_SUB =
-  '6 semanas · Split 70% gimnástico / 30% cargado'
+/** Gimnástico / Autocarga — 5 semanas (alineado con configurador). */
+export const COACH_MESOCICLO_AUTOCARGA_SUB = 'Mesociclo Gimnástico / Autocarga (5 semanas)'
 
 export const COACH_MESOCICLO_AUTOCARGA_ROWS = [
-  { semana: 'S1', fase: 'Base', notas: 'Fundamentos y volumen gimnástico controlado.' },
-  { semana: 'S2', fase: 'Volumen', notas: 'Más repeticiones y tiempo bajo tensión.' },
-  { semana: 'S3', fase: 'Densidad', notas: 'Menos descanso, mismo trabajo; ritmo alto.' },
-  { semana: 'S4', fase: 'Intensidad', notas: 'Progresión hacia esfuerzos más exigentes.' },
-  { semana: 'S5', fase: 'Pico', notas: 'Máxima exigencia del bloque; técnica impecable.' },
-  { semana: 'S6', fase: 'Test', notas: 'Evaluación y referencias personales.' },
+  {
+    semana: 'S1',
+    fase: 'Base',
+    estimulo: 'Introducción técnica',
+    notas: 'Aprender posiciones, sin fatiga, técnica perfecta',
+  },
+  {
+    semana: 'S2',
+    fase: 'Densidad',
+    estimulo: 'Volumen controlado',
+    notas: 'Más series, misma técnica. Empieza a costar',
+  },
+  {
+    semana: 'S3',
+    fase: 'Volumen Mixto',
+    estimulo: 'Gimnástico + carga',
+    notas: 'Combinamos cuerpo libre con algo de peso',
+  },
+  {
+    semana: 'S4',
+    fase: 'Peak',
+    estimulo: 'Máxima complejidad',
+    notas: 'Los movimientos más difíciles del mesociclo',
+  },
+  {
+    semana: 'S5',
+    fase: 'Test',
+    estimulo: 'Evaluación técnica',
+    notas: 'Comprobar progresión. Registrar resultados',
+  },
 ]
 
-/** Functional bodybuilding / EvoFuerza — RIR + trisets. */
-export const COACH_MESOCICLO_FBB_TITLE = 'Mesociclo de Functional Bodybuilding (EvoFuerza)'
+export const COACH_MESOCICLO_MIXTO_TITLE = 'Mesociclo Mixto (4 semanas)'
 
-export const COACH_MESOCICLO_FBB_SUB =
-  'Progresión por RIR (Reps In Reserve). Estructura: trisets A1/A2/A3.'
+export const COACH_MESOCICLO_MIXTO_ROWS = [
+  {
+    semana: 'S1',
+    fase: 'Base',
+    estimulo: 'Fuerza + técnica suave',
+    notas: 'Introducir los dos estímulos sin forzar',
+  },
+  {
+    semana: 'S2',
+    fase: 'Densidad',
+    estimulo: 'Volumen combinado',
+    notas: 'Más carga y más técnica. Empieza a acumularse',
+  },
+  {
+    semana: 'S3',
+    fase: 'Peak',
+    estimulo: 'Intensidad alta',
+    notas: 'Lo más exigente del mesociclo. Vigilar fatiga',
+  },
+  {
+    semana: 'S4',
+    fase: 'Test',
+    estimulo: 'Evaluación global',
+    notas: 'Marcas de fuerza y evaluación técnica gimnástica',
+  },
+]
 
-export const COACH_MESOCICLO_FBB_ROWS = [
-  { semana: 'S1', rir: 'RIR 4', notas: 'Todavía lejos del fallo; perfección de ejecución.' },
-  { semana: 'S2', rir: 'RIR 3', notas: 'Carga sube ligeramente; control total.' },
-  { semana: 'S3', rir: 'RIR 2', notas: 'Series exigentes; últimas reps costosas.' },
-  { semana: 'S4', rir: 'RIR 1', notas: 'Casi al límite; sin perder técnica.' },
-  { semana: 'S5', rir: 'RIR 0', notas: 'Máximo esfuerzo controlado en las series clave.' },
-  { semana: 'S6', rir: 'Test', notas: 'Referencias y ajustes para el siguiente bloque.' },
+export const COACH_MESOCICLO_ESPECIALIDADES_TITLE = 'Especialidades EVO'
+
+export const COACH_MESOCICLO_ESPECIALIDADES_PARAS = [
+  'En cada mesociclo existe una especialidad complementaria:',
+  'Mesociclo de Fuerza → especialidad Gimnástica.',
+  'Mesociclo Gimnástico/Autocarga → especialidad Fuerza.',
+  'Mesociclo Mixto → especialidad de ambas.',
+  'Las especialidades trabajan las debilidades del bloque principal para un desarrollo equilibrado.',
 ]
 
 export const COACH_PROGRESSION_PRINCIPLE_TITLE = 'Principio general de progresión en EVO'
@@ -212,7 +282,7 @@ export const COACH_USO_SECTIONS = [
     lines: [
       'Leer la sesión completa antes de clase — timing, ejercicios, pesos y feedback.',
       'No cambiar lo programado sin consultarlo antes.',
-      'Aplicar el escalado que marca la programación, no el que se te ocurra en el momento.',
+      'Aplica el escalado que marca la programación como punto de partida. Si hay una lesión, falta de movilidad o situación especial, usa tu criterio para adaptar. Si tienes dudas, consúltalo en el chat de Soporte.',
       'Registrar cómo fue la sesión si se te pide — qué funcionó, qué no, qué ajustar.',
       'Si algo no encaja con el grupo que tienes, consultar antes de clase.',
     ],

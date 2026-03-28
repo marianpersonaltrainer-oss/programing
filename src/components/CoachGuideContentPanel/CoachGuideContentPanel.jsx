@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCoachGuideSettings } from '../../lib/supabase.js'
-import { coachAdminUi, coachField, coachText } from '../CoachView/coachTheme.js'
+import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
+import CoachSessionFeedbackAdmin from './CoachSessionFeedbackAdmin.jsx'
 
 function normalizeRows(raw) {
   if (!Array.isArray(raw)) return []
@@ -12,6 +13,7 @@ function normalizeRows(raw) {
 }
 
 export default function CoachGuideContentPanel({ onClose }) {
+  const [adminTab, setAdminTab] = useState('guide')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -135,6 +137,35 @@ export default function CoachGuideContentPanel({ onClose }) {
           </button>
         </div>
 
+        <div className={`flex gap-1 px-6 pt-4 border-b ${coachBorder}`}>
+          <button
+            type="button"
+            onClick={() => setAdminTab('guide')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'guide' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Guía / avisos
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('feedback')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'feedback' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Feedbacks
+          </button>
+        </div>
+
+        {adminTab === 'feedback' ? (
+          <div className="px-6 py-4">
+            <CoachSessionFeedbackAdmin />
+            <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
+              Cerrar
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSave} className={coachAdminUi.form}>
           {loading && <p className={`text-base ${coachText.muted}`}>Cargando desde Supabase…</p>}
           {error && (
@@ -253,6 +284,7 @@ export default function CoachGuideContentPanel({ onClose }) {
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   )

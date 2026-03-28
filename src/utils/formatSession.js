@@ -8,6 +8,7 @@ export function detectClassesInContent(content) {
   if (/evohybrix/i.test(content)) found.push('EvoHybrix')
   if (/evofuerza/i.test(content)) found.push('EvoFuerza')
   if (/evogimn[aá]stica/i.test(content)) found.push('EvoGimnástica')
+  if (/evotodos/i.test(content)) found.push('EvoTodos')
   return found.length > 0 ? found : ['EvoFuncional']
 }
 

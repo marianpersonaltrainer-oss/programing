@@ -9,6 +9,7 @@ import {
 import { AI_CONFIG } from '../../constants/config.js'
 import { COACH_SUPPORT_SYSTEM_PROMPT } from '../../constants/systemPromptCoachSupport.js'
 import CoachWeekProgrammingPanel from './CoachWeekProgrammingPanel.jsx'
+import CoachSessionFeedbackForm from './CoachSessionFeedbackForm.jsx'
 import {
   CoachGuideCentro,
   CoachGuideClases,
@@ -87,6 +88,14 @@ function IconSoporte(props) {
     </svg>
   )
 }
+function IconFeedback(props) {
+  return (
+    <svg className={props.className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+    </svg>
+  )
+}
 
 const NAV_ITEMS = [
   { id: 'semana', label: 'Semana', Icon: IconSemana },
@@ -95,6 +104,7 @@ const NAV_ITEMS = [
   { id: 'mesociclos', label: 'Ciclos', Icon: IconCiclos },
   { id: 'uso', label: 'Uso app', Icon: IconUso },
   { id: 'material', label: 'Material', Icon: IconMaterial },
+  { id: 'feedback', label: 'Feedback', Icon: IconFeedback },
   { id: 'soporte', label: 'Soporte', Icon: IconSoporte },
 ]
 
@@ -149,6 +159,8 @@ export default function CoachView() {
   const [coachName, setCoachName] = useState('')
   const [nameInput, setNameInput] = useState('')
   const [weekData, setWeekData] = useState(null)
+  /** Fila `published_weeks` mínima para feedback (id, mesociclo, semana). */
+  const [activeWeekRow, setActiveWeekRow] = useState(null)
   const [sessionId, setSessionId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -218,6 +230,7 @@ export default function CoachView() {
           return
         }
         setWeekData(week.data)
+        setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
 
         const authed = localStorage.getItem(COACH_AUTH_KEY)
         const expected = getExpectedCoachCode()
@@ -272,6 +285,9 @@ export default function CoachView() {
   }
 
   async function startSession(week, name) {
+    if (week?.id) {
+      setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
+    }
     try {
       const savedSession = localStorage.getItem(COACH_SESSION_KEY)
       if (savedSession) {
@@ -688,6 +704,13 @@ export default function CoachView() {
                 {mainTab === 'mesociclos' && <CoachGuideMesociclos />}
                 {mainTab === 'uso' && <CoachGuideUsoApp />}
                 {mainTab === 'material' && <CoachGuideMaterial guideSettings={guideSettings} />}
+                {mainTab === 'feedback' && (
+                  <CoachSessionFeedbackForm
+                    coachName={coachName}
+                    sessionId={sessionId}
+                    weekRow={activeWeekRow}
+                  />
+                )}
               </main>
             )}
           </div>

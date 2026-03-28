@@ -53,6 +53,14 @@ EVOFIT — Accesible para todos los niveles
 (También llamado EvoTone.) Fuerza con cargas moderadas, sin halterofilia
 técnica compleja. Core, movilidad dinámica y WOD de intensidad media.
 
+──────────────────────────────────────
+EVOTODOS — Solo si las instrucciones lo piden
+──────────────────────────────────────
+Clase abierta a todos los niveles. Juego, equipo o parejas. Pensada para
+sábados o días de aforo ampliado (12-14 personas). Sin técnica compleja ni
+halterofilia. Sensación buscada: «Me lo he pasado bien y lo he hecho con mi gente».
+Si el usuario no pide EvoTodos explícitamente, no la incluyas en la semana.
+
 ════════════════════════════════════════
 SISTEMA DE CARGAS — REGLAS DE USO
 ════════════════════════════════════════
@@ -175,6 +183,13 @@ REGLAS DE PROGRAMACIÓN — PATRONES MUSCULARES
    core anti-rotación.
 5. KB swings, wall balls y push-ups: máximo 2 días/semana.
 6. Variedad de rows: no repetir el mismo tipo dos días seguidos.
+
+COHERENCIA ENTRE CLASES DEL MISMO DÍA:
+Por lo general las clases del mismo día trabajan el mismo patrón muscular,
+adaptado al estilo y nivel de cada clase. Ejemplo: si en EvoBasics hay
+deadlift con porcentajes, en EvoFuncional puede haber deadlift con mancuernas.
+El objetivo es que a nivel muscular sean compatibles para los alumnos que
+combinan clases. Puede haber excepciones cuando el objetivo pedagógico lo justifique.
 
 ════════════════════════════════════════
 FORMATOS DE WOD — ROTACIÓN SEMANAL

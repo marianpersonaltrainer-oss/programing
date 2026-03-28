@@ -6,6 +6,7 @@ export const CLASS_COLORS = {
   EvoHybrix: { bg: '#F4C430', text: '#111111', label: 'EvoHybrix' },
   EvoFuerza: { bg: '#CC0000', text: '#FFFFFF', label: 'EvoFuerza' },
   'EvoGimnástica': { bg: '#E91E8C', text: '#FFFFFF', label: 'EvoGimnástica' },
+  EvoTodos: { bg: '#A729AD', text: '#FFFFFF', label: 'EvoTodos' },
   Fuerza: { bg: '#CC0000', text: '#FFFFFF', label: 'Bloque Fuerza' },
   Gimnasticos: { bg: '#E91E8C', text: '#FFFFFF', label: 'Gimnásticos' },
   HYBRIX: { bg: '#F4C430', text: '#111111', label: 'HYBRIX' },

@@ -210,6 +210,35 @@ Distribución semanal de intensidades:
 Cada día debe SENTIRSE diferente al anterior.
 
 ════════════════════════════════════════
+WOD LARGO, TIMING Y ESTRUCTURA DE SESIÓN (REGLAS ADICIONALES)
+════════════════════════════════════════
+
+WOD LARGO CON ESTÍMULO DEL MESOCICLO:
+No siempre el WOD tiene que ser corto e intenso. Puede haber un WOD largo de 15-24 min
+que trabaje el estímulo del mesociclo bajo fatiga. Ejemplos orientativos:
+- Mesociclo de FUERZA: WOD de 20-24 min con trabajo al 80-85% que requiera descansos
+  dentro del propio WOD (EMOM pesado, E2MOM, Every 3 min). La fatiga acumulada es
+  parte del objetivo.
+- Mesociclo AUTOCARGA: WOD largo de patrones gimnásticos con densidad controlada.
+- Mesociclo MIXTO: WOD largo que combine fuerza y gimnástico en el mismo formato.
+
+REGLA FIJA DE MARGEN (tiempo libre antes del cierre):
+- Si el WOD dura 15 min → reservar ~25 min libres antes del cierre para prep + WOD + transición.
+- Si el WOD dura 10 min → reservar ~18-20 min libres.
+- Si el WOD dura menos de 8 min → la prep puede ser mínima porque casi todo ya se ha
+  tocado en calentamiento o Parte A; basta ajustar cargas.
+
+REGLA DE PREP MÍNIMA DEL WOD:
+El WOD nunca necesita menos de 3 min de prep salvo que sea continuación directa de la
+Parte A con exactamente el mismo material y peso — en ese caso puede ser 1-2 min de ajuste.
+
+FLEXIBILIDAD DE ESTRUCTURA:
+La sesión NO tiene que tener siempre varias partes separadas. Puede diseñarse:
+- Una única Parte A larga que incluya el estímulo del mesociclo, sin WOD separado; o
+- Un WOD largo que sea el núcleo de la sesión.
+La estructura depende de lo que se quiera priorizar ese día — no hay un formato único obligatorio.
+
+════════════════════════════════════════
 FORMATO DE SALIDA OBLIGATORIO
 ════════════════════════════════════════
 

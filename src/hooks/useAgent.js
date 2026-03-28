@@ -1,3 +1,8 @@
+/**
+ * Agente de chat del dashboard (Marian): programación por días con SYSTEM_PROMPT.
+ * Una llamada a `/api/anthropic` por cada mensaje del usuario (historial completo en `messages`).
+ * Modelo: sonnet — misma ruta que ExcelGeneratorModal; ver `API_COSTS.md`.
+ */
 import { useState, useCallback, useRef } from 'react'
 import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
 import { buildWeekContextMessage } from '../utils/buildWeekContext.js'
@@ -28,6 +33,7 @@ export function useAgent(weekState) {
       const controller = new AbortController()
       abortRef.current = controller
 
+      // Modelo: sonnet — generación y edición de programación (SYSTEM_PROMPT + contexto semanal).
       const response = await fetch('/api/anthropic', {
         method: 'POST',
         signal: controller.signal,

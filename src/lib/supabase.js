@@ -103,3 +103,21 @@ export async function getSessionMessages(sessionId) {
   if (error) throw error
   return data || []
 }
+
+/** Overrides de la guía coach (material, contacto). Tabla `coach_guide_settings` — ver supabase/migrations. */
+export async function getCoachGuideSettings() {
+  const { data, error } = await supabase
+    .from('coach_guide_settings')
+    .select('contact_channel, contact_response, material_override')
+    .eq('id', 'default')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      return null
+    }
+    console.warn('getCoachGuideSettings:', error.message)
+    return null
+  }
+  return data
+}

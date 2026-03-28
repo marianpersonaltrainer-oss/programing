@@ -1,3 +1,8 @@
+/**
+ * Prompt antiguo del coach con semana + biblioteca de vídeos embebida.
+ * El chat de soporte en ?coach usa `systemPromptCoachSupport.js` + Haiku.
+ * Se mantiene por si se reutiliza contexto semanal en el futuro.
+ */
 import { EXERCISE_VIDEOS } from './exerciseVideos.js'
 
 const ALL_CLASS_KEYS = [

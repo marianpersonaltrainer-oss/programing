@@ -49,6 +49,24 @@ async function extractTextFromFile(file) {
   throw new Error(`Formato no soportado (.${ext}). Usa .docx, .xlsx o .txt`)
 }
 
+const EDIT_SESSION_FIELDS = [
+  { key: 'evofuncional', label: 'EvoFuncional', color: '#2F7BBE' },
+  { key: 'evobasics', label: 'EvoBasics', color: '#E07B39' },
+  { key: 'evofit', label: 'EvoFit', color: '#2FBE7B' },
+  { key: 'evohybrix', label: 'EvoHybrix', color: '#BE2F2F' },
+  { key: 'evofuerza', label: 'EvoFuerza', color: '#BE2F2F' },
+  { key: 'evogimnastica', label: 'EvoGimnástica', color: '#D93F8E' },
+]
+
+const EDIT_FEEDBACK_FIELDS = [
+  { key: 'feedback_funcional', label: 'Feedback · Funcional' },
+  { key: 'feedback_basics', label: 'Feedback · Basics' },
+  { key: 'feedback_fit', label: 'Feedback · Fit' },
+  { key: 'feedback_hybrix', label: 'Feedback · Hybrix' },
+  { key: 'feedback_fuerza', label: 'Feedback · Fuerza' },
+  { key: 'feedback_gimnastica', label: 'Feedback · Gimnástica' },
+]
+
 export default function ExcelGeneratorModal({ weekState, onClose }) {
   const [context, setContext]           = useState('')
   const [instructions, setInstructions]       = useState('')
@@ -107,6 +125,10 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
     }
   }
 
+  /**
+   * Una llamada API = un POST. Una semana completa usa callApi dos veces (L–Mi y J–Sa).
+   * Modelo: sonnet (`AI_CONFIG.model`), max_tokens: `AI_CONFIG.maxTokens`.
+   */
   async function callApi(userMessage, retries = 3) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
@@ -117,6 +139,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
 
+      // Modelo: sonnet — generación JSON semanal (SYSTEM_PROMPT_EXCEL); núcleo del producto.
       const response = await fetch('/api/anthropic', {
         method: 'POST',
         headers: {
@@ -222,6 +245,31 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
     } finally {
       setPublishing(false)
     }
+  }
+
+  function updateWeekData(updater) {
+    setWeekData((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      setRawJson(JSON.stringify(next, null, 2))
+      return next
+    })
+  }
+
+  function switchPreviewTab(id) {
+    if (previewTab === 'json' && id !== 'json') {
+      try {
+        const parsed = JSON.parse(rawJson)
+        if (!parsed || !Array.isArray(parsed.dias)) throw new Error('Falta el array "dias"')
+        setWeekData(parsed)
+        setRawJson(JSON.stringify(parsed, null, 2))
+      } catch (e) {
+        setErrorMsg(e.message || 'JSON no válido. Corrige la pestaña JSON antes de salir.')
+        return
+      }
+    }
+    setPreviewTab(id)
+    setEditingJson(id === 'json')
+    if (id !== 'json') setErrorMsg('')
   }
 
   async function handleDownload() {
@@ -413,16 +461,18 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
           {status === 'previewing' && weekData && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-black/5">
+                <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-black/5">
                   {[
-                    { id: 'resumen',   label: 'Resumen' },
+                    { id: 'resumen', label: 'Resumen' },
+                    { id: 'editar', label: 'Editar' },
                     { id: 'wodbuster', label: 'WodBuster' },
-                    { id: 'json',      label: 'JSON' },
+                    { id: 'json', label: 'JSON (avanzado)' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
-                      onClick={() => { setPreviewTab(tab.id); setEditingJson(tab.id === 'json') }}
-                      className={`text-[10px] px-4 py-1.5 rounded-lg transition-all font-bold uppercase tracking-tight ${
+                      type="button"
+                      onClick={() => switchPreviewTab(tab.id)}
+                      className={`text-[10px] px-3 py-1.5 rounded-lg transition-all font-bold uppercase tracking-tight ${
                         previewTab === tab.id
                           ? 'bg-white shadow-sm text-evo-accent'
                           : 'text-evo-muted hover:text-evo-text'
@@ -472,10 +522,10 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
               )}
 
               {/* Resumen de semana */}
-              {weekData.resumen && !editingJson && (
+              {weekData.resumen && previewTab === 'resumen' && (
                 <div className="bg-evo-accent/5 border border-evo-accent/10 rounded-2xl p-5 space-y-3 shadow-soft">
                   <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">Resumen de Orientación Semanal</p>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Estímulo</p>
                       <p className="text-[11px] text-evo-text font-semibold">{weekData.resumen.estimulo}</p>
@@ -484,11 +534,126 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                       <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Intensidad · Foco</p>
                       <p className="text-[11px] text-evo-text font-semibold">{weekData.resumen.intensidad} · {weekData.resumen.foco}</p>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 sm:col-span-1">
                       <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Nota Metodológica</p>
                       <p className="text-[11px] text-evo-text font-semibold leading-relaxed">{weekData.resumen.nota}</p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {previewTab === 'editar' && weekData && (
+                <div className="space-y-5 max-h-[min(52vh,480px)] overflow-y-auto pr-1 custom-scrollbar border border-black/5 rounded-2xl p-4 bg-gray-50/30">
+                  <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest leading-relaxed">
+                    Cambia textos aquí; al publicar o descargar se usa esta versión. No hace falta tocar JSON salvo que quieras.
+                  </p>
+
+                  <div className="rounded-2xl border border-evo-accent/20 bg-white p-4 space-y-3 shadow-sm">
+                    <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">Orientación semanal</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
+                        { k: 'estimulo', label: 'Estímulo' },
+                        { k: 'intensidad', label: 'Intensidad' },
+                        { k: 'foco', label: 'Foco' },
+                      ].map(({ k, label }) => (
+                        <label key={k} className="block space-y-1">
+                          <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">{label}</span>
+                          <input
+                            type="text"
+                            value={(weekData.resumen && weekData.resumen[k]) || ''}
+                            onChange={(e) =>
+                              updateWeekData((prev) => ({
+                                ...prev,
+                                resumen: { ...(prev.resumen || {}), [k]: e.target.value },
+                              }))
+                            }
+                            className="w-full text-xs border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <label className="block space-y-1">
+                      <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">Nota metodológica</span>
+                      <textarea
+                        rows={3}
+                        value={(weekData.resumen && weekData.resumen.nota) || ''}
+                        onChange={(e) =>
+                          updateWeekData((prev) => ({
+                            ...prev,
+                            resumen: { ...(prev.resumen || {}), nota: e.target.value },
+                          }))
+                        }
+                        className="w-full text-xs border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
+                      />
+                    </label>
+                  </div>
+
+                  {(weekData.dias || []).map((dia, diaIdx) => (
+                    <div key={dia.nombre || diaIdx} className="rounded-2xl border border-black/8 bg-white p-4 space-y-4 shadow-sm">
+                      <p className="text-[12px] font-bold text-evo-text uppercase tracking-wide border-b border-black/5 pb-2">
+                        {dia.nombre || `Día ${diaIdx + 1}`}
+                      </p>
+
+                      {EDIT_SESSION_FIELDS.map(({ key, label, color }) => (
+                        <label key={key} className="block space-y-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>
+                            {label}
+                          </span>
+                          <textarea
+                            rows={6}
+                            value={dia[key] || ''}
+                            onChange={(e) =>
+                              updateWeekData((prev) => {
+                                const dias = [...(prev.dias || [])]
+                                dias[diaIdx] = { ...dias[diaIdx], [key]: e.target.value }
+                                return { ...prev, dias }
+                              })
+                            }
+                            placeholder={`Texto de la sesión ${label}…`}
+                            className="w-full text-[11px] font-mono border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
+                          />
+                        </label>
+                      ))}
+
+                      <div className="pt-2 border-t border-dashed border-black/10 space-y-3">
+                        <p className="text-[9px] font-bold text-indigo-700 uppercase tracking-widest">Feedbacks (coaching)</p>
+                        {EDIT_FEEDBACK_FIELDS.map(({ key, label }) => (
+                          <label key={key} className="block space-y-1.5">
+                            <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">{label}</span>
+                            <textarea
+                              rows={3}
+                              value={dia[key] || ''}
+                              onChange={(e) =>
+                                updateWeekData((prev) => {
+                                  const dias = [...(prev.dias || [])]
+                                  dias[diaIdx] = { ...dias[diaIdx], [key]: e.target.value }
+                                  return { ...prev, dias }
+                                })
+                              }
+                              placeholder="Objetivo / Escalado / Coaching WOD…"
+                              className="w-full text-[11px] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
+                            />
+                          </label>
+                        ))}
+                      </div>
+
+                      <label className="block space-y-1.5 pt-2 border-t border-black/5">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">WodBuster (vista alumno)</span>
+                        <textarea
+                          rows={5}
+                          value={dia.wodbuster || ''}
+                          onChange={(e) =>
+                            updateWeekData((prev) => {
+                              const dias = [...(prev.dias || [])]
+                              dias[diaIdx] = { ...dias[diaIdx], wodbuster: e.target.value }
+                              return { ...prev, dias }
+                            })
+                          }
+                          className="w-full text-[11px] border border-emerald-100 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-300 leading-relaxed bg-emerald-50/15"
+                        />
+                      </label>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -525,13 +690,18 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
               })()}
 
               {previewTab === 'json' && (
-                <textarea
-                  value={rawJson}
-                  onChange={(e) => setRawJson(e.target.value)}
-                  rows={18}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-2xl px-5 py-5 text-[10px] text-emerald-400 font-mono focus:outline-none leading-relaxed shadow-2xl"
-                  spellCheck={false}
-                />
+                <div className="space-y-2">
+                  <p className="text-[10px] text-amber-800/90 font-bold uppercase tracking-widest bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    Solo para usuarios avanzados. Si algo falla, vuelve a «Editar» o regenera la semana.
+                  </p>
+                  <textarea
+                    value={rawJson}
+                    onChange={(e) => setRawJson(e.target.value)}
+                    rows={16}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-2xl px-5 py-5 text-[10px] text-emerald-400 font-mono focus:outline-none leading-relaxed shadow-2xl"
+                    spellCheck={false}
+                  />
+                </div>
               )}
 
               {previewTab === 'resumen' && (
@@ -539,9 +709,11 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                   {weekData.dias?.map((dia) => {
                     const ALL = [
                       { key: 'evofuncional', label: 'Funcional', color: '#2F7BBE' },
-                      { key: 'evobasics',    label: 'Basics',    color: '#E07B39' },
-                      { key: 'evofit',       label: 'Fit',       color: '#2FBE7B' },
-                      { key: 'evohybrix',    label: 'Hybrix',    color: '#BE2F2F' },
+                      { key: 'evobasics', label: 'Basics', color: '#E07B39' },
+                      { key: 'evofit', label: 'Fit', color: '#2FBE7B' },
+                      { key: 'evohybrix', label: 'Hybrix', color: '#BE2F2F' },
+                      { key: 'evofuerza', label: 'Fuerza', color: '#BE2F2F' },
+                      { key: 'evogimnastica', label: 'Gimnástica', color: '#D93F8E' },
                     ]
                     const active = ALL.filter((c) => dia[c.key])
                     return (

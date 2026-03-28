@@ -1,3 +1,5 @@
+import { FEEDBACK_BLOCKS } from './coachViewConstants.js'
+
 export function sessionText(val) {
   if (val == null) return ''
   const s = String(val).trim()
@@ -27,4 +29,24 @@ export function buildDayQuickSummary(dia, SESSION_BLOCKS) {
   const firstBlock = SESSION_BLOCKS.map(({ key }) => dia[key]).find((v) => sessionText(v))
   const preview = previewText(firstBlock || dia.wodbuster || '', 5, 400)
   return { labels, preview }
+}
+
+/** Una línea para destacar “objetivo del día” en cards de semana. */
+export function dayFocusLine(dia, SESSION_BLOCKS) {
+  if (!dia) return null
+  const { preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
+  if (preview) {
+    const line = preview.split('\n').find((l) => l.trim()) || preview
+    return line.length > 200 ? `${line.slice(0, 197)}…` : line
+  }
+  for (const { key } of FEEDBACK_BLOCKS) {
+    const t = sessionText(dia[key])
+    if (t) {
+      const line = t.split('\n').find((l) => l.trim()) || t
+      return line.length > 200 ? `${line.slice(0, 197)}…` : line
+    }
+  }
+  const wb = sessionText(dia.wodbuster)
+  if (wb) return previewText(wb, 5, 220)
+  return null
 }

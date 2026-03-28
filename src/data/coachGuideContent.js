@@ -97,6 +97,43 @@ export const COACH_MESOCICLO_COACH = [
   'La semana de test (S6) es especial: ayuda a los alumnos a registrar sus marcas en la app o en la pizarra.',
 ]
 
+export const COACH_MESOCICLO_FUERZA_TITLE = 'Mesociclo de fuerza (referencia)'
+
+/** Autocarga / bodyweight — 6 semanas. */
+export const COACH_MESOCICLO_AUTOCARGA_SUB =
+  '6 semanas · Split 70% gimnástico / 30% cargado'
+
+export const COACH_MESOCICLO_AUTOCARGA_ROWS = [
+  { semana: 'S1', fase: 'Base', notas: 'Fundamentos y volumen gimnástico controlado.' },
+  { semana: 'S2', fase: 'Volumen', notas: 'Más repeticiones y tiempo bajo tensión.' },
+  { semana: 'S3', fase: 'Densidad', notas: 'Menos descanso, mismo trabajo; ritmo alto.' },
+  { semana: 'S4', fase: 'Intensidad', notas: 'Progresión hacia esfuerzos más exigentes.' },
+  { semana: 'S5', fase: 'Pico', notas: 'Máxima exigencia del bloque; técnica impecable.' },
+  { semana: 'S6', fase: 'Test', notas: 'Evaluación y referencias personales.' },
+]
+
+/** Functional bodybuilding / EvoFuerza — RIR + trisets. */
+export const COACH_MESOCICLO_FBB_TITLE = 'Mesociclo de Functional Bodybuilding (EvoFuerza)'
+
+export const COACH_MESOCICLO_FBB_SUB =
+  'Progresión por RIR (Reps In Reserve). Estructura: trisets A1/A2/A3.'
+
+export const COACH_MESOCICLO_FBB_ROWS = [
+  { semana: 'S1', rir: 'RIR 4', notas: 'Todavía lejos del fallo; perfección de ejecución.' },
+  { semana: 'S2', rir: 'RIR 3', notas: 'Carga sube ligeramente; control total.' },
+  { semana: 'S3', rir: 'RIR 2', notas: 'Series exigentes; últimas reps costosas.' },
+  { semana: 'S4', rir: 'RIR 1', notas: 'Casi al límite; sin perder técnica.' },
+  { semana: 'S5', rir: 'RIR 0', notas: 'Máximo esfuerzo controlado en las series clave.' },
+  { semana: 'S6', rir: 'Test', notas: 'Referencias y ajustes para el siguiente bloque.' },
+]
+
+export const COACH_PROGRESSION_PRINCIPLE_TITLE = 'Principio general de progresión en EVO'
+
+export const COACH_PROGRESSION_PRINCIPLE_LINES = [
+  'Los alumnos se mueven entre clases cada 5-6 meses: EvoBasics → EvoFit → EvoFuncional.',
+  'La programación de cada clase prepara siempre para el siguiente nivel.',
+]
+
 export const COACH_USO_SECTIONS = [
   {
     h: 'Qué tiene cada sesión',

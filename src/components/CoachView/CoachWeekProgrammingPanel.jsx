@@ -1,25 +1,27 @@
 import { findVideosForPublishedDay } from '../../constants/exerciseVideos.js'
 import { SESSION_BLOCKS, FEEDBACK_BLOCKS } from './coachViewConstants.js'
-import { findDia, sessionText, previewText, buildDayQuickSummary } from './coachViewUtils.js'
+import { findDia, sessionText, previewText, buildDayQuickSummary, dayFocusLine } from './coachViewUtils.js'
+import { coachBg, coachBorder, coachText, coachUi, classBadgeClass } from './coachTheme.js'
+
+const TAB_ACTIVE = 'bg-[#6A1F6D] text-white shadow-lg shadow-purple-900/30'
+const TAB_IDLE = `bg-[#1A1F2E] ${coachText.muted} hover:text-[#E8EAF0] border ${coachBorder}`
 
 function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   if (!videos?.length) {
     return (
-      <div className="rounded-2xl p-4 bg-gray-50/90 border border-black/6">
-        <p className="text-[9px] font-bold text-evo-muted uppercase tracking-widest mb-1">{title}</p>
-        <p className="text-[10px] text-evo-muted leading-relaxed">
+      <div className={`rounded-xl p-5 border ${coachBorder} ${coachBg.card}`}>
+        <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${coachText.accent}`}>{title}</p>
+        <p className={`text-sm ${coachText.muted} leading-relaxed`}>
           {subtitle ||
-            'No hay coincidencias con la biblioteca de ejercicios en este día. Usa el asistente o busca en YouTube el nombre del movimiento.'}
+            'No hay coincidencias con la biblioteca de ejercicios en este día. Usa Soporte o busca en YouTube el nombre del movimiento.'}
         </p>
       </div>
     )
   }
   return (
-    <div className="rounded-2xl p-4 bg-gradient-to-br from-red-50 via-white to-amber-50/30 border border-red-100/70 shadow-sm">
-      <p className="text-[9px] font-bold text-red-900 uppercase tracking-widest mb-1">{title}</p>
-      <p className="text-[10px] text-red-900/65 mb-3 leading-snug">
-        Abre YouTube con una búsqueda ya orientada a técnica. Todo dentro de la app; vuelve con el botón atrás del navegador.
-      </p>
+    <div className={`rounded-xl p-5 border border-red-900/40 bg-gradient-to-br from-[#1a0a0a] to-[#1A1F2E]`}>
+      <p className="text-xs font-bold text-red-300 uppercase tracking-widest mb-2">{title}</p>
+      <p className="text-sm text-red-200/70 mb-4 leading-snug">Abre YouTube con búsqueda orientada a técnica.</p>
       <div className="flex flex-wrap gap-2">
         {videos.map(({ name, url }) => (
           <a
@@ -27,12 +29,12 @@ function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-3 py-2 rounded-xl bg-[#FF0000] text-white hover:bg-[#cc0000] shadow-md shadow-red-500/20 active:scale-[0.97] transition-transform"
+            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide px-3 py-2.5 rounded-xl bg-[#FF0000] text-white hover:bg-[#cc0000] shadow-md active:scale-[0.97] transition-transform"
           >
-            <span className="text-xs leading-none opacity-95" aria-hidden>
+            <span className="text-sm leading-none opacity-95" aria-hidden>
               ▶
             </span>
-            <span className="max-w-[10rem] truncate normal-case">{name}</span>
+            <span className="max-w-[12rem] truncate normal-case">{name}</span>
           </a>
         ))}
       </div>
@@ -40,10 +42,6 @@ function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   )
 }
 
-/**
- * Vista semanal publicada (días, Excel, vídeos, detalle día).
- * onOpenSupport: abre pestaña Soporte; si se pasa texto, rellena el input del chat.
- */
 export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActiveDay, weekTab, setWeekTab, onOpenSupport }) {
   const dias = weekData?.dias || []
 
@@ -54,98 +52,103 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain border-b border-black/5 bg-gray-50/50 relative z-10">
+    <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain border-b ${coachBorder} ${coachBg.app} relative z-10`}>
       {weekData?.resumen && (
-        <div className="px-5 py-4 border-b border-black/5 bg-indigo-50/30">
-          <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5">Orientación Semanal</p>
-          <p className="text-[11px] text-evo-text font-bold leading-tight uppercase tracking-tight">
+        <div className={`px-6 py-6 border-b ${coachBorder} ${coachUi.card} rounded-none border-x-0 border-t-0`}>
+          <p className={`text-xs font-bold ${coachText.accent} uppercase tracking-widest mb-2`}>Orientación semanal</p>
+          <p className="text-base font-bold leading-tight text-[#E8EAF0] uppercase tracking-tight">
             {weekData.resumen.estimulo} · {weekData.resumen.intensidad}
             {weekData.resumen.foco ? ` · ${weekData.resumen.foco}` : ''}
           </p>
-          <p className="text-[10px] text-evo-muted font-medium mt-1 leading-relaxed">{weekData.resumen.nota}</p>
+          <p className={`text-[15px] mt-3 leading-relaxed ${coachText.muted}`}>{weekData.resumen.nota}</p>
         </div>
       )}
 
       {activeDay === 'show' && (
         <>
-          <div className="flex gap-2 px-5 pt-3 pb-2 border-b border-black/5 bg-white/60 overflow-x-auto">
+          <div className={`flex gap-2 px-6 pt-4 pb-3 border-b ${coachBorder} bg-[#0F1117] overflow-x-auto`}>
             <button
               type="button"
               onClick={() => setWeekTab('dias')}
-              className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest transition-all shrink-0 ${
-                weekTab === 'dias' ? 'bg-evo-accent text-white' : 'bg-gray-100 text-evo-muted hover:text-evo-text'
+              className={`text-xs px-4 py-2.5 rounded-xl font-bold uppercase tracking-widest transition-all shrink-0 border ${
+                weekTab === 'dias' ? TAB_ACTIVE : TAB_IDLE
               }`}
             >
-              Por día + resumen
+              Por día
             </button>
             <button
               type="button"
               onClick={() => setWeekTab('excel')}
-              className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest transition-all shrink-0 ${
-                weekTab === 'excel' ? 'bg-evo-accent text-white' : 'bg-gray-100 text-evo-muted hover:text-evo-text'
+              className={`text-xs px-4 py-2.5 rounded-xl font-bold uppercase tracking-widest transition-all shrink-0 border ${
+                weekTab === 'excel' ? TAB_ACTIVE : TAB_IDLE
               }`}
             >
-              Vista completa (tipo Excel)
+              Vista Excel
             </button>
             <button
               type="button"
               onClick={() => setWeekTab('videos')}
-              className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest transition-all shrink-0 ${
-                weekTab === 'videos' ? 'bg-evo-accent text-white' : 'bg-gray-100 text-evo-muted hover:text-evo-text'
+              className={`text-xs px-4 py-2.5 rounded-xl font-bold uppercase tracking-widest transition-all shrink-0 border ${
+                weekTab === 'videos' ? TAB_ACTIVE : TAB_IDLE
               }`}
             >
-              Vídeos por día
+              Vídeos
             </button>
           </div>
 
           {weekTab === 'dias' && (
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">
-                Toca un día: resumen rápido y detalle. Pestaña Soporte para preguntas al asistente.
+            <div className="px-6 py-6 space-y-6">
+              <p className={`text-sm ${coachText.muted} font-bold uppercase tracking-widest`}>
+                Toca un día para el detalle. Soporte para preguntas al asistente.
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-2">
                 {dias.map((dia) => {
                   const { labels, preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
+                  const focus = dayFocusLine(dia, SESSION_BLOCKS)
                   const videoCount = findVideosForPublishedDay(dia).length
                   return (
                     <button
                       key={dia.nombre}
                       type="button"
                       onClick={() => setActiveDay(dia.nombre)}
-                      className="text-left rounded-2xl p-4 bg-white border border-black/8 shadow-sm hover:border-evo-accent/35 hover:shadow-md transition-all active:scale-[0.99]"
+                      className={`text-left rounded-xl p-6 border ${coachBorder} ${coachBg.card} hover:border-[#9B3FA0]/40 hover:shadow-lg hover:shadow-purple-900/10 transition-all active:scale-[0.99] min-h-[200px] flex flex-col`}
                     >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <p className="text-[11px] font-bold text-evo-text uppercase tracking-tight">{dia.nombre}</p>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <p className="text-lg font-black text-[#E8EAF0] uppercase tracking-tight">{dia.nombre}</p>
                         {videoCount > 0 && (
-                          <span className="text-[9px] font-bold uppercase tracking-wide text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-lg shrink-0">
-                            ▶ {videoCount} vídeo{videoCount === 1 ? '' : 's'}
+                          <span className="text-xs font-bold uppercase tracking-wide text-red-200 bg-red-950/60 border border-red-800/50 px-2.5 py-1 rounded-lg shrink-0">
+                            ▶ {videoCount}
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
+                      {focus && (
+                        <div className={`mb-4 rounded-lg border ${coachBorder} bg-[#0F1117] px-4 py-3`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${coachText.accent}`}>Objetivo del día</p>
+                          <p className={`text-[15px] leading-snug ${coachText.primary} line-clamp-4`}>{focus}</p>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 mb-4">
                         {labels.length ? (
                           labels.map((lb) => (
-                            <span
-                              key={lb}
-                              className="text-[9px] px-2 py-0.5 rounded-md bg-gray-100 text-evo-muted font-bold uppercase tracking-wide"
-                            >
+                            <span key={lb} className={`text-[10px] px-2.5 py-1 rounded-lg font-bold uppercase tracking-wide border ${classBadgeClass(lb)}`}>
                               {lb}
                             </span>
                           ))
                         ) : (
-                          <span className="text-[9px] text-amber-700 font-bold uppercase">Sin bloques de sesión en datos</span>
+                          <span className="text-xs text-amber-300 font-bold uppercase">Sin bloques en datos</span>
                         )}
                       </div>
-                      {preview ? (
-                        <pre className="text-[10px] text-gray-500 font-medium whitespace-pre-wrap leading-relaxed line-clamp-6 font-sans">
+                      {preview && preview !== focus ? (
+                        <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed line-clamp-5 font-sans flex-1`}>
                           {preview}
                         </pre>
-                      ) : sessionText(dia.wodbuster) ? (
-                        <pre className="text-[10px] text-emerald-800/80 font-medium whitespace-pre-wrap leading-relaxed line-clamp-5 font-sans">
+                      ) : null}
+                      {!preview && sessionText(dia.wodbuster) ? (
+                        <pre className={`text-sm text-emerald-300/90 font-medium whitespace-pre-wrap leading-relaxed line-clamp-5 font-sans flex-1`}>
                           {previewText(dia.wodbuster, 8, 400)}
                         </pre>
                       ) : null}
-                      <p className="text-[9px] text-evo-accent font-bold uppercase tracking-widest mt-2">Ver detalle →</p>
+                      <p className={`text-xs ${coachText.accent} font-bold uppercase tracking-widest mt-4`}>Ver detalle →</p>
                     </button>
                   )
                 })}
@@ -154,30 +157,30 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
           )}
 
           {weekTab === 'videos' && (
-            <div className="px-5 py-4 space-y-5 pb-6">
-              <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest leading-relaxed">
-                Ejercicios detectados en la programación publicada (biblioteca EVO). Agrupados por día: un toque y abres YouTube con la búsqueda lista.
+            <div className="px-6 py-6 space-y-8 pb-10">
+              <p className={`text-sm ${coachText.muted} font-bold uppercase tracking-widest leading-relaxed`}>
+                Biblioteca EVO por día — un toque abre YouTube.
               </p>
               {dias.map((dia) => {
                 const vids = findVideosForPublishedDay(dia)
                 return (
-                  <div key={dia.nombre} className="space-y-2">
-                    <div className="flex items-center justify-between gap-2 px-0.5">
-                      <p className="text-[11px] font-bold text-evo-text uppercase tracking-widest">{dia.nombre}</p>
+                  <div key={dia.nombre} className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-base font-bold text-[#E8EAF0] uppercase tracking-widest">{dia.nombre}</p>
                       <button
                         type="button"
                         onClick={() => {
                           setWeekTab('dias')
                           setActiveDay(dia.nombre)
                         }}
-                        className="text-[9px] font-bold text-evo-accent uppercase tracking-wide underline decoration-evo-accent/30"
+                        className={`text-xs font-bold ${coachText.accent} uppercase tracking-wide underline decoration-[#9B3FA0]/40`}
                       >
                         Ver texto del día
                       </button>
                     </div>
                     <CoachVideoChips
                       videos={vids}
-                      title={vids.length ? `Vídeos · ${dia.nombre}` : `Sin vídeos detectados · ${dia.nombre}`}
+                      title={vids.length ? `Vídeos · ${dia.nombre}` : `Sin vídeos · ${dia.nombre}`}
                     />
                   </div>
                 )
@@ -186,51 +189,49 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
           )}
 
           {weekTab === 'excel' && (
-            <div className="px-5 py-4 space-y-4 pb-6">
-              <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">
-                Misma información que en el Excel publicado: todas las sesiones por día. Desplázate para leer.
-              </p>
+            <div className="px-6 py-6 space-y-6 pb-10">
+              <p className={`text-sm ${coachText.muted} font-bold uppercase tracking-widest`}>Todas las sesiones por día (como Excel publicado).</p>
               {dias.map((dia) => {
                 const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
                 const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
                 const wb = sessionText(dia.wodbuster)
                 return (
-                  <div key={dia.nombre} className="rounded-2xl border border-black/8 bg-white shadow-sm overflow-hidden">
-                    <div className="px-4 py-2.5 bg-gray-900 text-white flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-widest">{dia.nombre}</span>
+                  <div key={dia.nombre} className={`rounded-xl border ${coachBorder} overflow-hidden ${coachBg.card}`}>
+                    <div className="px-5 py-3 bg-[#6A1F6D] text-white flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold uppercase tracking-widest">{dia.nombre}</span>
                       <button
                         type="button"
                         onClick={() => ask(`Tengo una duda sobre la programación del ${dia.nombre}: `)}
-                        className="text-[9px] font-bold uppercase tracking-widest text-white/90 underline decoration-white/40"
+                        className="text-xs font-bold uppercase tracking-widest text-white/90 underline decoration-white/40"
                       >
-                        Preguntar este día
+                        Preguntar
                       </button>
                     </div>
-                    <div className="p-4 space-y-3">
+                    <div className="p-5 space-y-4">
                       {sessions.map(({ label, color, key }) => (
-                        <div key={key} className="rounded-xl p-3 bg-gray-50/80 border border-black/5">
-                          <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color }}>
+                        <div key={key} className={`rounded-xl p-4 border ${coachBorder} bg-[#161B2A]`}>
+                          <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color }}>
                             {label}
                           </p>
-                          <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                          <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia[key]}</pre>
                         </div>
                       ))}
                       {feedbacks.map(({ label, key }) => (
-                        <div key={key} className="rounded-xl p-3 bg-indigo-50/50 border border-indigo-100/60">
-                          <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-widest mb-1.5">{label}</p>
-                          <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                        <div key={key} className="rounded-xl p-4 border border-indigo-900/50 bg-indigo-950/30">
+                          <p className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-2">{label}</p>
+                          <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia[key]}</pre>
                         </div>
                       ))}
                       {wb && (
-                        <div className="rounded-xl p-3 bg-emerald-50/40 border border-emerald-100">
-                          <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-1.5">WodBuster / alumno</p>
-                          <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia.wodbuster}</pre>
+                        <div className="rounded-xl p-4 border border-emerald-900/50 bg-emerald-950/20">
+                          <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">WodBuster / alumno</p>
+                          <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia.wodbuster}</pre>
                         </div>
                       )}
                       {!sessions.length && !feedbacks.length && !wb && (
-                        <p className="text-[11px] text-evo-muted">Sin contenido para este día.</p>
+                        <p className={`text-sm ${coachText.muted}`}>Sin contenido para este día.</p>
                       )}
-                      <div className="pt-2 border-t border-black/5">
+                      <div className={`pt-4 border-t ${coachBorder}`}>
                         <CoachVideoChips videos={findVideosForPublishedDay(dia)} title={`▶ Vídeos · ${dia.nombre}`} />
                       </div>
                     </div>
@@ -243,30 +244,31 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
       )}
 
       {activeDay !== 'show' && activeDay != null && (
-        <div className="border-t border-black/5">
-          <div className="px-5 py-3 flex flex-wrap items-center gap-2 bg-white/70 sticky top-0 z-[1] border-b border-black/5">
+        <div className={`border-t ${coachBorder}`}>
+          <div className={`px-6 py-4 flex flex-wrap items-center gap-2 sticky top-0 z-[1] border-b ${coachBorder} bg-[#0F1117]/95 backdrop-blur-sm`}>
             <button
               type="button"
               onClick={() => {
                 setActiveDay('show')
                 setWeekTab('dias')
               }}
-              className="text-[10px] font-bold uppercase tracking-widest text-evo-accent border border-evo-accent/30 px-3 py-1.5 rounded-lg hover:bg-evo-accent/5"
+              className={`text-xs font-bold uppercase tracking-widest ${coachText.accent} border border-[#9B3FA0]/40 px-4 py-2 rounded-xl hover:bg-[#6A1F6D]/20`}
             >
               ← Volver a días
             </button>
-            <span className="text-[11px] font-bold text-evo-text uppercase tracking-tight">{activeDay}</span>
+            <span className="text-sm font-bold text-[#E8EAF0] uppercase tracking-tight">{activeDay}</span>
           </div>
           {(() => {
             const dia = findDia(dias, activeDay)
             if (!dia) {
               return (
-                <div className="px-5 py-5">
-                  <p className="text-[11px] text-evo-muted font-medium">No hay datos para este día en la semana publicada.</p>
+                <div className="px-6 py-8">
+                  <p className={`text-sm ${coachText.muted}`}>No hay datos para este día en la semana publicada.</p>
                 </div>
               )
             }
             const { labels, preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
+            const focus = dayFocusLine(dia, SESSION_BLOCKS)
             const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
             const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
             const wb = sessionText(dia.wodbuster)
@@ -275,43 +277,50 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
             const dayVideos = findVideosForPublishedDay(dia)
 
             return (
-              <div className="px-5 pb-6 pt-3 space-y-4">
+              <div className="px-6 pb-10 pt-6 space-y-6">
                 <CoachVideoChips
                   videos={dayVideos}
                   title={`Vídeos del ${dayName}`}
-                  subtitle={`Nada en biblioteca para el ${dayName}. Pregunta en Soporte: «¿cómo es la técnica de…?»`}
+                  subtitle={`Nada en biblioteca para el ${dayName}. Pregunta en Soporte.`}
                 />
 
-                <div className="rounded-2xl p-4 bg-gradient-to-br from-evo-accent/8 to-purple-50/40 border border-evo-accent/15">
-                  <p className="text-[9px] font-bold text-evo-accent uppercase tracking-widest mb-2">Resumen rápido</p>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
+                {focus && (
+                  <div className={`rounded-xl border ${coachBorder} bg-[#1A1F2E] p-6`}>
+                    <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${coachText.accent}`}>Objetivo del día</p>
+                    <p className="text-[16px] font-semibold leading-relaxed text-[#E8EAF0]">{focus}</p>
+                  </div>
+                )}
+
+                <div className={`rounded-xl p-6 border border-[#9B3FA0]/30 bg-[#6A1F6D]/15`}>
+                  <p className={`text-xs font-bold ${coachText.accent} uppercase tracking-widest mb-3`}>Resumen rápido</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
                     {labels.map((lb) => (
-                      <span key={lb} className="text-[9px] px-2 py-0.5 rounded-md bg-white/80 border border-black/5 font-bold text-evo-text uppercase">
+                      <span key={lb} className={`text-[10px] px-2.5 py-1 rounded-lg font-bold uppercase border ${classBadgeClass(lb)}`}>
                         {lb}
                       </span>
                     ))}
                   </div>
                   {preview ? (
-                    <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{preview}</pre>
+                    <pre className={`text-[15px] ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{preview}</pre>
                   ) : (
-                    <p className="text-[11px] text-evo-muted">Sin extracto: baja a la vista detallada o usa los botones para preguntar.</p>
+                    <p className={`text-sm ${coachText.muted}`}>Sin extracto adicional.</p>
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={() =>
                       ask(`Tengo una duda sobre la programación del ${dayName}: ¿puedes orientarme con tiempos y escalado?`)
                     }
-                    className="text-[10px] px-3 py-2 rounded-xl bg-evo-accent text-white font-bold uppercase tracking-widest shadow-sm hover:bg-evo-accent-hover active:scale-[0.98]"
+                    className="text-xs px-5 py-3 rounded-xl bg-[#6A1F6D] text-white font-bold uppercase tracking-widest shadow-lg hover:bg-[#7d2582] active:scale-[0.98]"
                   >
                     Preguntar por {dayName}
                   </button>
                   <button
                     type="button"
                     onClick={() => ask(`Sobre el ${dayName}: ¿qué harías si tengo poco tiempo o falta material en sala?`)}
-                    className="text-[10px] px-3 py-2 rounded-xl bg-white border border-black/10 text-evo-text font-bold uppercase tracking-widest hover:bg-gray-50"
+                    className={`text-xs px-5 py-3 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#9B3FA0]/40`}
                   >
                     Plan B / poco tiempo
                   </button>
@@ -320,46 +329,46 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                     onClick={() =>
                       ask(`En el ${dayName}, ¿cómo escalarías el WOD para nivel principiante manteniendo el estímulo?`)
                     }
-                    className="text-[10px] px-3 py-2 rounded-xl bg-white border border-black/10 text-evo-text font-bold uppercase tracking-widest hover:bg-gray-50"
+                    className={`text-xs px-5 py-3 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#9B3FA0]/40`}
                   >
                     Escalado principiantes
                   </button>
                 </div>
 
-                <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Detalle completo (como en Excel)</p>
-                <div className="space-y-3">
+                <p className={`text-xs ${coachText.muted} font-bold uppercase tracking-widest`}>Detalle completo</p>
+                <div className="space-y-4">
                   {sessions.map(({ label, color, key }) => (
-                    <div key={key} className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>
+                    <div key={key} className={`rounded-xl p-5 border ${coachBorder} ${coachBg.card}`}>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <p className="text-xs font-bold uppercase tracking-widest" style={{ color }}>
                           {label}
                         </p>
                         <button
                           type="button"
                           onClick={() => ask(`Sobre ${dayName} · ${label}: tengo una duda concreta: `)}
-                          className="text-[9px] font-bold text-evo-accent uppercase tracking-wide shrink-0 underline decoration-evo-accent/30"
+                          className={`text-xs font-bold ${coachText.accent} uppercase shrink-0 underline decoration-[#9B3FA0]/40`}
                         >
                           Preguntar esta clase
                         </button>
                       </div>
-                      <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                      <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia[key]}</pre>
                     </div>
                   ))}
                   {feedbacks.map(({ label, key }) => (
-                    <div key={key} className="rounded-2xl p-4 bg-indigo-50/40 border border-indigo-100/80 shadow-soft">
-                      <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">{label}</p>
-                      <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                    <div key={key} className="rounded-xl p-5 border border-indigo-900/50 bg-indigo-950/25">
+                      <p className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-2">{label}</p>
+                      <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia[key]}</pre>
                     </div>
                   ))}
                   {!hasAny && (
-                    <p className="text-[11px] text-evo-muted font-medium leading-relaxed">
-                      Este día no tiene bloques de sesión en los datos publicados. Pide al programador que vuelva a publicar la semana o revisa el JSON.
+                    <p className={`text-sm ${coachText.muted}`}>
+                      Este día no tiene bloques en los datos publicados. Pide al programador que vuelva a publicar.
                     </p>
                   )}
                   {wb && (
-                    <div className="rounded-2xl p-4 bg-emerald-50/30 border border-emerald-100/80 shadow-soft">
-                      <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-2">Vista alumno (WodBuster)</p>
-                      <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia.wodbuster}</pre>
+                    <div className="rounded-xl p-5 border border-emerald-900/50 bg-emerald-950/20">
+                      <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">Vista alumno (WodBuster)</p>
+                      <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia.wodbuster}</pre>
                     </div>
                   )}
                 </div>

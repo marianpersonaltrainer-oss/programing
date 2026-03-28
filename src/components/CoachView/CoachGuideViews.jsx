@@ -325,25 +325,31 @@ export function CoachGuideMaterial({ guideSettings }) {
       <h2 className={coachUi.h2}>5. Material disponible</h2>
       <p className={`text-base ${coachText.muted} mb-8 leading-relaxed`}>{COACH_MATERIAL_INTRO}</p>
       {tableRows.length > 0 ? (
-        <div className={`${coachUi.tableWrap} mb-8`}>
-          <table className="w-full text-left text-base min-w-[280px]">
-            <thead>
-              <tr className={coachUi.tableHead}>
-                <th className="px-4 py-3 font-bold uppercase text-[12px]">Material</th>
-                <th className="px-4 py-3 font-bold uppercase text-[12px]">Cantidad</th>
-                <th className="px-4 py-3 font-bold uppercase text-[12px]">Reglas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((r, i) => (
-                <tr key={i} className={`border-t ${coachBorder} ${i % 2 === 0 ? coachBg.rowA : coachBg.rowB}`}>
-                  <td className={`px-4 py-3 font-bold ${coachText.primary}`}>{r.name || '—'}</td>
-                  <td className={`px-4 py-3 ${coachText.muted}`}>{r.qty || '—'}</td>
-                  <td className={`px-4 py-3 ${coachText.muted}`}>{r.rules || '—'}</td>
+        <div className="mb-8">
+          <h3 className={coachUi.h3}>Tabla del centro (editable en admin)</h3>
+          <p className={`text-sm ${coachText.muted} mb-3`}>
+            Complemento a la referencia completa de abajo. Si aquí solo hay pocas filas, el inventario detallado sigue en «Inventario de referencia».
+          </p>
+          <div className={coachUi.tableWrap}>
+            <table className="w-full text-left text-base min-w-[280px]">
+              <thead>
+                <tr className={coachUi.tableHead}>
+                  <th className="px-4 py-3 font-bold uppercase text-[12px]">Material</th>
+                  <th className="px-4 py-3 font-bold uppercase text-[12px]">Cantidad</th>
+                  <th className="px-4 py-3 font-bold uppercase text-[12px]">Reglas</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tableRows.map((r, i) => (
+                  <tr key={i} className={`border-t ${coachBorder} ${i % 2 === 0 ? coachBg.rowA : coachBg.rowB}`}>
+                    <td className={`px-4 py-3 font-bold ${coachText.primary}`}>{r.name || '—'}</td>
+                    <td className={`px-4 py-3 ${coachText.muted}`}>{r.qty || '—'}</td>
+                    <td className={`px-4 py-3 ${coachText.muted}`}>{r.rules || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
       {override ? (
@@ -352,38 +358,37 @@ export function CoachGuideMaterial({ guideSettings }) {
           <pre className={`text-base whitespace-pre-wrap font-sans leading-relaxed ${coachText.primary}`}>{override}</pre>
         </div>
       ) : null}
-      {!tableRows.length && !override ? (
-        <>
-          <h3 className={coachUi.h3}>Las dos salas</h3>
-          <div className={`${coachUi.tableWrap} mb-8`}>
-            <table className="w-full text-left text-base">
-              <thead>
-                <tr className={coachUi.tableHead}>
-                  <th className="px-4 py-3 font-bold uppercase text-[12px]">Sala</th>
-                  <th className="px-4 py-3 font-bold uppercase text-[12px]">Contenido y prioridad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COACH_MATERIAL_ROOMS.map((r, i) => (
-                  <tr key={r.sala} className={`border-t ${coachBorder} ${i % 2 === 0 ? coachBg.rowA : coachBg.rowB}`}>
-                    <td className={`px-4 py-3 font-bold ${coachText.primary}`}>{r.sala}</td>
-                    <td className={`px-4 py-3 ${coachText.muted}`}>{r.text}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <h3 className={coachUi.h3}>Inventario de material</h3>
-          <div className="space-y-6">
-            {COACH_MATERIAL_ITEMS.map((item) => (
-              <div key={item.name} className={coachUi.card}>
-                <p className="text-sm font-bold uppercase tracking-wide mb-2 text-[#A729AD] font-evo-display">{item.name}</p>
-                <pre className={`text-base whitespace-pre-wrap font-sans leading-relaxed ${coachText.muted}`}>{item.detail}</pre>
-              </div>
+      <h3 className={coachUi.h3}>Las dos salas</h3>
+      <div className={`${coachUi.tableWrap} mb-8`}>
+        <table className="w-full text-left text-base">
+          <thead>
+            <tr className={coachUi.tableHead}>
+              <th className="px-4 py-3 font-bold uppercase text-[12px]">Sala</th>
+              <th className="px-4 py-3 font-bold uppercase text-[12px]">Contenido y prioridad</th>
+            </tr>
+          </thead>
+          <tbody>
+            {COACH_MATERIAL_ROOMS.map((r, i) => (
+              <tr key={r.sala} className={`border-t ${coachBorder} ${i % 2 === 0 ? coachBg.rowA : coachBg.rowB}`}>
+                <td className={`px-4 py-3 font-bold ${coachText.primary}`}>{r.sala}</td>
+                <td className={`px-4 py-3 ${coachText.muted}`}>{r.text}</td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+      <h3 className={coachUi.h3}>Inventario de referencia</h3>
+      <p className={`text-sm ${coachText.muted} mb-4`}>
+        Listado completo desde ProgramingEvo (actualizado con el código de la guía).
+      </p>
+      <div className="space-y-6 pb-4">
+        {COACH_MATERIAL_ITEMS.map((item) => (
+          <div key={item.name} className={coachUi.card}>
+            <p className="text-sm font-bold uppercase tracking-wide mb-2 text-[#A729AD] font-evo-display">{item.name}</p>
+            <pre className={`text-base whitespace-pre-wrap font-sans leading-relaxed ${coachText.muted}`}>{item.detail}</pre>
           </div>
-        </>
-      ) : null}
+        ))}
+      </div>
     </CoachGuideScroll>
   )
 }

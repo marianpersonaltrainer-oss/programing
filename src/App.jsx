@@ -221,7 +221,15 @@ export default function App() {
         />
       )}
 
-      {showExcelModal && <ExcelGeneratorModal weekState={weekState} onClose={() => setShowExcelModal(false)} />}
+      {showExcelModal && (
+        <ExcelGeneratorModal
+          weekState={weekState}
+          onClose={() => setShowExcelModal(false)}
+          onSyncWeekFromHistory={(semana) => {
+            if (weekState.mesocycle) setMesocycle(weekState.mesocycle, semana, weekState.phase)
+          }}
+        />
+      )}
 
       {showCoachReview && <CoachReview onClose={() => setShowCoachReview(false)} />}
 

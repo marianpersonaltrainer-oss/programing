@@ -35,6 +35,8 @@ export function saveWeekToHistory(mesociclo, semana, weekData) {
       wodBasics:    extractWod(dia.evobasics),
       wodFit:       extractWod(dia.evofit),
     })),
+    /** Copia completa del JSON para reabrir en el modal (editar / publicar). */
+    weekDataFull: JSON.parse(JSON.stringify(weekData)),
     savedAt: new Date().toISOString(),
   }
 

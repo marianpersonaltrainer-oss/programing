@@ -57,7 +57,7 @@ const EDIT_FEEDBACK_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ feedbackKey, label })
   label: `Feedback · ${label.replace(/^Evo/, '')}`,
 }))
 
-export default function ExcelGeneratorModal({ weekState, onClose }) {
+export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFromHistory }) {
   const [context, setContext]           = useState('')
   const [instructions, setInstructions]       = useState('')
   const [fileLoading, setFileLoading]         = useState(false)
@@ -262,6 +262,29 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
     if (id !== 'json') setErrorMsg('')
   }
 
+  function openHistoryEntryForEdit(entry) {
+    if (!entry?.weekDataFull || !Array.isArray(entry.weekDataFull.dias)) {
+      setErrorMsg(
+        'Esta entrada del historial no guarda el JSON completo (es anterior a la actualización). Genera la semana de nuevo y descarga Excel una vez para guardar una copia editable.',
+      )
+      setStatus((s) => (s === 'previewing' ? 'previewing' : 'error'))
+      return
+    }
+    setErrorMsg('')
+    const data = JSON.parse(JSON.stringify(entry.weekDataFull))
+    data.semana = entry.semana
+    data.mesociclo = weekState.mesocycle || data.mesociclo
+    setWeekData(data)
+    setRawJson(JSON.stringify(data, null, 2))
+    setEditTitle(data.titulo || entry.titulo || '')
+    setEditSheetName(`S${entry.semana}`)
+    setPublished(false)
+    setPreviewTab('editar')
+    setEditingJson(false)
+    setStatus('previewing')
+    onSyncWeekFromHistory?.(entry.semana)
+  }
+
   async function handleDownload() {
     try {
       setStatus('downloading')
@@ -392,7 +415,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                       <div className="divide-y divide-black/5">
                         {history.map((entry) => (
                           <div key={entry.semana} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50/30 transition-all">
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <p className="text-[10px] font-bold text-evo-text uppercase tracking-tight">Semana {entry.semana} — {entry.titulo || 'Sin título'}</p>
                               {entry.resumen && (
                                 <p className="text-[9px] text-evo-muted font-medium mt-1">
@@ -401,17 +424,32 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                               )}
                               <p className="text-[9px] text-gray-400 mt-1">
                                 {new Date(entry.savedAt).toLocaleDateString()}
+                                {!entry.weekDataFull && (
+                                  <span className="block text-amber-700 font-bold mt-0.5">
+                                    Sin JSON completo — no editable hasta volver a generar y exportar
+                                  </span>
+                                )}
                               </p>
                             </div>
-                            <button
-                              onClick={() => {
-                                deleteWeekFromHistory(weekState.mesocycle, entry.semana)
-                                setHistory(getHistoryForMesocycle(weekState.mesocycle))
-                              }}
-                              className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
-                            >
-                              Eliminar
-                            </button>
+                            <div className="flex flex-col sm:flex-row gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => openHistoryEntryForEdit(entry)}
+                                className="text-[9px] text-evo-accent font-bold uppercase hover:bg-evo-accent/10 px-2 py-1 rounded-lg transition-all border border-evo-accent/20"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  deleteWeekFromHistory(weekState.mesocycle, entry.semana)
+                                  setHistory(getHistoryForMesocycle(weekState.mesocycle))
+                                }}
+                                className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -477,6 +515,45 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                   <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Listo para Exportar</p>
                 </div>
               </div>
+
+              {history.length > 0 && (
+                <details className="rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-2">
+                  <summary className="text-[10px] font-bold uppercase text-amber-950 cursor-pointer select-none">
+                    Historial del mesociclo — cargar otra semana
+                  </summary>
+                  <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-black/5 bg-white divide-y divide-black/5">
+                    {history.map((entry) => (
+                      <div key={`pv-${entry.semana}`} className="px-4 py-2.5 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-evo-text uppercase">S{entry.semana} — {entry.titulo || 'Sin título'}</p>
+                          {!entry.weekDataFull && (
+                            <p className="text-[9px] text-amber-800 font-medium mt-0.5">Sin JSON completo</p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openHistoryEntryForEdit(entry)}
+                            className="text-[9px] text-evo-accent font-bold uppercase hover:bg-evo-accent/10 px-2 py-1 rounded border border-evo-accent/20"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              deleteWeekFromHistory(weekState.mesocycle, entry.semana)
+                              setHistory(getHistoryForMesocycle(weekState.mesocycle))
+                            }}
+                            className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
 
               {/* Campos editables: título y pestaña */}
               <div className="grid grid-cols-3 gap-3">

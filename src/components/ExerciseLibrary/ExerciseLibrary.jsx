@@ -39,7 +39,7 @@ export default function ExerciseLibrary({ onClose }) {
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl bg-white border border-black/5 rounded-3xl flex flex-col h-[85vh] animate-fade-in shadow-2xl overflow-hidden">
         
         {/* Header */}
@@ -71,7 +71,7 @@ export default function ExerciseLibrary({ onClose }) {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por nombre: landmine, back squat, wall slide..."
-              className="w-full bg-white border border-black/10 rounded-2xl pl-14 pr-6 py-4 text-sm text-evo-text placeholder-evo-muted focus:outline-none focus:border-evo-accent focus:ring-4 focus:ring-evo-accent/5 transition-all shadow-soft"
+              className="w-full bg-white border border-black/10 rounded-2xl pl-14 pr-6 py-4 text-sm !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent focus:ring-4 focus:ring-evo-accent/5 transition-all shadow-soft"
             />
           </div>
 

@@ -494,10 +494,10 @@ export default function CoachView() {
           aria-label="Navegación principal"
         >
           <div className={`p-4 border-b ${coachBorder} flex items-center justify-between md:hidden`}>
-            <span className={`text-sm font-bold ${coachText.primary}`}>Menú</span>
+            <span className={`text-sm font-bold ${coachText.onSidebar}`}>Menú</span>
             <button
               type="button"
-              className={`p-2 rounded-lg ${coachBg.sidebarHover} ${coachText.primary}`}
+              className={`p-2 rounded-lg ${coachBg.sidebarHover} ${coachText.onSidebar}`}
               onClick={() => setMobileMenuOpen(false)}
               aria-label="Cerrar"
             >
@@ -532,7 +532,7 @@ export default function CoachView() {
           >
             <button
               type="button"
-              className={`md:hidden p-2.5 rounded-xl ${coachBg.sidebarHover} ${coachText.primary} border border-transparent hover:border-[#6A1F6D]`}
+              className="md:hidden p-2.5 rounded-xl hover:bg-[#A729AD]/10 text-[#1A0A1A] border border-transparent hover:border-[#A729AD]/30"
               onClick={() => setMobileMenuOpen(true)}
               aria-expanded={mobileMenuOpen}
               aria-label="Abrir menú de navegación"
@@ -555,7 +555,7 @@ export default function CoachView() {
           {guideSettings?.active_notice?.trim() ? (
             <div
               role="status"
-              className="flex-shrink-0 px-4 py-3 border-b border-[#FFFF4C]/35 bg-[#FFFF4C]/10 text-[#FFFF4C] text-sm font-semibold text-center font-evo-body leading-snug"
+              className="flex-shrink-0 px-4 py-3 border-b border-amber-300/60 bg-amber-50 text-amber-950 text-sm font-semibold text-center font-evo-body leading-snug"
             >
               {guideSettings.active_notice.trim()}
             </div>
@@ -594,7 +594,7 @@ export default function CoachView() {
                             onClick={() => {
                               if (!supportAtLimit) setInput(q)
                             }}
-                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#A729AD]/40 hover:text-[#F0ECF0] disabled:opacity-40 disabled:pointer-events-none`}
+                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#A729AD]/50 hover:text-[#A729AD] disabled:opacity-40 disabled:pointer-events-none`}
                           >
                             {q}
                           </button>
@@ -632,8 +632,8 @@ export default function CoachView() {
                   )}
 
                   {error && (
-                    <div className="px-4 py-3 bg-red-950/50 border border-red-900/50 rounded-xl text-center">
-                      <p className="text-xs text-red-300 font-bold uppercase tracking-widest">{error}</p>
+                    <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-center">
+                      <p className="text-xs text-red-700 font-bold uppercase tracking-widest">{error}</p>
                     </div>
                   )}
                   <div ref={messagesEndRef} />
@@ -641,7 +641,7 @@ export default function CoachView() {
 
                 <div className={`px-5 py-4 border-t ${coachBorder} ${coachBg.sidebar} flex-shrink-0 safe-area-pb space-y-3`}>
                   {supportAtLimit && (
-                    <p className="text-sm text-amber-200 font-semibold text-center leading-relaxed px-3 bg-amber-950/40 border border-amber-900/50 rounded-xl py-3">
+                    <p className="text-sm text-amber-900 font-semibold text-center leading-relaxed px-3 bg-amber-100 border border-amber-300/80 rounded-xl py-3">
                       {SUPPORT_LIMIT_MESSAGE}
                     </p>
                   )}
@@ -652,7 +652,7 @@ export default function CoachView() {
                       onChange={(e) => setInput(e.target.value)}
                       placeholder={supportAtLimit ? 'Límite diario alcanzado' : 'Escribe tu duda...'}
                       disabled={isTyping || supportAtLimit}
-                      className={`flex-1 rounded-xl px-5 py-3.5 text-base min-w-0 ${coachBg.card} border ${coachBorder} text-[#F0ECF0] placeholder-[#C4A8C4] focus:outline-none focus:border-[#A729AD]/50 disabled:opacity-50`}
+                      className={`flex-1 rounded-xl px-5 py-3.5 text-base min-w-0 ${coachBg.card} border ${coachBorder} !text-[#1A0A1A] placeholder-[#6B5A6B] focus:outline-none focus:border-[#A729AD]/50 disabled:opacity-50`}
                     />
                     <button
                       type="submit"

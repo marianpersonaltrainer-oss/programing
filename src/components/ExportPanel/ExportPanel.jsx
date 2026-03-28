@@ -17,10 +17,10 @@ export default function ExportPanel({ weekState, onEditSession }) {
       <button
         type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className={`w-full px-8 py-4 flex items-center justify-between hover:bg-[#241224] transition-all border-b ${coachBorder}`}
+        className={`w-full px-8 py-4 flex items-center justify-between hover:bg-[#EDE3F2] transition-all border-b ${coachBorder}`}
       >
         <div className="flex items-center gap-4">
-          <span className="font-evo-display text-[11px] font-bold text-[#FFFF4C] uppercase tracking-widest">
+          <span className={`font-evo-display text-[11px] font-bold ${coachText.title} uppercase tracking-widest`}>
             Sesiones Listas
           </span>
           <div className="flex gap-1.5">

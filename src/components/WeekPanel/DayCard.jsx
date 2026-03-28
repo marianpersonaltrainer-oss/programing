@@ -17,8 +17,8 @@ export default function DayCard({ day, session, isActive, onClick, onRemove }) {
       className={`
         relative rounded-2xl cursor-pointer transition-all duration-300 select-none border ${coachBorder}
         ${isActive
-          ? 'ring-2 ring-[#A729AD]/50 bg-[#241224] shadow-lg -translate-y-0.5'
-          : `${coachBg.card} hover:bg-[#241224] shadow-sm hover:shadow-md`
+          ? 'ring-2 ring-[#A729AD]/55 bg-[#F3EAF8] shadow-lg -translate-y-0.5'
+          : `${coachBg.card} hover:bg-[#EDE3F2] shadow-sm hover:shadow-md`
         }
         ${isEmpty ? 'opacity-80 hover:opacity-100' : ''}
       `}
@@ -41,7 +41,7 @@ export default function DayCard({ day, session, isActive, onClick, onRemove }) {
             {isConfirmed && onRemove && (
               <button
                 onClick={(e) => { e.stopPropagation(); onRemove() }}
-                className={`w-5 h-5 flex items-center justify-center rounded-lg ${coachBg.app} hover:bg-red-950/50 ${coachText.muted} hover:text-red-400 transition-all ml-1 border ${coachBorder}`}
+                className={`w-5 h-5 flex items-center justify-center rounded-lg ${coachBg.app} hover:bg-red-100 ${coachText.muted} hover:text-red-600 transition-all ml-1 border ${coachBorder}`}
                 title="Eliminar sesión"
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

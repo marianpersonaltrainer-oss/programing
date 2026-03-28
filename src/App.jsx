@@ -11,7 +11,7 @@ import { COACH_CODE_KEY, getCoachCodeFieldInitialValue } from './constants/coach
 import ExerciseLibrary from './components/ExerciseLibrary/ExerciseLibrary.jsx'
 import EvoLogo from './components/EvoLogo.jsx'
 import CoachGuideContentPanel from './components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'
-import { coachBg, coachBorder, coachText } from './components/CoachView/coachTheme.js'
+import { coachBg, coachBorder, coachNav, coachText } from './components/CoachView/coachTheme.js'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
 
@@ -75,7 +75,7 @@ export default function App() {
     }
   }
 
-  const navBtn = `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[12px] font-semibold border border-transparent transition-colors text-[#D4B8D4] ${coachBg.sidebarHover} hover:text-[#F0ECF0] hover:border-[#6A1F6D]`
+  const navBtn = `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[12px] font-semibold border border-transparent transition-colors ${coachNav.idle} hover:border-white/25`
 
   return (
     <div className={`h-screen flex flex-col ${coachBg.app} ${coachText.primary} overflow-hidden font-evo-body selection:bg-[#A729AD]/30`}>
@@ -83,7 +83,7 @@ export default function App() {
         <div className="flex items-center gap-4 min-w-0">
           <EvoLogo />
           <div className="min-w-0 hidden sm:block">
-            <p className="font-evo-display text-lg sm:text-xl font-bold uppercase tracking-[0.12em] text-[#FFFF4C] leading-tight truncate">
+            <p className={`font-evo-display text-lg sm:text-xl font-bold uppercase tracking-[0.12em] ${coachText.title} leading-tight truncate`}>
               Evolution
             </p>
             <p className={`font-evo-display text-[10px] font-semibold uppercase tracking-[0.2em] ${coachText.muted} truncate`}>
@@ -176,7 +176,7 @@ export default function App() {
       {showCodeConfig && (
         <div className={`fixed bottom-24 left-[300px] z-40 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-elevated w-80 animate-fade-in`}>
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-[11px] font-bold text-[#FFFF4C] uppercase tracking-tight font-evo-display">Acceso Coach</p>
+            <p className={`text-[11px] font-bold ${coachText.accent} uppercase tracking-tight font-evo-display`}>Acceso Coach</p>
           </div>
           <p className={`text-[10px] ${coachText.muted} font-bold mb-4 uppercase tracking-widest leading-relaxed`}>
             Contraseña para la vista ?coach
@@ -189,7 +189,7 @@ export default function App() {
                 setCodeValue(e.target.value.toUpperCase())
                 setCodeSaved(false)
               }}
-              className={`flex-1 ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-3 text-sm ${coachText.primary} font-mono tracking-[0.2em] focus:outline-none focus:border-[#A729AD]/50`}
+              className={`flex-1 ${coachBg.card} border ${coachBorder} rounded-xl px-4 py-3 text-sm !text-[#1A0A1A] font-mono tracking-[0.2em] focus:outline-none focus:border-[#A729AD]/50`}
               placeholder="EVO19"
             />
             <button

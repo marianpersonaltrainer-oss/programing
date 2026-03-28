@@ -33,13 +33,13 @@ export default function EditModal({ day, session, onSave, onClose }) {
       <div className={`w-full max-w-4xl ${coachBg.card} border ${coachBorder} rounded-t-3xl max-h-[85vh] flex flex-col animate-slide-up shadow-2xl overflow-hidden`}>
         <div className={`px-8 py-5 border-b ${coachBorder} flex items-center justify-between flex-shrink-0 ${coachBg.app}`}>
           <div>
-            <h3 className="font-evo-display text-base font-bold text-[#FFFF4C] uppercase tracking-tight">Editar Sesión</h3>
+            <h3 className={`font-evo-display text-base font-bold ${coachText.title} uppercase tracking-tight`}>Editar Sesión</h3>
             <p className={`text-[10px] ${coachText.muted} font-bold mt-1 uppercase tracking-widest`}>Ajustar contenido y clasificación</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={`w-8 h-8 rounded-xl ${coachBg.card} hover:bg-red-950/50 flex items-center justify-center ${coachText.muted} hover:text-red-400 transition-all border ${coachBorder}`}
+            className={`w-8 h-8 rounded-xl ${coachBg.card} hover:bg-red-100 flex items-center justify-center ${coachText.muted} hover:text-red-600 transition-all border ${coachBorder}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -52,7 +52,7 @@ export default function EditModal({ day, session, onSave, onClose }) {
             <select
               value={selectedDay}
               onChange={(e) => setSelectedDay(e.target.value)}
-              className={`${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2 text-xs ${coachText.primary} font-medium focus:outline-none focus:border-[#A729AD]/50`}
+              className={`${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
             >
               <option value="">Seleccionar día...</option>
               {DAYS_ORDER.map((d) => (
@@ -105,7 +105,7 @@ export default function EditModal({ day, session, onSave, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className={`px-6 py-2.5 rounded-xl border ${coachBorder} ${coachBg.app} ${coachText.muted} hover:text-[#F0ECF0] text-[10px] font-bold uppercase tracking-widest transition-all`}
+              className={`px-6 py-2.5 rounded-xl border ${coachBorder} ${coachBg.cardAlt} ${coachText.primary} hover:bg-[#EDE3F2] text-[10px] font-bold uppercase tracking-widest transition-all`}
             >
               Cancelar
             </button>

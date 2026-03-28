@@ -8,21 +8,19 @@ export default {
     extend: {
       colors: {
         evo: {
-          black: '#1A0D1A',
-          sidebar: '#0F060F',
-          card: '#2D1A2D',
-          card2: '#241224',
+          black: '#1A0A1A',
+          sidebar: '#1A0D1A',
+          card: '#FFFFFF',
+          card2: '#F3EAF8',
           border: '#6A1F6D',
           accent: '#A729AD',
           'accent-hover': '#6A1F6D',
           purple: '#6A1F6D',
           yellow: '#FFFF4C',
-          /** Texto sobre fondos claros (modales Excel, biblioteca, etc.) */
-          text: '#1B0F1B',
+          text: '#1A0A1A',
           muted: '#5C4D5C',
-          bg: '#1A0D1A',
-          /** Texto legible sobre fondos oscuros EVO */
-          'on-dark': '#F0ECF0',
+          bg: '#F6E8F9',
+          'on-dark': '#F6E8F9',
           'muted-on-dark': '#C4A8C4',
         },
         clase: {

@@ -15,14 +15,14 @@ export default function MessageBubble({ message, isLast }) {
           max-w-[85%] rounded-2xl px-5 py-3.5 shadow-soft border animate-slide-up
           ${isUser
             ? 'bg-evo-accent border-evo-accent/20 text-white rounded-tr-sm shadow-purple-500/10'
-            : 'bg-white border-black/5 text-evo-text rounded-tl-sm'
+            : 'bg-white border-[#6A1F6D]/20 text-[#1A0A1A] rounded-tl-sm'
           }
         `}
       >
         {isUser ? (
           <p className="text-sm font-medium leading-relaxed">{message.content}</p>
         ) : (
-          <div className="session-content text-[12px] leading-relaxed text-evo-text/90 font-medium">
+          <div className="session-content text-[12px] leading-relaxed text-[#1A0A1A]/95 font-medium">
             {message.content}
           </div>
         )}

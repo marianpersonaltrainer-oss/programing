@@ -4,6 +4,9 @@ import SessionPreview from './SessionPreview.jsx'
 import { DAYS_ES } from '../../constants/evoColors.js'
 import { coachBg, coachBorder, coachText } from '../CoachView/coachTheme.js'
 
+const sidebarHint = coachText.mutedOnSidebar
+const sidebarEmphasis = coachText.onSidebar
+
 const QUICK_PROMPTS = [
   'Programar sesión de FUERZA',
   'Programar sesión de GIMNÁSTICOS',
@@ -63,7 +66,7 @@ export default function AgentChat({
     <div className={`flex flex-col h-full min-h-0 ${coachBg.app}`}>
       <div className={`px-6 py-4 border-b ${coachBorder} ${coachBg.app} flex items-center justify-between flex-shrink-0`}>
         <div>
-          <h2 className="font-evo-display text-sm font-bold text-[#FFFF4C] uppercase tracking-tight">
+          <h2 className={`font-evo-display text-sm font-bold ${coachText.title} uppercase tracking-tight`}>
             Asistente EVO
           </h2>
           <p className={`text-[10px] ${coachText.muted} font-medium mt-0.5 uppercase tracking-widest`}>
@@ -76,7 +79,7 @@ export default function AgentChat({
         {messages.length > 0 && (
           <button
             onClick={onClearMessages}
-            className={`text-[10px] ${coachText.muted} hover:text-red-400 font-bold uppercase transition-all`}
+            className={`text-[10px] ${coachText.muted} hover:text-red-600 font-bold uppercase transition-all`}
           >
             Limpiar Chat
           </button>
@@ -87,7 +90,7 @@ export default function AgentChat({
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center py-12 animate-fade-in">
             <div className={`w-16 h-16 rounded-2xl ${coachBg.card} flex items-center justify-center mb-6 border ${coachBorder}`}>
-              <span className="font-evo-display text-2xl font-black text-[#FFFF4C]">E</span>
+              <span className={`font-evo-display text-2xl font-black ${coachText.accent}`}>E</span>
             </div>
             <h3 className={`font-evo-display text-base font-bold ${coachText.primary} mb-2`}>
               ¿Qué programamos hoy?
@@ -136,7 +139,7 @@ export default function AgentChat({
                     <textarea
                       value={editingContent}
                       onChange={(e) => setEditingContent(e.target.value)}
-                      className={`w-full ${coachBg.app} px-5 py-4 text-[11px] font-mono ${coachText.primary} focus:outline-none min-h-[350px] leading-relaxed`}
+                      className={`w-full ${coachBg.card} px-5 py-4 text-[11px] font-mono !text-[#1A0A1A] focus:outline-none min-h-[350px] leading-relaxed border-0`}
                       spellCheck={false}
                     />
                     <div className={`px-5 py-4 ${coachBg.app} border-t ${coachBorder}`}>
@@ -172,7 +175,7 @@ export default function AgentChat({
             <button
               type="button"
               onClick={onStopGeneration}
-              className={`text-[10px] ${coachText.muted} hover:text-red-400 font-bold uppercase transition-all`}
+              className={`text-[10px] ${coachText.muted} hover:text-red-600 font-bold uppercase transition-all`}
             >
               Detener
             </button>
@@ -180,8 +183,8 @@ export default function AgentChat({
         )}
 
         {error && (
-          <div className="mx-2 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl animate-fade-in">
-            <p className="text-xs text-red-400">{error}</p>
+          <div className="mx-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
+            <p className="text-xs text-red-800 font-medium">{error}</p>
           </div>
         )}
 
@@ -192,8 +195,8 @@ export default function AgentChat({
         {activeDayLabel && (
           <div className="mb-3 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#A729AD] animate-pulse" />
-            <span className={`text-[10px] ${coachText.muted} font-bold tracking-tight uppercase`}>
-              Programando: <span className={coachText.primary}>{activeDayLabel}</span>
+            <span className={`text-[10px] ${sidebarHint} font-bold tracking-tight uppercase`}>
+              Programando: <span className={sidebarEmphasis}>{activeDayLabel}</span>
             </span>
           </div>
         )}
@@ -206,7 +209,7 @@ export default function AgentChat({
               onKeyDown={handleKeyDown}
               placeholder="Describe el día o las clases específicas..."
               rows={2}
-              className={`w-full bg-transparent px-5 py-4 text-sm ${coachText.primary} placeholder-[#C4A8C4] focus:outline-none leading-relaxed font-medium`}
+              className="w-full bg-transparent px-5 py-4 text-sm !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none leading-relaxed font-medium"
               disabled={isGenerating}
             />
           </div>
@@ -224,8 +227,8 @@ export default function AgentChat({
           </button>
         </div>
         <div className="flex justify-between items-center mt-3">
-          <p className={`text-[10px] ${coachText.muted} font-medium`}>Shift + Enter para nueva línea</p>
-          <div className={`flex items-center gap-1 text-[9px] ${coachText.muted} font-bold tracking-widest uppercase`}>Claude</div>
+          <p className={`text-[10px] ${sidebarHint} font-medium`}>Shift + Enter para nueva línea</p>
+          <div className={`flex items-center gap-1 text-[9px] ${sidebarHint} font-bold tracking-widest uppercase`}>Claude</div>
         </div>
       </div>
     </div>

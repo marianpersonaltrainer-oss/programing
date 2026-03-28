@@ -29,15 +29,15 @@ export default function WeekPanel({
       <div className={`px-4 py-4 border-b ${coachBorder}`}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="font-evo-display text-sm font-bold text-[#FFFF4C] tracking-tight uppercase">
+            <h1 className={`font-evo-display text-sm font-bold ${coachText.onSidebar} tracking-tight uppercase`}>
               Semana
             </h1>
-            <p className={`text-[10px] ${coachText.muted} font-medium mt-0.5`}>ProgramingEvo</p>
+            <p className={`text-[10px] ${coachText.mutedOnSidebar} font-medium mt-0.5`}>ProgramingEvo</p>
           </div>
           <button
             type="button"
             onClick={onReset}
-            className={`text-[10px] ${coachText.muted} hover:text-red-400 transition-all px-2.5 py-1.5 rounded-lg border ${coachBorder} hover:border-red-500/40 ${coachBg.card}`}
+            className={`text-[10px] ${coachText.mutedOnSidebar} hover:text-red-300 transition-all px-2.5 py-1.5 rounded-lg border border-white/15 hover:border-red-400/50 ${coachBg.sidebarHover}`}
             title="Nueva semana"
           >
             Nueva
@@ -49,15 +49,15 @@ export default function WeekPanel({
             onClick={() => setShowMesoForm(true)}
             className="w-full text-left group"
           >
-            <div className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#6A1F6D]/25 border ${coachBorder} group-hover:border-[#A729AD]/40 transition-all`}>
+            <div className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/10 border border-white/15 group-hover:border-[#A729AD]/50 transition-all`}>
               <div>
-                <span className="text-[10px] text-[#FFFF4C] font-bold uppercase tracking-wider">
+                <span className="text-[10px] text-amber-200/95 font-bold uppercase tracking-wider">
                   {weekState.mesocycle} · S{weekState.week}/{weekState.totalWeeks}
                   {weekState.phase ? ` · ${weekState.phase}` : ''}
                 </span>
-                <div className={`text-[10px] ${coachText.muted} mt-0.5`}>{confirmedCount}/6 días</div>
+                <div className={`text-[10px] ${coachText.mutedOnSidebar} mt-0.5`}>{confirmedCount}/6 días</div>
               </div>
-              <span className={`${coachText.muted} text-xs group-hover:text-[#F0ECF0] transition-colors`}>✎</span>
+              <span className={`${coachText.mutedOnSidebar} text-xs group-hover:text-white transition-colors`}>✎</span>
             </div>
           </button>
         ) : (
@@ -74,7 +74,7 @@ export default function WeekPanel({
                   setWeekVal(1)
                   setPhaseVal('')
                 }}
-                className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs ${coachText.primary} font-medium focus:outline-none focus:border-[#A729AD]/50`}
+                className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
               >
                 {MESOCYCLES.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -92,7 +92,7 @@ export default function WeekPanel({
                   max={selectedMeso?.weeks || 6}
                   value={weekVal}
                   onChange={(e) => setWeekVal(parseInt(e.target.value) || 1)}
-                  className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs ${coachText.primary} font-medium focus:outline-none focus:border-[#A729AD]/50`}
+                  className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
                 />
               </div>
               {mesoVal === 'autocarga' && (
@@ -101,7 +101,7 @@ export default function WeekPanel({
                   <select
                     value={phaseVal}
                     onChange={(e) => setPhaseVal(e.target.value)}
-                    className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs ${coachText.primary} font-medium focus:outline-none focus:border-[#A729AD]/50`}
+                    className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
                   >
                     <option value="">—</option>
                     {AUTOCARGA_PHASES.map((p) => (

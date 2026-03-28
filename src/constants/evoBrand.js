@@ -1,18 +1,18 @@
-/** Tokens hex EVO — legibles en oscuro (programador + coach + estilos inline). */
+/** Tokens hex — shell claro EVO (programador + coach + estilos inline). */
 export const evoBrand = {
-  app: '#1A0D1A',
-  black: '#1A0D1A',
-  sidebar: '#0F060F',
-  sidebarHover: '#1A0D1A',
+  app: '#F6E8F9',
+  black: '#1A0A1A',
+  sidebar: '#1A0D1A',
+  sidebarHover: '#2D1A2D',
   purple: '#6A1F6D',
   accent: '#A729AD',
   yellow: '#FFFF4C',
   lilac: '#F6E8F9',
   paleYellow: '#FFFFE2',
-  card: '#2D1A2D',
-  cardAlt: '#241224',
+  card: '#FFFFFF',
+  cardAlt: '#F3EAF8',
   border: '#6A1F6D',
-  text: '#F0ECF0',
-  muted: '#C4A8C4',
-  navIdle: '#D4B8D4',
+  text: '#1A0A1A',
+  muted: '#5C4D5C',
+  navIdle: '#C4A8C4',
 }

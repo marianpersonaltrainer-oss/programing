@@ -27,7 +27,7 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
       <div className={`px-5 py-3.5 ${coachBg.app} border-b ${coachBorder} flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#A729AD] animate-pulse" />
-          <span className="text-[10px] font-bold text-[#FFFF4C] uppercase tracking-widest font-evo-display">Sesión Propuesta</span>
+          <span className={`text-[10px] font-bold ${coachText.title} uppercase tracking-widest font-evo-display`}>Sesión Propuesta</span>
         </div>
         <button
           type="button"
@@ -40,7 +40,7 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
 
       <div className={`px-5 py-4 max-h-80 overflow-y-auto ${coachBg.app}`}>
         <div className="space-y-4">
-          <pre className={`session-content text-[11px] ${coachText.muted} whitespace-pre-wrap font-medium`}>
+          <pre className={`session-content text-[11px] text-[#1A0A1A]/90 whitespace-pre-wrap font-medium`}>
             {content}
           </pre>
 
@@ -101,7 +101,7 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
           <select
             value={selectedDay}
             onChange={(e) => setSelectedDay(e.target.value)}
-            className={`flex-1 ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs ${coachText.primary} font-medium focus:outline-none focus:border-[#A729AD]/50`}
+            className={`flex-1 ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
           >
             <option value="">Programar para el...</option>
             {DAYS_ORDER.map((d) => (

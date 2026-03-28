@@ -65,7 +65,7 @@ export default function MethodPanel({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-2xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] shadow-2xl overflow-hidden animate-fade-in">
         {/* Header */}
         <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between flex-shrink-0 bg-white">
@@ -97,7 +97,7 @@ export default function MethodPanel({ onClose }) {
             value={text}
             onChange={(e) => { setText(e.target.value); setSaved(false) }}
             spellCheck={false}
-            className="w-full h-full min-h-[400px] bg-gray-50/50 border border-black/5 rounded-2xl px-6 py-5 text-xs text-evo-text font-mono leading-relaxed focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all shadow-inner resize-none"
+            className="w-full h-full min-h-[400px] bg-gray-50/50 border border-black/5 rounded-2xl px-6 py-5 text-xs !text-[#1A0A1A] caret-[#1A0A1A] font-mono leading-relaxed focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all shadow-inner resize-none placeholder:!text-[#6B5A6B] placeholder:opacity-100"
             placeholder="Escribe aquí las reglas maestras..."
           />
         </div>

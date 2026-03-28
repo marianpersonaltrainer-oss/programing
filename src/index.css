@@ -14,8 +14,8 @@
   }
 
   body {
-    background-color: #1a0d1a;
-    color: #f0ecf0;
+    background-color: #f6e8f9;
+    color: #1a0a1a;
     font-size: 16px;
     font-family: 'Montserrat', 'DM Sans', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -23,10 +23,10 @@
   }
 
   /**
-   * Controles en UI oscura: color explícito (evita heredar evo-text oscuro u hojas de estilo del SO).
-   * Los modales claros envuelven su árbol en .evo-light-dialog para volver a texto oscuro.
+   * Shell clara: texto oscuro en controles (evita herencia incorrecta del SO).
+   * .evo-json-console mantiene verde terminal en modal Excel.
    */
-  #root.evo-dark-root
+  #root.evo-app-light
     :where(
       input:not([type='button']):not([type='submit']):not([type='reset']):not([type='checkbox']):not([type='radio']):not(
           [type='file']
@@ -34,26 +34,16 @@
       textarea,
       select
     ) {
-    color: #f0ecf0;
-    caret-color: #f0ecf0;
+    color: #1a0a1a;
+    caret-color: #1a0a1a;
   }
 
-  #root.evo-dark-root :where(input::placeholder, textarea::placeholder) {
-    color: #c4a8c4;
+  #root.evo-app-light :where(input::placeholder, textarea::placeholder) {
+    color: #6b5a6b;
     opacity: 1;
   }
 
-  #root.evo-dark-root .evo-light-dialog :where(input, textarea, select) {
-    color: #1b0f1b;
-    caret-color: #1b0f1b;
-  }
-
-  #root.evo-dark-root .evo-light-dialog :where(input::placeholder, textarea::placeholder) {
-    color: #5c4d5c;
-    opacity: 1;
-  }
-
-  #root.evo-dark-root .evo-light-dialog textarea.evo-json-console {
+  #root.evo-app-light textarea.evo-json-console {
     color: #34d399 !important;
     caret-color: #34d399 !important;
   }

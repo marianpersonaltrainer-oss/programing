@@ -115,7 +115,7 @@ export function CoachGuideClases() {
               <div className="pl-5 space-y-3 flex-1">
                 <div
                   className="py-1 px-3 rounded-lg text-sm font-black uppercase tracking-tight inline-block font-evo-display"
-                  style={{ backgroundColor: `${bar}33`, color: '#F0ECF0' }}
+                  style={{ backgroundColor: `${bar}22`, color: '#1A0A1A' }}
                 >
                   {c.title.split('—')[0].trim()}
                 </div>
@@ -329,71 +329,86 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
   const rt = guideSettings?.response_time?.trim() || guideSettings?.contact_response?.trim()
   const hasContact = Boolean(ch || person || schedule)
 
+  const onBar = variant === 'compact'
+  const tMain = onBar ? coachText.onSidebar : coachText.primary
+  const tMuted = onBar ? coachText.mutedOnSidebar : coachText.muted
+  const tBorder = onBar ? 'border-white/25' : coachBorder
+  const tCard = onBar ? 'bg-white/10 border border-white/20' : `${coachBorder} ${coachBg.card}`
+  const tAccent = onBar ? 'text-[#E8B4F0]' : coachText.accent
+
   const inner = (
     <>
-      <h2
-        className={
-          variant === 'compact'
-            ? `text-base font-extrabold uppercase tracking-wide border-b ${coachBorder} pb-2 mb-3 ${coachText.primary} font-evo-display`
-            : coachUi.h2
-        }
-      >
+      <h2 className={onBar ? `text-base font-extrabold uppercase tracking-wide border-b ${tBorder} pb-2 mb-3 ${tMain} font-evo-display` : coachUi.h2}>
         6. Soporte — Cómo preguntar dudas
       </h2>
-      <p className={`text-base ${coachText.muted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
-      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>
-        Qué tipo de dudas van por soporte
-      </h3>
-      <ul className={`list-disc pl-6 space-y-2 text-base ${coachText.muted} mb-6`}>
+      <p className={`text-base ${tMuted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
+      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Qué tipo de dudas van por soporte</h3>
+      <ul className={`list-disc pl-6 space-y-2 text-base ${tMuted} mb-6`}>
         {COACH_SOPORTE_SI.map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>Qué NO va por soporte</h3>
-      <ul className={`list-disc pl-6 space-y-2 text-base ${coachText.muted} mb-6`}>
+      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Qué NO va por soporte</h3>
+      <ul className={`list-disc pl-6 space-y-2 text-base ${tMuted} mb-6`}>
         {COACH_SOPORTE_NO.map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>
-        Canal y persona de contacto
-      </h3>
+      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Canal y persona de contacto</h3>
       {hasContact ? (
-        <div className={`space-y-3 rounded-xl border ${coachBorder} ${coachBg.card} p-4`}>
+        <div className={`space-y-3 rounded-xl p-4 ${tCard}`}>
           {ch ? (
-            <p className={`text-base whitespace-pre-wrap leading-relaxed ${coachText.primary}`}>
-              <span className={`font-bold ${coachText.accent}`}>Canal — </span>
+            <p className={`text-base whitespace-pre-wrap leading-relaxed ${tMain}`}>
+              <span className={`font-bold ${tAccent}`}>Canal — </span>
               {ch}
             </p>
           ) : null}
           {person ? (
-            <p className={`text-base ${coachText.primary}`}>
-              <span className={`font-bold ${coachText.accent}`}>Contacto — </span>
+            <p className={`text-base ${tMain}`}>
+              <span className={`font-bold ${tAccent}`}>Contacto — </span>
               {person}
             </p>
           ) : null}
           {schedule ? (
-            <p className={`text-base ${coachText.muted}`}>
-              <span className={`font-bold ${coachText.primary}`}>Horario — </span>
+            <p className={`text-base ${tMuted}`}>
+              <span className={`font-bold ${tMain}`}>Horario — </span>
               {schedule}
             </p>
           ) : null}
         </div>
       ) : (
-        <p className="text-base text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded-xl p-4 leading-relaxed">
+        <p
+          className={
+            onBar
+              ? 'text-base text-amber-100 bg-amber-500/15 border border-amber-400/40 rounded-xl p-4 leading-relaxed'
+              : 'text-base text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-4 leading-relaxed'
+          }
+        >
           {COACH_SOPORTE_PLACEHOLDER_CHANNEL}
-          <span className={`block mt-3 text-xs font-bold uppercase tracking-wide text-amber-400/90`}>
+          <span className={`block mt-3 text-xs font-bold uppercase tracking-wide ${onBar ? 'text-amber-200' : 'text-amber-800'}`}>
             Configúralo desde la app del programador: «Contenido Coach» (o Supabase → coach_guide_settings).
           </span>
         </p>
       )}
-      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>Tiempo de respuesta esperado</h3>
+      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Tiempo de respuesta esperado</h3>
       {rt ? (
-        <p className={`text-base whitespace-pre-wrap leading-relaxed rounded-xl border ${coachBorder} ${coachBg.card} p-4 ${coachText.primary}`}>{rt}</p>
+        <p
+          className={`text-base whitespace-pre-wrap leading-relaxed rounded-xl p-4 border ${onBar ? 'border-white/25 bg-white/10' : `${coachBorder} ${coachBg.card}`} ${tMain}`}
+        >
+          {rt}
+        </p>
       ) : (
-        <p className="text-base text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded-xl p-4 leading-relaxed">{COACH_SOPORTE_PLACEHOLDER_RESPONSE}</p>
+        <p
+          className={
+            onBar
+              ? 'text-base text-amber-100 bg-amber-500/15 border border-amber-400/40 rounded-xl p-4 leading-relaxed'
+              : 'text-base text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-4 leading-relaxed'
+          }
+        >
+          {COACH_SOPORTE_PLACEHOLDER_RESPONSE}
+        </p>
       )}
-      <p className={`text-xs ${coachText.muted} font-bold uppercase tracking-widest mt-10 text-center`}>{COACH_SOPORTE_FOOTER}</p>
+      <p className={`text-xs ${tMuted} font-bold uppercase tracking-widest mt-10 text-center`}>{COACH_SOPORTE_FOOTER}</p>
     </>
   )
 

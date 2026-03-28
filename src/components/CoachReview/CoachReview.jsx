@@ -38,7 +38,7 @@ export default function CoachReview({ onClose }) {
   const totalMsgs = sessions.reduce((acc, s) => acc + (s.coach_messages?.[0]?.count || 0), 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] shadow-2xl overflow-hidden animate-fade-in">
 
         {/* Header */}
@@ -147,7 +147,7 @@ export default function CoachReview({ onClose }) {
                     <div className={`max-w-[90%] px-5 py-3.5 rounded-2xl text-[12px] font-medium leading-relaxed whitespace-pre-wrap shadow-soft ${
                       msg.role === 'user'
                         ? 'bg-evo-accent/5 text-evo-text border border-evo-accent/10 rounded-tr-sm'
-                        : 'bg-gray-50 text-gray-600 border border-black/5 rounded-tl-sm'
+                        : 'bg-gray-50 text-[#1A0A1A]/90 border border-black/5 rounded-tl-sm'
                     }`}>
                       {msg.content}
                     </div>

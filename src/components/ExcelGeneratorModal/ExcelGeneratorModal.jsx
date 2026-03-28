@@ -280,7 +280,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-3xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] animate-fade-in shadow-2xl overflow-hidden">
 
         {/* Header */}
@@ -350,7 +350,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                   onChange={(e) => setContext(e.target.value)}
                   placeholder="Ej: Durante las últimas 3 semanas hemos trabajado fuerza máxima en sentadilla. Los alumnos están fatigados de tracción..."
                   rows={6}
-                  className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs text-evo-text placeholder-evo-muted focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all font-mono leading-relaxed shadow-inner"
+                  className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all font-mono leading-relaxed shadow-inner"
                 />
               </div>
 
@@ -364,13 +364,13 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                   onChange={(e) => setInstructions(e.target.value)}
                   placeholder="Ej: Quiero que esta semana sea de descarga. El sábado hay evento especial de CrossFit..."
                   rows={3}
-                  className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs text-evo-text placeholder-evo-muted focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed shadow-inner"
+                  className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed shadow-inner"
                 />
               </div>
 
               {errorMsg && (
-                <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                  <p className="text-xs text-red-400">{errorMsg}</p>
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-xs text-red-800 font-medium">{errorMsg}</p>
                 </div>
               )}
 
@@ -487,7 +487,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     placeholder="Ej: S4 – MESOCICLO FUERZA · 80-85%"
-                    className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs text-evo-text font-medium focus:outline-none focus:border-evo-accent shadow-sm"
+                    className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] caret-[#1A0A1A] font-medium focus:outline-none focus:border-evo-accent shadow-sm"
                   />
                 </div>
                 <div>
@@ -497,7 +497,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                     value={editSheetName}
                     onChange={(e) => setEditSheetName(e.target.value)}
                     placeholder="S4"
-                    className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs text-evo-text font-medium focus:outline-none focus:border-evo-accent shadow-sm"
+                    className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] caret-[#1A0A1A] font-medium focus:outline-none focus:border-evo-accent shadow-sm"
                   />
                 </div>
               </div>
@@ -557,7 +557,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                                 resumen: { ...(prev.resumen || {}), [k]: e.target.value },
                               }))
                             }
-                            className="w-full text-xs border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40"
+                            className="w-full text-xs !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40"
                           />
                         </label>
                       ))}
@@ -573,7 +573,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                             resumen: { ...(prev.resumen || {}), nota: e.target.value },
                           }))
                         }
-                        className="w-full text-xs border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
+                        className="w-full text-xs !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
                       />
                     </label>
                   </div>
@@ -600,7 +600,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                               })
                             }
                             placeholder={`Texto de la sesión ${label}…`}
-                            className="w-full text-[11px] font-mono border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
+                            className="w-full text-[11px] font-mono !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
                           />
                         </label>
                       ))}
@@ -621,7 +621,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                                 })
                               }
                               placeholder="Objetivo / Escalado / Coaching WOD…"
-                              className="w-full text-[11px] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
+                              className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
                             />
                           </label>
                         ))}
@@ -639,7 +639,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                               return { ...prev, dias }
                             })
                           }
-                          className="w-full text-[11px] border border-emerald-100 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-300 leading-relaxed bg-emerald-50/15"
+                          className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-emerald-100 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-300 leading-relaxed bg-emerald-50/15"
                         />
                       </label>
                     </div>
@@ -742,8 +742,8 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
               )}
 
               {errorMsg && (
-                <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                  <p className="text-xs text-red-400">{errorMsg}</p>
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-xs text-red-800 font-medium">{errorMsg}</p>
                 </div>
               )}
             </div>
@@ -752,7 +752,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
           {/* DOWNLOADING */}
           {status === 'downloading' && (
             <div className="flex flex-col items-center justify-center py-12 space-y-3">
-              <p className="text-sm text-white">Generando archivo Excel...</p>
+              <p className="text-sm text-evo-text font-medium">Generando archivo Excel...</p>
               <div className="flex gap-1.5">
                 {[0, 150, 300].map((delay) => (
                   <div key={delay} className="w-2 h-2 rounded-full bg-[#2FBE7B] animate-bounce" style={{ animationDelay: `${delay}ms` }} />

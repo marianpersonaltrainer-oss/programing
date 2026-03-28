@@ -6,6 +6,7 @@
  * | Origen | Modelo típico | Motivo |
  * |--------|----------------|--------|
  * | ExcelGeneratorModal → callApi | Sonnet (`AI_CONFIG.model`) | JSON semanal, SYSTEM_PROMPT_EXCEL |
+ * | ExcelGeneratorModal → regenerar feedback | Haiku (`AI_CONFIG.supportModel`) | SYSTEM_PROMPT_REGENERATE_FEEDBACK, 1 clase |
  * | useAgent → sendMessage | Sonnet | Chat programador, SYSTEM_PROMPT + semana |
  * | CoachView → soporte | Haiku (`AI_CONFIG.supportModel`) | Chat coach, COACH_SUPPORT_SYSTEM_PROMPT |
  *

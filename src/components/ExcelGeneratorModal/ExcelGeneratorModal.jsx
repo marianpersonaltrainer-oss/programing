@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ExcelJS from 'exceljs'
 import mammoth from 'mammoth'
-import { SYSTEM_PROMPT_EXCEL } from '../../constants/systemPromptExcel.js'
+import { SYSTEM_PROMPT_EXCEL, SYSTEM_PROMPT_REGENERATE_FEEDBACK } from '../../constants/systemPromptExcel.js'
 import { generateWeekExcel } from '../../utils/generateExcel.js'
 import {
   saveWeekToHistory,
@@ -50,12 +50,38 @@ async function extractTextFromFile(file) {
   throw new Error(`Formato no soportado (.${ext}). Usa .docx, .xlsx o .txt`)
 }
 
-const EDIT_SESSION_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ key, label, color }) => ({ key, label, color }))
-
-const EDIT_FEEDBACK_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ feedbackKey, label }) => ({
-  key: feedbackKey,
-  label: `Feedback · ${label.replace(/^Evo/, '')}`,
+const EDIT_SESSION_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ key, label, color, feedbackKey }) => ({
+  key,
+  label,
+  color,
+  feedbackKey,
 }))
+
+function sessionFingerprintKey(diaIdx, sessionKey) {
+  return `${diaIdx}::${sessionKey}`
+}
+
+function feedbackStaleKey(diaIdx, feedbackKey) {
+  return `${diaIdx}::${feedbackKey}`
+}
+
+function buildSessionFingerprintMap(weekData) {
+  const m = new Map()
+  ;(weekData?.dias || []).forEach((dia, diaIdx) => {
+    for (const { key } of EVO_SESSION_CLASS_DEFS) {
+      m.set(sessionFingerprintKey(diaIdx, key), dia[key] ?? '')
+    }
+  })
+  return m
+}
+
+function stripCodeFences(text) {
+  let t = text.trim()
+  if (t.startsWith('```')) {
+    t = t.replace(/^```[\w]*\n?/, '').replace(/\n?```\s*$/s, '')
+  }
+  return t.trim()
+}
 
 export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFromHistory }) {
   const [context, setContext]           = useState('')
@@ -80,6 +106,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [showHistory, setShowHistory] = useState(false)
   const [publishing, setPublishing]   = useState(false)
   const [published, setPublished]     = useState(false)
+  /** Texto de sesión alineado con el feedback (solo memoria del modal). */
+  const sessionFingerprintsRef = useRef(new Map())
+  const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
+  const [regeneratingFeedbackKey, setRegeneratingFeedbackKey] = useState(null)
 
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
@@ -210,6 +240,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         ],
       }
 
+      sessionFingerprintsRef.current = buildSessionFingerprintMap(combined)
+      setStaleFeedbackKeys(new Set())
       setWeekData(combined)
       setRawJson(JSON.stringify(combined, null, 2))
       setEditTitle(combined.titulo || '')
@@ -245,11 +277,106 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     })
   }
 
+  function handleSessionFieldChange(diaIdx, sessionKey, feedbackKey, newText) {
+    updateWeekData((prev) => {
+      const dias = [...(prev.dias || [])]
+      dias[diaIdx] = { ...dias[diaIdx], [sessionKey]: newText }
+      return { ...prev, dias }
+    })
+    const aligned = sessionFingerprintsRef.current.get(sessionFingerprintKey(diaIdx, sessionKey)) ?? ''
+    setStaleFeedbackKeys((prev) => {
+      const next = new Set(prev)
+      const sk = feedbackStaleKey(diaIdx, feedbackKey)
+      if (newText !== aligned) next.add(sk)
+      else next.delete(sk)
+      return next
+    })
+  }
+
+  function handleFeedbackFieldChange(diaIdx, sessionKey, feedbackKey, newText) {
+    updateWeekData((prev) => {
+      const dias = [...(prev.dias || [])]
+      const prevDia = dias[diaIdx] || {}
+      const sessionSnapshot = prevDia[sessionKey] ?? ''
+      sessionFingerprintsRef.current.set(sessionFingerprintKey(diaIdx, sessionKey), sessionSnapshot)
+      dias[diaIdx] = { ...prevDia, [feedbackKey]: newText }
+      return { ...prev, dias }
+    })
+    setStaleFeedbackKeys((prev) => {
+      const next = new Set(prev)
+      next.delete(feedbackStaleKey(diaIdx, feedbackKey))
+      return next
+    })
+  }
+
+  async function regenerateFeedbackForClass(
+    diaIdx,
+    sessionKey,
+    feedbackKey,
+    dayName,
+    classLabel,
+    sessionText,
+  ) {
+    const sk = feedbackStaleKey(diaIdx, feedbackKey)
+    setRegeneratingFeedbackKey(sk)
+    setErrorMsg('')
+    try {
+      const userMsg = [
+        `La clase es: ${classLabel}. Usa en la salida los tres prefijos que corresponden a esta clase según las instrucciones del sistema.`,
+        '',
+        `Día: ${dayName || '—'}`,
+        '',
+        'SESIÓN COMPLETA DE LA CLASE:',
+        sessionText || '(vacía)',
+      ].join('\n')
+
+      const response = await fetch('/api/anthropic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: AI_CONFIG.supportModel,
+          max_tokens: AI_CONFIG.feedbackRegenerateMaxTokens,
+          system: SYSTEM_PROMPT_REGENERATE_FEEDBACK,
+          messages: [{ role: 'user', content: userMsg }],
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err?.error?.message || `Error ${response.status}`)
+      }
+
+      const data = await response.json()
+      const raw = data.content?.[0]?.text || ''
+      const feedback = stripCodeFences(raw)
+      if (!feedback.trim()) throw new Error('La API no devolvió texto de feedback.')
+
+      updateWeekData((prev) => {
+        const dias = [...(prev.dias || [])]
+        dias[diaIdx] = { ...dias[diaIdx], [feedbackKey]: feedback }
+        return { ...prev, dias }
+      })
+      sessionFingerprintsRef.current.set(sessionFingerprintKey(diaIdx, sessionKey), sessionText ?? '')
+      setStaleFeedbackKeys((prev) => {
+        const next = new Set(prev)
+        next.delete(sk)
+        return next
+      })
+    } catch (err) {
+      console.error(err)
+      setErrorMsg(err?.message || 'No se pudo regenerar el feedback.')
+    } finally {
+      setRegeneratingFeedbackKey(null)
+    }
+  }
+
   function switchPreviewTab(id) {
     if (previewTab === 'json' && id !== 'json') {
       try {
         const parsed = JSON.parse(rawJson)
         if (!parsed || !Array.isArray(parsed.dias)) throw new Error('Falta el array "dias"')
+        sessionFingerprintsRef.current = buildSessionFingerprintMap(parsed)
+        setStaleFeedbackKeys(new Set())
         setWeekData(parsed)
         setRawJson(JSON.stringify(parsed, null, 2))
       } catch (e) {
@@ -274,6 +401,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const data = JSON.parse(JSON.stringify(entry.weekDataFull))
     data.semana = entry.semana
     data.mesociclo = weekState.mesocycle || data.mesociclo
+    sessionFingerprintsRef.current = buildSessionFingerprintMap(data)
+    setStaleFeedbackKeys(new Set())
     setWeekData(data)
     setRawJson(JSON.stringify(data, null, 2))
     setEditTitle(data.titulo || entry.titulo || '')
@@ -661,7 +790,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
                         {dia.nombre || `Día ${diaIdx + 1}`}
                       </p>
 
-                      {EDIT_SESSION_FIELDS.map(({ key, label, color }) => (
+                      {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => (
                         <label key={key} className="block space-y-1.5">
                           <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>
                             {label}
@@ -670,11 +799,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
                             rows={6}
                             value={dia[key] || ''}
                             onChange={(e) =>
-                              updateWeekData((prev) => {
-                                const dias = [...(prev.dias || [])]
-                                dias[diaIdx] = { ...dias[diaIdx], [key]: e.target.value }
-                                return { ...prev, dias }
-                              })
+                              handleSessionFieldChange(diaIdx, key, feedbackKey, e.target.value)
                             }
                             placeholder={`Texto de la sesión ${label}…`}
                             className="w-full text-[11px] font-mono !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
@@ -684,24 +809,66 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
                       <div className="pt-2 border-t border-dashed border-black/10 space-y-3">
                         <p className="text-[9px] font-bold text-indigo-700 uppercase tracking-widest">Feedbacks (coaching)</p>
-                        {EDIT_FEEDBACK_FIELDS.map(({ key, label }) => (
-                          <label key={key} className="block space-y-1.5">
-                            <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">{label}</span>
-                            <textarea
-                              rows={3}
-                              value={dia[key] || ''}
-                              onChange={(e) =>
-                                updateWeekData((prev) => {
-                                  const dias = [...(prev.dias || [])]
-                                  dias[diaIdx] = { ...dias[diaIdx], [key]: e.target.value }
-                                  return { ...prev, dias }
-                                })
-                              }
-                              placeholder="Objetivo / Escalado / Coaching WOD…"
-                              className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
-                            />
-                          </label>
-                        ))}
+                        {EVO_SESSION_CLASS_DEFS.map(({ key: sessionKey, feedbackKey, label }) => {
+                          const shortLabel = `Feedback · ${label.replace(/^Evo/, '')}`
+                          const sk = feedbackStaleKey(diaIdx, feedbackKey)
+                          const isStale = staleFeedbackKeys.has(sk)
+                          const isBusy = regeneratingFeedbackKey === sk
+                          return (
+                            <div key={feedbackKey} className="block space-y-1.5">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">
+                                  {shortLabel}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                  {isStale && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-200/80">
+                                      Desactualizado
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() =>
+                                      regenerateFeedbackForClass(
+                                        diaIdx,
+                                        sessionKey,
+                                        feedbackKey,
+                                        dia.nombre,
+                                        label,
+                                        dia[sessionKey] || '',
+                                      )
+                                    }
+                                    className="text-[9px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border border-indigo-200 bg-white text-indigo-800 hover:bg-indigo-50 disabled:opacity-50 disabled:pointer-events-none"
+                                  >
+                                    {isBusy ? 'Regenerando…' : 'Regenerar feedback'}
+                                  </button>
+                                </div>
+                              </div>
+                              {isStale && (
+                                <p className="text-[10px] text-amber-900/90 leading-snug bg-amber-50/80 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                                  Sesión editada: el feedback puede no coincidir con el entrenamiento actual.
+                                </p>
+                              )}
+                              <label className="block">
+                                <textarea
+                                  rows={3}
+                                  value={dia[feedbackKey] || ''}
+                                  onChange={(e) =>
+                                    handleFeedbackFieldChange(
+                                      diaIdx,
+                                      sessionKey,
+                                      feedbackKey,
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="Objetivo / Escalado / Coaching WOD…"
+                                  className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
+                                />
+                              </label>
+                            </div>
+                          )
+                        })}
                       </div>
 
                       <label className="block space-y-1.5 pt-2 border-t border-black/5">

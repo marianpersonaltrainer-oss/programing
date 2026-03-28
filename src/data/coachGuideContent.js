@@ -339,11 +339,11 @@ export const COACH_MATERIAL_ITEMS = [
   },
   {
     name: 'Anillas',
-    detail: 'Para 2 clases simultáneas · No usar en las dos al mismo tiempo',
+    detail: '12 uds · Uso simultáneo permitido en dos clases a la vez (reparto entre salas).',
   },
   {
     name: 'Cajones',
-    detail: '2 altos madera · 1 bajo madera · 1 blando',
+    detail: '12 uds · Uso simultáneo permitido en dos clases a la vez (reparto entre salas).',
   },
   {
     name: 'Otro',

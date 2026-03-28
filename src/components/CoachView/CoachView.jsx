@@ -17,7 +17,7 @@ import {
   CoachGuideMaterial,
   CoachGuideSoporteProtocol,
 } from './CoachGuideViews.jsx'
-import { coachBg, coachBorder, coachText, coachNav, coachUi } from './coachTheme.js'
+import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } from './coachTheme.js'
 import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 
@@ -138,8 +138,7 @@ function incrementSupportMessagesUsed() {
 }
 
 const coachAuthShell = `min-h-[100dvh] ${coachBg.app} ${coachText.primary} flex flex-col items-center justify-center p-8`
-const coachInput =
-  'w-full rounded-2xl px-6 py-4 text-[16px] bg-[#160D16] border border-[#3D1A3D] text-[#E8EAF0] placeholder-[#9B80A0] focus:outline-none focus:border-[#A729AD]/50 focus:ring-1 focus:ring-[#A729AD]/25 font-evo-body'
+const coachInput = coachFieldAuth
 const coachBtnPrimary =
   'w-full py-4 rounded-2xl bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-30 text-white font-bold text-sm uppercase tracking-widest transition-all shadow-lg shadow-purple-950/40 active:scale-[0.99] font-evo-body'
 
@@ -399,10 +398,10 @@ export default function CoachView() {
     return (
       <div className={coachAuthShell}>
         <div className="text-center space-y-6 max-w-md">
-          <div className="w-20 h-20 rounded-2xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center mx-auto text-3xl">
+          <div className={`w-20 h-20 rounded-2xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto text-3xl`}>
             📋
           </div>
-          <p className="text-xl font-bold uppercase tracking-tight text-[#E8EAF0]">No hay semana activa</p>
+          <p className={`text-xl font-bold uppercase tracking-tight ${coachText.primary}`}>No hay semana activa</p>
           <p className={`text-sm font-medium leading-relaxed uppercase tracking-widest ${coachText.muted}`}>
             {error || 'El programador jefe aún no ha publicado la programación de esta semana.'}
           </p>
@@ -416,10 +415,10 @@ export default function CoachView() {
       <div className={coachAuthShell}>
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-4">
-            <div className="w-20 h-20 rounded-3xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center mx-auto">
+            <div className={`w-20 h-20 rounded-3xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto`}>
               <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
             </div>
-            <h1 className="text-2xl font-bold uppercase tracking-tight text-[#E8EAF0]">Soporte EVO</h1>
+            <h1 className={`text-2xl font-bold uppercase tracking-tight ${coachText.primary}`}>Soporte EVO</h1>
             <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>Introduce tu contraseña de acceso</p>
           </div>
           <form onSubmit={handleCodeSubmit} className="space-y-4">
@@ -448,10 +447,10 @@ export default function CoachView() {
       <div className={coachAuthShell}>
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-4">
-            <div className="w-20 h-20 rounded-3xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center mx-auto">
+            <div className={`w-20 h-20 rounded-3xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto`}>
               <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
             </div>
-            <h1 className="text-2xl font-bold uppercase tracking-tight text-[#E8EAF0]">Identificación</h1>
+            <h1 className={`text-2xl font-bold uppercase tracking-tight ${coachText.primary}`}>Identificación</h1>
             <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>¿Cómo te llamas, Coach?</p>
           </div>
           <form onSubmit={handleNameSubmit} className="space-y-4">
@@ -495,10 +494,10 @@ export default function CoachView() {
           aria-label="Navegación principal"
         >
           <div className={`p-4 border-b ${coachBorder} flex items-center justify-between md:hidden`}>
-            <span className="text-sm font-bold text-[#E8EAF0]">Menú</span>
+            <span className={`text-sm font-bold ${coachText.primary}`}>Menú</span>
             <button
               type="button"
-              className="p-2 rounded-lg hover:bg-[#1A0A1A] text-[#E8EAF0]"
+              className={`p-2 rounded-lg ${coachBg.sidebarHover} ${coachText.primary}`}
               onClick={() => setMobileMenuOpen(false)}
               aria-label="Cerrar"
             >
@@ -529,11 +528,11 @@ export default function CoachView() {
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <header
-            className={`flex items-center gap-3 px-4 py-3 border-b ${coachBorder} bg-[#0C0B0C] flex-shrink-0 z-30 safe-area-pt`}
+            className={`flex items-center gap-3 px-4 py-3 border-b ${coachBorder} ${coachBg.app} flex-shrink-0 z-30 safe-area-pt`}
           >
             <button
               type="button"
-              className="md:hidden p-2.5 rounded-xl hover:bg-[#1A0A1A] text-[#E8EAF0] border border-transparent hover:border-[#3D1A3D]"
+              className={`md:hidden p-2.5 rounded-xl ${coachBg.sidebarHover} ${coachText.primary} border border-transparent hover:border-[#6A1F6D]`}
               onClick={() => setMobileMenuOpen(true)}
               aria-expanded={mobileMenuOpen}
               aria-label="Abrir menú de navegación"
@@ -546,7 +545,7 @@ export default function CoachView() {
               <EvoLogo imgClassName="h-9 w-auto max-w-[120px] object-contain object-left" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-[#E8EAF0] truncate">Coach · {coachName}</p>
+              <p className={`text-sm font-bold ${coachText.primary} truncate`}>Coach · {coachName}</p>
               <p className={`text-xs font-bold uppercase tracking-widest truncate ${coachText.muted}`}>
                 {weekData?.titulo || 'Semana activa'}
               </p>
@@ -566,7 +565,7 @@ export default function CoachView() {
             {mainTab === 'soporte' ? (
               <div className="flex-1 flex flex-col min-h-0">
                 <div
-                  className={`flex-shrink-0 max-h-[min(34vh,300px)] overflow-y-auto overscroll-contain border-b ${coachBorder} bg-[#0A0808]`}
+                  className={`flex-shrink-0 max-h-[min(34vh,300px)] overflow-y-auto overscroll-contain border-b ${coachBorder} ${coachBg.sidebar}`}
                 >
                   <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="compact" />
                 </div>
@@ -577,7 +576,7 @@ export default function CoachView() {
                 <div className={`flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5 ${coachBg.app}`}>
                   {messages.length === 0 && (
                     <div className="text-center py-8 space-y-4">
-                      <p className="text-lg font-bold uppercase tracking-tight text-[#E8EAF0]">Chat de soporte</p>
+                      <p className={`text-lg font-bold uppercase tracking-tight ${coachText.primary}`}>Chat de soporte</p>
                       <p className={`text-sm font-bold uppercase tracking-widest max-w-sm mx-auto leading-relaxed ${coachText.muted}`}>
                         Dudas sobre programación, material o la app. Respuestas cortas.
                       </p>
@@ -595,7 +594,7 @@ export default function CoachView() {
                             onClick={() => {
                               if (!supportAtLimit) setInput(q)
                             }}
-                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} bg-[#160D16] font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#A729AD]/40 hover:text-[#E8EAF0] disabled:opacity-40 disabled:pointer-events-none`}
+                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#A729AD]/40 hover:text-[#F0ECF0] disabled:opacity-40 disabled:pointer-events-none`}
                           >
                             {q}
                           </button>
@@ -607,10 +606,10 @@ export default function CoachView() {
                   {messages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                       <div
-                        className={`max-w-[90%] px-5 py-4 rounded-2xl text-[15px] font-medium leading-relaxed whitespace-pre-wrap ${
+                        className={`max-w-[90%] px-5 py-4 rounded-2xl text-base font-medium leading-relaxed whitespace-pre-wrap ${
                           msg.role === 'user'
                             ? 'bg-[#6A1F6D] text-white rounded-br-md'
-                            : `rounded-bl-md border ${coachBorder} bg-[#160D16] ${coachText.muted}`
+                            : `rounded-bl-md border ${coachBorder} ${coachBg.card} ${coachText.primary}`
                         }`}
                       >
                         {msg.content}
@@ -620,7 +619,7 @@ export default function CoachView() {
 
                   {isTyping && (
                     <div className="flex justify-start">
-                      <div className={`border ${coachBorder} bg-[#160D16] px-5 py-4 rounded-2xl rounded-bl-md flex gap-1.5`}>
+                      <div className={`border ${coachBorder} ${coachBg.card} px-5 py-4 rounded-2xl rounded-bl-md flex gap-1.5`}>
                         {[0, 150, 300].map((d) => (
                           <div
                             key={d}
@@ -640,7 +639,7 @@ export default function CoachView() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className={`px-5 py-4 border-t ${coachBorder} bg-[#0A0808] flex-shrink-0 safe-area-pb space-y-3`}>
+                <div className={`px-5 py-4 border-t ${coachBorder} ${coachBg.sidebar} flex-shrink-0 safe-area-pb space-y-3`}>
                   {supportAtLimit && (
                     <p className="text-sm text-amber-200 font-semibold text-center leading-relaxed px-3 bg-amber-950/40 border border-amber-900/50 rounded-xl py-3">
                       {SUPPORT_LIMIT_MESSAGE}
@@ -653,7 +652,7 @@ export default function CoachView() {
                       onChange={(e) => setInput(e.target.value)}
                       placeholder={supportAtLimit ? 'Límite diario alcanzado' : 'Escribe tu duda...'}
                       disabled={isTyping || supportAtLimit}
-                      className={`flex-1 rounded-xl px-5 py-3.5 text-[16px] min-w-0 bg-[#160D16] border ${coachBorder} text-[#E8EAF0] placeholder-[#6B7280] focus:outline-none focus:border-[#A729AD]/50 disabled:opacity-50`}
+                      className={`flex-1 rounded-xl px-5 py-3.5 text-base min-w-0 ${coachBg.card} border ${coachBorder} text-[#F0ECF0] placeholder-[#C4A8C4] focus:outline-none focus:border-[#A729AD]/50 disabled:opacity-50`}
                     />
                     <button
                       type="submit"

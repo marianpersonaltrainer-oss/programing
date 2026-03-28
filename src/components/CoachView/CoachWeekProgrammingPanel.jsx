@@ -4,7 +4,7 @@ import { findDia, sessionText, previewText, buildDayQuickSummary, dayFocusLine }
 import { coachBg, coachBorder, coachText, coachUi, classBadgeClass } from './coachTheme.js'
 
 const TAB_ACTIVE = 'bg-[#6A1F6D] text-white shadow-lg shadow-purple-950/30'
-const TAB_IDLE = `bg-[#1A1F2E] ${coachText.muted} hover:text-[#E8EAF0] border ${coachBorder}`
+const TAB_IDLE = `bg-[#241224] ${coachText.muted} hover:text-[#F0ECF0] border ${coachBorder}`
 
 function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   if (!videos?.length) {
@@ -19,7 +19,7 @@ function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
     )
   }
   return (
-    <div className={`rounded-xl p-5 border border-red-900/40 bg-gradient-to-br from-[#1a0a0a] to-[#1A1F2E]`}>
+    <div className={`rounded-xl p-5 border border-red-900/40 bg-gradient-to-br from-[#1a0a0a] to-[#2D1A2D]`}>
       <p className="text-xs font-bold text-red-300 uppercase tracking-widest mb-2">{title}</p>
       <p className="text-sm text-red-200/70 mb-4 leading-snug">Abre YouTube con búsqueda orientada a técnica.</p>
       <div className="flex flex-wrap gap-2">
@@ -56,17 +56,17 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
       {weekData?.resumen && (
         <div className={`px-6 py-6 border-b ${coachBorder} ${coachUi.card} rounded-none border-x-0 border-t-0`}>
           <p className={`text-xs font-bold ${coachText.accent} uppercase tracking-widest mb-2`}>Orientación semanal</p>
-          <p className="text-base font-bold leading-tight text-[#E8EAF0] uppercase tracking-tight">
+          <p className={`text-base font-bold leading-tight ${coachText.primary} uppercase tracking-tight`}>
             {weekData.resumen.estimulo} · {weekData.resumen.intensidad}
             {weekData.resumen.foco ? ` · ${weekData.resumen.foco}` : ''}
           </p>
-          <p className={`text-[15px] mt-3 leading-relaxed ${coachText.muted}`}>{weekData.resumen.nota}</p>
+          <p className={`text-base mt-3 leading-relaxed ${coachText.muted}`}>{weekData.resumen.nota}</p>
         </div>
       )}
 
       {activeDay === 'show' && (
         <>
-          <div className={`flex gap-2 px-6 pt-4 pb-3 border-b ${coachBorder} bg-[#0F1117] overflow-x-auto`}>
+          <div className={`flex gap-2 px-6 pt-4 pb-3 border-b ${coachBorder} ${coachBg.sidebar} overflow-x-auto`}>
             <button
               type="button"
               onClick={() => setWeekTab('dias')}
@@ -114,7 +114,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                       className={`text-left rounded-xl p-6 border ${coachBorder} ${coachBg.card} hover:border-[#A729AD]/40 hover:shadow-lg hover:shadow-purple-900/10 transition-all active:scale-[0.99] min-h-[200px] flex flex-col`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-4">
-                        <p className="text-lg font-black text-[#E8EAF0] uppercase tracking-tight">{dia.nombre}</p>
+                        <p className={`text-lg font-black ${coachText.primary} uppercase tracking-tight`}>{dia.nombre}</p>
                         {videoCount > 0 && (
                           <span className="text-xs font-bold uppercase tracking-wide text-red-200 bg-red-950/60 border border-red-800/50 px-2.5 py-1 rounded-lg shrink-0">
                             ▶ {videoCount}
@@ -124,7 +124,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                       {focus && (
                         <div className={`mb-4 rounded-lg border ${coachBorder} bg-[#0F1117] px-4 py-3`}>
                           <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${coachText.accent}`}>Objetivo del día</p>
-                          <p className={`text-[15px] leading-snug ${coachText.primary} line-clamp-4`}>{focus}</p>
+                          <p className={`text-base leading-snug ${coachText.primary} line-clamp-4`}>{focus}</p>
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2 mb-4">
@@ -166,7 +166,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                 return (
                   <div key={dia.nombre} className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-base font-bold text-[#E8EAF0] uppercase tracking-widest">{dia.nombre}</p>
+                      <p className={`text-base font-bold ${coachText.primary} uppercase tracking-widest`}>{dia.nombre}</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -256,7 +256,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
             >
               ← Volver a días
             </button>
-            <span className="text-sm font-bold text-[#E8EAF0] uppercase tracking-tight">{activeDay}</span>
+            <span className={`text-sm font-bold ${coachText.primary} uppercase tracking-tight`}>{activeDay}</span>
           </div>
           {(() => {
             const dia = findDia(dias, activeDay)
@@ -287,7 +287,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                 {focus && (
                   <div className={`rounded-xl border ${coachBorder} bg-[#1A1F2E] p-6`}>
                     <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${coachText.accent}`}>Objetivo del día</p>
-                    <p className="text-[16px] font-semibold leading-relaxed text-[#E8EAF0]">{focus}</p>
+                    <p className={`text-base font-semibold leading-relaxed ${coachText.primary}`}>{focus}</p>
                   </div>
                 )}
 
@@ -301,7 +301,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                     ))}
                   </div>
                   {preview ? (
-                    <pre className={`text-[15px] ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{preview}</pre>
+                    <pre className={`text-base ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{preview}</pre>
                   ) : (
                     <p className={`text-sm ${coachText.muted}`}>Sin extracto adicional.</p>
                   )}

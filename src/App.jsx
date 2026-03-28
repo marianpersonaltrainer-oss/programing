@@ -11,6 +11,7 @@ import { COACH_CODE_KEY, getCoachCodeFieldInitialValue } from './constants/coach
 import ExerciseLibrary from './components/ExerciseLibrary/ExerciseLibrary.jsx'
 import EvoLogo from './components/EvoLogo.jsx'
 import CoachGuideContentPanel from './components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'
+import { coachBg, coachBorder, coachText } from './components/CoachView/coachTheme.js'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
 
@@ -74,26 +75,25 @@ export default function App() {
     }
   }
 
-  const navBtn =
-    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[12px] font-semibold text-[#9B80A0] hover:bg-[#1A0A1A] hover:text-[#E8EAF0] border border-transparent hover:border-[#3D1A3D] transition-colors'
+  const navBtn = `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[12px] font-semibold border border-transparent transition-colors text-[#D4B8D4] ${coachBg.sidebarHover} hover:text-[#F0ECF0] hover:border-[#6A1F6D]`
 
   return (
-    <div className="h-screen flex flex-col bg-[#0C0B0C] text-[#E8EAF0] overflow-hidden font-evo-body selection:bg-[#A729AD]/30">
-      <header className="h-[4.25rem] flex-shrink-0 bg-[#0C0B0C] border-b border-[#3D1A3D] flex items-center px-5 justify-between z-50 safe-area-pt">
+    <div className={`h-screen flex flex-col ${coachBg.app} ${coachText.primary} overflow-hidden font-evo-body selection:bg-[#A729AD]/30`}>
+      <header className={`h-[4.25rem] flex-shrink-0 ${coachBg.app} border-b ${coachBorder} flex items-center px-5 justify-between z-50 safe-area-pt`}>
         <div className="flex items-center gap-4 min-w-0">
           <EvoLogo />
           <div className="min-w-0 hidden sm:block">
             <p className="font-evo-display text-lg sm:text-xl font-bold uppercase tracking-[0.12em] text-[#FFFF4C] leading-tight truncate">
               Evolution
             </p>
-            <p className="font-evo-display text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B80A0] truncate">
+            <p className={`font-evo-display text-[10px] font-semibold uppercase tracking-[0.2em] ${coachText.muted} truncate`}>
               Boutique Fitness Granada
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="hidden md:inline text-[10px] font-bold uppercase tracking-wider text-[#9B80A0]">Programador</span>
-          <div className="w-9 h-9 rounded-xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center text-[#A729AD]">
+          <span className={`hidden md:inline text-[10px] font-bold uppercase tracking-wider ${coachText.muted}`}>Programador</span>
+          <div className={`w-9 h-9 rounded-xl ${coachBg.card} border ${coachBorder} flex items-center justify-center text-[#A729AD]`}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
@@ -102,7 +102,7 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        <div className="w-[280px] flex-shrink-0 flex flex-col border-r border-[#3D1A3D] bg-[#0A0808] min-h-0">
+        <div className={`w-[280px] flex-shrink-0 flex flex-col border-r ${coachBorder} ${coachBg.sidebar} min-h-0`}>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <WeekPanel
               weekState={weekState}
@@ -113,7 +113,7 @@ export default function App() {
               onReset={handleReset}
             />
           </div>
-          <nav className="flex-shrink-0 border-t border-[#3D1A3D] p-3 space-y-1 bg-[#0A0808]">
+          <nav className={`flex-shrink-0 border-t ${coachBorder} p-3 space-y-1 ${coachBg.sidebar}`}>
             <button type="button" onClick={() => setShowMethodPanel(true)} className={navBtn}>
               <span aria-hidden>✏️</span>
               Tu método
@@ -141,7 +141,7 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="flex-1 flex flex-col min-w-0 bg-[#0C0B0C] min-h-0">
+        <div className={`flex-1 flex flex-col min-w-0 ${coachBg.app} min-h-0`}>
           <AgentChat
             messages={messages}
             isGenerating={isGenerating}
@@ -156,7 +156,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="px-5 py-3 border-t border-[#3D1A3D] bg-[#0A0808] flex justify-end items-center flex-shrink-0 gap-3">
+      <div className={`px-5 py-3 border-t ${coachBorder} ${coachBg.sidebar} flex justify-end items-center flex-shrink-0 gap-3`}>
         <button
           type="button"
           onClick={() => setShowExcelModal(true)}
@@ -174,11 +174,11 @@ export default function App() {
       <ExportPanel weekState={weekState} onEditSession={handleEditSession} />
 
       {showCodeConfig && (
-        <div className="fixed bottom-24 left-[300px] z-40 bg-[#160D16] border border-[#3D1A3D] rounded-2xl p-6 shadow-elevated w-80 animate-fade-in">
+        <div className={`fixed bottom-24 left-[300px] z-40 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-elevated w-80 animate-fade-in`}>
           <div className="flex items-center gap-2 mb-2">
             <p className="text-[11px] font-bold text-[#FFFF4C] uppercase tracking-tight font-evo-display">Acceso Coach</p>
           </div>
-          <p className="text-[10px] text-[#9B80A0] font-bold mb-4 uppercase tracking-widest leading-relaxed">
+          <p className={`text-[10px] ${coachText.muted} font-bold mb-4 uppercase tracking-widest leading-relaxed`}>
             Contraseña para la vista ?coach
           </p>
           <div className="flex gap-2">
@@ -189,7 +189,7 @@ export default function App() {
                 setCodeValue(e.target.value.toUpperCase())
                 setCodeSaved(false)
               }}
-              className="flex-1 bg-[#0C0B0C] border border-[#3D1A3D] rounded-xl px-4 py-3 text-sm text-[#E8EAF0] font-mono tracking-[0.2em] focus:outline-none focus:border-[#A729AD]/50"
+              className={`flex-1 ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-3 text-sm ${coachText.primary} font-mono tracking-[0.2em] focus:outline-none focus:border-[#A729AD]/50`}
               placeholder="EVO19"
             />
             <button

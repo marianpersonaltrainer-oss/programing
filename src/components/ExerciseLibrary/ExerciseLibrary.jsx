@@ -39,7 +39,7 @@ export default function ExerciseLibrary({ onClose }) {
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
       <div className="w-full max-w-4xl bg-white border border-black/5 rounded-3xl flex flex-col h-[85vh] animate-fade-in shadow-2xl overflow-hidden">
         
         {/* Header */}

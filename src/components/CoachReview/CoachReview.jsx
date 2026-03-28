@@ -38,7 +38,7 @@ export default function CoachReview({ onClose }) {
   const totalMsgs = sessions.reduce((acc, s) => acc + (s.coach_messages?.[0]?.count || 0), 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
       <div className="w-full max-w-4xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] shadow-2xl overflow-hidden animate-fade-in">
 
         {/* Header */}

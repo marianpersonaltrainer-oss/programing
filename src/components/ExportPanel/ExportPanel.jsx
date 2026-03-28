@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import CopyButton from './CopyButton.jsx'
 import { DAYS_ES, DAYS_ORDER, CLASS_COLORS } from '../../constants/evoColors.js'
+import { evoBrand } from '../../constants/evoBrand.js'
 import { formatSessionForExport } from '../../utils/formatSession.js'
+import { coachBg, coachBorder, coachText } from '../CoachView/coachTheme.js'
 
 export default function ExportPanel({ weekState, onEditSession }) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -11,11 +13,11 @@ export default function ExportPanel({ weekState, onEditSession }) {
   if (confirmedSessions.length === 0) return null
 
   return (
-    <div className="border-t border-[#3D1A3D] bg-[#160D16] flex-shrink-0 relative z-10">
+    <div className={`border-t ${coachBorder} ${coachBg.card} flex-shrink-0 relative z-10`}>
       <button
         type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className="w-full px-8 py-4 flex items-center justify-between hover:bg-[#1D0F1D] transition-all border-b border-[#3D1A3D]"
+        className={`w-full px-8 py-4 flex items-center justify-between hover:bg-[#241224] transition-all border-b ${coachBorder}`}
       >
         <div className="flex items-center gap-4">
           <span className="font-evo-display text-[11px] font-bold text-[#FFFF4C] uppercase tracking-widest">
@@ -41,15 +43,14 @@ export default function ExportPanel({ weekState, onEditSession }) {
         </div>
         <div className="flex items-center gap-4">
           <CopyButton text={allContent} label="Copiar Todo" />
-          <span className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#0C0B0C] text-[#9B80A0] text-xs border border-[#3D1A3D]">
+          <span className={`w-8 h-8 flex items-center justify-center rounded-xl ${coachBg.app} ${coachText.muted} text-xs border ${coachBorder}`}>
             {isExpanded ? '▲' : '▼'}
           </span>
         </div>
       </button>
 
-      {/* Expanded view */}
       {isExpanded && (
-        <div className="px-8 pb-6 bg-[#0C0B0C] max-h-80 overflow-y-auto pt-4 animate-fade-in border-t border-[#3D1A3D]">
+        <div className={`px-8 pb-6 ${coachBg.app} max-h-80 overflow-y-auto pt-4 animate-fade-in border-t ${coachBorder}`}>
           <div className="space-y-4">
             {confirmedSessions.map((day) => {
               const session = weekState.sessions[day]
@@ -59,12 +60,12 @@ export default function ExportPanel({ weekState, onEditSession }) {
               return (
                 <div
                   key={day}
-                  className="rounded-2xl overflow-hidden border border-[#3D1A3D] bg-[#160D16] transition-all group"
+                  className={`rounded-2xl overflow-hidden border ${coachBorder} ${coachBg.card} transition-all group`}
                   style={{ borderLeftColor: color, borderLeftWidth: 4 }}
                 >
-                  <div className="px-5 py-3 bg-[#160D16] border-b border-[#3D1A3D] flex items-center justify-between">
+                  <div className={`px-5 py-3 ${coachBg.card} border-b ${coachBorder} flex items-center justify-between`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-bold text-[#E8EAF0] uppercase tracking-widest">
+                      <span className={`text-[11px] font-bold ${coachText.primary} uppercase tracking-widest`}>
                         {DAYS_ES[day]}
                       </span>
                       <div className="flex gap-1.5">
@@ -74,7 +75,7 @@ export default function ExportPanel({ weekState, onEditSession }) {
                             className="text-[8px] px-2 py-0.5 rounded-lg font-bold border"
                             style={{
                               backgroundColor: `${CLASS_COLORS[cls]?.bg || '#A729AD'}22`,
-                              color: CLASS_COLORS[cls]?.text || CLASS_COLORS[cls]?.bg || '#E8EAF0',
+                              color: CLASS_COLORS[cls]?.text || CLASS_COLORS[cls]?.bg || evoBrand.text,
                               borderColor: `${CLASS_COLORS[cls]?.bg || '#A729AD'}44`,
                             }}
                           >
@@ -88,14 +89,14 @@ export default function ExportPanel({ weekState, onEditSession }) {
                       <button
                         type="button"
                         onClick={() => onEditSession(day)}
-                        className="text-[10px] text-[#9B80A0] font-bold uppercase tracking-widest hover:text-[#A729AD] transition-all"
+                        className={`text-[10px] ${coachText.muted} font-bold uppercase tracking-widest hover:text-[#A729AD] transition-all`}
                       >
                         Editar
                       </button>
                     </div>
                   </div>
-                  <div className="px-5 py-4 bg-[#0C0B0C] max-h-40 overflow-y-auto">
-                    <pre className="session-content text-[11px] text-[#9B80A0] font-medium whitespace-pre-wrap leading-relaxed">
+                  <div className={`px-5 py-4 ${coachBg.app} max-h-40 overflow-y-auto`}>
+                    <pre className={`session-content text-[11px] ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed`}>
                       {session.content.slice(0, 500)}
                       {session.content.length > 500 ? '...' : ''}
                     </pre>

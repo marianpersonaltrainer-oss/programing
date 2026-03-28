@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getCoachGuideSettings } from '../../lib/supabase.js'
+import { coachAdminUi, coachField, coachText } from '../CoachView/coachTheme.js'
 
 function normalizeRows(raw) {
   if (!Array.isArray(raw)) return []
@@ -115,24 +116,17 @@ export default function CoachGuideContentPanel({ onClose }) {
     }
   }
 
-  const field =
-    'w-full rounded-xl px-4 py-3 text-sm bg-[#160D16] border border-[#3D1A3D] text-[#E8EAF0] placeholder-[#9B80A0] focus:outline-none focus:border-[#A729AD]/60'
-
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70">
-      <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[#3D1A3D] bg-[#0C0B0C] shadow-2xl font-evo-body"
-        role="dialog"
-        aria-labelledby="coach-content-title"
-      >
-        <div className="sticky top-0 flex items-center justify-between gap-3 px-6 py-4 border-b border-[#3D1A3D] bg-[#0A0808]">
-          <h2 id="coach-content-title" className="font-evo-display text-lg font-bold uppercase tracking-wide text-[#FFFF4C]">
+    <div className={coachAdminUi.overlay}>
+      <div className={coachAdminUi.dialog} role="dialog" aria-labelledby="coach-content-title">
+        <div className={coachAdminUi.header}>
+          <h2 id="coach-content-title" className={coachAdminUi.title}>
             Contenido Coach
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-[#9B80A0] hover:bg-[#1A0A1A] hover:text-[#E8EAF0]"
+            className={coachAdminUi.closeBtn}
             aria-label="Cerrar"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -141,65 +135,65 @@ export default function CoachGuideContentPanel({ onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 space-y-8">
-          {loading && <p className="text-sm text-[#9B80A0]">Cargando desde Supabase…</p>}
+        <form onSubmit={handleSave} className={coachAdminUi.form}>
+          {loading && <p className={`text-base ${coachText.muted}`}>Cargando desde Supabase…</p>}
           {error && (
             <p className="text-sm text-red-300 bg-red-950/40 border border-red-900/50 rounded-xl px-4 py-3">{error}</p>
           )}
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-[#9B80A0] mb-2">Clave de administración</label>
+            <label className={coachAdminUi.label}>Clave de administración</label>
             <input
               type="password"
               autoComplete="off"
               value={adminSecret}
               onChange={(e) => setAdminSecret(e.target.value)}
-              className={field}
+              className={coachField}
               placeholder="COACH_GUIDE_ADMIN_SECRET (servidor)"
             />
-            <p className="text-[11px] text-[#9B80A0] mt-2 leading-relaxed">
+            <p className={coachAdminUi.hint}>
               Debe coincidir con la variable <code className="text-[#FFFF4C]/90">COACH_GUIDE_ADMIN_SECRET</code> en Vercel. No es el código
               de acceso de los coaches.
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-[#FFFF4C] mb-2">Aviso activo (banner en ?coach)</label>
+            <label className={coachAdminUi.labelAccent}>Aviso activo (banner en ?coach)</label>
             <textarea
               value={activeNotice}
               onChange={(e) => setActiveNotice(e.target.value)}
-              className={`${field} min-h-[72px]`}
+              className={`${coachField} min-h-[72px]`}
               placeholder="Ej.: Esta semana el jueves no hay clase de tarde."
               rows={3}
             />
           </div>
 
           <div className="space-y-4">
-            <p className="font-evo-display text-sm font-bold uppercase text-white">Canal de soporte</p>
+            <p className={`font-evo-display text-base font-bold uppercase ${coachText.primary}`}>Canal de soporte</p>
             <div>
-              <label className="block text-xs font-bold text-[#9B80A0] mb-1">Canal (WhatsApp, email, etc.)</label>
-              <textarea value={contactChannel} onChange={(e) => setContactChannel(e.target.value)} className={`${field} min-h-[60px]`} rows={2} />
+              <label className={coachAdminUi.subLabel}>Canal (WhatsApp, email, etc.)</label>
+              <textarea value={contactChannel} onChange={(e) => setContactChannel(e.target.value)} className={`${coachField} min-h-[60px]`} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#9B80A0] mb-1">Persona de contacto</label>
-              <input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} className={field} />
+              <label className={coachAdminUi.subLabel}>Persona de contacto</label>
+              <input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} className={coachField} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#9B80A0] mb-1">Horario</label>
-              <input value={contactSchedule} onChange={(e) => setContactSchedule(e.target.value)} className={field} />
+              <label className={coachAdminUi.subLabel}>Horario</label>
+              <input value={contactSchedule} onChange={(e) => setContactSchedule(e.target.value)} className={coachField} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#9B80A0] mb-1">Tiempo de respuesta</label>
-              <textarea value={responseTime} onChange={(e) => setResponseTime(e.target.value)} className={`${field} min-h-[60px]`} rows={2} />
+              <label className={coachAdminUi.subLabel}>Tiempo de respuesta</label>
+              <textarea value={responseTime} onChange={(e) => setResponseTime(e.target.value)} className={`${coachField} min-h-[60px]`} rows={2} />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-white mb-2">Material — texto libre (opcional)</label>
+            <label className={coachAdminUi.labelWhite}>Material — texto libre (opcional)</label>
             <textarea
               value={materialOverride}
               onChange={(e) => setMaterialOverride(e.target.value)}
-              className={`${field} min-h-[100px] font-mono text-[13px]`}
+              className={`${coachField} min-h-[100px] font-mono text-sm`}
               placeholder="Si rellenas esto y no hay filas en la tabla, se muestra solo este bloque en Material."
               rows={5}
             />
@@ -207,28 +201,28 @@ export default function CoachGuideContentPanel({ onClose }) {
 
           <div>
             <div className="flex items-center justify-between gap-2 mb-3">
-              <p className="font-evo-display text-sm font-bold uppercase text-white">Inventario (tabla)</p>
-              <button type="button" onClick={addRow} className="text-xs font-bold uppercase text-[#A729AD] hover:text-[#FFFF4C]">
+              <p className={`font-evo-display text-base font-bold uppercase ${coachText.primary}`}>Inventario (tabla)</p>
+              <button type="button" onClick={addRow} className="text-sm font-bold uppercase text-[#A729AD] hover:text-[#FFFF4C]">
                 + Fila
               </button>
             </div>
             <div className="space-y-3">
               {rows.map((r, i) => (
-                <div key={i} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start p-3 rounded-xl border border-[#3D1A3D] bg-[#160D16]">
+                <div key={i} className={coachAdminUi.rowCard}>
                   <input
-                    className={`${field} sm:col-span-4`}
+                    className={`${coachField} sm:col-span-4`}
                     placeholder="Material"
                     value={r.name}
                     onChange={(e) => updateRow(i, 'name', e.target.value)}
                   />
                   <input
-                    className={`${field} sm:col-span-2`}
+                    className={`${coachField} sm:col-span-2`}
                     placeholder="Cantidad"
                     value={r.qty}
                     onChange={(e) => updateRow(i, 'qty', e.target.value)}
                   />
                   <input
-                    className={`${field} sm:col-span-5`}
+                    className={`${coachField} sm:col-span-5`}
                     placeholder="Reglas de uso"
                     value={r.rules}
                     onChange={(e) => updateRow(i, 'rules', e.target.value)}
@@ -254,11 +248,7 @@ export default function CoachGuideContentPanel({ onClose }) {
             >
               {saving ? 'Guardando…' : 'Guardar en Supabase'}
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-3 rounded-xl border border-[#3D1A3D] text-[#E8EAF0] hover:bg-[#1A0A1A] text-sm font-semibold"
-            >
+            <button type="button" onClick={onClose} className={coachAdminUi.secondaryBtn}>
               Cancelar
             </button>
           </div>

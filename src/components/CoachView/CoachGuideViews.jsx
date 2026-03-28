@@ -115,44 +115,44 @@ export function CoachGuideClases() {
               <div className="pl-5 space-y-3 flex-1">
                 <div
                   className="py-1 px-3 rounded-lg text-sm font-black uppercase tracking-tight inline-block font-evo-display"
-                  style={{ backgroundColor: `${bar}33`, color: '#E8EAF0' }}
+                  style={{ backgroundColor: `${bar}33`, color: '#F0ECF0' }}
                 >
                   {c.title.split('—')[0].trim()}
                 </div>
-                <h3 className="text-[15px] font-bold text-[#E8EAF0] leading-snug font-evo-body">{c.title}</h3>
-                <p className={`text-[15px] ${coachText.muted}`}>
+                <h3 className={`text-base font-bold ${coachText.primary} leading-snug font-evo-body`}>{c.title}</h3>
+                <p className={`text-base ${coachText.muted}`}>
                   <span className={`font-bold ${coachText.primary}`}>A quién va — </span>
                   {c.audience}
                 </p>
-                <p className={`text-[15px] ${coachText.muted}`}>
+                <p className={`text-base ${coachText.muted}`}>
                   <span className={`font-bold ${coachText.primary}`}>Qué tiene — </span>
                   {c.has}
                 </p>
-                <p className={`text-[15px] ${coachText.muted} whitespace-pre-wrap`}>
+                <p className={`text-base ${coachText.muted} whitespace-pre-wrap`}>
                   <span className={`font-bold ${coachText.primary}`}>Estructura tipo — </span>
                   {c.structure}
                 </p>
-                <p className={`text-[15px] ${coachText.muted}`}>
+                <p className={`text-base ${coachText.muted}`}>
                   <span className={`font-bold ${coachText.primary}`}>Lo que puede tener — </span>
                   {c.can}
                 </p>
-                <p className={`text-[15px] ${coachText.muted}`}>
+                <p className={`text-base ${coachText.muted}`}>
                   <span className={`font-bold ${coachText.primary}`}>Lo que NO puede tener — </span>
                   {c.cannot}
                 </p>
                 {c.scale && (
-                  <p className={`text-[15px] ${coachText.muted}`}>
+                  <p className={`text-base ${coachText.muted}`}>
                     <span className={`font-bold ${coachText.primary}`}>Escalado — </span>
                     {c.scale}
                   </p>
                 )}
-                <p className={`text-[15px] italic border-t ${coachBorder} pt-4 ${coachText.accent}`}>{c.feel}</p>
+                <p className={`text-base italic border-t ${coachBorder} pt-4 ${coachText.accent}`}>{c.feel}</p>
               </div>
             </article>
           )
         })}
       </div>
-      <p className={`text-[15px] ${coachText.muted} mt-10 font-medium leading-relaxed`}>{COACH_CLASSES_FOOTNOTE}</p>
+      <p className={`text-base ${coachText.muted} mt-10 font-medium leading-relaxed`}>{COACH_CLASSES_FOOTNOTE}</p>
     </CoachGuideScroll>
   )
 }
@@ -179,14 +179,14 @@ export function CoachGuideMesociclos() {
         rows={COACH_MESOCICLO_ROWS}
         rowKey={(r) => r.semana}
       />
-      <h3 className="text-base font-bold mt-10 mb-3 text-[#E8EAF0] font-evo-display">{COACH_MESOCICLO_COACH[0]}</h3>
-      <ul className={`list-disc pl-6 space-y-2 text-[15px] ${coachText.muted}`}>
+      <h3 className={`text-base font-bold mt-10 mb-3 ${coachText.primary} font-evo-display`}>{COACH_MESOCICLO_COACH[0]}</h3>
+      <ul className={`list-disc pl-6 space-y-2 text-base ${coachText.muted}`}>
         {COACH_MESOCICLO_COACH.slice(1).map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
       <div className={`${coachUi.card} mt-10 space-y-4`}>
-        <h3 className="text-base font-extrabold uppercase tracking-wide text-[#E8EAF0] font-evo-display">{COACH_MESOCICLO_AUTOCARGA_SUB}</h3>
+        <h3 className={`text-base font-extrabold uppercase tracking-wide ${coachText.primary} font-evo-display`}>{COACH_MESOCICLO_AUTOCARGA_SUB}</h3>
         <MesoTable
           columns={[
             { key: 'semana', label: 'Semana' },
@@ -198,8 +198,8 @@ export function CoachGuideMesociclos() {
         />
       </div>
       <div className={`${coachUi.card} mt-10 space-y-4`}>
-        <h3 className="text-base font-extrabold uppercase tracking-wide text-[#E8EAF0] font-evo-display">{COACH_MESOCICLO_FBB_TITLE}</h3>
-        <p className={`text-[15px] ${coachText.muted}`}>{COACH_MESOCICLO_FBB_SUB}</p>
+        <h3 className={`text-base font-extrabold uppercase tracking-wide ${coachText.primary} font-evo-display`}>{COACH_MESOCICLO_FBB_TITLE}</h3>
+        <p className={`text-base ${coachText.muted}`}>{COACH_MESOCICLO_FBB_SUB}</p>
         <MesoTable
           columns={[
             { key: 'semana', label: 'Semana' },
@@ -211,8 +211,8 @@ export function CoachGuideMesociclos() {
         />
       </div>
       <div className={`${coachUi.card} mt-10 space-y-4`}>
-        <h3 className="text-base font-extrabold uppercase tracking-wide text-[#E8EAF0] font-evo-display">{COACH_PROGRESSION_PRINCIPLE_TITLE}</h3>
-        <ul className={`list-disc pl-6 space-y-3 text-[15px] ${coachText.primary}`}>
+        <h3 className={`text-base font-extrabold uppercase tracking-wide ${coachText.primary} font-evo-display`}>{COACH_PROGRESSION_PRINCIPLE_TITLE}</h3>
+        <ul className={`list-disc pl-6 space-y-3 text-base ${coachText.primary}`}>
           {COACH_PROGRESSION_PRINCIPLE_LINES.map((t, i) => (
             <li key={i}>{t}</li>
           ))}
@@ -226,13 +226,13 @@ export function CoachGuideUsoApp() {
   return (
     <CoachGuideScroll>
       <h2 className={coachUi.h2}>4. Cómo usar la programación</h2>
-      <p className={`text-[15px] ${coachText.muted} mb-8 leading-relaxed`}>
+      <p className={`text-base ${coachText.muted} mb-8 leading-relaxed`}>
         La app del programador genera el JSON que ves aquí. Tú recibes la semana ya publicada: días, bloques por clase y feedback.
       </p>
       {COACH_USO_SECTIONS.map((sec) => (
         <section key={sec.h} className={`mb-10 ${coachUi.card}`}>
           <h3 className="text-base font-bold mb-3 text-[#FFFF4C] font-evo-display uppercase tracking-wide">{sec.h}</h3>
-          <ul className={`text-[15px] space-y-3 leading-relaxed list-disc pl-6 ${coachText.muted}`}>
+          <ul className={`text-base space-y-3 leading-relaxed list-disc pl-6 ${coachText.muted}`}>
             {sec.lines.map((line, i) => (
               <li key={i} className="whitespace-pre-wrap">
                 {line}
@@ -257,10 +257,10 @@ export function CoachGuideMaterial({ guideSettings }) {
   return (
     <CoachGuideScroll>
       <h2 className={coachUi.h2}>5. Material disponible</h2>
-      <p className={`text-[15px] ${coachText.muted} mb-8 leading-relaxed`}>{COACH_MATERIAL_INTRO}</p>
+      <p className={`text-base ${coachText.muted} mb-8 leading-relaxed`}>{COACH_MATERIAL_INTRO}</p>
       {tableRows.length > 0 ? (
         <div className={`${coachUi.tableWrap} mb-8`}>
-          <table className="w-full text-left text-[14px] min-w-[280px]">
+          <table className="w-full text-left text-base min-w-[280px]">
             <thead>
               <tr className={coachUi.tableHead}>
                 <th className="px-4 py-3 font-bold uppercase text-[12px]">Material</th>
@@ -281,16 +281,16 @@ export function CoachGuideMaterial({ guideSettings }) {
         </div>
       ) : null}
       {override ? (
-        <div className={`${coachUi.card} border-[#3D1A3D] bg-[#160D16] mb-8`}>
+        <div className={`${coachUi.card} mb-8`}>
           <p className="text-xs font-bold text-[#A729AD] uppercase tracking-widest mb-3">Texto adicional (admin)</p>
-          <pre className={`text-[15px] whitespace-pre-wrap font-sans leading-relaxed ${coachText.primary}`}>{override}</pre>
+          <pre className={`text-base whitespace-pre-wrap font-sans leading-relaxed ${coachText.primary}`}>{override}</pre>
         </div>
       ) : null}
       {!tableRows.length && !override ? (
         <>
           <h3 className={coachUi.h3}>Las dos salas</h3>
           <div className={`${coachUi.tableWrap} mb-8`}>
-            <table className="w-full text-left text-[14px]">
+            <table className="w-full text-left text-base">
               <thead>
                 <tr className={coachUi.tableHead}>
                   <th className="px-4 py-3 font-bold uppercase text-[12px]">Sala</th>
@@ -312,7 +312,7 @@ export function CoachGuideMaterial({ guideSettings }) {
             {COACH_MATERIAL_ITEMS.map((item) => (
               <div key={item.name} className={coachUi.card}>
                 <p className="text-sm font-bold uppercase tracking-wide mb-2 text-[#A729AD] font-evo-display">{item.name}</p>
-                <pre className={`text-[15px] whitespace-pre-wrap font-sans leading-relaxed ${coachText.muted}`}>{item.detail}</pre>
+                <pre className={`text-base whitespace-pre-wrap font-sans leading-relaxed ${coachText.muted}`}>{item.detail}</pre>
               </div>
             ))}
           </div>
@@ -334,64 +334,64 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
       <h2
         className={
           variant === 'compact'
-            ? 'text-base font-extrabold uppercase tracking-wide border-b border-[#3D1A3D] pb-2 mb-3 text-[#E8EAF0] font-evo-display'
+            ? `text-base font-extrabold uppercase tracking-wide border-b ${coachBorder} pb-2 mb-3 ${coachText.primary} font-evo-display`
             : coachUi.h2
         }
       >
         6. Soporte — Cómo preguntar dudas
       </h2>
-      <p className={`text-[15px] ${coachText.muted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
-      <h3 className={variant === 'compact' ? 'text-sm font-bold mt-4 mb-2 text-[#E8EAF0] font-evo-body' : coachUi.h3}>
+      <p className={`text-base ${coachText.muted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
+      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>
         Qué tipo de dudas van por soporte
       </h3>
-      <ul className={`list-disc pl-6 space-y-2 text-[15px] ${coachText.muted} mb-6`}>
+      <ul className={`list-disc pl-6 space-y-2 text-base ${coachText.muted} mb-6`}>
         {COACH_SOPORTE_SI.map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={variant === 'compact' ? 'text-sm font-bold mt-4 mb-2 text-[#E8EAF0] font-evo-body' : coachUi.h3}>Qué NO va por soporte</h3>
-      <ul className={`list-disc pl-6 space-y-2 text-[15px] ${coachText.muted} mb-6`}>
+      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>Qué NO va por soporte</h3>
+      <ul className={`list-disc pl-6 space-y-2 text-base ${coachText.muted} mb-6`}>
         {COACH_SOPORTE_NO.map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={variant === 'compact' ? 'text-sm font-bold mt-4 mb-2 text-[#E8EAF0] font-evo-body' : coachUi.h3}>
+      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>
         Canal y persona de contacto
       </h3>
       {hasContact ? (
         <div className={`space-y-3 rounded-xl border ${coachBorder} ${coachBg.card} p-4`}>
           {ch ? (
-            <p className={`text-[15px] whitespace-pre-wrap leading-relaxed ${coachText.primary}`}>
+            <p className={`text-base whitespace-pre-wrap leading-relaxed ${coachText.primary}`}>
               <span className={`font-bold ${coachText.accent}`}>Canal — </span>
               {ch}
             </p>
           ) : null}
           {person ? (
-            <p className={`text-[15px] ${coachText.primary}`}>
+            <p className={`text-base ${coachText.primary}`}>
               <span className={`font-bold ${coachText.accent}`}>Contacto — </span>
               {person}
             </p>
           ) : null}
           {schedule ? (
-            <p className={`text-[15px] ${coachText.muted}`}>
+            <p className={`text-base ${coachText.muted}`}>
               <span className={`font-bold ${coachText.primary}`}>Horario — </span>
               {schedule}
             </p>
           ) : null}
         </div>
       ) : (
-        <p className="text-[14px] text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded-xl p-4 leading-relaxed">
+        <p className="text-base text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded-xl p-4 leading-relaxed">
           {COACH_SOPORTE_PLACEHOLDER_CHANNEL}
           <span className={`block mt-3 text-xs font-bold uppercase tracking-wide text-amber-400/90`}>
             Configúralo desde la app del programador: «Contenido Coach» (o Supabase → coach_guide_settings).
           </span>
         </p>
       )}
-      <h3 className={variant === 'compact' ? 'text-sm font-bold mt-4 mb-2 text-[#E8EAF0] font-evo-body' : coachUi.h3}>Tiempo de respuesta esperado</h3>
+      <h3 className={variant === 'compact' ? `text-base font-bold mt-4 mb-2 ${coachText.primary} font-evo-body` : coachUi.h3}>Tiempo de respuesta esperado</h3>
       {rt ? (
-        <p className={`text-[15px] whitespace-pre-wrap leading-relaxed rounded-xl border ${coachBorder} ${coachBg.card} p-4 ${coachText.primary}`}>{rt}</p>
+        <p className={`text-base whitespace-pre-wrap leading-relaxed rounded-xl border ${coachBorder} ${coachBg.card} p-4 ${coachText.primary}`}>{rt}</p>
       ) : (
-        <p className="text-[14px] text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded-xl p-4 leading-relaxed">{COACH_SOPORTE_PLACEHOLDER_RESPONSE}</p>
+        <p className="text-base text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded-xl p-4 leading-relaxed">{COACH_SOPORTE_PLACEHOLDER_RESPONSE}</p>
       )}
       <p className={`text-xs ${coachText.muted} font-bold uppercase tracking-widest mt-10 text-center`}>{COACH_SOPORTE_FOOTER}</p>
     </>

@@ -280,7 +280,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 evo-light-dialog">
       <div className="w-full max-w-3xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] animate-fade-in shadow-2xl overflow-hidden">
 
         {/* Header */}
@@ -688,7 +688,7 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
                     value={rawJson}
                     onChange={(e) => setRawJson(e.target.value)}
                     rows={16}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-2xl px-5 py-5 text-[10px] text-emerald-400 font-mono focus:outline-none leading-relaxed shadow-2xl"
+                    className="evo-json-console w-full bg-gray-900 border border-gray-800 rounded-2xl px-5 py-5 text-[10px] text-emerald-400 font-mono focus:outline-none leading-relaxed shadow-2xl"
                     spellCheck={false}
                   />
                 </div>

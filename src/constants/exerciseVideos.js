@@ -132,19 +132,52 @@ export const EXERCISE_CATEGORIES = {
   olimpicos: ['power clean', 'hang power clean', 'hang clean', 'power snatch', 'hang power snatch', 'push jerk', 'push press', 'thruster', 'db thruster', 'db snatch', 'db clean'],
 }
 
-// Busca ejercicios en un texto (case insensitive) y devuelve los que tienen vídeo
-export function findExercisesWithVideos(text) {
-  if (!text) return []
-  const lowerText = text.toLowerCase()
-  const found = []
-  for (const [name, url] of Object.entries(EXERCISE_VIDEOS)) {
-    if (lowerText.includes(name)) {
-      // Evitar duplicados
-      if (!found.find((f) => f.name === name)) {
-        found.push({ name, url })
-      }
-    }
+/** Claves de sesión en JSON publicado (coach / Excel). */
+export const PUBLISHED_DAY_BLOCK_KEYS = [
+  'evofuncional',
+  'evobasics',
+  'evofit',
+  'evohybrix',
+  'evofuerza',
+  'evogimnastica',
+]
+
+export function publishedDayProgramText(dia) {
+  if (!dia) return ''
+  const parts = []
+  for (const k of PUBLISHED_DAY_BLOCK_KEYS) {
+    if (dia[k]) parts.push(String(dia[k]))
   }
-  // Ordenar por longitud descendente para priorizar matches más específicos
-  return found.sort((a, b) => b.name.length - a.name.length).slice(0, 8)
+  if (dia.wodbuster) parts.push(String(dia.wodbuster))
+  return parts.join('\n')
+}
+
+function matchVideosInLowerText(lowerText, { max = 40, dedupeByUrl = true } = {}) {
+  if (!lowerText) return []
+  const sorted = Object.entries(EXERCISE_VIDEOS).sort((a, b) => b[0].length - a[0].length)
+  const out = []
+  const usedUrls = new Set()
+  for (const [name, url] of sorted) {
+    if (out.length >= max) break
+    if (!lowerText.includes(name.toLowerCase())) continue
+    if (dedupeByUrl && usedUrls.has(url)) continue
+    if (dedupeByUrl) usedUrls.add(url)
+    out.push({ name, url })
+  }
+  return out
+}
+
+/** Texto libre (p. ej. una sola sesión). */
+export function findVideosInProgramText(text, options = {}) {
+  return matchVideosInLowerText((text || '').toLowerCase(), { max: options.max ?? 40, dedupeByUrl: options.dedupeByUrl !== false })
+}
+
+/** Un día publicado: detecta ejercicios de la biblioteca en toda la programación del día. */
+export function findVideosForPublishedDay(dia, options = {}) {
+  return findVideosInProgramText(publishedDayProgramText(dia), options)
+}
+
+// Busca ejercicios en un texto (Excel / compat). Máx. 8 sugerencias.
+export function findExercisesWithVideos(text) {
+  return matchVideosInLowerText((text || '').toLowerCase(), { max: 8, dedupeByUrl: true })
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getActiveWeek, createCoachSession, saveMessage, updateSessionActivity } from '../../lib/supabase.js'
 import { AI_CONFIG } from '../../constants/config.js'
 import { buildCoachPrompt } from '../../constants/systemPromptCoach.js'
+import { findVideosForPublishedDay } from '../../constants/exerciseVideos.js'
 
 const COACH_NAME_KEY    = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -60,6 +61,44 @@ function buildDayQuickSummary(dia) {
   return { labels, preview }
 }
 
+function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
+  if (!videos?.length) {
+    return (
+      <div className="rounded-2xl p-4 bg-gray-50/90 border border-black/6">
+        <p className="text-[9px] font-bold text-evo-muted uppercase tracking-widest mb-1">{title}</p>
+        <p className="text-[10px] text-evo-muted leading-relaxed">
+          {subtitle ||
+            'No hay coincidencias con la biblioteca de ejercicios en este día. Usa el asistente o busca en YouTube el nombre del movimiento.'}
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-2xl p-4 bg-gradient-to-br from-red-50 via-white to-amber-50/30 border border-red-100/70 shadow-sm">
+      <p className="text-[9px] font-bold text-red-900 uppercase tracking-widest mb-1">{title}</p>
+      <p className="text-[10px] text-red-900/65 mb-3 leading-snug">
+        Abre YouTube con una búsqueda ya orientada a técnica. Todo dentro de la app; vuelve con el botón atrás del navegador.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {videos.map(({ name, url }) => (
+          <a
+            key={name}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-3 py-2 rounded-xl bg-[#FF0000] text-white hover:bg-[#cc0000] shadow-md shadow-red-500/20 active:scale-[0.97] transition-transform"
+          >
+            <span className="text-xs leading-none opacity-95" aria-hidden>
+              ▶
+            </span>
+            <span className="max-w-[10rem] truncate normal-case">{name}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function getCoachCode() {
   try { return localStorage.getItem(COACH_CODE_KEY) || DEFAULT_CODE } catch { return DEFAULT_CODE }
 }
@@ -78,8 +117,8 @@ export default function CoachView() {
   const [error, setError]           = useState('')
   /** null = panel cerrado; 'show' = semana abierta (lista de días); string = detalle de ese día */
   const [activeDay, setActiveDay]   = useState(null)
-  /** Dentro del panel overview: elegir día o vista completa estilo Excel */
-  const [weekTab, setWeekTab]       = useState('dias') // 'dias' | 'excel'
+  /** Dentro del panel overview: días, Excel o vídeos agrupados por día */
+  const [weekTab, setWeekTab]       = useState('dias') // 'dias' | 'excel' | 'videos'
   const messagesEndRef              = useRef(null)
 
   useEffect(() => {
@@ -409,6 +448,15 @@ export default function CoachView() {
                 >
                   Vista completa (tipo Excel)
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekTab('videos')}
+                  className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest transition-all ${
+                    weekTab === 'videos' ? 'bg-evo-accent text-white' : 'bg-gray-100 text-evo-muted hover:text-evo-text'
+                  }`}
+                >
+                  Vídeos por día
+                </button>
               </div>
 
               {weekTab === 'dias' && (
@@ -419,6 +467,7 @@ export default function CoachView() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     {dias.map((dia) => {
                       const { labels, preview } = buildDayQuickSummary(dia)
+                      const videoCount = findVideosForPublishedDay(dia).length
                       return (
                         <button
                           key={dia.nombre}
@@ -426,7 +475,14 @@ export default function CoachView() {
                           onClick={() => setActiveDay(dia.nombre)}
                           className="text-left rounded-2xl p-4 bg-white border border-black/8 shadow-sm hover:border-evo-accent/35 hover:shadow-md transition-all active:scale-[0.99]"
                         >
-                          <p className="text-[11px] font-bold text-evo-text uppercase tracking-tight mb-2">{dia.nombre}</p>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <p className="text-[11px] font-bold text-evo-text uppercase tracking-tight">{dia.nombre}</p>
+                            {videoCount > 0 && (
+                              <span className="text-[9px] font-bold uppercase tracking-wide text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-lg shrink-0">
+                                ▶ {videoCount} vídeo{videoCount === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {labels.length ? (
                               labels.map((lb) => (
@@ -455,6 +511,38 @@ export default function CoachView() {
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {weekTab === 'videos' && (
+                <div className="px-6 py-4 space-y-5 pb-6">
+                  <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest leading-relaxed">
+                    Ejercicios detectados en la programación publicada (biblioteca EVO). Agrupados por día: un toque y abres YouTube con la búsqueda lista.
+                  </p>
+                  {dias.map((dia) => {
+                    const vids = findVideosForPublishedDay(dia)
+                    return (
+                      <div key={dia.nombre} className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 px-0.5">
+                          <p className="text-[11px] font-bold text-evo-text uppercase tracking-widest">{dia.nombre}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWeekTab('dias')
+                              setActiveDay(dia.nombre)
+                            }}
+                            className="text-[9px] font-bold text-evo-accent uppercase tracking-wide underline decoration-evo-accent/30"
+                          >
+                            Ver texto del día
+                          </button>
+                        </div>
+                        <CoachVideoChips
+                          videos={vids}
+                          title={vids.length ? `Vídeos · ${dia.nombre}` : `Sin vídeos detectados · ${dia.nombre}`}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
@@ -501,6 +589,12 @@ export default function CoachView() {
                           {!sessions.length && !feedbacks.length && !wb && (
                             <p className="text-[11px] text-evo-muted">Sin contenido para este día.</p>
                           )}
+                          <div className="pt-2 border-t border-black/5">
+                            <CoachVideoChips
+                              videos={findVideosForPublishedDay(dia)}
+                              title={`▶ Vídeos · ${dia.nombre}`}
+                            />
+                          </div>
                         </div>
                       </div>
                     )
@@ -547,8 +641,16 @@ export default function CoachView() {
                   setWeekTab('dias')
                 }
 
+                const dayVideos = findVideosForPublishedDay(dia)
+
                 return (
                   <div className="px-6 pb-5 pt-3 space-y-4">
+                    <CoachVideoChips
+                      videos={dayVideos}
+                      title={`Vídeos del ${dayName}`}
+                      subtitle={`Nada en biblioteca para el ${dayName}. Pregunta al asistente: «¿cómo es la técnica de…?»`}
+                    />
+
                     <div className="rounded-2xl p-4 bg-gradient-to-br from-evo-accent/8 to-purple-50/40 border border-evo-accent/15">
                       <p className="text-[9px] font-bold text-evo-accent uppercase tracking-widest mb-2">Resumen rápido</p>
                       <div className="flex flex-wrap gap-1.5 mb-2">

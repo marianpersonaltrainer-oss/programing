@@ -222,15 +222,31 @@ que trabaje el estímulo del mesociclo bajo fatiga. Ejemplos orientativos:
 - Mesociclo AUTOCARGA: WOD largo de patrones gimnásticos con densidad controlada.
 - Mesociclo MIXTO: WOD largo que combine fuerza y gimnástico en el mismo formato.
 
-REGLA FIJA DE MARGEN (tiempo libre antes del cierre):
-- Si el WOD dura 15 min → reservar ~25 min libres antes del cierre para prep + WOD + transición.
-- Si el WOD dura 10 min → reservar ~18-20 min libres.
-- Si el WOD dura menos de 8 min → la prep puede ser mínima porque casi todo ya se ha
-  tocado en calentamiento o Parte A; basta ajustar cargas.
+FILOSOFÍA DE TIMING EN EVO — PRIORIDAD: ENTRENADOR TRANQUILO
+El objetivo no es cumplir un timing milimetrado sino que el entrenador llegue al WOD con
+margen, sin estrés y habiendo podido explicar bien todo lo anterior.
 
-REGLA DE PREP MÍNIMA DEL WOD:
-El WOD nunca necesita menos de 3 min de prep salvo que sea continuación directa de la
-Parte A con exactamente el mismo material y peso — en ese caso puede ser 1-2 min de ajuste.
+Regla principal:
+La complejidad total de la sesión (Parte A + WOD) debe ser asumible para que el entrenador
+pueda dar una clase de calidad. Nunca acumular complejidad técnica en Parte A Y complejidad
+de materiales en el WOD a la vez.
+
+Criterio de prep del WOD según complejidad:
+- WOD sencillo, mismos materiales que Parte A o movimientos simples ya conocidos → 3-5 min
+  de prep es suficiente.
+- WOD con algo nuevo o diferente a la Parte A → 5-7 min de prep.
+- WOD con material completamente distinto, pesos individuales o movimientos técnicos nuevos
+  → 8-10 min de prep.
+
+Regla de compensación automática:
+- Si la Parte A es técnica y compleja → el WOD debe ser sencillo en materiales y aprovechar
+  lo ya trabajado.
+- Si el WOD es el protagonista → la Parte A debe ser corta y dejar margen.
+- Nunca los dos complejos a la vez.
+
+Objetivo final:
+Que el entrenador sienta que tiene tiempo, que puede explicar bien, que la clase fluye y que
+los alumnos salen con la sensación de haber trabajado bien — no agobiados ni confusos.
 
 FLEXIBILIDAD DE ESTRUCTURA:
 La sesión NO tiene que tener siempre varias partes separadas. Puede diseñarse:

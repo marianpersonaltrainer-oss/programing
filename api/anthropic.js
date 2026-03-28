@@ -9,11 +9,18 @@ export default async function handler(req, res) {
   }
 
   const { model, max_tokens, system, messages } = req.body
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = (
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.VITE_ANTHROPIC_API_KEY ||
+    ''
+  ).trim()
 
   if (!apiKey) {
     return res.status(500).json({
-      error: { message: 'ANTHROPIC_API_KEY no configurada en el servidor (Vercel o .env local con vercel dev).' },
+      error: {
+        message:
+          'Falta clave de Anthropic en el servidor. En Vercel: Settings → Environment Variables → añade ANTHROPIC_API_KEY (recomendado) para Production y Redeploy. No uses solo el nombre en español ni variables sin asignar a Production.',
+      },
     })
   }
 

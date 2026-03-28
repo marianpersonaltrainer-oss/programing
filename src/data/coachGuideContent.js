@@ -69,10 +69,34 @@ export const COACH_CLASS_CARDS = [
     cannot: 'Técnica compleja, halterofilia, landmine.',
     feel: '«Me lo he pasado bien sufriendo. Ha sido diferente.»',
   },
+  {
+    id: 'fuerza',
+    title: 'EVOFUERZA — Functional bodybuilding (solo si está en programación)',
+    audience:
+      'Cuando el programador incluye esta columna en la semana. Perfil que tolera cargas y control de RIR; no es una clase diaria para todos los públicos.',
+    has: 'Progresión por RIR (reps in reserve). Bloques tipo triset A1/A2/A3. Fuerza con volumen moderado y mucha calidad de ejecución.',
+    structure:
+      'Calentamiento específico → Trisets o bloques de fuerza con descansos fijos → Accesorios → Cierre.',
+    can: 'Back squat, RDL, press, remos, accesorios de brazo y pierna con mancuernas/barras controladas.',
+    cannot: 'Sustituir a EvoFuncional u otras clases si la semana no trae columna EvoFuerza.',
+    feel: '«He trabajado musculación con intención; sé cuánto me quedaba en depósito.»',
+  },
+  {
+    id: 'gimnastica',
+    title: 'EVOGIMNÁSTICA — Skills corporales (solo si está en programación)',
+    audience:
+      'Cuando el programador incluye esta columna. Alumnos con base y tiempo para técnica; progresiones escaladas.',
+    has: 'Dominadas, muscle up scaled, handstand y progresiones, core gimnástico, anillas con criterio técnico.',
+    structure:
+      'Movilidad y activación → Skill principal con progresiones → Volumen técnico o circuito ligado al skill → Cierre.',
+    can: 'Pull-ups asistidos, jumping muscle up, box HSPU, handstand hold wall, L-sit scaled, hollow/arch work.',
+    cannot: 'Improvisar skills de competición si no vienen en la programación.',
+    feel: '«He tocado técnica real; salgo con una progresión clara.»',
+  },
 ]
 
 export const COACH_CLASSES_FOOTNOTE =
-  'Clave: las clases NO son versiones escaladas unas de otras. Son sesiones distintas con objetivos distintos. EvoFuncional y EvoBasics nunca repiten el mismo ejercicio principal el mismo día.'
+  'Clave: las clases NO son versiones escaladas unas de otras. Son sesiones distintas con objetivos distintos. EvoFuncional y EvoBasics nunca repiten el mismo ejercicio principal el mismo día. EvoFuerza y EvoGimnástica solo existen en sala cuando vienen publicadas en esa semana.'
 
 export const COACH_MESOCICLO_INTRO = [
   'Un mesociclo es un bloque de entrenamiento con un objetivo claro que dura varias semanas. En EVO trabajamos con mesociclos de 6 semanas. Cada semana tiene una fase distinta que va aumentando la intensidad de forma progresiva.',

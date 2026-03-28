@@ -1,16 +1,9 @@
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import { EXERCISE_VIDEOS, EXERCISE_CATEGORIES, findExercisesWithVideos } from '../constants/exerciseVideos.js'
+import { ALL_CLASSES } from '../constants/evoClasses.js'
 
-// ── Definición de todas las clases EVO ────────────────────────────────────────
-export const ALL_CLASSES = [
-  { key: 'evofuncional',  feedbackKey: 'feedback_funcional',  label: 'EvoFuncional',   bg: 'FF2F7BBE' },
-  { key: 'evobasics',     feedbackKey: 'feedback_basics',     label: 'EvoBasics',      bg: 'FFE07B39' },
-  { key: 'evofit',        feedbackKey: 'feedback_fit',        label: 'EvoFit',         bg: 'FF2FBE7B' },
-  { key: 'evohybrix',     feedbackKey: 'feedback_hybrix',     label: 'EvoHybrix',      bg: 'FFBE2F2F' },
-  { key: 'evofuerza',     feedbackKey: 'feedback_fuerza',     label: 'EvoFuerza',      bg: 'FF78350F' },
-  { key: 'evogimnastica', feedbackKey: 'feedback_gimnastica', label: 'EvoGimnástica',  bg: 'FF4C1D95' },
-]
+export { ALL_CLASSES }
 
 const C = {
   titleBg:       'FF4B0082',

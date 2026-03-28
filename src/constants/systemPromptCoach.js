@@ -4,15 +4,7 @@
  * Se mantiene por si se reutiliza contexto semanal en el futuro.
  */
 import { EXERCISE_VIDEOS } from './exerciseVideos.js'
-
-const ALL_CLASS_KEYS = [
-  { key: 'evofuncional',  label: 'EvoFuncional'  },
-  { key: 'evobasics',     label: 'EvoBasics'     },
-  { key: 'evofit',        label: 'EvoFit'        },
-  { key: 'evohybrix',     label: 'EvoHybrix'     },
-  { key: 'evofuerza',     label: 'EvoFuerza'     },
-  { key: 'evogimnastica', label: 'EvoGimnástica' },
-]
+import { ALL_CLASS_KEYS } from './evoClasses.js'
 
 function buildVideoLibrary() {
   const lines = ['════════════════════════════════════════',

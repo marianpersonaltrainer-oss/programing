@@ -13,6 +13,7 @@ import {
 import { publishWeek } from '../../lib/supabase.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../../constants/config.js'
+import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 async function extractTextFromFile(file) {
   const ext = file.name.split('.').pop().toLowerCase()
@@ -49,23 +50,12 @@ async function extractTextFromFile(file) {
   throw new Error(`Formato no soportado (.${ext}). Usa .docx, .xlsx o .txt`)
 }
 
-const EDIT_SESSION_FIELDS = [
-  { key: 'evofuncional', label: 'EvoFuncional', color: '#2F7BBE' },
-  { key: 'evobasics', label: 'EvoBasics', color: '#E07B39' },
-  { key: 'evofit', label: 'EvoFit', color: '#2FBE7B' },
-  { key: 'evohybrix', label: 'EvoHybrix', color: '#BE2F2F' },
-  { key: 'evofuerza', label: 'EvoFuerza', color: '#BE2F2F' },
-  { key: 'evogimnastica', label: 'EvoGimnástica', color: '#D93F8E' },
-]
+const EDIT_SESSION_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ key, label, color }) => ({ key, label, color }))
 
-const EDIT_FEEDBACK_FIELDS = [
-  { key: 'feedback_funcional', label: 'Feedback · Funcional' },
-  { key: 'feedback_basics', label: 'Feedback · Basics' },
-  { key: 'feedback_fit', label: 'Feedback · Fit' },
-  { key: 'feedback_hybrix', label: 'Feedback · Hybrix' },
-  { key: 'feedback_fuerza', label: 'Feedback · Fuerza' },
-  { key: 'feedback_gimnastica', label: 'Feedback · Gimnástica' },
-]
+const EDIT_FEEDBACK_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ feedbackKey, label }) => ({
+  key: feedbackKey,
+  label: `Feedback · ${label.replace(/^Evo/, '')}`,
+}))
 
 export default function ExcelGeneratorModal({ weekState, onClose }) {
   const [context, setContext]           = useState('')

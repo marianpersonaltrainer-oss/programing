@@ -61,14 +61,13 @@ export default function AgentChat({
   const activeDayLabel = activeDay ? DAYS_ES[activeDay] : null
 
   return (
-    <div className="flex flex-col h-full bg-gray-50/50 backdrop-blur-sm">
-      {/* Chat header */}
-      <div className="px-6 py-4 border-b border-black/5 bg-white flex items-center justify-between flex-shrink-0 shadow-sm">
+    <div className="flex flex-col h-full min-h-0 bg-[#0C0B0C]">
+      <div className="px-6 py-4 border-b border-[#3D1A3D] bg-[#0C0B0C] flex items-center justify-between flex-shrink-0">
         <div>
-          <h2 className="text-display text-sm font-bold text-evo-text uppercase tracking-tight">
+          <h2 className="font-evo-display text-sm font-bold text-[#FFFF4C] uppercase tracking-tight">
             Asistente EVO
           </h2>
-          <p className="text-[10px] text-evo-muted font-medium mt-0.5 uppercase tracking-widest">
+          <p className="text-[10px] text-[#9B80A0] font-medium mt-0.5 uppercase tracking-widest">
             {weekState.mesocycle
               ? `${weekState.mesocycle} · S${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` · ${weekState.phase}` : ''}`
               : 'Configuración pendiente'
@@ -78,7 +77,7 @@ export default function AgentChat({
         {messages.length > 0 && (
           <button
             onClick={onClearMessages}
-            className="text-[10px] text-evo-muted hover:text-red-500 font-bold uppercase transition-all"
+            className="text-[10px] text-[#9B80A0] hover:text-red-400 font-bold uppercase transition-all"
           >
             Limpiar Chat
           </button>
@@ -90,24 +89,24 @@ export default function AgentChat({
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center py-12 animate-fade-in">
             {/* Logo mark */}
-            <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mb-6 shadow-elevated border border-black/5">
-              <span className="text-display text-2xl font-black text-evo-accent">E</span>
+            <div className="w-16 h-16 rounded-2xl bg-[#160D16] flex items-center justify-center mb-6 border border-[#3D1A3D]">
+              <span className="font-evo-display text-2xl font-black text-[#FFFF4C]">E</span>
             </div>
-            <h3 className="text-display text-base font-bold text-evo-text mb-2">
+            <h3 className="font-evo-display text-base font-bold text-[#E8EAF0] mb-2">
               ¿Qué programamos hoy?
             </h3>
-            <p className="text-xs text-evo-muted max-w-xs leading-relaxed mb-8 font-medium">
+            <p className="text-xs text-[#9B80A0] max-w-xs leading-relaxed mb-8 font-medium">
               Describe el día y las clases que quieres programar. Generaré la sesión con ejercicios, tiempos y feedback oficial de EVO.
             </p>
-            {/* Quick prompts */}
             <div className="w-full max-w-sm space-y-2">
-              <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest mb-3">Accesos rápidos</p>
+              <p className="text-[9px] text-[#9B80A0] font-bold uppercase tracking-widest mb-3">Accesos rápidos</p>
               <div className="grid grid-cols-2 gap-3">
                 {QUICK_PROMPTS.map((p) => (
                   <button
                     key={p}
+                    type="button"
                     onClick={() => setInput(p)}
-                    className="w-full text-left px-4 py-2.5 rounded-xl bg-white border border-black/5 hover:border-evo-accent/30 hover:bg-evo-accent/[0.02] transition-all text-xs text-evo-muted hover:text-evo-accent font-medium shadow-soft"
+                    className="w-full text-left px-4 py-2.5 rounded-xl bg-[#160D16] border border-[#3D1A3D] hover:border-[#A729AD]/60 transition-all text-xs text-[#E8EAF0] font-medium"
                   >
                     {p}
                   </button>
@@ -127,12 +126,13 @@ export default function AgentChat({
             {msg.role === 'assistant' && i === messages.length - 1 && !isGenerating && (
               <div className="mt-4 ml-10">
                 {editingContent !== null ? (
-                  <div className="bg-white border border-black/5 rounded-2xl overflow-hidden shadow-elevated animate-fade-in text-evo-text">
-                    <div className="px-4 py-2.5 bg-gray-50 border-b border-black/5 flex justify-between items-center">
-                      <span className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">Editar Programación</span>
+                  <div className="bg-[#160D16] border border-[#3D1A3D] rounded-2xl overflow-hidden animate-fade-in text-[#E8EAF0]">
+                    <div className="px-4 py-2.5 bg-[#0C0B0C] border-b border-[#3D1A3D] flex justify-between items-center">
+                      <span className="text-[10px] text-[#9B80A0] font-bold uppercase tracking-widest">Editar Programación</span>
                       <button
+                        type="button"
                         onClick={() => setEditingContent(null)}
-                        className="text-[10px] text-evo-accent font-bold uppercase hover:underline"
+                        className="text-[10px] text-[#A729AD] font-bold uppercase hover:underline"
                       >
                         ← Volver
                       </button>
@@ -140,10 +140,10 @@ export default function AgentChat({
                     <textarea
                       value={editingContent}
                       onChange={(e) => setEditingContent(e.target.value)}
-                      className="w-full bg-transparent px-5 py-4 text-[11px] font-mono text-gray-700 focus:outline-none min-h-[350px] leading-relaxed"
+                      className="w-full bg-[#0C0B0C] px-5 py-4 text-[11px] font-mono text-[#E8EAF0] focus:outline-none min-h-[350px] leading-relaxed"
                       spellCheck={false}
                     />
-                    <div className="px-5 py-4 bg-gray-50/50 border-t border-black/5">
+                    <div className="px-5 py-4 bg-[#0C0B0C] border-t border-[#3D1A3D]">
                       <SessionPreview
                         content={editingContent}
                         onConfirm={handleConfirmSession}
@@ -166,17 +166,18 @@ export default function AgentChat({
         {/* Generating indicator */}
         {isGenerating && (
           <div className="flex items-center gap-3 ml-4 animate-fade-in">
-            <div className="w-8 h-8 rounded-full bg-evo-accent flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 shadow-lg shadow-purple-500/20">
+            <div className="w-8 h-8 rounded-full bg-[#6A1F6D] flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
               E
             </div>
-            <div className="flex items-center gap-2 px-5 py-3.5 bg-white rounded-2xl rounded-tl-sm border border-black/5 shadow-soft">
-              <div className="w-1.5 h-1.5 rounded-full bg-evo-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-evo-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-evo-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="flex items-center gap-2 px-5 py-3.5 bg-[#160D16] rounded-2xl rounded-tl-sm border border-[#3D1A3D]">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#A729AD] animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-[#A729AD] animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-[#A729AD] animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
             <button
+              type="button"
               onClick={onStopGeneration}
-              className="text-[10px] text-evo-muted hover:text-red-500 font-bold uppercase transition-all"
+              className="text-[10px] text-[#9B80A0] hover:text-red-400 font-bold uppercase transition-all"
             >
               Detener
             </button>
@@ -194,15 +195,17 @@ export default function AgentChat({
       </div>
 
       {/* Input area */}
-      <div className="px-6 py-5 border-t border-black/5 bg-white/50 backdrop-blur-md flex-shrink-0 shadow-inner">
+      <div className="px-6 py-5 border-t border-[#3D1A3D] bg-[#0A0808] flex-shrink-0">
         {activeDayLabel && (
           <div className="mb-3 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-evo-accent animate-pulse" />
-            <span className="text-[10px] text-evo-muted font-bold tracking-tight uppercase">Programando: <span className="text-evo-text">{activeDayLabel}</span></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#A729AD] animate-pulse" />
+            <span className="text-[10px] text-[#9B80A0] font-bold tracking-tight uppercase">
+              Programando: <span className="text-[#E8EAF0]">{activeDayLabel}</span>
+            </span>
           </div>
         )}
         <div className="flex gap-3 items-end">
-          <div className="flex-1 bg-white border border-black/10 rounded-2xl overflow-hidden focus-within:border-evo-accent/40 focus-within:ring-2 focus-within:ring-evo-accent/10 transition-all shadow-soft">
+          <div className="flex-1 bg-[#160D16] border border-[#3D1A3D] rounded-2xl overflow-hidden focus-within:border-[#A729AD]/50 focus-within:ring-1 focus-within:ring-[#A729AD]/20 transition-all">
             <textarea
               ref={textareaRef}
               value={input}
@@ -210,14 +213,15 @@ export default function AgentChat({
               onKeyDown={handleKeyDown}
               placeholder="Describe el día o las clases específicas..."
               rows={2}
-              className="w-full bg-transparent px-5 py-4 text-sm text-evo-text placeholder-evo-muted focus:outline-none leading-relaxed font-medium"
+              className="w-full bg-transparent px-5 py-4 text-sm text-[#E8EAF0] placeholder-[#9B80A0] focus:outline-none leading-relaxed font-medium"
               disabled={isGenerating}
             />
           </div>
           <button
+            type="button"
             onClick={handleSend}
             disabled={!input.trim() || isGenerating}
-            className="w-12 h-12 rounded-2xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-30 disabled:grayscale flex items-center justify-center transition-all flex-shrink-0 shadow-lg shadow-purple-500/20 active:scale-90"
+            className="w-12 h-12 rounded-2xl bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-30 flex items-center justify-center transition-all flex-shrink-0 active:scale-90"
             title="Enviar (Enter)"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white">
@@ -227,12 +231,8 @@ export default function AgentChat({
           </button>
         </div>
         <div className="flex justify-between items-center mt-3">
-          <p className="text-[10px] text-evo-muted font-medium">
-            Shift + Enter para nueva línea
-          </p>
-          <div className="flex items-center gap-1 text-[9px] text-evo-muted font-bold tracking-widest uppercase">
-            POWERED BY CLAUDE 3.5
-          </div>
+          <p className="text-[10px] text-[#9B80A0] font-medium">Shift + Enter para nueva línea</p>
+          <div className="flex items-center gap-1 text-[9px] text-[#9B80A0] font-bold tracking-widest uppercase">Claude</div>
         </div>
       </div>
     </div>

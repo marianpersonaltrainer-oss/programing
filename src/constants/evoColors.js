@@ -1,10 +1,14 @@
+/** Colores WodBuster — ver `evoClasses.js` */
 export const CLASS_COLORS = {
-  EvoFuncional:  { bg: '#2F7BBE', text: '#FFFFFF', label: 'EvoFuncional' },
-  EvoBasics:     { bg: '#E07B39', text: '#FFFFFF', label: 'EvoBasics' },
-  EvoFit:        { bg: '#2FBE7B', text: '#FFFFFF', label: 'EvoFit' },
-  Fuerza:        { bg: '#BE2F2F', text: '#FFFFFF', label: 'Bloque Fuerza' },
-  Gimnasticos:   { bg: '#D93F8E', text: '#FFFFFF', label: 'Gimnásticos' },
-  HYBRIX:        { bg: '#E0C12F', text: '#111111', label: 'HYBRIX' },
+  EvoFuncional: { bg: '#3C78D8', text: '#FFFFFF', label: 'EvoFuncional' },
+  EvoBasics: { bg: '#E69138', text: '#FFFFFF', label: 'EvoBasics' },
+  EvoFit: { bg: '#6AA84F', text: '#FFFFFF', label: 'EvoFit' },
+  EvoHybrix: { bg: '#F4C430', text: '#111111', label: 'EvoHybrix' },
+  EvoFuerza: { bg: '#CC0000', text: '#FFFFFF', label: 'EvoFuerza' },
+  'EvoGimnástica': { bg: '#E91E8C', text: '#FFFFFF', label: 'EvoGimnástica' },
+  Fuerza: { bg: '#CC0000', text: '#FFFFFF', label: 'Bloque Fuerza' },
+  Gimnasticos: { bg: '#E91E8C', text: '#FFFFFF', label: 'Gimnásticos' },
+  HYBRIX: { bg: '#F4C430', text: '#111111', label: 'HYBRIX' },
 }
 
 export const DAYS_ES = {

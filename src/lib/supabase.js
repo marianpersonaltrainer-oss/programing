@@ -108,7 +108,9 @@ export async function getSessionMessages(sessionId) {
 export async function getCoachGuideSettings() {
   const { data, error } = await supabase
     .from('coach_guide_settings')
-    .select('contact_channel, contact_response, material_override')
+    .select(
+      'contact_channel, contact_response, material_override, active_notice, material_table, contact_person, contact_schedule, response_time',
+    )
     .eq('id', 'default')
     .maybeSingle()
 

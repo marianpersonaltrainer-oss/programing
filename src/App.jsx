@@ -7,12 +7,13 @@ import ExcelGeneratorModal from './components/ExcelGeneratorModal/ExcelGenerator
 import CoachView from './components/CoachView/CoachView.jsx'
 import CoachReview from './components/CoachReview/CoachReview.jsx'
 import MethodPanel from './components/MethodPanel/MethodPanel.jsx'
-import { COACH_CODE_KEY } from './components/CoachView/CoachView.jsx'
+import { COACH_CODE_KEY, getCoachCodeFieldInitialValue } from './constants/coachAccess.js'
 import ExerciseLibrary from './components/ExerciseLibrary/ExerciseLibrary.jsx'
+import EvoLogo from './components/EvoLogo.jsx'
+import CoachGuideContentPanel from './components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
 
-// Routing simple por query param
 const isCoachMode = new URLSearchParams(window.location.search).has('coach')
 
 export default function App() {
@@ -40,10 +41,11 @@ export default function App() {
   const [showExcelModal, setShowExcelModal] = useState(false)
   const [showCoachReview, setShowCoachReview] = useState(false)
   const [showMethodPanel, setShowMethodPanel] = useState(false)
-  const [showLibrary, setShowLibrary]         = useState(false)
-  const [showCodeConfig, setShowCodeConfig]   = useState(false)
-  const [codeValue, setCodeValue]             = useState(() => localStorage.getItem(COACH_CODE_KEY) || 'EVO2025')
-  const [codeSaved, setCodeSaved]             = useState(false)
+  const [showLibrary, setShowLibrary] = useState(false)
+  const [showCodeConfig, setShowCodeConfig] = useState(false)
+  const [showCoachContentPanel, setShowCoachContentPanel] = useState(false)
+  const [codeValue, setCodeValue] = useState(() => getCoachCodeFieldInitialValue())
+  const [codeSaved, setCodeSaved] = useState(false)
 
   function handleDayClick(day) {
     setActiveDay((prev) => (prev === day ? null : day))
@@ -72,47 +74,74 @@ export default function App() {
     }
   }
 
+  const navBtn =
+    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[12px] font-semibold text-[#9B80A0] hover:bg-[#1A0A1A] hover:text-[#E8EAF0] border border-transparent hover:border-[#3D1A3D] transition-colors'
+
   return (
-    <div className="h-screen flex flex-col bg-evo-bg studio-bg overflow-hidden font-body selection:bg-evo-accent/10">
-      {/* Top Header / Logo Bar */}
-      <header className="h-16 flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-black/5 flex items-center px-6 justify-between z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-evo-accent flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
-            <span className="text-xl font-black italic tracking-tighter">E</span>
-          </div>
-          <div>
-            <h1 className="text-sm font-black text-evo-text uppercase tracking-[0.15em] leading-none">EVOLUTION</h1>
-            <p className="text-[9px] font-bold text-evo-muted uppercase tracking-[0.2em] mt-1">Boutique Fitness Granada</p>
+    <div className="h-screen flex flex-col bg-[#0C0B0C] text-[#E8EAF0] overflow-hidden font-evo-body selection:bg-[#A729AD]/30">
+      <header className="h-[4.25rem] flex-shrink-0 bg-[#0C0B0C] border-b border-[#3D1A3D] flex items-center px-5 justify-between z-50 safe-area-pt">
+        <div className="flex items-center gap-4 min-w-0">
+          <EvoLogo />
+          <div className="min-w-0 hidden sm:block">
+            <p className="font-evo-display text-lg sm:text-xl font-bold uppercase tracking-[0.12em] text-[#FFFF4C] leading-tight truncate">
+              Evolution
+            </p>
+            <p className="font-evo-display text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B80A0] truncate">
+              Boutique Fitness Granada
+            </p>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end mr-2">
-            <span className="text-[10px] font-bold text-evo-text uppercase tracking-wider">Coach Dashboard</span>
-            <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-[0.2em]">Connected</span>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-gray-100 border border-black/5 flex items-center justify-center text-evo-muted">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="hidden md:inline text-[10px] font-bold uppercase tracking-wider text-[#9B80A0]">Programador</span>
+          <div className="w-9 h-9 rounded-xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center text-[#A729AD]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
           </div>
         </div>
       </header>
 
-      {/* Main layout: Week panel + Chat */}
       <div className="flex flex-1 min-h-0">
-        {/* Week Panel — left sidebar */}
-        <div className="w-72 flex-shrink-0 flex flex-col border-r border-black/5 bg-white/40 backdrop-blur-sm">
-          <WeekPanel
-            weekState={weekState}
-            activeDay={activeDay}
-            onDayClick={handleDayClick}
-            onRemoveSession={removeSession}
-            onSetMesocycle={setMesocycle}
-            onReset={handleReset}
-          />
+        <div className="w-[280px] flex-shrink-0 flex flex-col border-r border-[#3D1A3D] bg-[#0A0808] min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <WeekPanel
+              weekState={weekState}
+              activeDay={activeDay}
+              onDayClick={handleDayClick}
+              onRemoveSession={removeSession}
+              onSetMesocycle={setMesocycle}
+              onReset={handleReset}
+            />
+          </div>
+          <nav className="flex-shrink-0 border-t border-[#3D1A3D] p-3 space-y-1 bg-[#0A0808]">
+            <button type="button" onClick={() => setShowMethodPanel(true)} className={navBtn}>
+              <span aria-hidden>✏️</span>
+              Tu método
+            </button>
+            <button type="button" onClick={() => setShowCodeConfig((v) => !v)} className={navBtn}>
+              <span aria-hidden>🔐</span>
+              Código coach
+            </button>
+            <button type="button" onClick={() => setShowLibrary(true)} className={navBtn}>
+              <span aria-hidden>📚</span>
+              Biblioteca
+            </button>
+            <button type="button" onClick={() => setShowCoachReview(true)} className={navBtn}>
+              <span aria-hidden>💬</span>
+              Conversaciones
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCoachContentPanel(true)}
+              className={`${navBtn} text-[#FFFF4C]/90 hover:text-[#FFFF4C]`}
+            >
+              <span aria-hidden>✏️</span>
+              Contenido Coach
+            </button>
+          </nav>
         </div>
 
-        {/* Agent Chat — main area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white/20">
+        <div className="flex-1 flex flex-col min-w-0 bg-[#0C0B0C] min-h-0">
           <AgentChat
             messages={messages}
             isGenerating={isGenerating}
@@ -127,83 +156,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* Código coach popover */}
-      {showCodeConfig && (
-        <div className="fixed bottom-24 left-6 z-40 bg-white border border-black/10 rounded-2xl p-6 shadow-elevated w-80 animate-fade-in">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-5 h-5 rounded-md bg-evo-accent/10 flex items-center justify-center text-evo-accent">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </div>
-            <p className="text-[11px] font-bold text-evo-text uppercase tracking-tight">Acceso Coach</p>
-          </div>
-          <p className="text-[10px] text-evo-muted font-bold mb-4 uppercase tracking-widest leading-relaxed">Configura la contraseña para la vista de entrenadores.</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={codeValue}
-              onChange={(e) => { setCodeValue(e.target.value.toUpperCase()); setCodeSaved(false) }}
-              className="flex-1 bg-gray-50 border border-black/5 rounded-xl px-4 py-3 text-sm text-evo-text font-mono tracking-[0.2em] focus:outline-none focus:border-evo-accent/30 shadow-inner"
-              placeholder="EVO2025"
-            />
-            <button
-              onClick={() => {
-                localStorage.setItem(COACH_CODE_KEY, codeValue)
-                setCodeSaved(true)
-                setTimeout(() => { setCodeSaved(false); setShowCodeConfig(false) }, 1500)
-              }}
-              className={`px-4 py-3 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                codeSaved ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-evo-accent text-white hover:bg-evo-accent-hover shadow-purple-500/10'
-              }`}
-            >
-              {codeSaved ? '✓' : 'OK'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom bar */}
-      <div className="px-6 py-3 border-t border-black/5 bg-white/80 backdrop-blur-md flex justify-between items-center flex-shrink-0 shadow-soft">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowMethodPanel(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-black/5 text-evo-muted hover:text-evo-text text-xs font-semibold transition-all shadow-sm"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-            </svg>
-            Tu Método
-          </button>
-          <button
-            onClick={() => setShowCodeConfig((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-black/5 text-evo-muted hover:text-evo-text text-xs font-semibold transition-all shadow-sm"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            Código coach
-          </button>
-          <button
-            onClick={() => setShowLibrary(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-black/5 text-evo-muted hover:text-evo-text text-xs font-semibold transition-all shadow-sm"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
-            Biblioteca
-          </button>
-          <button
-            onClick={() => setShowCoachReview(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-evo-accent/5 hover:bg-evo-accent/10 border border-evo-accent/10 text-evo-accent text-xs font-semibold transition-all shadow-sm"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            Conversaciones
-          </button>
-        </div>
+      <div className="px-5 py-3 border-t border-[#3D1A3D] bg-[#0A0808] flex justify-end items-center flex-shrink-0 gap-3">
         <button
+          type="button"
           onClick={() => setShowExcelModal(true)}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold transition-all shadow-lg shadow-emerald-500/20"
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] text-white text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-purple-950/40"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -214,13 +171,47 @@ export default function App() {
         </button>
       </div>
 
-      {/* Export Panel — bottom bar */}
-      <ExportPanel
-        weekState={weekState}
-        onEditSession={handleEditSession}
-      />
+      <ExportPanel weekState={weekState} onEditSession={handleEditSession} />
 
-      {/* Edit Modal */}
+      {showCodeConfig && (
+        <div className="fixed bottom-24 left-[300px] z-40 bg-[#160D16] border border-[#3D1A3D] rounded-2xl p-6 shadow-elevated w-80 animate-fade-in">
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-[11px] font-bold text-[#FFFF4C] uppercase tracking-tight font-evo-display">Acceso Coach</p>
+          </div>
+          <p className="text-[10px] text-[#9B80A0] font-bold mb-4 uppercase tracking-widest leading-relaxed">
+            Contraseña para la vista ?coach
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={codeValue}
+              onChange={(e) => {
+                setCodeValue(e.target.value.toUpperCase())
+                setCodeSaved(false)
+              }}
+              className="flex-1 bg-[#0C0B0C] border border-[#3D1A3D] rounded-xl px-4 py-3 text-sm text-[#E8EAF0] font-mono tracking-[0.2em] focus:outline-none focus:border-[#A729AD]/50"
+              placeholder="EVO19"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem(COACH_CODE_KEY, codeValue)
+                setCodeSaved(true)
+                setTimeout(() => {
+                  setCodeSaved(false)
+                  setShowCodeConfig(false)
+                }, 1500)
+              }}
+              className={`px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                codeSaved ? 'bg-emerald-600 text-white' : 'bg-[#A729AD] hover:bg-[#6A1F6D] text-white'
+              }`}
+            >
+              {codeSaved ? '✓' : 'OK'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {editModal && (
         <EditModal
           day={editModal.day}
@@ -230,28 +221,15 @@ export default function App() {
         />
       )}
 
-      {/* Excel Generator Modal */}
-      {showExcelModal && (
-        <ExcelGeneratorModal
-          weekState={weekState}
-          onClose={() => setShowExcelModal(false)}
-        />
-      )}
+      {showExcelModal && <ExcelGeneratorModal weekState={weekState} onClose={() => setShowExcelModal(false)} />}
 
-      {/* Coach Review Modal */}
-      {showCoachReview && (
-        <CoachReview onClose={() => setShowCoachReview(false)} />
-      )}
+      {showCoachReview && <CoachReview onClose={() => setShowCoachReview(false)} />}
 
-      {/* Method Panel */}
-      {showMethodPanel && (
-        <MethodPanel onClose={() => setShowMethodPanel(false)} />
-      )}
+      {showMethodPanel && <MethodPanel onClose={() => setShowMethodPanel(false)} />}
 
-      {/* Exercise Library */}
-      {showLibrary && (
-        <ExerciseLibrary onClose={() => setShowLibrary(false)} />
-      )}
+      {showLibrary && <ExerciseLibrary onClose={() => setShowLibrary(false)} />}
+
+      {showCoachContentPanel && <CoachGuideContentPanel onClose={() => setShowCoachContentPanel(false)} />}
     </div>
   )
 }

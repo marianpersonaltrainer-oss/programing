@@ -3,7 +3,7 @@ import { SESSION_BLOCKS, FEEDBACK_BLOCKS } from './coachViewConstants.js'
 import { findDia, sessionText, previewText, buildDayQuickSummary, dayFocusLine } from './coachViewUtils.js'
 import { coachBg, coachBorder, coachText, coachUi, classBadgeClass } from './coachTheme.js'
 
-const TAB_ACTIVE = 'bg-[#6A1F6D] text-white shadow-lg shadow-purple-900/30'
+const TAB_ACTIVE = 'bg-[#6A1F6D] text-white shadow-lg shadow-purple-950/30'
 const TAB_IDLE = `bg-[#1A1F2E] ${coachText.muted} hover:text-[#E8EAF0] border ${coachBorder}`
 
 function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
@@ -52,7 +52,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
   }
 
   return (
-    <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain border-b ${coachBorder} ${coachBg.app} relative z-10`}>
+    <div className={`border-b ${coachBorder} ${coachBg.app} relative z-10`}>
       {weekData?.resumen && (
         <div className={`px-6 py-6 border-b ${coachBorder} ${coachUi.card} rounded-none border-x-0 border-t-0`}>
           <p className={`text-xs font-bold ${coachText.accent} uppercase tracking-widest mb-2`}>Orientación semanal</p>
@@ -111,7 +111,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                       key={dia.nombre}
                       type="button"
                       onClick={() => setActiveDay(dia.nombre)}
-                      className={`text-left rounded-xl p-6 border ${coachBorder} ${coachBg.card} hover:border-[#9B3FA0]/40 hover:shadow-lg hover:shadow-purple-900/10 transition-all active:scale-[0.99] min-h-[200px] flex flex-col`}
+                      className={`text-left rounded-xl p-6 border ${coachBorder} ${coachBg.card} hover:border-[#A729AD]/40 hover:shadow-lg hover:shadow-purple-900/10 transition-all active:scale-[0.99] min-h-[200px] flex flex-col`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <p className="text-lg font-black text-[#E8EAF0] uppercase tracking-tight">{dia.nombre}</p>
@@ -173,7 +173,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                           setWeekTab('dias')
                           setActiveDay(dia.nombre)
                         }}
-                        className={`text-xs font-bold ${coachText.accent} uppercase tracking-wide underline decoration-[#9B3FA0]/40`}
+                        className={`text-xs font-bold ${coachText.accent} uppercase tracking-wide underline decoration-[#A729AD]/40`}
                       >
                         Ver texto del día
                       </button>
@@ -252,7 +252,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                 setActiveDay('show')
                 setWeekTab('dias')
               }}
-              className={`text-xs font-bold uppercase tracking-widest ${coachText.accent} border border-[#9B3FA0]/40 px-4 py-2 rounded-xl hover:bg-[#6A1F6D]/20`}
+              className={`text-xs font-bold uppercase tracking-widest ${coachText.accent} border border-[#A729AD]/40 px-4 py-2 rounded-xl hover:bg-[#6A1F6D]/20`}
             >
               ← Volver a días
             </button>
@@ -291,7 +291,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                   </div>
                 )}
 
-                <div className={`rounded-xl p-6 border border-[#9B3FA0]/30 bg-[#6A1F6D]/15`}>
+                <div className={`rounded-xl p-6 border border-[#A729AD]/30 bg-[#6A1F6D]/15`}>
                   <p className={`text-xs font-bold ${coachText.accent} uppercase tracking-widest mb-3`}>Resumen rápido</p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {labels.map((lb) => (
@@ -320,7 +320,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                   <button
                     type="button"
                     onClick={() => ask(`Sobre el ${dayName}: ¿qué harías si tengo poco tiempo o falta material en sala?`)}
-                    className={`text-xs px-5 py-3 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#9B3FA0]/40`}
+                    className={`text-xs px-5 py-3 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#A729AD]/40`}
                   >
                     Plan B / poco tiempo
                   </button>
@@ -329,7 +329,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                     onClick={() =>
                       ask(`En el ${dayName}, ¿cómo escalarías el WOD para nivel principiante manteniendo el estímulo?`)
                     }
-                    className={`text-xs px-5 py-3 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#9B3FA0]/40`}
+                    className={`text-xs px-5 py-3 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#A729AD]/40`}
                   >
                     Escalado principiantes
                   </button>
@@ -346,7 +346,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                         <button
                           type="button"
                           onClick={() => ask(`Sobre ${dayName} · ${label}: tengo una duda concreta: `)}
-                          className={`text-xs font-bold ${coachText.accent} uppercase shrink-0 underline decoration-[#9B3FA0]/40`}
+                          className={`text-xs font-bold ${coachText.accent} uppercase shrink-0 underline decoration-[#A729AD]/40`}
                         >
                           Preguntar esta clase
                         </button>

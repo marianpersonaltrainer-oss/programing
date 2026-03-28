@@ -11,21 +11,21 @@ export default function ExportPanel({ weekState, onEditSession }) {
   if (confirmedSessions.length === 0) return null
 
   return (
-    <div className="border-t border-black/5 bg-white flex-shrink-0 shadow-elevated relative z-10">
-      {/* Toggle header */}
+    <div className="border-t border-[#3D1A3D] bg-[#160D16] flex-shrink-0 relative z-10">
       <button
+        type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className="w-full px-8 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-all border-b border-transparent"
+        className="w-full px-8 py-4 flex items-center justify-between hover:bg-[#1D0F1D] transition-all border-b border-[#3D1A3D]"
       >
         <div className="flex items-center gap-4">
-          <span className="text-display text-[11px] font-bold text-evo-text uppercase tracking-widest">
+          <span className="font-evo-display text-[11px] font-bold text-[#FFFF4C] uppercase tracking-widest">
             Sesiones Listas
           </span>
           <div className="flex gap-1.5">
             {confirmedSessions.map((day) => {
               const session = weekState.sessions[day]
               const primaryClass = session?.classes?.[0] || 'EvoFuncional'
-              const color = CLASS_COLORS[primaryClass]?.bg || '#7B2FBE'
+              const color = CLASS_COLORS[primaryClass]?.bg || '#A729AD'
               return (
                 <span
                   key={day}
@@ -41,7 +41,7 @@ export default function ExportPanel({ weekState, onEditSession }) {
         </div>
         <div className="flex items-center gap-4">
           <CopyButton text={allContent} label="Copiar Todo" />
-          <span className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-50 text-evo-muted text-xs shadow-sm border border-black/5">
+          <span className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#0C0B0C] text-[#9B80A0] text-xs border border-[#3D1A3D]">
             {isExpanded ? '▲' : '▼'}
           </span>
         </div>
@@ -49,33 +49,33 @@ export default function ExportPanel({ weekState, onEditSession }) {
 
       {/* Expanded view */}
       {isExpanded && (
-        <div className="px-8 pb-6 bg-gray-50/30 max-h-80 overflow-y-auto pt-4 animate-fade-in shadow-inner">
+        <div className="px-8 pb-6 bg-[#0C0B0C] max-h-80 overflow-y-auto pt-4 animate-fade-in border-t border-[#3D1A3D]">
           <div className="space-y-4">
             {confirmedSessions.map((day) => {
               const session = weekState.sessions[day]
               const primaryClass = session?.classes?.[0] || 'EvoFuncional'
-              const color = CLASS_COLORS[primaryClass]?.bg || '#7B2FBE'
+              const color = CLASS_COLORS[primaryClass]?.bg || '#A729AD'
 
               return (
                 <div
                   key={day}
-                  className="rounded-2xl overflow-hidden border border-black/5 bg-white shadow-soft hover:shadow-md transition-all group"
+                  className="rounded-2xl overflow-hidden border border-[#3D1A3D] bg-[#160D16] transition-all group"
                   style={{ borderLeftColor: color, borderLeftWidth: 4 }}
                 >
-                  <div className="px-5 py-3 bg-white border-b border-black/5 flex items-center justify-between">
+                  <div className="px-5 py-3 bg-[#160D16] border-b border-[#3D1A3D] flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-bold text-evo-text uppercase tracking-widest">
+                      <span className="text-[11px] font-bold text-[#E8EAF0] uppercase tracking-widest">
                         {DAYS_ES[day]}
                       </span>
                       <div className="flex gap-1.5">
                         {session.classes?.map((cls) => (
                           <span
                             key={cls}
-                            className="text-[8px] px-2 py-0.5 rounded-lg font-bold border shadow-sm"
+                            className="text-[8px] px-2 py-0.5 rounded-lg font-bold border"
                             style={{
-                              backgroundColor: `${CLASS_COLORS[cls]?.bg || '#7B2FBE'}08`,
-                              color: CLASS_COLORS[cls]?.bg || '#7B2FBE',
-                              borderColor: `${CLASS_COLORS[cls]?.bg || '#7B2FBE'}15`,
+                              backgroundColor: `${CLASS_COLORS[cls]?.bg || '#A729AD'}22`,
+                              color: CLASS_COLORS[cls]?.text || CLASS_COLORS[cls]?.bg || '#E8EAF0',
+                              borderColor: `${CLASS_COLORS[cls]?.bg || '#A729AD'}44`,
                             }}
                           >
                             {cls}
@@ -86,15 +86,16 @@ export default function ExportPanel({ weekState, onEditSession }) {
                     <div className="flex items-center gap-3">
                       <CopyButton text={session.content} label="Copiar" />
                       <button
+                        type="button"
                         onClick={() => onEditSession(day)}
-                        className="text-[10px] text-evo-muted font-bold uppercase tracking-widest hover:text-evo-accent transition-all"
+                        className="text-[10px] text-[#9B80A0] font-bold uppercase tracking-widest hover:text-[#A729AD] transition-all"
                       >
                         Editar
                       </button>
                     </div>
                   </div>
-                  <div className="px-5 py-4 bg-gray-50/30 max-h-40 overflow-y-auto">
-                    <pre className="session-content text-[11px] text-gray-500 font-medium whitespace-pre-wrap leading-relaxed">
+                  <div className="px-5 py-4 bg-[#0C0B0C] max-h-40 overflow-y-auto">
+                    <pre className="session-content text-[11px] text-[#9B80A0] font-medium whitespace-pre-wrap leading-relaxed">
                       {session.content.slice(0, 500)}
                       {session.content.length > 500 ? '...' : ''}
                     </pre>

@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { DAYS_ES, DAYS_ORDER, CLASS_COLORS } from '../../constants/evoColors.js'
+import { ALL_CLASS_LABELS } from '../../constants/evoClasses.js'
 import { detectClassesInContent } from '../../utils/formatSession.js'
 
 export default function SessionPreview({ content, onConfirm, onEdit }) {
   const [selectedDay, setSelectedDay] = useState('')
   const [classes, setClasses] = useState(() => detectClassesInContent(content))
 
-  const allClasses = ['EvoFuncional', 'EvoBasics', 'EvoFit']
+  const allClasses = ALL_CLASS_LABELS
 
   function toggleClass(cls) {
     setClasses((prev) =>
@@ -20,25 +21,24 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
   }
 
   return (
-    <div className="bg-white border border-black/5 rounded-2xl overflow-hidden shadow-elevated">
-      {/* Header bar */}
-      <div className="px-5 py-3.5 bg-gray-50 border-b border-black/5 flex items-center justify-between">
+    <div className="bg-[#160D16] border border-[#3D1A3D] rounded-2xl overflow-hidden">
+      <div className="px-5 py-3.5 bg-[#0C0B0C] border-b border-[#3D1A3D] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-evo-accent animate-pulse" />
-          <span className="text-[10px] font-bold text-evo-text uppercase tracking-widest">Sesión Propuesta</span>
+          <div className="w-2 h-2 rounded-full bg-[#A729AD] animate-pulse" />
+          <span className="text-[10px] font-bold text-[#FFFF4C] uppercase tracking-widest font-evo-display">Sesión Propuesta</span>
         </div>
         <button
+          type="button"
           onClick={onEdit}
-          className="text-[10px] text-evo-accent font-bold uppercase hover:underline underline-offset-4"
+          className="text-[10px] text-[#A729AD] font-bold uppercase hover:underline underline-offset-4"
         >
           Editar Programación →
         </button>
       </div>
 
-      {/* Session content preview */}
-      <div className="px-5 py-4 max-h-80 overflow-y-auto bg-white/50">
+      <div className="px-5 py-4 max-h-80 overflow-y-auto bg-[#0C0B0C]">
         <div className="space-y-4">
-          <pre className="session-content text-[11px] text-evo-text/80 whitespace-pre-wrap font-medium">
+          <pre className="session-content text-[11px] text-[#9B80A0] whitespace-pre-wrap font-medium">
             {content}
           </pre>
           
@@ -53,17 +53,17 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-evo-accent/[0.03] border border-evo-accent/10 hover:bg-evo-accent/10 hover:border-evo-accent/30 transition-all group w-full shadow-sm"
+                className="inline-flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#6A1F6D]/20 border border-[#3D1A3D] hover:border-[#A729AD]/50 transition-all group w-full"
               >
-                <div className="w-8 h-8 rounded-xl bg-evo-accent/10 flex items-center justify-center text-evo-accent group-hover:scale-110 transition-transform">
+                <div className="w-8 h-8 rounded-xl bg-[#A729AD]/20 flex items-center justify-center text-[#A729AD] group-hover:scale-110 transition-transform">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-evo-text uppercase tracking-widest">Vídeo de la técnica</span>
-                  <span className="text-[9px] text-evo-muted font-bold truncate max-w-[200px]">{link}</span>
+                  <span className="text-[10px] font-bold text-[#E8EAF0] uppercase tracking-widest">Vídeo de la técnica</span>
+                  <span className="text-[9px] text-[#9B80A0] font-bold truncate max-w-[200px]">{link}</span>
                 </div>
                 <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-evo-accent"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-[#A729AD]"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </div>
               </a>
             )
@@ -72,10 +72,9 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
       </div>
 
       {/* Confirm controls */}
-      <div className="px-5 py-5 bg-gray-50/50 border-t border-black/5 space-y-4">
-        {/* Class tags */}
+      <div className="px-5 py-5 bg-[#160D16] border-t border-[#3D1A3D] space-y-4">
         <div>
-          <p className="text-[9px] text-evo-muted mb-2.5 font-bold uppercase tracking-widest">Clases incluidas</p>
+          <p className="text-[9px] text-[#9B80A0] mb-2.5 font-bold uppercase tracking-widest">Clases incluidas</p>
           <div className="flex flex-wrap gap-2">
             {allClasses.map((cls) => {
               const color = CLASS_COLORS[cls]
@@ -83,12 +82,13 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
               return (
                 <button
                   key={cls}
+                  type="button"
                   onClick={() => toggleClass(cls)}
-                  className="text-[10px] px-3 py-1.5 rounded-xl border font-bold transition-all shadow-sm"
+                  className="text-[10px] px-3 py-1.5 rounded-xl border font-bold transition-all"
                   style={{
-                    backgroundColor: active ? `${color.bg}15` : 'white',
-                    color: active ? color.bg : '#9CA3AF',
-                    borderColor: active ? `${color.bg}40` : '#E5E7EB',
+                    backgroundColor: active ? `${color.bg}28` : '#0C0B0C',
+                    color: active ? color.text || color.bg : '#9B80A0',
+                    borderColor: active ? `${color.bg}55` : '#3D1A3D',
                   }}
                 >
                   {cls}
@@ -98,12 +98,11 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
           </div>
         </div>
 
-        {/* Day selector + confirm button */}
         <div className="flex gap-3 pt-1">
           <select
             value={selectedDay}
             onChange={(e) => setSelectedDay(e.target.value)}
-            className="flex-1 bg-white border border-black/10 rounded-xl px-4 py-2.5 text-xs text-evo-text font-medium focus:outline-none focus:border-evo-accent/40 shadow-sm"
+            className="flex-1 bg-[#0C0B0C] border border-[#3D1A3D] rounded-xl px-4 py-2.5 text-xs text-[#E8EAF0] font-medium focus:outline-none focus:border-[#A729AD]/50"
           >
             <option value="">Programar para el...</option>
             {DAYS_ORDER.map((d) => (
@@ -111,9 +110,10 @@ export default function SessionPreview({ content, onConfirm, onEdit }) {
             ))}
           </select>
           <button
+            type="button"
             onClick={handleConfirm}
             disabled={!selectedDay}
-            className="px-6 py-2.5 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-30 disabled:grayscale text-white text-xs font-bold transition-all shadow-lg shadow-purple-500/20 active:scale-95"
+            className="px-6 py-2.5 rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-30 text-white text-xs font-bold transition-all active:scale-95"
           >
             Confirmar Sesión
           </button>

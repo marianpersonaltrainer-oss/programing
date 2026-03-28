@@ -8,26 +8,33 @@ export default {
     extend: {
       colors: {
         evo: {
-          bg: '#F9FAFB',
-          card: '#FFFFFF',
-          card2: '#F3F4F6',
-          accent: '#7B2FBE',
-          'accent-hover': '#9B4FDE',
-          text: '#1F2937',
-          muted: '#6B7280',
+          black: '#0C0B0C',
+          sidebar: '#0A0808',
+          card: '#160D16',
+          card2: '#1D0F1D',
+          border: '#3D1A3D',
+          accent: '#A729AD',
+          'accent-hover': '#6A1F6D',
+          purple: '#6A1F6D',
+          yellow: '#FFFF4C',
+          text: '#E8EAF0',
+          muted: '#9B80A0',
+          bg: '#0C0B0C',
         },
         clase: {
-          funcional: '#3B82F6', // Blue
-          basics: '#F59E0B',    // Amber
-          fit: '#10B981',       // Emerald
-          fuerza: '#EF4444',    // Red
-          gimnasticos: '#EC4899', // Pink
-          hybrix: '#8B5CF6',    // Violet
+          funcional: '#3C78D8',
+          basics: '#E69138',
+          fit: '#6AA84F',
+          fuerza: '#CC0000',
+          gimnasticos: '#E91E8C',
+          hybrix: '#F4C430',
         },
       },
       fontFamily: {
-        display: ['Outfit', 'Space Grotesk', 'sans-serif'],
-        body: ['Inter', 'DM Sans', 'sans-serif'],
+        'evo-display': ['Oswald', 'sans-serif'],
+        'evo-body': ['Montserrat', 'sans-serif'],
+        display: ['Oswald', 'Outfit', 'Space Grotesk', 'sans-serif'],
+        body: ['Montserrat', 'DM Sans', 'sans-serif'],
         mono: ['DM Mono', 'monospace'],
       },
     },

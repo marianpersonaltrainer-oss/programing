@@ -18,12 +18,18 @@ import {
   CoachGuideSoporteProtocol,
 } from './CoachGuideViews.jsx'
 import { coachBg, coachBorder, coachText, coachNav, coachUi } from './coachTheme.js'
+import EvoLogo from '../EvoLogo.jsx'
+import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
 const COACH_AUTH_KEY = 'evo_coach_auth'
-export const COACH_CODE_KEY = 'programingevo_coach_code'
-const DEFAULT_CODE = 'EVO2025'
+
+export { COACH_CODE_KEY }
+/** @deprecated usar getExpectedCoachCode; se mantiene por compatibilidad con imports antiguos */
+export function getCoachCode() {
+  return getExpectedCoachCode()
+}
 
 function IconSemana(props) {
   return (
@@ -131,19 +137,11 @@ function incrementSupportMessagesUsed() {
   }
 }
 
-export function getCoachCode() {
-  try {
-    return localStorage.getItem(COACH_CODE_KEY) || DEFAULT_CODE
-  } catch {
-    return DEFAULT_CODE
-  }
-}
-
 const coachAuthShell = `min-h-[100dvh] ${coachBg.app} ${coachText.primary} flex flex-col items-center justify-center p-8`
 const coachInput =
-  'w-full rounded-2xl px-6 py-4 text-[16px] bg-[#1A1F2E] border border-[#2A3042] text-[#E8EAF0] placeholder-[#6B7280] focus:outline-none focus:border-[#9B3FA0]/50 focus:ring-1 focus:ring-[#9B3FA0]/30'
+  'w-full rounded-2xl px-6 py-4 text-[16px] bg-[#160D16] border border-[#3D1A3D] text-[#E8EAF0] placeholder-[#9B80A0] focus:outline-none focus:border-[#A729AD]/50 focus:ring-1 focus:ring-[#A729AD]/25 font-evo-body'
 const coachBtnPrimary =
-  'w-full py-4 rounded-2xl bg-[#6A1F6D] hover:bg-[#7d2582] disabled:opacity-30 text-white font-bold text-sm uppercase tracking-widest transition-all shadow-lg shadow-purple-900/30 active:scale-[0.99]'
+  'w-full py-4 rounded-2xl bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-30 text-white font-bold text-sm uppercase tracking-widest transition-all shadow-lg shadow-purple-950/40 active:scale-[0.99] font-evo-body'
 
 export default function CoachView() {
   const [step, setStep] = useState('loading')
@@ -223,9 +221,11 @@ export default function CoachView() {
         setWeekData(week.data)
 
         const authed = localStorage.getItem(COACH_AUTH_KEY)
-        const currentCode = getCoachCode()
+        const expected = getExpectedCoachCode()
+        const authedNorm = authed?.trim().toUpperCase() ?? ''
+        const expectedNorm = expected.trim().toUpperCase()
 
-        if (authed !== currentCode) {
+        if (!authedNorm || authedNorm !== expectedNorm) {
           setStep('code')
           return
         }
@@ -254,9 +254,9 @@ export default function CoachView() {
 
   async function handleCodeSubmit(e) {
     e.preventDefault()
-    const correct = getCoachCode()
-    if (codeInput.trim().toUpperCase() === correct.toUpperCase()) {
-      localStorage.setItem(COACH_AUTH_KEY, correct)
+    if (coachCodesMatch(codeInput)) {
+      const canonical = getExpectedCoachCode().trim()
+      localStorage.setItem(COACH_AUTH_KEY, canonical)
       const savedName = localStorage.getItem(COACH_NAME_KEY)
       if (savedName) {
         setCoachName(savedName)
@@ -386,7 +386,7 @@ export default function CoachView() {
           {[0, 150, 300].map((d) => (
             <div
               key={d}
-              className="w-3 h-3 rounded-full bg-[#9B3FA0] animate-pulse"
+              className="w-3 h-3 rounded-full bg-[#A729AD] animate-pulse"
               style={{ animationDelay: `${d}ms` }}
             />
           ))}
@@ -399,7 +399,7 @@ export default function CoachView() {
     return (
       <div className={coachAuthShell}>
         <div className="text-center space-y-6 max-w-md">
-          <div className="w-20 h-20 rounded-2xl bg-[#1A1F2E] border border-[#2A3042] flex items-center justify-center mx-auto text-3xl">
+          <div className="w-20 h-20 rounded-2xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center mx-auto text-3xl">
             📋
           </div>
           <p className="text-xl font-bold uppercase tracking-tight text-[#E8EAF0]">No hay semana activa</p>
@@ -416,8 +416,8 @@ export default function CoachView() {
       <div className={coachAuthShell}>
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-4">
-            <div className="w-20 h-20 rounded-3xl bg-[#1A1F2E] border border-[#2A3042] flex items-center justify-center mx-auto">
-              <span className="text-display text-4xl font-black text-[#9B3FA0]">E</span>
+            <div className="w-20 h-20 rounded-3xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center mx-auto">
+              <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
             </div>
             <h1 className="text-2xl font-bold uppercase tracking-tight text-[#E8EAF0]">Soporte EVO</h1>
             <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>Introduce tu contraseña de acceso</p>
@@ -448,8 +448,8 @@ export default function CoachView() {
       <div className={coachAuthShell}>
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-4">
-            <div className="w-20 h-20 rounded-3xl bg-[#1A1F2E] border border-[#2A3042] flex items-center justify-center mx-auto">
-              <span className="text-display text-4xl font-black text-[#9B3FA0]">E</span>
+            <div className="w-20 h-20 rounded-3xl bg-[#160D16] border border-[#3D1A3D] flex items-center justify-center mx-auto">
+              <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
             </div>
             <h1 className="text-2xl font-bold uppercase tracking-tight text-[#E8EAF0]">Identificación</h1>
             <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>¿Cómo te llamas, Coach?</p>
@@ -498,7 +498,7 @@ export default function CoachView() {
             <span className="text-sm font-bold text-[#E8EAF0]">Menú</span>
             <button
               type="button"
-              className="p-2 rounded-lg hover:bg-[#1E2433] text-[#E8EAF0]"
+              className="p-2 rounded-lg hover:bg-[#1A0A1A] text-[#E8EAF0]"
               onClick={() => setMobileMenuOpen(false)}
               aria-label="Cerrar"
             >
@@ -529,11 +529,11 @@ export default function CoachView() {
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <header
-            className={`flex items-center gap-3 px-4 py-3 border-b ${coachBorder} bg-[#111827] flex-shrink-0 z-30 safe-area-pt`}
+            className={`flex items-center gap-3 px-4 py-3 border-b ${coachBorder} bg-[#0C0B0C] flex-shrink-0 z-30 safe-area-pt`}
           >
             <button
               type="button"
-              className="md:hidden p-2.5 rounded-xl hover:bg-[#1E2433] text-[#E8EAF0] border border-transparent hover:border-[#2A3042]"
+              className="md:hidden p-2.5 rounded-xl hover:bg-[#1A0A1A] text-[#E8EAF0] border border-transparent hover:border-[#3D1A3D]"
               onClick={() => setMobileMenuOpen(true)}
               aria-expanded={mobileMenuOpen}
               aria-label="Abrir menú de navegación"
@@ -542,8 +542,8 @@ export default function CoachView() {
                 <path d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="w-10 h-10 rounded-xl bg-[#1A1F2E] border border-[#2A3042] flex items-center justify-center shrink-0">
-              <span className="text-lg font-black text-[#9B3FA0]">E</span>
+            <div className="h-10 shrink-0 flex items-center">
+              <EvoLogo imgClassName="h-9 w-auto max-w-[120px] object-contain object-left" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-[#E8EAF0] truncate">Coach · {coachName}</p>
@@ -553,32 +553,26 @@ export default function CoachView() {
             </div>
           </header>
 
-          <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${coachBg.app}`}>
-            {mainTab === 'semana' && (
-              <CoachWeekProgrammingPanel
-                weekData={weekData}
-                activeDay={activeDay}
-                setActiveDay={setActiveDay}
-                weekTab={weekTab}
-                setWeekTab={setWeekTab}
-                onOpenSupport={openSupport}
-              />
-            )}
-            {mainTab === 'centro' && <CoachGuideCentro />}
-            {mainTab === 'clases' && <CoachGuideClases />}
-            {mainTab === 'mesociclos' && <CoachGuideMesociclos />}
-            {mainTab === 'uso' && <CoachGuideUsoApp />}
-            {mainTab === 'material' && <CoachGuideMaterial guideSettings={guideSettings} />}
+          {guideSettings?.active_notice?.trim() ? (
+            <div
+              role="status"
+              className="flex-shrink-0 px-4 py-3 border-b border-[#FFFF4C]/35 bg-[#FFFF4C]/10 text-[#FFFF4C] text-sm font-semibold text-center font-evo-body leading-snug"
+            >
+              {guideSettings.active_notice.trim()}
+            </div>
+          ) : null}
 
-            {mainTab === 'soporte' && (
+          <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${coachBg.app}`}>
+            {mainTab === 'soporte' ? (
               <div className="flex-1 flex flex-col min-h-0">
                 <div
-                  className={`flex-shrink-0 max-h-[min(34vh,300px)] overflow-y-auto overscroll-contain border-b ${coachBorder} bg-[#0F1117]`}
+                  className={`flex-shrink-0 max-h-[min(34vh,300px)] overflow-y-auto overscroll-contain border-b ${coachBorder} bg-[#0A0808]`}
                 >
                   <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="compact" />
                 </div>
-                <p className={`px-6 pt-4 text-sm font-bold text-center uppercase tracking-wide ${coachText.primary}`}>
-                  {supportRemaining} de {SUPPORT_DAILY_LIMIT} consultas disponibles hoy
+                <p className={`px-6 pt-4 text-sm font-bold text-center uppercase tracking-wide font-evo-body ${coachText.primary}`}>
+                  <span className={coachUi.supportHighlight}>{supportRemaining}</span> de {SUPPORT_DAILY_LIMIT} consultas
+                  disponibles hoy
                 </p>
                 <div className={`flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5 ${coachBg.app}`}>
                   {messages.length === 0 && (
@@ -601,7 +595,7 @@ export default function CoachView() {
                             onClick={() => {
                               if (!supportAtLimit) setInput(q)
                             }}
-                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} bg-[#1A1F2E] font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#9B3FA0]/40 hover:text-[#E8EAF0] disabled:opacity-40 disabled:pointer-events-none`}
+                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} bg-[#160D16] font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#A729AD]/40 hover:text-[#E8EAF0] disabled:opacity-40 disabled:pointer-events-none`}
                           >
                             {q}
                           </button>
@@ -616,7 +610,7 @@ export default function CoachView() {
                         className={`max-w-[90%] px-5 py-4 rounded-2xl text-[15px] font-medium leading-relaxed whitespace-pre-wrap ${
                           msg.role === 'user'
                             ? 'bg-[#6A1F6D] text-white rounded-br-md'
-                            : `rounded-bl-md border ${coachBorder} bg-[#1A1F2E] ${coachText.muted}`
+                            : `rounded-bl-md border ${coachBorder} bg-[#160D16] ${coachText.muted}`
                         }`}
                       >
                         {msg.content}
@@ -626,11 +620,11 @@ export default function CoachView() {
 
                   {isTyping && (
                     <div className="flex justify-start">
-                      <div className={`border ${coachBorder} bg-[#1A1F2E] px-5 py-4 rounded-2xl rounded-bl-md flex gap-1.5`}>
+                      <div className={`border ${coachBorder} bg-[#160D16] px-5 py-4 rounded-2xl rounded-bl-md flex gap-1.5`}>
                         {[0, 150, 300].map((d) => (
                           <div
                             key={d}
-                            className="w-2 h-2 rounded-full bg-[#9B3FA0]/50 animate-pulse"
+                            className="w-2 h-2 rounded-full bg-[#A729AD]/50 animate-pulse"
                             style={{ animationDelay: `${d}ms` }}
                           />
                         ))}
@@ -646,7 +640,7 @@ export default function CoachView() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className={`px-5 py-4 border-t ${coachBorder} bg-[#0F1117] flex-shrink-0 safe-area-pb space-y-3`}>
+                <div className={`px-5 py-4 border-t ${coachBorder} bg-[#0A0808] flex-shrink-0 safe-area-pb space-y-3`}>
                   {supportAtLimit && (
                     <p className="text-sm text-amber-200 font-semibold text-center leading-relaxed px-3 bg-amber-950/40 border border-amber-900/50 rounded-xl py-3">
                       {SUPPORT_LIMIT_MESSAGE}
@@ -659,7 +653,7 @@ export default function CoachView() {
                       onChange={(e) => setInput(e.target.value)}
                       placeholder={supportAtLimit ? 'Límite diario alcanzado' : 'Escribe tu duda...'}
                       disabled={isTyping || supportAtLimit}
-                      className={`flex-1 rounded-xl px-5 py-3.5 text-[16px] min-w-0 bg-[#1A1F2E] border ${coachBorder} text-[#E8EAF0] placeholder-[#6B7280] focus:outline-none focus:border-[#9B3FA0]/50 disabled:opacity-50`}
+                      className={`flex-1 rounded-xl px-5 py-3.5 text-[16px] min-w-0 bg-[#160D16] border ${coachBorder} text-[#E8EAF0] placeholder-[#6B7280] focus:outline-none focus:border-[#A729AD]/50 disabled:opacity-50`}
                     />
                     <button
                       type="submit"
@@ -675,6 +669,27 @@ export default function CoachView() {
                   </form>
                 </div>
               </div>
+            ) : (
+              <main
+                className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-y-contain ${coachBg.app}`}
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                {mainTab === 'semana' && (
+                  <CoachWeekProgrammingPanel
+                    weekData={weekData}
+                    activeDay={activeDay}
+                    setActiveDay={setActiveDay}
+                    weekTab={weekTab}
+                    setWeekTab={setWeekTab}
+                    onOpenSupport={openSupport}
+                  />
+                )}
+                {mainTab === 'centro' && <CoachGuideCentro />}
+                {mainTab === 'clases' && <CoachGuideClases />}
+                {mainTab === 'mesociclos' && <CoachGuideMesociclos />}
+                {mainTab === 'uso' && <CoachGuideUsoApp />}
+                {mainTab === 'material' && <CoachGuideMaterial guideSettings={guideSettings} />}
+              </main>
             )}
           </div>
         </div>

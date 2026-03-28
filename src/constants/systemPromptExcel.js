@@ -66,6 +66,12 @@ Si EvoFuncional hace pierna dominante rodilla:
 
 El estímulo muscular del día es COMPARTIDO entre todas las clases. Lo que cambia es la herramienta y el enfoque.
 
+EVOFUERZA y EVOGIMNÁSTICA — OBLIGATORIO:
+- Solo genera bloques/columnas EvoFuerza y EvoGimnástica si las INSTRUCCIONES o el contexto del programador lo piden EXPLÍCITAMENTE.
+- Si no se mencionan, NO rellenes esos campos (cadena vacía o ausentes en el JSON según el esquema).
+- EvoFuerza = Functional Bodybuilding: progresión por RIR, trisets A1/A2/A3.
+- EvoGimnástica = habilidades gimnásticas (pull-ups, muscle ups scaled, handstands, progresiones técnicas corporales).
+
 EVOHYBRIX: Clase metabólica por bloques. Nace de EvoFuncional con foco en acondicionamiento. El objetivo es SUDAR y pasárselo bien en equipo.
 - Formato: bloques de trabajo con intervalos (EMOM, AMRAP, Every X', trabajo:descanso)
 - Equipamiento: máquinas de cardio (calorías), mancuernas, wall balls, kettlebell, trineo, burpees, battle rope, peso corporal

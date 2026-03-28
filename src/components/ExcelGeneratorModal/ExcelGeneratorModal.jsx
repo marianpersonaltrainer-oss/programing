@@ -862,7 +862,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
                                       e.target.value,
                                     )
                                   }
-                                  placeholder="Objetivo / Escalado / Coaching WOD…"
+                                  placeholder="Briefing para el coach (tono Marian, 4-6 frases, sin apartados)…"
                                   className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
                                 />
                               </label>

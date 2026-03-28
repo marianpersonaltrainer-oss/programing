@@ -34,6 +34,32 @@ function sessionText(val) {
   return s
 }
 
+function findDia(dias, name) {
+  if (!name || name === 'show') return null
+  return dias.find(
+    (d) =>
+      d.nombre === name ||
+      (d.nombre && name && String(d.nombre).trim().toUpperCase() === String(name).trim().toUpperCase()),
+  )
+}
+
+/** Primeras líneas para resumen (sin el texto entero). */
+function previewText(text, maxLines = 4, maxChars = 320) {
+  const t = sessionText(text)
+  if (!t) return ''
+  const lines = t.split('\n').filter((l) => l.trim())
+  const chunk = lines.slice(0, maxLines).join('\n')
+  return chunk.length > maxChars ? `${chunk.slice(0, maxChars)}…` : chunk
+}
+
+function buildDayQuickSummary(dia) {
+  if (!dia) return { labels: [], preview: '' }
+  const labels = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key])).map(({ label }) => label)
+  const firstBlock = SESSION_BLOCKS.map(({ key }) => dia[key]).find((v) => sessionText(v))
+  const preview = previewText(firstBlock || dia.wodbuster || '', 5, 400)
+  return { labels, preview }
+}
+
 export function getCoachCode() {
   try { return localStorage.getItem(COACH_CODE_KEY) || DEFAULT_CODE } catch { return DEFAULT_CODE }
 }
@@ -50,7 +76,10 @@ export default function CoachView() {
   const [input, setInput]           = useState('')
   const [isTyping, setIsTyping]     = useState(false)
   const [error, setError]           = useState('')
+  /** null = panel cerrado; 'show' = semana abierta (lista de días); string = detalle de ese día */
   const [activeDay, setActiveDay]   = useState(null)
+  /** Dentro del panel overview: elegir día o vista completa estilo Excel */
+  const [weekTab, setWeekTab]       = useState('dias') // 'dias' | 'excel'
   const messagesEndRef              = useRef(null)
 
   useEffect(() => {
@@ -329,88 +358,285 @@ export default function CoachView() {
           </div>
         </div>
         <button
-          onClick={() => setActiveDay((d) => d ? null : 'show')}
+          type="button"
+          onClick={() => {
+            setActiveDay((d) => {
+              if (d) {
+                setWeekTab('dias')
+                return null
+              }
+              return 'show'
+            })
+          }}
           className="text-[10px] text-evo-muted font-bold uppercase tracking-widest border border-black/10 px-4 py-2 rounded-xl transition-all shadow-sm hover:text-evo-text hover:bg-gray-50"
         >
           {activeDay ? 'Cerrar Programación' : 'Ver Semana'}
         </button>
       </div>
 
-      {/* Week Preview Overlay */}
-      {activeDay === 'show' && (
-        <div className="flex-shrink-0 border-b border-black/5 bg-gray-50/50 max-h-[min(55vh,28rem)] min-h-[12rem] overflow-y-auto animate-slide-down relative z-10 overscroll-contain">
-          {/* Summary Banner */}
+      {/* Panel programación: visible siempre que esté abierto (overview o día concreto) */}
+      {activeDay != null && (
+        <div className="flex-shrink-0 border-b border-black/5 bg-gray-50/50 max-h-[min(62vh,32rem)] min-h-[10rem] overflow-y-auto animate-slide-down relative z-10 overscroll-contain">
           {weekData?.resumen && (
             <div className="px-6 py-4 border-b border-black/5 bg-indigo-50/30">
               <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5">Orientación Semanal</p>
               <p className="text-[11px] text-evo-text font-bold leading-tight uppercase tracking-tight">
                 {weekData.resumen.estimulo} · {weekData.resumen.intensidad}
+                {weekData.resumen.foco ? ` · ${weekData.resumen.foco}` : ''}
               </p>
               <p className="text-[10px] text-evo-muted font-medium mt-1 leading-relaxed">{weekData.resumen.nota}</p>
             </div>
           )}
-          {/* Day Tags */}
-          <div className="flex gap-2 px-6 py-3 flex-wrap">
-            {dias.map((dia) => (
-              <button
-                key={dia.nombre}
-                onClick={() => setActiveDay((d) => d === dia.nombre ? 'show' : dia.nombre)}
-                className={`text-[10px] px-4 py-1.5 rounded-xl border font-bold uppercase tracking-widest transition-all shadow-sm ${
-                  activeDay === dia.nombre
-                    ? 'bg-evo-accent border-evo-accent text-white'
-                    : 'bg-white border-black/5 text-evo-muted hover:text-evo-text'
-                }`}
-              >
-                {dia.nombre}
-              </button>
-            ))}
-          </div>
-          {/* Day Content */}
-          {activeDay && activeDay !== 'show' && (() => {
-            const dia = dias.find(
-              (d) =>
-                d.nombre === activeDay ||
-                (d.nombre && activeDay && String(d.nombre).trim().toUpperCase() === String(activeDay).trim().toUpperCase()),
-            )
-            if (!dia) {
-              return (
-                <div className="px-6 pb-5">
-                  <p className="text-[11px] text-evo-muted font-medium">No hay datos para este día en la semana publicada.</p>
-                </div>
-              )
-            }
-            const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
-            const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
-            const wb = sessionText(dia.wodbuster)
-            const hasAny = sessions.length > 0 || feedbacks.length > 0 || wb
-            return (
-              <div className="px-6 pb-5 space-y-3">
-                {sessions.map(({ label, color, key }) => (
-                  <div key={key} className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
-                    <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
-                  </div>
-                ))}
-                {feedbacks.map(({ label, key }) => (
-                  <div key={key} className="rounded-2xl p-4 bg-indigo-50/40 border border-indigo-100/80 shadow-soft">
-                    <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">{label}</p>
-                    <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
-                  </div>
-                ))}
-                {!hasAny && (
-                  <p className="text-[11px] text-evo-muted font-medium leading-relaxed">
-                    Este día no tiene bloques de sesión en el JSON publicado. Si acabas de generar la semana, republica desde el programador o revisa que el JSON incluya evofuncional / evobasics / etc. para cada día.
-                  </p>
-                )}
-                {wb && (
-                  <div className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
-                    <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-2">Vista alumno (WodBuster)</p>
-                    <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia.wodbuster}</pre>
-                  </div>
-                )}
+
+          {activeDay === 'show' && (
+            <>
+              <div className="flex gap-2 px-6 pt-3 pb-2 border-b border-black/5 bg-white/60">
+                <button
+                  type="button"
+                  onClick={() => setWeekTab('dias')}
+                  className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest transition-all ${
+                    weekTab === 'dias' ? 'bg-evo-accent text-white' : 'bg-gray-100 text-evo-muted hover:text-evo-text'
+                  }`}
+                >
+                  Por día + resumen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekTab('excel')}
+                  className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest transition-all ${
+                    weekTab === 'excel' ? 'bg-evo-accent text-white' : 'bg-gray-100 text-evo-muted hover:text-evo-text'
+                  }`}
+                >
+                  Vista completa (tipo Excel)
+                </button>
               </div>
-            )
-          })()}
+
+              {weekTab === 'dias' && (
+                <div className="px-6 py-4 space-y-3">
+                  <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">
+                    Toca un día: resumen rápido y detalle. Abajo puedes lanzar una pregunta al asistente sobre ese día.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {dias.map((dia) => {
+                      const { labels, preview } = buildDayQuickSummary(dia)
+                      return (
+                        <button
+                          key={dia.nombre}
+                          type="button"
+                          onClick={() => setActiveDay(dia.nombre)}
+                          className="text-left rounded-2xl p-4 bg-white border border-black/8 shadow-sm hover:border-evo-accent/35 hover:shadow-md transition-all active:scale-[0.99]"
+                        >
+                          <p className="text-[11px] font-bold text-evo-text uppercase tracking-tight mb-2">{dia.nombre}</p>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {labels.length ? (
+                              labels.map((lb) => (
+                                <span
+                                  key={lb}
+                                  className="text-[9px] px-2 py-0.5 rounded-md bg-gray-100 text-evo-muted font-bold uppercase tracking-wide"
+                                >
+                                  {lb}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[9px] text-amber-700 font-bold uppercase">Sin bloques de sesión en datos</span>
+                            )}
+                          </div>
+                          {preview ? (
+                            <pre className="text-[10px] text-gray-500 font-medium whitespace-pre-wrap leading-relaxed line-clamp-6 font-sans">
+                              {preview}
+                            </pre>
+                          ) : sessionText(dia.wodbuster) ? (
+                            <pre className="text-[10px] text-emerald-800/80 font-medium whitespace-pre-wrap leading-relaxed line-clamp-5 font-sans">
+                              {previewText(dia.wodbuster, 8, 400)}
+                            </pre>
+                          ) : null}
+                          <p className="text-[9px] text-evo-accent font-bold uppercase tracking-widest mt-2">Ver detalle →</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {weekTab === 'excel' && (
+                <div className="px-6 py-4 space-y-4 pb-6">
+                  <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">
+                    Misma información que en el Excel publicado: todas las sesiones por día. Desplázate para leer.
+                  </p>
+                  {dias.map((dia) => {
+                    const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+                    const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+                    const wb = sessionText(dia.wodbuster)
+                    return (
+                      <div key={dia.nombre} className="rounded-2xl border border-black/8 bg-white shadow-sm overflow-hidden">
+                        <div className="px-4 py-2.5 bg-gray-900 text-white flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-widest">{dia.nombre}</span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveDay(dia.nombre)}
+                            className="text-[9px] font-bold uppercase tracking-widest text-white/90 underline decoration-white/40"
+                          >
+                            Preguntar este día
+                          </button>
+                        </div>
+                        <div className="p-4 space-y-3">
+                          {sessions.map(({ label, color, key }) => (
+                            <div key={key} className="rounded-xl p-3 bg-gray-50/80 border border-black/5">
+                              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color }}>{label}</p>
+                              <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                            </div>
+                          ))}
+                          {feedbacks.map(({ label, key }) => (
+                            <div key={key} className="rounded-xl p-3 bg-indigo-50/50 border border-indigo-100/60">
+                              <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-widest mb-1.5">{label}</p>
+                              <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                            </div>
+                          ))}
+                          {wb && (
+                            <div className="rounded-xl p-3 bg-emerald-50/40 border border-emerald-100">
+                              <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-1.5">WodBuster / alumno</p>
+                              <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia.wodbuster}</pre>
+                            </div>
+                          )}
+                          {!sessions.length && !feedbacks.length && !wb && (
+                            <p className="text-[11px] text-evo-muted">Sin contenido para este día.</p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeDay !== 'show' && (
+            <div className="border-t border-black/5">
+              <div className="px-6 py-3 flex flex-wrap items-center gap-2 bg-white/70 sticky top-0 z-[1] border-b border-black/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDay('show')
+                    setWeekTab('dias')
+                  }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-evo-accent border border-evo-accent/30 px-3 py-1.5 rounded-lg hover:bg-evo-accent/5"
+                >
+                  ← Volver a días
+                </button>
+                <span className="text-[11px] font-bold text-evo-text uppercase tracking-tight">{activeDay}</span>
+              </div>
+              {(() => {
+                const dia = findDia(dias, activeDay)
+                if (!dia) {
+                  return (
+                    <div className="px-6 py-5">
+                      <p className="text-[11px] text-evo-muted font-medium">No hay datos para este día en la semana publicada.</p>
+                    </div>
+                  )
+                }
+                const { labels, preview } = buildDayQuickSummary(dia)
+                const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+                const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+                const wb = sessionText(dia.wodbuster)
+                const hasAny = sessions.length > 0 || feedbacks.length > 0 || wb
+                const dayName = dia.nombre
+
+                const ask = (text) => {
+                  setInput(text)
+                  setActiveDay(null)
+                  setWeekTab('dias')
+                }
+
+                return (
+                  <div className="px-6 pb-5 pt-3 space-y-4">
+                    <div className="rounded-2xl p-4 bg-gradient-to-br from-evo-accent/8 to-purple-50/40 border border-evo-accent/15">
+                      <p className="text-[9px] font-bold text-evo-accent uppercase tracking-widest mb-2">Resumen rápido</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {labels.map((lb) => (
+                          <span key={lb} className="text-[9px] px-2 py-0.5 rounded-md bg-white/80 border border-black/5 font-bold text-evo-text uppercase">
+                            {lb}
+                          </span>
+                        ))}
+                      </div>
+                      {preview ? (
+                        <pre className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap leading-relaxed font-sans">{preview}</pre>
+                      ) : (
+                        <p className="text-[11px] text-evo-muted">Sin extracto: baja a la vista detallada o usa los botones para preguntar.</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          ask(`Tengo una duda sobre la programación del ${dayName}: ¿puedes orientarme con tiempos y escalado?`)
+                        }
+                        className="text-[10px] px-3 py-2 rounded-xl bg-evo-accent text-white font-bold uppercase tracking-widest shadow-sm hover:bg-evo-accent-hover active:scale-[0.98]"
+                      >
+                        Preguntar por {dayName}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          ask(`Sobre el ${dayName}: ¿qué harías si tengo poco tiempo o falta material en sala?`)
+                        }
+                        className="text-[10px] px-3 py-2 rounded-xl bg-white border border-black/10 text-evo-text font-bold uppercase tracking-widest hover:bg-gray-50"
+                      >
+                        Plan B / poco tiempo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          ask(`En el ${dayName}, ¿cómo escalarías el WOD para nivel principiante manteniendo el estímulo?`)
+                        }
+                        className="text-[10px] px-3 py-2 rounded-xl bg-white border border-black/10 text-evo-text font-bold uppercase tracking-widest hover:bg-gray-50"
+                      >
+                        Escalado principiantes
+                      </button>
+                    </div>
+
+                    <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Detalle completo (como en Excel)</p>
+                    <div className="space-y-3">
+                      {sessions.map(({ label, color, key }) => (
+                        <div key={key} className="rounded-2xl p-4 bg-white border border-black/5 shadow-soft">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{label}</p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                ask(`Sobre ${dayName} · ${label}: tengo una duda concreta: `)
+                              }
+                              className="text-[9px] font-bold text-evo-accent uppercase tracking-wide shrink-0 underline decoration-evo-accent/30"
+                            >
+                              Preguntar esta clase
+                            </button>
+                          </div>
+                          <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                        </div>
+                      ))}
+                      {feedbacks.map(({ label, key }) => (
+                        <div key={key} className="rounded-2xl p-4 bg-indigo-50/40 border border-indigo-100/80 shadow-soft">
+                          <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">{label}</p>
+                          <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia[key]}</pre>
+                        </div>
+                      ))}
+                      {!hasAny && (
+                        <p className="text-[11px] text-evo-muted font-medium leading-relaxed">
+                          Este día no tiene bloques de sesión en los datos publicados. Pide al programador que vuelva a publicar la semana o revisa el JSON.
+                        </p>
+                      )}
+                      {wb && (
+                        <div className="rounded-2xl p-4 bg-emerald-50/30 border border-emerald-100/80 shadow-soft">
+                          <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-2">Vista alumno (WodBuster)</p>
+                          <pre className="text-[11px] text-gray-600 font-medium whitespace-pre-wrap leading-relaxed font-sans">{dia.wodbuster}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
         </div>
       )}
 

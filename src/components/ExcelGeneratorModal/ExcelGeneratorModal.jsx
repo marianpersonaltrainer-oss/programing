@@ -108,7 +108,6 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   }
 
   async function callApi(userMessage, retries = 3) {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
         model: AI_CONFIG.model,
@@ -153,13 +152,6 @@ export default function ExcelGeneratorModal({ weekState, onClose }) {
   async function handleGenerate() {
     if (!weekState.mesocycle) {
       setErrorMsg('Primero selecciona el tipo de Mesociclo y la Semana en el panel de la izquierda (aparece como "Configuración pendiente").')
-      setStatus('error')
-      return
-    }
-
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!apiKey) {
-      setErrorMsg('Falta la API key de Anthropic en el archivo .env')
       setStatus('error')
       return
     }

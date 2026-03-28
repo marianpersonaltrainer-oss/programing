@@ -9,11 +9,11 @@ export default async function handler(req, res) {
   }
 
   const { model, max_tokens, system, messages } = req.body
-  const apiKey = process.env.VITE_ANTHROPIC_API_KEY
+  const apiKey = process.env.ANTHROPIC_API_KEY
 
   if (!apiKey) {
-    return res.status(500).json({ 
-      error: { message: 'VITE_ANTHROPIC_API_KEY no configurada en el servidor (Vercel).' } 
+    return res.status(500).json({
+      error: { message: 'ANTHROPIC_API_KEY no configurada en el servidor (Vercel o .env local con vercel dev).' },
     })
   }
 
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: model || 'claude-3-5-sonnet-20241022',
+        model: model || 'claude-sonnet-4-20250514',
         max_tokens: max_tokens || 8000,
         system,
         messages,

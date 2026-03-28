@@ -1,38 +1,46 @@
 # ProgramingEvo — Setup
 
 ## Requisitos
-- Node.js 18 o superior → https://nodejs.org
+
+- **Node.js 20.x** (coincide con `engines` en `package.json`) → https://nodejs.org
 
 ## Instalación
 
 ```bash
-# Entra en la carpeta del proyecto
 cd programingevo
-
-# Instala dependencias
 npm install
-
-# Crea el archivo de configuración
 cp .env.example .env
 ```
 
-## Configurar API key
+## Variables de entorno
 
-Abre el archivo `.env` y añade tu API key de Anthropic:
+Edita `.env` con:
 
-```
-VITE_ANTHROPIC_API_KEY=sk-ant-XXXXXXXXXX
-```
+| Variable | Dónde se usa |
+|----------|----------------|
+| `ANTHROPIC_API_KEY` | Solo en la función serverless `api/anthropic.js` (Vercel o `vercel dev`). No uses prefijo `VITE_`: así la clave no entra en el JavaScript del navegador. |
+| `VITE_SUPABASE_URL` | Cliente (modo coach, publicar semana). |
+| `VITE_SUPABASE_ANON_KEY` | Cliente (mismo uso que la URL). |
 
-> La API key la encuentras en https://console.anthropic.com
+Opcional en el cliente: `VITE_CLAUDE_MODEL` (por defecto `claude-sonnet-4-20250514`). El antiguo `claude-3-5-sonnet-20241022` ya no existe en la API de Anthropic.
 
-## Ejecutar en desarrollo
+La clave de Anthropic está en https://console.anthropic.com
+
+## Desarrollo
+
+**Solo interfaz (sin llamadas a `/api/anthropic`):**
 
 ```bash
 npm run dev
 ```
 
-Abre el navegador en: http://localhost:5173
+Abre http://localhost:5173
+
+**Con chat IA y generador Excel funcionando** hace falta ejecutar las funciones serverless locales. Usa la CLI de Vercel (lee `ANTHROPIC_API_KEY` del `.env` para la API):
+
+```bash
+npx vercel dev
+```
 
 ## Build para producción
 
@@ -40,3 +48,5 @@ Abre el navegador en: http://localhost:5173
 npm run build
 npm run preview
 ```
+
+En **Vercel**, define `ANTHROPIC_API_KEY` y las variables `VITE_*` en el panel del proyecto (Production / Preview). No marques `ANTHROPIC_API_KEY` como variable expuesta al cliente.

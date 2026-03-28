@@ -24,13 +24,6 @@ export function useAgent(weekState) {
     ]
     setMessages(newMessages)
 
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!apiKey) {
-      setError('Falta la API key de Anthropic. Añade VITE_ANTHROPIC_API_KEY en el archivo .env')
-      setIsGenerating(false)
-      return
-    }
-
     try {
       const controller = new AbortController()
       abortRef.current = controller

@@ -156,7 +156,6 @@ export default function CoachView() {
     await updateSessionActivity(sessionId)
 
     try {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
       const history = [...messages, { role: 'user', content: userMsg }]
       const response = await fetch('/api/anthropic', {
         method: 'POST',

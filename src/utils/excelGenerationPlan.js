@@ -209,6 +209,31 @@ export function parseExcelGenerationPlan(instructions) {
   }
 }
 
+/**
+ * Reglas solo desde texto (preservados / excluidos). El selector visual de días manda en qué días hay programa.
+ */
+export function parseExcelDayRulesFromText(instructions) {
+  const normalized = normalizeForMatch(instructions || '')
+  return {
+    daysPreserved: extractPreservedDays(normalized),
+    daysExcluded: extractExcludedDays(normalized),
+  }
+}
+
+/**
+ * Días que la IA debe rellenar: marcados en UI ∩ ¬preservados ∩ ¬excluidos (texto).
+ * @param {Set<string>|string[]} selectedCanon — subconjunto de EXCEL_DAY_ORDER
+ * @param {string} instructionsAndContext — instrucciones + contexto para "ya hecho" / no generes
+ */
+export function resolveDaysToGenerateFromSelection(selectedCanon, instructionsAndContext) {
+  const selected = selectedCanon instanceof Set ? selectedCanon : new Set(selectedCanon)
+  const { daysPreserved, daysExcluded } = parseExcelDayRulesFromText(instructionsAndContext)
+  const daysToGenerate = new Set(
+    [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d) && !daysPreserved.has(d) && !daysExcluded.has(d)),
+  )
+  return { daysToGenerate, daysPreserved, daysExcluded, selectedDays: selected }
+}
+
 /** Texto único para días no incluidos en la generación parcial (sustituye sesiones vacías). */
 export const FESTIVO_SESSION_LINE =
   'FESTIVO — Sin sesión en este día (no incluido en esta generación).'

@@ -13,13 +13,14 @@ import {
 import { publishWeek, getActiveWeek, getCoachExerciseLibrary } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import {
-  parseExcelGenerationPlan,
   buildWeekSkeleton,
   mergeGeneratedDaysIntoAccumulator,
   applyPreservedFromOverlay,
   applyFestivoToNonGeneratedDays,
+  resolveDaysToGenerateFromSelection,
   EXCEL_DAY_ORDER,
 } from '../../utils/excelGenerationPlan.js'
+import { buildWeekWodBusterPaste } from '../../utils/formatWodBusterPaste.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
@@ -122,6 +123,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const sessionFingerprintsRef = useRef(new Map())
   const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
   const [regeneratingFeedbackKey, setRegeneratingFeedbackKey] = useState(null)
+  /** LUNES–SÁBADO: fuente de verdad de qué días pide generar el cliente (el texto solo añade preservados/excluidos). */
+  const [dayPicker, setDayPicker] = useState(() =>
+    Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, true])),
+  )
 
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
@@ -290,15 +295,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     ].filter(Boolean).join('\n\n')
 
     const planSourceText = [instructionsClean, contextClean].filter(Boolean).join('\n\n')
-    const plan = parseExcelGenerationPlan(planSourceText)
+    const selectedCanon = new Set(EXCEL_DAY_ORDER.filter((d) => dayPicker[d]))
+    const { daysToGenerate, daysPreserved, daysExcluded } = resolveDaysToGenerateFromSelection(
+      selectedCanon,
+      planSourceText,
+    )
     const firstHalf = new Set(EXCEL_DAY_ORDER.slice(0, 3))
     const secondHalf = new Set(EXCEL_DAY_ORDER.slice(3, 6))
-    const chunkFirst = new Set([...plan.daysToGenerate].filter((d) => firstHalf.has(d)))
-    const chunkSecond = new Set([...plan.daysToGenerate].filter((d) => secondHalf.has(d)))
+    const chunkFirst = new Set([...daysToGenerate].filter((d) => firstHalf.has(d)))
+    const chunkSecond = new Set([...daysToGenerate].filter((d) => secondHalf.has(d)))
 
-    if (plan.daysToGenerate.size === 0) {
+    if (daysToGenerate.size === 0) {
       setErrorMsg(
-        'No hay días para generar: revisa las instrucciones (p. ej. demasiados días marcados como ya hechos o excluidos).',
+        'No hay días para generar: marca al menos un día arriba y revisa el texto (p. ej. «lunes ya está hecho» o «no generes martes» quita días del seleccionado).',
       )
       setStatus('error')
       return
@@ -320,12 +329,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
-      applyPreservedFromOverlay(acc, overlay, plan.daysPreserved)
+      applyPreservedFromOverlay(acc, overlay, daysPreserved)
 
       const planSummary = `PLAN DE DÍAS (obligatorio):
-- Generar contenido real (sesiones, feedbacks, wodbuster) SOLO para: ${[...plan.daysToGenerate].join(', ')}
-- Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...plan.daysPreserved].join(', ') || 'ninguno'}
-- Excluidos por el usuario: ${[...plan.daysExcluded].join(', ') || 'ninguno'}
+- Días marcados en el selector del cliente: ${[...selectedCanon].join(', ')}
+- Generar contenido real (sesiones, feedbacks, wodbuster) SOLO para: ${[...daysToGenerate].join(', ')}
+- Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...daysPreserved].join(', ') || 'ninguno'}
+- Excluidos por texto del usuario ("no generes X"): ${[...daysExcluded].join(', ') || 'ninguno'}
 - Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente la línea FESTIVO del system prompt — no vacío, no texto inventado.`
 
       function buildChunkMessage(chunkDays, coherenceBlock) {
@@ -354,7 +364,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         mergeGeneratedDaysIntoAccumulator(acc, part2, chunkSecond)
       }
 
-      applyFestivoToNonGeneratedDays(acc, plan.daysToGenerate, plan.daysPreserved)
+      applyFestivoToNonGeneratedDays(acc, daysToGenerate, daysPreserved)
 
       const combined = {
         ...acc,
@@ -666,16 +676,67 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   Instrucciones para esta Semana
                 </label>
                 <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
-                  Días a generar: nombra los días (ej. «solo martes y miércoles», «no generes jueves», «toda la semana»).
-                  «Lunes ya está hecho» copia ese día desde la semana activa en Supabase si coincide mesociclo y semana.
+                  Elige los días con los controles de abajo (obligatorio). Aquí solo: exclusiones («no generes jueves») o
+                  «lunes ya está hecho» (copia desde Supabase si coincide mesociclo y semana).
                 </p>
                 <textarea
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Ej: Toda la semana. / Solo martes y jueves. / No generes miércoles. / El lunes ya está hecho."
+                  placeholder="Ej: No generes miércoles. / El lunes ya está hecho. (Los días con contenido los marcas abajo.)"
                   rows={3}
                   className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed shadow-inner"
                 />
+                <div className="rounded-2xl border border-evo-accent/15 bg-evo-accent/[0.04] px-4 py-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-[11px] font-bold text-evo-text uppercase tracking-wider">
+                      Días a generar
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDayPicker(Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, true])))
+                        }
+                        className="text-[9px] font-bold uppercase text-evo-accent px-2 py-1 rounded-lg border border-evo-accent/20 hover:bg-evo-accent/10"
+                      >
+                        Todos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDayPicker(Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, false])))
+                        }
+                        className="text-[9px] font-bold uppercase text-evo-muted px-2 py-1 rounded-lg border border-black/10 hover:bg-gray-100"
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
+                    Marca exactamente qué días deben tener programación nueva. «Lunes ya hecho» o «no generes X» en el texto
+                    quitan esos días aunque sigan marcados.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {EXCEL_DAY_ORDER.map((d) => (
+                      <label
+                        key={d}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                          dayPicker[d]
+                            ? 'border-evo-accent/40 bg-white text-evo-text shadow-sm'
+                            : 'border-black/10 bg-gray-50/80 text-evo-muted'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!dayPicker[d]}
+                          onChange={() => setDayPicker((p) => ({ ...p, [d]: !p[d] }))}
+                          className="rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
+                        />
+                        {d === 'MIÉRCOLES' ? 'MIÉ' : d.slice(0, 3)}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {errorMsg && (
@@ -1053,15 +1114,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               )}
 
               {previewTab === 'wodbuster' && (() => {
-                const wbText = (weekData.dias || [])
-                  .map((d) => d.wodbuster || '')
-                  .filter(Boolean)
-                  .join('\n\n─────────────────────\n\n')
+                const wbText = buildWeekWodBusterPaste(weekData)
 
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between px-1">
-                      <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">Vista Alumno (WodBuster)</p>
+                      <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">
+                        Pegar en WodBuster (sin timings ni feedback)
+                      </p>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(wbText)

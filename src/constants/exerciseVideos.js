@@ -74,6 +74,15 @@ export const EXERCISE_VIDEOS = {
   'sumo deadlift':          V('wQHSYDSgTc4'),
   'jefferson deadlift':     V('zfHMycFFOyg'),
   'deficit deadlift':       V('wkeGB5_mL2w'),
+  'deadlift':               V('op9kVJYsXeo'),
+  'back squat':             V('ultWZbUMPL8'),
+  'front squat':            V('mRXjZKHvzLY'),
+  'bench press':            V('4Y2ZdHCO1ok'),
+  'push up':                V('_l3yHaKYrQY'),
+  'push-up':                V('_l3yHaKYrQY'),
+  'pull up':                V('eGo4IYlbE5g'),
+  'pull-up':                V('eGo4IYlbE5g'),
+  'bulgarian split squat':  V('2C-uNgKwPLE'),
 
   // ── KETTLEBELL ───────────────────────────────────────────────────────────
   'kb snatch':              V('vJHoKX0oYLM'),
@@ -123,6 +132,11 @@ export const EXERCISE_VIDEOS = {
   'db clean':               V('G7_JJepCEgU'),
 }
 
+/** Lista ordenada de claves del mapa estático (referencia para el coach). */
+export const EXERCISE_VIDEO_STATIC_KEYS_SORTED = Object.keys(EXERCISE_VIDEOS).sort((a, b) =>
+  a.localeCompare(b, 'es'),
+)
+
 // Categorías para la Biblioteca
 export const EXERCISE_CATEGORIES = {
   calentamiento: ['cat camel', 'cat cow', 'world greatest stretch', 'inchworm', 'cossack squat', 'hip 90/90', 'scap push up', 'wall slide', 'band pull apart', 'bear crawl', 'dead bug', 'hollow body hold', 'hollow rock', 'hip transition', 'bottom squat hold', 'lateral lunge'],
@@ -150,12 +164,35 @@ function normalizeExerciseMatch(s) {
     .replace(/\p{M}/gu, '')
 }
 
-/** Coincidencia por subcadena: nombre de biblioteca contiene clave del mapa (claves largas primero). */
+/** Mejor coincidencia por subcadena (clave más larga gana); prueba también trozos del nombre (A + B). */
 export function findStaticVideoUrlForExerciseLabel(label) {
   const lower = normalizeExerciseMatch(label)
   const sorted = Object.entries(EXERCISE_VIDEOS).sort((a, b) => b[0].length - a[0].length)
-  for (const [key, url] of sorted) {
-    if (lower.includes(key.toLowerCase())) return url
+  const normKeys = sorted.map(([key, url]) => [normalizeExerciseMatch(key), url])
+
+  function bestIn(text) {
+    let bestUrl = null
+    let bestLen = 0
+    for (const [nk, url] of normKeys) {
+      if (!nk || !text.includes(nk)) continue
+      if (nk.length > bestLen) {
+        bestLen = nk.length
+        bestUrl = url
+      }
+    }
+    return bestUrl
+  }
+
+  const direct = bestIn(lower)
+  if (direct) return direct
+
+  const segments = lower
+    .split(/[,;/|·]|\s+\+\s+|\s+y\s+|\s+vs\s+|\s+[/]\s+/i)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  for (const seg of segments) {
+    const hit = bestIn(seg)
+    if (hit) return hit
   }
   return null
 }
@@ -187,14 +224,14 @@ export function publishedDayProgramText(dia) {
   return parts.join('\n')
 }
 
-function matchVideosInLowerText(lowerText, { max = 40, dedupeByUrl = true } = {}) {
-  if (!lowerText) return []
+function matchVideosInLowerText(normalizedText, { max = 40, dedupeByUrl = true } = {}) {
+  if (!normalizedText) return []
   const sorted = Object.entries(EXERCISE_VIDEOS).sort((a, b) => b[0].length - a[0].length)
   const out = []
   const usedUrls = new Set()
   for (const [name, url] of sorted) {
     if (out.length >= max) break
-    if (!lowerText.includes(name.toLowerCase())) continue
+    if (!normalizedText.includes(normalizeExerciseMatch(name))) continue
     if (dedupeByUrl && usedUrls.has(url)) continue
     if (dedupeByUrl) usedUrls.add(url)
     out.push({ name, url })
@@ -204,7 +241,10 @@ function matchVideosInLowerText(lowerText, { max = 40, dedupeByUrl = true } = {}
 
 /** Texto libre (p. ej. una sola sesión). */
 export function findVideosInProgramText(text, options = {}) {
-  return matchVideosInLowerText((text || '').toLowerCase(), { max: options.max ?? 40, dedupeByUrl: options.dedupeByUrl !== false })
+  return matchVideosInLowerText(normalizeExerciseMatch(text), {
+    max: options.max ?? 40,
+    dedupeByUrl: options.dedupeByUrl !== false,
+  })
 }
 
 /** Un día publicado: detecta ejercicios de la biblioteca en toda la programación del día. */
@@ -214,5 +254,5 @@ export function findVideosForPublishedDay(dia, options = {}) {
 
 // Busca ejercicios en un texto (Excel / compat). Máx. 8 sugerencias.
 export function findExercisesWithVideos(text) {
-  return matchVideosInLowerText((text || '').toLowerCase(), { max: 8, dedupeByUrl: true })
+  return matchVideosInLowerText(normalizeExerciseMatch(text), { max: 8, dedupeByUrl: true })
 }

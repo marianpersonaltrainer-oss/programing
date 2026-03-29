@@ -220,6 +220,18 @@ WAVE LOADING — DESCANSOS Y ONDAS (OBLIGATORIO)
   antiguos de 90'' entre series de la misma onda ni 3' entre ondas).
 
 ════════════════════════════════════════
+CRÍTICO — FORMATO DE FUERZA EN DÍAS CONSECUTIVOS (OBLIGATORIO)
+════════════════════════════════════════
+
+- ANTES de entregar el JSON, revisa que NINGÚN formato de fuerza del bloque principal (p. ej. Wave
+  Loading / ondas, cluster, rest-pause, series escalonadas, 5x5 clásico como eje del día, EMOM de
+  fuerza como núcleo) se repita en DOS DÍAS SEGUIDOS (LUNES→MARTES, MARTES→MIÉRCOLES, etc.).
+- Ejemplo: si el lunes el trabajo fuerte va en Wave Loading, el martes y el miércoles deben usar
+  formatos de fuerza claramente distintos (no otra sesión de ondas ni variante equivalente).
+- Los accesorios pueden repetir estilo; la regla aplica al ESTÍMULO / FORMATO DOMINANTE de fuerza
+  del día en EvoFuncional (y en la clase de fuerza si existe).
+
+════════════════════════════════════════
 TRANSICIONES ENTRE BLOQUES — REALIDAD DE SALA (OBLIGATORIO)
 ════════════════════════════════════════
 
@@ -316,6 +328,9 @@ QUÉ DÍAS GENERAR — OBLIGATORIO (MENSAJE DEL USUARIO)
 Cada petición puede pedirte generar solo ALGUNOS días de la semana. Lee SIEMPRE el bloque
 "INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA" y cualquier sección "PLAN DE DÍAS" o
 "GENERACIÓN DE DÍAS EN ESTA PETICIÓN" del mensaje de usuario.
+
+Prioridad absoluta: si el mensaje incluye "PLAN DE DÍAS" con lista de días a generar y días marcados
+en selector, esa lista manda sobre frases ambiguas del texto libre o del contexto.
 
 Reglas:
 - Solo genera contenido (sesiones + feedbacks + wodbuster) para los días que el usuario o el
@@ -542,7 +557,7 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
       "feedback_fuerza":     "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_gimnastica": "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_evotodos":   "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
-      "wodbuster": "Versión limpia para alumnos — SIN calentamiento, SIN técnica, SIN feedback, SIN coaching. Solo lo que el alumno necesita saber: nombre de las clases, el trabajo principal (fuerza/técnica) y el WOD con cargas. Formato ejemplo:\n\n📅 LUNES — S3 FUERZA\n\n💪 EvoFuncional\nBack Squat 5x3 @80-85%\nWOD — Chipper FOR TIME TC12':\n30 Wall Balls @9/6kg\n20 KB Swings @32/24kg\n30 Burpees\n\n🟠 EvoBasics\nBulgarian Split Squat 4x8 @moderado\nWOD — AMRAP 12':\n8 Ring Row\n10 KB Goblet Squat @ligero\n12 Hollow Rock\n\n🟢 EvoFit\nDB Romanian Deadlift 4x10 @medio\nWOD — FOR TIME TC15':\n4 rounds: 12 DB RDL + 10 Push-ups + 200m row\n\n🔴 EvoHybrix\nEMOM 20': 15cal machine / 15 Wall Balls / Rest\nParejas AMRAP 10': 200m run + 10 Burpees + 10 KB Swings"
+      "wodbuster": "Texto para pegar en WodBuster (alumno): bloques con NOMBRE DEL BLOQUE en una línea y debajo el contenido limpio (ejercicios, series, cargas, WOD). SIN timings entre paréntesis tipo (0' - 5'), SIN líneas FEEDBACK, SIN notas al coach. Puedes usar emojis de clase si ayudan. Ejemplo:\n\n💪 EvoFuncional\nPARTE A — FUERZA\nBack Squat 5x3 @80-85%\n\nWOD — CHIPPER FOR TIME TC12'\n30 Wall Balls @9/6kg\n20 KB Swings @32/24kg\n30 Burpees\n\n🟠 EvoBasics\nTRABAJO DE PIERNA\nBulgarian Split Squat 4x8 @moderado\n\nWOD — AMRAP 12'\n8 Ring Row\n10 KB Goblet Squat @ligero\n12 Hollow Rock"
     }
   ]
 }`

@@ -4,3 +4,6 @@ dist
 .env.local
 .DS_Store
 .vercel
+
+# Material local del usuario (no código)
+Plantillas y entrenos/

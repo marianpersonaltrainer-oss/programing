@@ -23,6 +23,7 @@ import {
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
+import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 async function extractTextFromFile(file) {
@@ -239,9 +240,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         throw new Error('La respuesta del servidor no es JSON válido.')
       }
       const text = data.content?.[0]?.text || ''
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('La respuesta no contiene JSON válido')
-      return JSON.parse(jsonMatch[0])
+      try {
+        return parseAssistantWeekJson(text)
+      } catch (e) {
+        throw new Error(
+          `${e.message} — Si se repite, reduce el texto del DOCX/contexto o vuelve a generar; el modelo a veces rompe el JSON con comas o caracteres raros.`,
+        )
+      }
     }
     throw new Error('API saturada después de varios intentos. Inténtalo de nuevo en unos minutos.')
   }

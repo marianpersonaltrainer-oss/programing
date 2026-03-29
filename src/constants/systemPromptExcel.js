@@ -510,6 +510,11 @@ FORMATO JSON — SOLO JSON
 Antes de rellenar "dias", respeta la sección QUÉ DÍAS GENERAR: los días no solicitados llevan
 la línea FESTIVO en cada sesión y wodbuster "FESTIVO", feedbacks "".
 
+Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO válido:
+- PROHIBIDAS comas finales tras el último elemento de un array o el último campo de un objeto.
+- Solo comillas rectas " en claves y strings (no tipográficas “ ”).
+- Dentro de strings, escapa comillas y saltos: \\" y \\n.
+
 {
   "titulo": "S[X] – MESOCICLO [TIPO] · [INTENSIDAD] · Del [fecha]",
   "semana": [número],

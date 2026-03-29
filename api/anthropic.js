@@ -2,21 +2,13 @@
  * VERCEL SERVERLESS FUNCTION: api/anthropic.js
  * Puente seguro entre el front y https://api.anthropic.com/v1/messages .
  *
- * Quién llama (el body incluye `model`, `system`, `messages`, `max_tokens`):
- * | Origen | Modelo típico | Motivo |
- * |--------|----------------|--------|
- * | ExcelGeneratorModal → callApi | Sonnet (`AI_CONFIG.model`) | JSON semanal, SYSTEM_PROMPT_EXCEL |
- * | ExcelGeneratorModal → regenerar feedback | Haiku (`AI_CONFIG.supportModel`) | SYSTEM_PROMPT_REGENERATE_FEEDBACK, 1 clase |
- * | useAgent → sendMessage | Sonnet | Chat programador, SYSTEM_PROMPT + semana |
- * | CoachView → soporte | Haiku (`AI_CONFIG.supportModel`) | Chat coach, COACH_SUPPORT_SYSTEM_PROMPT |
+ * Importante: en Vercel `req.body` a veces llega como string JSON o vacío; hay que parsearlo
+ * igual que en coach-exercise-library.js. Desestructurar `undefined` lanza TypeError → 500.
  *
- * Si el cliente no envía `model`, el fallback aquí abajo es Sonnet (programación).
- *
- * Duración en Vercel: ver `vercel.json` → `functions["api/**/*.js"].maxDuration` (300 s para
- * generación Excel con Sonnet). Plan Hobby (~10 s) no alcanza; hace falta Pro + redeploy.
+ * Duración: `vercel.json` → functions maxDuration (300 s). Plan Pro + redeploy.
  */
 
-/** Traduce errores conocidos de Anthropic a mensaje útil en español (el cliente muestra error.message). */
+/** Traduce errores conocidos de Anthropic a mensaje útil en español. */
 function userFacingMessage(data, httpStatus) {
   const raw =
     (data && typeof data.error === 'object' && data.error.message) ||
@@ -51,13 +43,50 @@ function userFacingMessage(data, httpStatus) {
   return raw || 'Error al contactar con la API de Anthropic.'
 }
 
+function parseRequestBody(req) {
+  const raw = req.body
+  if (raw == null || raw === '') return {}
+  if (Buffer.isBuffer(raw)) {
+    try {
+      return JSON.parse(raw.toString('utf8') || '{}')
+    } catch {
+      return null
+    }
+  }
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (typeof raw === 'object') return raw
+  return null
+}
+
 export default async function handler(req, res) {
-  // Solo permitir POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
-  const { model, max_tokens, system, messages } = req.body
+  const body = parseRequestBody(req)
+  if (body === null) {
+    return res.status(400).json({
+      error: { message: 'Cuerpo de la petición no es JSON válido.' },
+    })
+  }
+
+  const { model, max_tokens, system, messages } = body
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({
+      error: {
+        message:
+          'Falta "messages" (array con al menos un mensaje). Revisa que el cliente envíe JSON con Content-Type application/json.',
+      },
+    })
+  }
+
   const apiKey = (
     process.env.ANTHROPIC_API_KEY ||
     process.env.VITE_ANTHROPIC_API_KEY ||
@@ -68,13 +97,12 @@ export default async function handler(req, res) {
     return res.status(500).json({
       error: {
         message:
-          'Falta clave de Anthropic en el servidor. En Vercel: Settings → Environment Variables → añade ANTHROPIC_API_KEY (recomendado) para Production y Redeploy. No uses solo el nombre en español ni variables sin asignar a Production.',
+          'Falta clave de Anthropic en el servidor. En Vercel: Settings → Environment Variables → añade ANTHROPIC_API_KEY para Production y Redeploy.',
       },
     })
   }
 
   try {
-    // Reenvío tal cual: modelo y tokens los fija cada caller (ver cabecera del archivo).
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -85,15 +113,28 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: model || 'claude-sonnet-4-20250514',
         max_tokens: max_tokens || 8000,
-        system,
+        system: system === undefined ? undefined : system,
         messages,
       }),
     })
 
-    const data = await response.json()
+    const rawText = await response.text()
+    let data
+    try {
+      data = rawText ? JSON.parse(rawText) : {}
+    } catch {
+      console.error('Anthropic no-JSON body:', rawText?.slice(0, 500))
+      return res.status(502).json({
+        error: {
+          message:
+            'La API de Anthropic devolvió un cuerpo que no es JSON. Revisa el modelo y los logs de Vercel (Functions → anthropic).',
+          preview: String(rawText || '').slice(0, 200),
+        },
+      })
+    }
 
     if (!response.ok) {
-      console.error('Anthropic API Error:', data)
+      console.error('Anthropic API Error:', response.status, data)
       const message = userFacingMessage(data, response.status)
       const baseError =
         data && typeof data.error === 'object' && !Array.isArray(data.error)
@@ -107,9 +148,14 @@ export default async function handler(req, res) {
 
     return res.status(200).json(data)
   } catch (error) {
+    const msg = error?.message ? String(error.message).slice(0, 500) : 'unknown'
     console.error('Serverless Function Error:', error)
-    return res.status(500).json({ 
-      error: { message: 'Error interno del servidor al conectar con la IA.' } 
+    return res.status(500).json({
+      error: {
+        message:
+          'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y que el proyecto use Node 20. Detalle técnico (sin claves): ' +
+          msg,
+      },
     })
   }
 }

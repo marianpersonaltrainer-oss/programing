@@ -202,8 +202,21 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         }
       }
 
+      const responseText = await response.text()
+
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
+        let err = {}
+        try {
+          err = responseText ? JSON.parse(responseText) : {}
+        } catch {
+          err = {
+            error: {
+              message:
+                responseText?.trim()?.slice(0, 500) ||
+                `Error ${response.status} (el servidor no devolvió JSON; revisa logs en Vercel → Functions)`,
+            },
+          }
+        }
         console.error('API Error Response:', err)
         if (response.status === 504 || response.status === 502) {
           throw new Error(
@@ -212,10 +225,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
               'Mientras tanto: acorta el DOCX/contexto o prueba en local con `vercel dev`.',
           )
         }
-        throw new Error(err?.error?.message || `Error ${response.status}`)
+        const apiMsg =
+          (typeof err?.error === 'object' && err?.error?.message) ||
+          (typeof err?.error === 'string' && err.error) ||
+          err?.message
+        throw new Error(apiMsg || `Error ${response.status}`)
       }
 
-      const data = await response.json()
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        throw new Error('La respuesta del servidor no es JSON válido.')
+      }
       const text = data.content?.[0]?.text || ''
       const jsonMatch = text.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('La respuesta no contiene JSON válido')

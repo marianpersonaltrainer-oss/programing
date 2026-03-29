@@ -183,10 +183,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         throw new Error(explainAnthropicFetchFailure(e))
       }
 
-      if (response.status === 529 || response.status === 503 || response.status === 429) {
+      const retriable =
+        response.status === 529 ||
+        response.status === 503 ||
+        response.status === 429 ||
+        response.status === 504 ||
+        response.status === 502
+      if (retriable) {
         if (attempt < retries) {
-          const wait = (attempt + 1) * 10 // 10s, 20s, 30s
-          setGenStep(`API saturada — reintentando en ${wait}s...`)
+          const wait = (attempt + 1) * 15
+          const hint =
+            response.status === 504 || response.status === 502
+              ? 'Tiempo límite del servidor (504/502)'
+              : 'API saturada o en mantenimiento'
+          setGenStep(`${hint} — reintentando en ${wait}s…`)
           await new Promise((r) => setTimeout(r, wait * 1000))
           continue
         }
@@ -195,6 +205,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
         console.error('API Error Response:', err)
+        if (response.status === 504 || response.status === 502) {
+          throw new Error(
+            'Tiempo de espera agotado en Vercel (504): la llamada a la IA superó el límite de tu despliegue. ' +
+              'Plan Hobby solo permite ~10 s (no sirve para esta generación). Con Pro, el repo ya pide maxDuration 300 s — haz Redeploy del proyecto. ' +
+              'Mientras tanto: acorta el DOCX/contexto o prueba en local con `vercel dev`.',
+          )
+        }
         throw new Error(err?.error?.message || `Error ${response.status}`)
       }
 
@@ -680,7 +697,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
               <div className="flex items-center gap-2 text-[10px] text-indigo-600 font-bold bg-indigo-50/50 rounded-2xl px-5 py-4 border border-indigo-100/50 uppercase tracking-tight shadow-sm">
                 <span className="text-sm">💡</span>
-                <span>Generaremos Lunes→Sábado (Funcional + Basics + Fit). Tiempo estimado: 45s.</span>
+                <span>
+                  Generaremos Lunes→Sábado (Funcional + Basics + Fit). Tiempo real en servidor: ~1–4 min (2
+                  llamadas a la IA); en Vercel hace falta plan Pro y redeploy para tiempos largos.
+                </span>
               </div>
             </>
           )}

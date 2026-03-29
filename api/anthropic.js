@@ -11,6 +11,9 @@
  * | CoachView → soporte | Haiku (`AI_CONFIG.supportModel`) | Chat coach, COACH_SUPPORT_SYSTEM_PROMPT |
  *
  * Si el cliente no envía `model`, el fallback aquí abajo es Sonnet (programación).
+ *
+ * Duración en Vercel: ver `vercel.json` → `functions["api/**/*.js"].maxDuration` (300 s para
+ * generación Excel con Sonnet). Plan Hobby (~10 s) no alcanza; hace falta Pro + redeploy.
  */
 
 /** Traduce errores conocidos de Anthropic a mensaje útil en español (el cliente muestra error.message). */

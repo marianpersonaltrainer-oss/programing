@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
 import { buildWeekContextMessage } from '../utils/buildWeekContext.js'
+import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../constants/config.js'
 
 export function useAgent(weekState) {
@@ -19,9 +20,14 @@ export function useAgent(weekState) {
     setIsGenerating(true)
 
     const weekCtx = buildWeekContextMessage(weekState)
-    const systemWithContext = weekCtx
-      ? `${SYSTEM_PROMPT}\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`
-      : SYSTEM_PROMPT
+    const methodText = getMethodText().trim()
+    let systemWithContext = SYSTEM_PROMPT
+    if (methodText) {
+      systemWithContext += `\n\n════════════════════════════════════════\nMÉTODO Y REGLAS PERMANENTES DE EVO (Tu método)\n════════════════════════════════════════\n\n${methodText}`
+    }
+    if (weekCtx) {
+      systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`
+    }
 
     const newMessages = [
       ...messages,

@@ -24,6 +24,7 @@ import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
+import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 async function extractTextFromFile(file) {
@@ -137,7 +138,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const ext = file.name.split('.').pop().toLowerCase()
     try {
       const text = await extractTextFromFile(file)
-      setContext(text)
+      setContext(sanitizePromptTextForLLM(text))
       // Si es Excel, guardar el buffer para añadir pestaña después
       if (ext === 'xlsx' || ext === 'xls') {
         const buf = await file.arrayBuffer()
@@ -275,16 +276,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       : 'Mesociclo no configurado'
 
     const historyContext = formatHistoryAsContext(history)
-    const methodText = getMethodText()
+    const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
+    const contextClean = sanitizePromptTextForLLM(context).trim()
+    const instructionsClean = sanitizePromptTextForLLM(instructions).trim()
+    const historyClean = historyContext ? sanitizePromptTextForLLM(historyContext).trim() : ''
+
     const baseContext = [
       mesoInfo,
       methodText ? `MÉTODO Y REGLAS PERMANENTES DE EVO:\n${methodText}` : '',
-      historyContext ? `HISTORIAL DE SEMANAS ANTERIORES (mismo mesociclo):\n${historyContext}` : '',
-      context ? `CONTEXTO ADICIONAL SUBIDO:\n${context}` : '',
-      instructions ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA:\n${instructions}` : '',
+      historyClean ? `HISTORIAL DE SEMANAS ANTERIORES (mismo mesociclo):\n${historyClean}` : '',
+      contextClean ? `CONTEXTO ADICIONAL SUBIDO:\n${contextClean}` : '',
+      instructionsClean ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA:\n${instructionsClean}` : '',
     ].filter(Boolean).join('\n\n')
 
-    const planSourceText = [instructions, context].filter(Boolean).join('\n\n')
+    const planSourceText = [instructionsClean, contextClean].filter(Boolean).join('\n\n')
     const plan = parseExcelGenerationPlan(planSourceText)
     const firstHalf = new Set(EXCEL_DAY_ORDER.slice(0, 3))
     const secondHalf = new Set(EXCEL_DAY_ORDER.slice(3, 6))
@@ -595,9 +600,22 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   </label>
                   <div className="flex items-center gap-2">
                     {fileName && (
-                      <span className="text-[10px] text-[#2FBE7B] flex items-center gap-1">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        {fileName}
+                      <span className="flex items-center gap-2 text-[10px] text-[#2FBE7B]">
+                        <span className="flex items-center gap-1 min-w-0">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          <span className="truncate max-w-[140px]">{fileName}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFileName('')
+                            setExistingBuffer(null)
+                            setIsExcelFile(false)
+                          }}
+                          className="shrink-0 text-[9px] font-bold uppercase text-red-600 hover:text-red-700 underline-offset-2 hover:underline"
+                        >
+                          Quitar adjunto
+                        </button>
                       </span>
                     )}
                     <button
@@ -627,7 +645,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-evo-muted mb-1 font-medium">Sube archivos (.docx, .xlsx, .txt) o pega la programación previa.</p>
+                <p className="text-[10px] text-evo-muted mb-1 font-medium leading-relaxed">
+                  Sube archivos (.docx, .xlsx, .txt) o pega la programación previa en texto plano.
+                  <span className="block mt-1 text-[9px] opacity-90">
+                    Si al generar ves errores de JSON, un .xlsx muy grande o con caracteres raros puede confundir al modelo: usa un resumen corto pegado aquí o quita el adjunto con «Quitar adjunto».
+                  </span>
+                </p>
                 <textarea
                   value={context}
                   onChange={(e) => setContext(e.target.value)}

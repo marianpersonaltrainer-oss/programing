@@ -140,7 +140,42 @@ export const PUBLISHED_DAY_BLOCK_KEYS = [
   'evohybrix',
   'evofuerza',
   'evogimnastica',
+  'evotodos',
 ]
+
+function normalizeExerciseMatch(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+}
+
+/** Coincidencia por subcadena: nombre de biblioteca contiene clave del mapa (claves largas primero). */
+export function findStaticVideoUrlForExerciseLabel(label) {
+  const lower = normalizeExerciseMatch(label)
+  const sorted = Object.entries(EXERCISE_VIDEOS).sort((a, b) => b[0].length - a[0].length)
+  for (const [key, url] of sorted) {
+    if (lower.includes(key.toLowerCase())) return url
+  }
+  return null
+}
+
+/** Búsqueda en YouTube (último recurso) — siempre URL https válida. */
+export function buildYoutubeSearchUrlForExercise(label) {
+  const q = encodeURIComponent(`${String(label || '').trim()} exercise tutorial`)
+  return `https://www.youtube.com/results?search_query=${q}`
+}
+
+/**
+ * Supabase tiene prioridad si hay URL http(s); si no, mapa estático; si no, búsqueda YouTube.
+ */
+export function resolveVideoUrlForExerciseLabel(displayName, supabaseUrl) {
+  const raw = String(supabaseUrl || '').trim()
+  if (raw && /^https?:\/\//i.test(raw)) return raw
+  const staticUrl = findStaticVideoUrlForExerciseLabel(displayName)
+  if (staticUrl) return staticUrl
+  return buildYoutubeSearchUrlForExercise(displayName)
+}
 
 export function publishedDayProgramText(dia) {
   if (!dia) return ''

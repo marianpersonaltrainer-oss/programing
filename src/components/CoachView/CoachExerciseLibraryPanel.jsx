@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+import { resolveVideoUrlForExerciseLabel } from '../../constants/exerciseVideos.js'
 import { coachBg, coachBorder, coachText, coachUi, CLASS_BADGE_CLASS } from './coachTheme.js'
 
 const CLASS_KEY_TO_LABEL = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((d) => [d.key, d.label]))
@@ -27,6 +28,11 @@ function classBadge(key) {
   const label = CLASS_KEY_TO_LABEL[key] || key
   const cls = CLASS_BADGE_CLASS[label] || 'bg-gray-100 text-gray-800 border-gray-300'
   return { label, cls }
+}
+
+function openVideoUrl(url) {
+  if (!url) return
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 export default function CoachExerciseLibraryPanel({ exercises, loading, error }) {
@@ -146,16 +152,24 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                   {e.notes?.trim() ? (
                     <p className={`text-sm leading-relaxed ${coachText.muted}`}>{e.notes.trim()}</p>
                   ) : null}
-                  {e.video_url?.trim() ? (
-                    <a
-                      href={e.video_url.trim()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#A729AD] hover:underline"
-                    >
-                      ▶ Ver vídeo
-                    </a>
-                  ) : null}
+                  {(() => {
+                    const url = resolveVideoUrlForExerciseLabel(e.name, e.video_url)
+                    const isSearch = /youtube\.com\/results/i.test(url)
+                    return (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(ev) => {
+                          ev.preventDefault()
+                          openVideoUrl(url)
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#A729AD] hover:underline"
+                      >
+                        {isSearch ? '▶ Buscar en YouTube' : '▶ Ver vídeo'}
+                      </a>
+                    )
+                  })()}
                 </li>
               ))}
             </ul>

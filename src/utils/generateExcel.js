@@ -1,6 +1,11 @@
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
-import { EXERCISE_VIDEOS, EXERCISE_CATEGORIES, findExercisesWithVideos } from '../constants/exerciseVideos.js'
+import {
+  EXERCISE_VIDEOS,
+  EXERCISE_CATEGORIES,
+  findExercisesWithVideos,
+  resolveVideoUrlForExerciseLabel,
+} from '../constants/exerciseVideos.js'
 import { findExercisesWithVideosResolved } from './coachLibraryVideoMatch.js'
 import {
   GENERATOR_CATEGORY_LABELS,
@@ -30,7 +35,17 @@ const C = {
   border:        'FFD4D4D4',
 }
 
-const COL_LETTERS = ['A','B','C','D','E','F']
+/** Índice de columna 0-based → letra Excel (0=A, 6=G, …). */
+function columnLetterFromIndex(zeroBasedIndex) {
+  let col = ''
+  let n = zeroBasedIndex + 1
+  while (n > 0) {
+    const rem = (n - 1) % 26
+    col = String.fromCharCode(65 + rem) + col
+    n = Math.floor((n - 1) / 26)
+  }
+  return col
+}
 
 function fill(cell, argb) {
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
@@ -51,7 +66,7 @@ function rowH(sheet, r, h) {
 
 function writeWeekToSheet(sheet, weekData, libraryRows = null) {
   const n = ALL_CLASSES.length
-  const lastCol = COL_LETTERS[n - 1]
+  const lastCol = columnLetterFromIndex(n - 1)
 
   // Columnas — una por clase
   sheet.columns = ALL_CLASSES.map((cls) => ({ key: cls.key, width: 52 }))
@@ -83,8 +98,6 @@ function writeWeekToSheet(sheet, weekData, libraryRows = null) {
 
     rowH(sheet, r, 52)
     const resRow = sheet.getRow(r)
-    // Distribuir en 3 celdas aunque haya más columnas
-    const resMergeEnd = COL_LETTERS[Math.floor(n / 3) * 1 - 1] || 'B'
     const resDefs = [
       { col: 1, label: 'ESTÍMULO', value: res.estimulo },
       { col: Math.ceil(n / 3) + 1, label: 'INTENSIDAD · FOCO', value: `${res.intensidad || ''}  ·  ${res.foco || ''}` },
@@ -304,16 +317,11 @@ function writeBibliotecaSheet(workbook, libraryRows = null) {
       brd(clCell)
 
       const vCell = rr.getCell(5)
-      const url = r.video_url?.trim()
-      if (url) {
-        vCell.value = { text: '▶ Ver vídeo', hyperlink: url }
-        fill(vCell, 'FFEFF6FF')
-        fnt(vCell, { size: 9, color: 'FF2563EB' })
-      } else {
-        vCell.value = '—'
-        fill(vCell, 'FFF9FAFB')
-        fnt(vCell, { size: 9, color: 'FF9CA3AF' })
-      }
+      const resolved = resolveVideoUrlForExerciseLabel(name, r.video_url)
+      const isSearch = /youtube\.com\/results/i.test(resolved)
+      vCell.value = { text: isSearch ? '▶ Buscar en YouTube' : '▶ Ver vídeo', hyperlink: resolved }
+      fill(vCell, 'FFEFF6FF')
+      fnt(vCell, { size: 9, color: 'FF2563EB' })
       aln(vCell, { h: 'center', v: 'middle', wrap: false })
       brd(vCell)
 
@@ -420,7 +428,13 @@ export async function generateWeekExcel(weekData, existingBuffer = null, library
   writeBibliotecaSheet(workbook, libraryRows)
 
   const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], {
+  const bytes =
+    buffer instanceof Uint8Array
+      ? buffer
+      : buffer instanceof ArrayBuffer
+        ? new Uint8Array(buffer)
+        : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+  const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
 

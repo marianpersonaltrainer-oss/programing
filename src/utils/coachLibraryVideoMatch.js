@@ -3,14 +3,15 @@ import {
   findVideosInProgramText,
   findVideosForPublishedDay,
   findExercisesWithVideos,
+  resolveVideoUrlForExerciseLabel,
 } from '../constants/exerciseVideos.js'
 
 /**
- * Coincidencias por nombre de ejercicio en biblioteca Supabase (solo filas con video_url).
- * Misma idea que la biblioteca estática: nombre largo primero, dedupe por URL.
+ * Coincidencias por nombre en biblioteca Supabase (todas las filas con nombre).
+ * URL: video_url válida si existe; si no, mapa EXERCISE_VIDEOS; si no, búsqueda YouTube.
  */
 export function matchLibraryVideosInLowerText(lowerText, libraryRows, { max = 40, dedupeByUrl = true } = {}) {
-  const rows = (libraryRows || []).filter((r) => r?.video_url && String(r.video_url).trim())
+  const rows = (libraryRows || []).filter((r) => String(r?.name || '').trim())
   const sorted = [...rows].sort((a, b) => String(b.name || '').length - String(a.name || '').length)
   const out = []
   const usedUrls = new Set()
@@ -20,7 +21,7 @@ export function matchLibraryVideosInLowerText(lowerText, libraryRows, { max = 40
     if (!name) continue
     if (out.length >= max) break
     if (!lt.includes(name.toLowerCase())) continue
-    const url = String(r.video_url).trim()
+    const url = resolveVideoUrlForExerciseLabel(name, r.video_url)
     if (dedupeByUrl && usedUrls.has(url)) continue
     if (dedupeByUrl) usedUrls.add(url)
     out.push({ name, url })

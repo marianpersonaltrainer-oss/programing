@@ -22,6 +22,7 @@ import {
 } from '../../utils/excelGenerationPlan.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../../constants/config.js'
+import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 async function extractTextFromFile(file) {
@@ -168,14 +169,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
 
-      // Modelo: sonnet — generación JSON semanal (SYSTEM_PROMPT_EXCEL); núcleo del producto.
-      const response = await fetch('/api/anthropic', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      })
+      let response
+      try {
+        // Modelo: sonnet — generación JSON semanal (SYSTEM_PROMPT_EXCEL); núcleo del producto.
+        response = await fetch('/api/anthropic', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        })
+      } catch (e) {
+        throw new Error(explainAnthropicFetchFailure(e))
+      }
 
       if (response.status === 529 || response.status === 503 || response.status === 429) {
         if (attempt < retries) {
@@ -400,16 +406,21 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         sessionText || '(vacía)',
       ].join('\n')
 
-      const response = await fetch('/api/anthropic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: AI_CONFIG.supportModel,
-          max_tokens: AI_CONFIG.feedbackRegenerateMaxTokens,
-          system: SYSTEM_PROMPT_REGENERATE_FEEDBACK,
-          messages: [{ role: 'user', content: userMsg }],
-        }),
-      })
+      let response
+      try {
+        response = await fetch('/api/anthropic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: AI_CONFIG.supportModel,
+            max_tokens: AI_CONFIG.feedbackRegenerateMaxTokens,
+            system: SYSTEM_PROMPT_REGENERATE_FEEDBACK,
+            messages: [{ role: 'user', content: userMsg }],
+          }),
+        })
+      } catch (e) {
+        throw new Error(explainAnthropicFetchFailure(e))
+      }
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))

@@ -23,6 +23,7 @@ import {
 import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } from './coachTheme.js'
 import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
+import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -398,18 +399,24 @@ export default function CoachView() {
 
     try {
       const history = [...messages, { role: 'user', content: userMsg }]
-      const response = await fetch('/api/anthropic', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: AI_CONFIG.supportModel,
-          max_tokens: AI_CONFIG.coachMaxTokens,
-          system: COACH_SUPPORT_SYSTEM_PROMPT,
-          messages: history.map((m) => ({ role: m.role, content: m.content })),
-        }),
-      })
+      let response
+      try {
+        response = await fetch('/api/anthropic', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: AI_CONFIG.supportModel,
+            max_tokens: AI_CONFIG.coachMaxTokens,
+            system: COACH_SUPPORT_SYSTEM_PROMPT,
+            messages: history.map((m) => ({ role: m.role, content: m.content })),
+          }),
+        })
+      } catch (e) {
+        setError(explainAnthropicFetchFailure(e))
+        return
+      }
 
       const data = await response.json()
       if (!response.ok) {

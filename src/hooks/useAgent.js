@@ -10,6 +10,7 @@ import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../constants/config.js'
 import { getCoachExerciseLibrary } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
+import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
 
 export function useAgent(weekState) {
   const [messages, setMessages] = useState([])
@@ -59,20 +60,26 @@ export function useAgent(weekState) {
       const controller = new AbortController()
       abortRef.current = controller
 
-      // Modelo: sonnet — generación y edición de programación (SYSTEM_PROMPT + contexto semanal).
-      const response = await fetch('/api/anthropic', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: AI_CONFIG.model,
-          max_tokens: AI_CONFIG.maxTokens,
-          system: systemWithContext,
-          messages: newMessages,
-        }),
-      })
+      let response
+      try {
+        // Modelo: sonnet — generación y edición de programación (SYSTEM_PROMPT + contexto semanal).
+        response = await fetch('/api/anthropic', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: AI_CONFIG.model,
+            max_tokens: AI_CONFIG.maxTokens,
+            system: systemWithContext,
+            messages: newMessages,
+          }),
+        })
+      } catch (e) {
+        if (e?.name === 'AbortError') throw e
+        throw new Error(explainAnthropicFetchFailure(e))
+      }
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))

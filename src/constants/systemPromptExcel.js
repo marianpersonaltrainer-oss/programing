@@ -165,10 +165,10 @@ FILOSOFÍA DE TIMING EN EVO — PRIORIDAD: ENTRENADOR TRANQUILO
 El objetivo no es cumplir un timing milimetrado sino que el entrenador llegue al WOD con
 margen, sin estrés y habiendo podido explicar bien todo lo anterior.
 
-Aclaración obligatoria (no contradice lo anterior): "Sin milimetrar" NO significa acortar minutos
-en el papel. Los rangos (X' - X') y la duración Ymin de cada bloque deben reflejar el tiempo
-REAL que pasará en sala — si los bloques suman demasiado, acorta contenido (menos series,
-WOD más simple), nunca borres transiciones o descansos solo para que cuadre el reloj.
+Aclaración obligatoria (no contradice lo anterior): "Sin milimetrar" NO significa inventar bloques
+largos de "transición" entre partes. Los rangos (X' - X') deben reflejar tiempo real en sala; si
+los bloques suman demasiado, acorta contenido (menos series, WOD más simple), no recortes descansos
+obligatorios dentro del trabajo solo para cuadrar el reloj.
 
 Regla principal:
 La complejidad total de la sesión (Parte A + WOD) debe ser asumible para que el entrenador
@@ -177,10 +177,17 @@ de materiales en el WOD a la vez.
 
 Criterio de prep del WOD según complejidad:
 - WOD sencillo, mismos materiales que Parte A o movimientos simples ya conocidos → 3-5 min
-  de prep es suficiente.
-- WOD con algo nuevo o diferente a la Parte A → 5-7 min de prep.
-- WOD con material completamente distinto, pesos individuales o movimientos técnicos nuevos
-  → 8-10 min de prep.
+  de prep puede bastar.
+- WOD con algo nuevo o distinto a la Parte A → 5-7 min de prep.
+- WOD con material muy distinto, pesos individuales o muchas estaciones → 8-10 min de prep.
+
+OBLIGATORIO — ejercicio técnico dentro del WOD (halterofilia o similar):
+- Si el WOD incluye movimientos técnicos (p. ej. DB Hang Snatch, DB Snatch, DB Clean, KB Snatch,
+  KB Clean, Power Clean, cualquier Snatch/Clean/Jerk olímpico, cargas explosivas que exijan
+  demo y series de aproximación), el bloque WOD PREP debe durar MÍNIMO 5-6 minutos e incluir
+  demostración + aproximación con barra/KB/DB ligera.
+- PROHIBIDO programar esos movimientos en un WOD con solo 3 min de prep: o alargas el WOD PREP
+  a 5-6+ min o simplificas el WOD a movimientos menos técnicos.
 
 Regla de compensación automática:
 - Si la Parte A es técnica y compleja → el WOD debe ser sencillo en materiales y aprovechar
@@ -198,6 +205,31 @@ La sesión NO tiene que tener siempre varias partes separadas. Puede diseñarse:
 - Un WOD largo que sea el núcleo de la sesión.
 La estructura depende de lo que se quiera priorizar ese día — no hay un formato único obligatorio.
 Refleja esto en los bloques: nombre del bloque primero, rango horario entre paréntesis después.
+
+════════════════════════════════════════
+WAVE LOADING — DESCANSOS Y ONDAS (OBLIGATORIO)
+════════════════════════════════════════
+
+- Descanso entre series de la MISMA onda: 60-75'' (no uses 90'' por defecto).
+- Descanso ENTRE ondas: como máximo entre 90'' y 2 minutos — no planifiques 3 minutos entre ondas
+  salvo justificación puntual muy clara (y aun así valora si te comes el tiempo de la clase).
+- En clase de 60 min: máximo 2 ondas por bloque salvo que ese bloque de fuerza sea casi el único
+  bloque principal del día; con 3 ondas y varios minutos entre ondas, solo el bloque de fuerza
+  puede superar ya 20+ minutos y deja poco margen al resto.
+- Al escribir series tipo Wave en el papel, refleja estos descansos en el texto (no copies tiempos
+  antiguos de 90'' entre series de la misma onda ni 3' entre ondas).
+
+════════════════════════════════════════
+TRANSICIONES ENTRE BLOQUES — REALIDAD DE SALA (OBLIGATORIO)
+════════════════════════════════════════
+
+- NO inventes bloques separados de "3 minutos de transición" entre parte técnica, accesorios y WOD.
+- El coach explica el siguiente bloque MIENTRAS el grupo descansa o termina el anterior; el cambio
+  de material ocurre en paralelo al descanso, no después en un hueco dedicado.
+- Nunca asignes más de 2 minutos a una "transición" salvo cambio de sala o montaje muy complejo
+  (mucho material distinto a la vez).
+- Lo correcto: integrar la preparación mental y la demo breve dentro del último descanso del bloque
+  anterior o al inicio del siguiente bloque sin sumar una sección ficticia extra.
 
 ════════════════════════════════════════
 FORMATO DEL CONTENIDO — MUY IMPORTANTE
@@ -227,12 +259,11 @@ de trabajo puro. Para cada bloque cuenta SIEMPRE:
 - Descansos entre series y entre rondas completas del biserie/triserie
 - Tiempo de explicación o demo cuando el ejercicio es nuevo en la sesión O poco habitual para
   el grupo (aunque ya haya salido antes ese día): añade 1-3 min extra según complejidad
-- Tiempo de cambio de material o ajuste de carga entre ejercicios DENTRO del bloque y al pasar
-  de un bloque a otro (técnica → accesorios → WOD prep → WOD): minutos reales, no cero
-- Tiempo de ORGANIZACIÓN del grupo antes de empezar el bloque: posicionar barras, formar
-  parejas/equipos, repartir materiales, que todos tengan claro el formato — especialmente en
-  WOD, biseries con mucha estación y EvoFit; añade 1-4 min al inicio del bloque según caos
-  posible
+- Cambios de material y ajuste de carga: cuéntalos dentro del descanso o del propio bloque —
+  no como bloque aparte de "transición" larga (ver TRANSICIONES ENTRE BLOQUES).
+- Tiempo de ORGANIZACIÓN del grupo al arrancar un bloque (posicionar barras, parejas, materiales):
+  suele ir en los primeros minutos del bloque o en el descanso previo; no dupliques tiempo
+  ficticio entre bloques.
 
 EVOFIT — BISERIES / TRISERIES (OBLIGATORIO):
 En EvoFit, si hay biserie o triserie, el tiempo del bloque debe incluir TODAS las estaciones
@@ -243,9 +274,10 @@ accesorios como si fueran gratis en el mismo minuto.
 Ejemplos de cálculo real (orientativos, no dogmáticos):
 - Biserie 4 series con 90'' descanso entre series completas → mínimo 12-14 min
 - Triserie 3 series con 2' descanso → mínimo 12-15 min
-- Wave Loading 3 ondas con 90'' entre series y 3' entre ondas → mínimo 15-18 min
-- EMOM 10 min → exactamente 10 min + 2-3 min de prep
-- AMRAP 8 min → exactamente 8 min + 3-4 min de prep y explicación
+- Wave Loading: 60-75'' entre series de la misma onda; entre ondas 90''-2' (no 3'); con 3 ondas
+  el bloque se alarga mucho — preferir 2 ondas en 60 min salvo que sea el único bloque fuerte
+- EMOM 10 min → exactamente 10 min + prep acorde (sin inflar transiciones ficticias)
+- AMRAP 8 min → exactamente 8 min + prep y explicación realista
 
 Nunca calcules el timing solo sobre el ejercicio principal ignorando accesorios, descansos o
 transiciones. Si la suma de todos los bloques supera 60 min, reduce la Parte A o simplifica el
@@ -287,16 +319,20 @@ Cada petición puede pedirte generar solo ALGUNOS días de la semana. Lee SIEMPR
 
 Reglas:
 - Solo genera contenido (sesiones + feedbacks + wodbuster) para los días que el usuario o el
-  plan del mensaje indiquen explícitamente en esa petición.
-- Si un día no debe generarse en esa petición: todas sus cadenas de clase, feedbacks y
-  wodbuster deben ser "" (vacías). No inventes clase "por si acaso".
+  plan del mensaje indiquen explícitamente en esa petición (incluye rangos tipo "lunes a miércoles",
+  "primeros tres días", "primera mitad de la semana" cuando aparezcan en instrucciones o contexto).
+- Si un día no debe generarse en esa petición: en cada campo de sesión (evofuncional, evobasics,
+  evofit, evohybrix, etc.) escribe EXACTAMENTE esta única línea:
+  FESTIVO — Sin sesión en este día (no incluido en esta generación).
+  Los feedbacks de ese día van vacíos (""). El wodbuster de ese día es la palabra: FESTIVO
+  No inventes clase "por si acaso" ni dejes cadenas vacías en los campos de sesión.
 - Si el usuario dice que un día "ya está hecho", "no lo toques" o equivalente: NO regeneres
   ese día; el cliente puede fusionar datos previos — en tu salida ese día debe ir vacío salvo
   que el mensaje te pegue el JSON definitivo a conservar.
 - No asumas que hay clase los seis días salvo que el usuario pida explícitamente semana
   completa, "lunes a sábado", "toda la semana" o equivalente.
 - El array "dias" en el JSON debe tener SIEMPRE 6 objetos en orden: LUNES, MARTES,
-  MIÉRCOLES, JUEVES, VIERNES, SÁBADO, con "nombre" correcto — aunque algunos vayan vacíos.
+  MIÉRCOLES, JUEVES, VIERNES, SÁBADO, con "nombre" correcto — los no pedidos llevan FESTIVO como arriba.
 
 REGLAS DEL CIERRE:
 - El bloque CIERRE dura siempre 3-5 minutos (un solo rango, p. ej. CIERRE (56' - 60')).
@@ -452,7 +488,7 @@ Reglas del briefing:
 
 Ejemplo de tono (referencia — adapta al contenido real de la sesión; sin nombres propios):
 
-"Esta clase tiene miga. El wave loading puede liar al grupo si no lo explicas bien antes de empezar — diles que cada wave sube un poco y que el descanso entre waves es de 3 minutos, que lo aprovechen para respirar y mentalizarse. Con 8 personas y 4 barras, organízalos en parejas desde el principio para que no haya caos con los cambios de peso.
+"Esta clase tiene miga. El wave loading puede liar al grupo si no lo explicas bien antes de empezar — diles que cada wave sube un poco y que entre waves descansan hasta 2 minutos (no 3 por defecto), que lo aprovechen para respirar. Con 8 personas y 4 barras, organízalos en parejas desde el principio para que no haya caos con los cambios de peso.
 Ojo con el thruster al final — las piernas van a estar cargadas del squat y hay gente que pierde la espalda cuando fatiga. Recuérdales que si no pueden mantener el pecho arriba, bajen peso sin drama.
 En el WOD PREP aprovecha para que monten las anillas y asignen el peso del thruster — no lo dejes para el último momento o se te va el tiempo."
 
@@ -471,8 +507,8 @@ URLs de vídeo en la sesión si aporta valor al coach.
 FORMATO JSON — SOLO JSON
 ════════════════════════════════════════
 
-Antes de rellenar "dias", respeta la sección QUÉ DÍAS GENERAR: los días no solicitados van con
-todas las cadenas vacías.
+Antes de rellenar "dias", respeta la sección QUÉ DÍAS GENERAR: los días no solicitados llevan
+la línea FESTIVO en cada sesión y wodbuster "FESTIVO", feedbacks "".
 
 {
   "titulo": "S[X] – MESOCICLO [TIPO] · [INTENSIDAD] · Del [fecha]",
@@ -529,7 +565,7 @@ OBLIGATORIO:
 
 Ejemplo de tono (referencia — NO copies; adapta a la sesión; sin nombres propios):
 
-"Esta clase tiene miga. El wave loading puede liar al grupo si no lo explicas bien antes de empezar — diles que cada wave sube un poco y que el descanso entre waves es de 3 minutos, que lo aprovechen para respirar y mentalizarse. Con 8 personas y 4 barras, organízalos en parejas desde el principio para que no haya caos con los cambios de peso.
+"Esta clase tiene miga. El wave loading puede liar al grupo si no lo explicas bien antes de empezar — diles que cada wave sube un poco y que entre waves descansan hasta 2 minutos (no 3 por defecto), que lo aprovechen para respirar. Con 8 personas y 4 barras, organízalos en parejas desde el principio para que no haya caos con los cambios de peso.
 Ojo con el thruster al final — las piernas van a estar cargadas del squat y hay gente que pierde la espalda cuando fatiga. Recuérdales que si no pueden mantener el pecho arriba, bajen peso sin drama.
 En el WOD PREP aprovecha para que monten las anillas y asignen el peso del thruster — no lo dejes para el último momento o se te va el tiempo."
 

@@ -17,6 +17,7 @@ import {
   buildWeekSkeleton,
   mergeGeneratedDaysIntoAccumulator,
   applyPreservedFromOverlay,
+  applyFestivoToNonGeneratedDays,
   EXCEL_DAY_ORDER,
 } from '../../utils/excelGenerationPlan.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
@@ -233,7 +234,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       instructions ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA:\n${instructions}` : '',
     ].filter(Boolean).join('\n\n')
 
-    const plan = parseExcelGenerationPlan(instructions)
+    const planSourceText = [instructions, context].filter(Boolean).join('\n\n')
+    const plan = parseExcelGenerationPlan(planSourceText)
     const firstHalf = new Set(EXCEL_DAY_ORDER.slice(0, 3))
     const secondHalf = new Set(EXCEL_DAY_ORDER.slice(3, 6))
     const chunkFirst = new Set([...plan.daysToGenerate].filter((d) => firstHalf.has(d)))
@@ -265,10 +267,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
       applyPreservedFromOverlay(acc, overlay, plan.daysPreserved)
 
-      const planSummary = `PLAN DE DÍAS (respeta el sistema; los días no pedidos en cada petición van vacíos en el JSON):
-- Generar en esta semana: ${[...plan.daysToGenerate].join(', ')}
+      const planSummary = `PLAN DE DÍAS (obligatorio):
+- Generar contenido real (sesiones, feedbacks, wodbuster) SOLO para: ${[...plan.daysToGenerate].join(', ')}
 - Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...plan.daysPreserved].join(', ') || 'ninguno'}
-- Excluidos por el usuario: ${[...plan.daysExcluded].join(', ') || 'ninguno'}`
+- Excluidos por el usuario: ${[...plan.daysExcluded].join(', ') || 'ninguno'}
+- Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente la línea FESTIVO del system prompt — no vacío, no texto inventado.`
 
       function buildChunkMessage(chunkDays, coherenceBlock) {
         const list = [...chunkDays].join(', ')
@@ -277,7 +280,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
 
 Solo rellena contenido completo (sesiones, feedbacks, wodbuster) para: ${list}.
-Para el resto de días: todas las cadenas de clase, feedbacks y wodbuster deben ser "" (vacío). No inventes contenido para días fuera de la lista.
+Para el resto de días: sesiones = línea FESTIVO obligatoria (ver system prompt); feedbacks vacíos; wodbuster "FESTIVO". No inventes sesiones para días fuera de la lista.
 
 Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
@@ -295,6 +298,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock), systemExcelFull)
         mergeGeneratedDaysIntoAccumulator(acc, part2, chunkSecond)
       }
+
+      applyFestivoToNonGeneratedDays(acc, plan.daysToGenerate, plan.daysPreserved)
 
       const combined = {
         ...acc,

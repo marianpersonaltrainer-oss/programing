@@ -13,6 +13,10 @@ const DAY_SLUGS = [
   { canon: 'SÁBADO', slug: 'sabado' },
 ]
 
+const SLUG_TO_CANON = Object.fromEntries(DAY_SLUGS.map(({ canon, slug }) => [slug, canon]))
+
+const DAY_INDEX = Object.fromEntries(EXCEL_DAY_ORDER.map((d, i) => [d, i]))
+
 function normalizeForMatch(s) {
   return String(s || '')
     .toLowerCase()
@@ -50,6 +54,67 @@ function extractMentionedDays(normalized) {
   return found
 }
 
+/**
+ * Rangos tipo "lunes a miércoles", "de lunes a viernes", "entre martes y jueves"
+ * (incluye todos los días entre extremos en orden de semana).
+ */
+function extractDaysFromRangePhrases(normalized) {
+  const found = new Set()
+  const re =
+    /\b(?:de\s+|entre\s+)?(lunes|martes|miercoles|jueves|viernes|sabado)\s+(?:a|hasta|al|y)\s+(lunes|martes|miercoles|jueves|viernes|sabado)\b/gi
+  let m
+  while ((m = re.exec(normalized)) !== null) {
+    const a = SLUG_TO_CANON[m[1].toLowerCase()]
+    const b = SLUG_TO_CANON[m[2].toLowerCase()]
+    if (!a || !b) continue
+    let i0 = DAY_INDEX[a]
+    let i1 = DAY_INDEX[b]
+    if (i0 === undefined || i1 === undefined) continue
+    if (i0 > i1) [i0, i1] = [i1, i0]
+    for (let i = i0; i <= i1; i++) found.add(EXCEL_DAY_ORDER[i])
+  }
+  return found
+}
+
+/** "primeros N días", "primera mitad de la semana", etc. */
+function extractDaysFromWeekPartPhrases(normalized) {
+  const found = new Set()
+  if (/\bsegunda\s+mitad\s+(?:de\s+la\s+)?semana\b/i.test(normalized)) {
+    ;['JUEVES', 'VIERNES', 'SÁBADO'].forEach((d) => found.add(d))
+    return found
+  }
+  if (/\bprimera\s+mitad\s+(?:de\s+la\s+)?semana\b/i.test(normalized)) {
+    ;['LUNES', 'MARTES', 'MIÉRCOLES'].forEach((d) => found.add(d))
+    return found
+  }
+
+  const nDayPatterns = [
+    [/\b(?:solo\s+)?(?:los\s+)?(?:primeros?|primer)\s+2\s+d[ií]as\b/i, 2],
+    [/\b(?:dos|2)\s+primeros?\s+d[ií]as\b/i, 2],
+    [/\b(?:solo\s+)?(?:los\s+)?(?:primeros?|primer)\s+3\s+d[ií]as\b/i, 3],
+    [/\b(?:tres|3)\s+primeros?\s+d[ií]as\b/i, 3],
+    [/\b(?:solo\s+)?(?:los\s+)?(?:primeros?|primer)\s+4\s+d[ií]as\b/i, 4],
+    [/\b(?:cuatro|4)\s+primeros?\s+d[ií]as\b/i, 4],
+    [/\b(?:solo\s+)?(?:los\s+)?(?:primeros?|primer)\s+5\s+d[ií]as\b/i, 5],
+    [/\b(?:cinco|5)\s+primeros?\s+d[ií]as\b/i, 5],
+  ]
+  for (const [re, n] of nDayPatterns) {
+    if (re.test(normalized)) {
+      for (let i = 0; i < n && i < EXCEL_DAY_ORDER.length; i++) found.add(EXCEL_DAY_ORDER[i])
+      return found
+    }
+  }
+  return found
+}
+
+/** Unión de todas las señales de días citados (palabras sueltas + rangos + mitad de semana). */
+function collectAllMentionedDayTokens(normalized) {
+  const fromWords = extractMentionedDays(normalized)
+  const fromRanges = extractDaysFromRangePhrases(normalized)
+  const fromPart = extractDaysFromWeekPartPhrases(normalized)
+  return new Set([...fromWords, ...fromRanges, ...fromPart])
+}
+
 /** Días que el usuario marca como ya terminados o que no deben regenerarse. */
 function extractPreservedDays(normalized) {
   const preserved = new Set()
@@ -79,8 +144,12 @@ function extractExcludedDays(normalized) {
 
 function hasFullWeekIntent(normalized) {
   return (
-    /\b(toda la semana|semana completa|los seis dias|6 dias|seis dias)\b/i.test(normalized) ||
-    /\b(de lunes a sabado|lunes a sabado|desde lunes hasta sabado)\b/i.test(normalized) ||
+    /\b(toda la semana|semana completa|los seis dias|los 6 dias|6 dias|seis dias)\b/i.test(
+      normalized,
+    ) ||
+    /\b(de lunes a sabado|lunes a sabado|desde lunes hasta sabado|lunes al sabado)\b/i.test(
+      normalized,
+    ) ||
     /\b(todos los dias|todos los días)\b/i.test(normalized)
   )
 }
@@ -95,27 +164,31 @@ function hasFullWeekIntent(normalized) {
  *   strictSubset: boolean,
  * }}
  */
+/**
+ * @param {string} instructions Texto donde el usuario describe la semana (conviven instrucciones + contexto subido).
+ */
 export function parseExcelGenerationPlan(instructions) {
   const normalized = normalizeForMatch(instructions)
-  const mentioned = extractMentionedDays(normalized)
+  const mentioned = collectAllMentionedDayTokens(normalized)
   const preserved = extractPreservedDays(normalized)
   const excluded = extractExcludedDays(normalized)
   const fullWeek = hasFullWeekIntent(normalized)
 
-  const soloKeyword = /\bsolo\b|\bunicamente\b|\búnicamente\b/i.test(instructions || '')
-  /** Solo aparecen días en frases tipo "no generes X" (misma lista que mentioned y excluded) → la intención es el resto de la semana, no "solo esos días". */
+  /** Solo aparecen días en frases tipo "no generes X" → intención: el resto de la semana, no "solo esos días". */
   const mentionedOnlyAsExcluded =
     excluded.size > 0 &&
     mentioned.size > 0 &&
     [...mentioned].every((d) => excluded.has(d))
 
+  /**
+   * Subconjunto explícito: hay al menos un día citado y no se pide semana completa.
+   * Si no hay ninguna mención (ni rango ni "primeros N días"), se asume semana completa salvo exclusiones.
+   */
   let baseDays
   if (fullWeek) {
     baseDays = new Set(EXCEL_DAY_ORDER)
   } else if (mentioned.size === 0 || mentionedOnlyAsExcluded) {
     baseDays = new Set(EXCEL_DAY_ORDER)
-  } else if (soloKeyword) {
-    baseDays = new Set(mentioned)
   } else {
     baseDays = new Set(mentioned)
   }
@@ -124,13 +197,43 @@ export function parseExcelGenerationPlan(instructions) {
     [...baseDays].filter((d) => !preserved.has(d) && !excluded.has(d)),
   )
 
+  const strictSubset =
+    mentioned.size > 0 && mentioned.size < EXCEL_DAY_ORDER.length && !fullWeek && !mentionedOnlyAsExcluded
+
   return {
     daysToGenerate,
     daysPreserved: preserved,
     daysExcluded: excluded,
     mentionedDays: mentioned,
-    strictSubset: mentioned.size > 0 && !fullWeek && !mentionedOnlyAsExcluded,
+    strictSubset,
   }
+}
+
+/** Texto único para días no incluidos en la generación parcial (sustituye sesiones vacías). */
+export const FESTIVO_SESSION_LINE =
+  'FESTIVO — Sin sesión en este día (no incluido en esta generación).'
+
+/**
+ * Fuerza marcador FESTIVO en días que no tocaba generar ni preservar (corrige si el modelo rellenó de más).
+ */
+export function applyFestivoToNonGeneratedDays(accumulator, daysToGenerate, daysPreserved) {
+  const gen = daysToGenerate instanceof Set ? daysToGenerate : new Set(daysToGenerate)
+  const pres = daysPreserved instanceof Set ? daysPreserved : new Set(daysPreserved)
+  if (!accumulator?.dias?.length) return accumulator
+
+  for (let i = 0; i < EXCEL_DAY_ORDER.length; i++) {
+    const name = EXCEL_DAY_ORDER[i]
+    if (gen.has(name) || pres.has(name)) continue
+    const base = accumulator.dias[i] && typeof accumulator.dias[i] === 'object' ? accumulator.dias[i] : {}
+    const row = { ...emptyDay(name), ...base, nombre: name }
+    for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+      row[key] = FESTIVO_SESSION_LINE
+      row[feedbackKey] = ''
+    }
+    row.wodbuster = 'FESTIVO'
+    accumulator.dias[i] = row
+  }
+  return accumulator
 }
 
 export function dayChunkForHalfWeek(dayCanon) {

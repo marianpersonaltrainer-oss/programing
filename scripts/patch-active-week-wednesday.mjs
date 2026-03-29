@@ -22,90 +22,91 @@ if (!url || !key) {
 
 const supabase = createClient(url, key)
 
-const EVOFUNCIONAL = `(0' - 5') BIENVENIDA — 5min
+const EVOFUNCIONAL = `BIENVENIDA (0' - 5')
 Movilidad cadera y tobillos
-Objetivo del día y reparto de material
+Bienvenida, ubicar al grupo, objetivo del día y reparto de material
 
-(5' - 14') CALENTAMIENTO — 9min
+CALENTAMIENTO (5' - 14')
 3 rondas suaves:
 200m remo técnico
 10 pasos canguro
 8 scap pull
 
-(14' - 32') TÉCNICA + FUERZA — 18min
+TÉCNICA + FUERZA (14' - 32')
 Deadlift — revisión bisagra 3'
 Progresión: barra x8, 50% x6, 60% x4, 70% x3
 Trabajo: 4 series x4 @75-80%
 Descanso 2'30 entre series (cronometrado en bloque)
 
-(32' - 38') TRANSICIÓN + ORGANIZACIÓN — 6min
+TRANSICIÓN + ORGANIZACIÓN (32' - 38')
 Cambio a mancuernas/kettlebells según WOD
 Parejas por altura de carga; repaso del formato
 
-(38' - 43') WOD PREP — 5min
+WOD PREP (38' - 43')
 Demo thruster + estándar de profundidad
 2 series de prueba ligeras
 
-(43' - 55') WOD — AMRAP 12' — 12min
+WOD — AMRAP 12' (43' - 57')
 12 DB Thrusters @2x22,5/15kg
 10 Burpees over DB
 8 DB Hang Clean @mismo peso
 
-(55' - 60') CIERRE — 5min
-Estirar cadena posterior y glúteo
-Choca la mano`
+CIERRE (57' - 60')
+Feedback oral, cómo lo han sentido, felicitar, marcas si las hay, choca la mano`
 
-const EVOBASICS = `(0' - 5') BIENVENIDA — 5min
+const EVOBASICS = `BIENVENIDA (0' - 5')
 Movilidad hombro y muñeca
+Bienvenida, ubicar al grupo, objetivo del día
 
-(5' - 15') CALENTAMIENTO + JUEGO — 10min
+CALENTAMIENTO + JUEGO (5' - 16')
 Juego "Teléfono escacharrado fitness": en fila de 8, el primero hace un movimiento (squat), el último debe adivinarlo solo con gestos del compañero de delante sin hablar. 2 rondas. Coach anima y cambia el movimiento entre rondas.
 
-(15' - 30') TÉCNICA — 15min
+TÉCNICA (16' - 32')
 Kettlebell Goblet Squat — profundidad y codos dentro
 3x10 @ligero con pausa 1" abajo
 Descanso 60''
 
-(30' - 38') ACCESORIO — 8min
+ACCESORIO (32' - 40')
 Banded Good Morning 3x12
 Descanso 45''
 
-(38' - 43') WOD PREP — 5min
+WOD PREP (40' - 44')
 Organizar estaciones: 4 sitios con KB del mismo peso
 
-(43' - 55') WOD — 3 rondas FOR TIME — TC 12' — 12min
+WOD — 3 rondas FOR TIME — TC 12' (44' - 56')
 15 KB Swings @ruso moderado
 12 Push-ups escalonados si hace falta
 200m run
 
-(55' - 60') CIERRE — 5min
-Estirar y cierre`
+CIERRE (56' - 60')
+Feedback oral, cómo lo han sentido, felicitar, marcas si las hay, choca la mano`
 
-const EVOFIT = `(0' - 5') BIENVENIDA — 5min
+const EVOFIT = `BIENVENIDA (0' - 5')
 Movilidad dinámica cadera
+Bienvenida, ubicar al grupo, objetivo del día
 
-(5' - 12') ACTIVACIÓN — 7min
+ACTIVACIÓN (5' - 12')
 2 rondas:
 10 pasos farmer carry ligero
 8 bird dog
 
-(12' - 35') BISERIE — 23min
+BISERIE (12' - 35')
 A1: DB Romanian Deadlift 4x10 @medio — descanso 45'' tras A1
 A2: Single Arm DB Row 4x10 @medio por lado — descanso 90'' tras completar A1+A2
 Incluye tiempo de cambio de mancuerna y ajuste de banco (2-3 min repartidos en el bloque)
 
-(35' - 40') ORGANIZACIÓN WOD — 5min
+ORGANIZACIÓN WOD (35' - 40')
 Todos con mismo peso de DB; repaso estándar de thruster ligero
 
-(40' - 52') WOD — EMOM 12' — 12min
+WOD — EMOM 12' (40' - 55')
 Min 1-3: 12 DB Alt. Snatch @ligero (6+6)
 Min 4: descanso activo movilidad hombro
 Min 5-7: 15 Sit-ups
 Min 8: descanso
 Min 9-12: 10 DB Front Squat @ligero
 
-(52' - 60') CIERRE — 8min
-Estiramientos básicos`
+CIERRE (55' - 60')
+Feedback oral, cómo lo han sentido, felicitar, marcas si las hay, choca la mano`
 
 const FB_FUNCIONAL = `Esta sesión tiene deadlift pesado y WOD con thruster: antes del trabajo fuerte dedica 2 minutos a recordar que el tirón sale de la bisagra y no de la espalda. En el AMRAP, coloca el burpee de forma que nadie cruce trayectorias con las DB. Cierra pidiendo que anoten cargas si alguien subió de peso en el deadlift.`
 

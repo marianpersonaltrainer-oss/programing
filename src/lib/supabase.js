@@ -158,3 +158,23 @@ export async function listCoachSessionFeedback() {
   if (error) throw error
   return data || []
 }
+
+// ── Biblioteca de ejercicios EVO (coach_exercise_library) ─────────────────────
+
+/** Ejercicios activos para ?coach (lectura pública RLS). Incluye video_url si existe. */
+export async function getCoachExerciseLibrary() {
+  const { data, error } = await supabase
+    .from('coach_exercise_library')
+    .select('id, name, category, classes, level, notes, is_new, active, video_url, created_at')
+    .eq('active', true)
+    .order('category', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) {
+    if (error.code === 'PGRST116' || error.message?.includes('does not exist') || error.message?.includes('relation')) {
+      return []
+    }
+    throw error
+  }
+  return data || []
+}

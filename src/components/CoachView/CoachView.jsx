@@ -5,10 +5,12 @@ import {
   saveMessage,
   updateSessionActivity,
   getCoachGuideSettings,
+  getCoachExerciseLibrary,
 } from '../../lib/supabase.js'
 import { AI_CONFIG } from '../../constants/config.js'
 import { COACH_SUPPORT_SYSTEM_PROMPT } from '../../constants/systemPromptCoachSupport.js'
 import CoachWeekProgrammingPanel from './CoachWeekProgrammingPanel.jsx'
+import CoachExerciseLibraryPanel from './CoachExerciseLibraryPanel.jsx'
 import CoachSessionFeedbackForm from './CoachSessionFeedbackForm.jsx'
 import {
   CoachGuideCentro,
@@ -96,9 +98,19 @@ function IconFeedback(props) {
     </svg>
   )
 }
+function IconEjercicios(props) {
+  return (
+    <svg className={props.className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <path d="M8 7h8M8 12h5" />
+    </svg>
+  )
+}
 
 const NAV_ITEMS = [
   { id: 'semana', label: 'Semana', Icon: IconSemana },
+  { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
   { id: 'centro', label: 'Centro', Icon: IconCentro },
   { id: 'clases', label: 'Clases', Icon: IconClases },
   { id: 'mesociclos', label: 'Ciclos', Icon: IconCiclos },
@@ -170,6 +182,9 @@ export default function CoachView() {
   const [weekTab, setWeekTab] = useState('dias')
   const [mainTab, setMainTab] = useState('semana')
   const [guideSettings, setGuideSettings] = useState(null)
+  const [exerciseLibrary, setExerciseLibrary] = useState([])
+  const [exerciseLibraryLoading, setExerciseLibraryLoading] = useState(true)
+  const [exerciseLibraryError, setExerciseLibraryError] = useState('')
   const [supportUsedToday, setSupportUsedToday] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const messagesEndRef = useRef(null)
@@ -190,6 +205,26 @@ export default function CoachView() {
     getCoachGuideSettings().then((data) => {
       if (!cancelled) setGuideSettings(data)
     })
+    return () => {
+      cancelled = true
+    }
+  }, [step])
+
+  useEffect(() => {
+    if (step !== 'chat') return
+    let cancelled = false
+    setExerciseLibraryLoading(true)
+    setExerciseLibraryError('')
+    getCoachExerciseLibrary()
+      .then((rows) => {
+        if (!cancelled) setExerciseLibrary(rows || [])
+      })
+      .catch((e) => {
+        if (!cancelled) setExerciseLibraryError(e?.message || 'No se pudo cargar la biblioteca')
+      })
+      .finally(() => {
+        if (!cancelled) setExerciseLibraryLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -697,6 +732,14 @@ export default function CoachView() {
                     weekTab={weekTab}
                     setWeekTab={setWeekTab}
                     onOpenSupport={openSupport}
+                    exerciseLibrary={exerciseLibrary}
+                  />
+                )}
+                {mainTab === 'ejercicios' && (
+                  <CoachExerciseLibraryPanel
+                    exercises={exerciseLibrary}
+                    loading={exerciseLibraryLoading}
+                    error={exerciseLibraryError}
                   />
                 )}
                 {mainTab === 'centro' && <CoachGuideCentro />}

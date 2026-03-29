@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getCoachGuideSettings } from '../../lib/supabase.js'
 import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
 import CoachSessionFeedbackAdmin from './CoachSessionFeedbackAdmin.jsx'
+import CoachExerciseLibraryAdmin from './CoachExerciseLibraryAdmin.jsx'
 
 function normalizeRows(raw) {
   if (!Array.isArray(raw)) return []
@@ -120,7 +121,11 @@ export default function CoachGuideContentPanel({ onClose }) {
 
   return (
     <div className={coachAdminUi.overlay}>
-      <div className={coachAdminUi.dialog} role="dialog" aria-labelledby="coach-content-title">
+      <div
+        className={`${coachAdminUi.dialog} ${adminTab === 'biblioteca' ? 'max-w-4xl' : ''}`}
+        role="dialog"
+        aria-labelledby="coach-content-title"
+      >
         <div className={coachAdminUi.header}>
           <h2 id="coach-content-title" className={coachAdminUi.title}>
             Contenido Coach
@@ -156,9 +161,36 @@ export default function CoachGuideContentPanel({ onClose }) {
           >
             Feedbacks
           </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('biblioteca')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'biblioteca' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Biblioteca
+          </button>
         </div>
 
-        {adminTab === 'feedback' ? (
+        {adminTab === 'biblioteca' ? (
+          <div className={`${coachAdminUi.form} max-h-[min(85vh,900px)] overflow-y-auto`}>
+            <div>
+              <label className={coachAdminUi.label}>Clave de administración</label>
+              <input
+                type="password"
+                autoComplete="off"
+                value={adminSecret}
+                onChange={(e) => setAdminSecret(e.target.value)}
+                className={coachField}
+                placeholder="COACH_GUIDE_ADMIN_SECRET (servidor)"
+              />
+            </div>
+            <CoachExerciseLibraryAdmin adminSecret={adminSecret} />
+            <button type="button" onClick={onClose} className={`${coachAdminUi.secondaryBtn} w-full`}>
+              Cerrar
+            </button>
+          </div>
+        ) : adminTab === 'feedback' ? (
           <div className="px-6 py-4">
             <CoachSessionFeedbackAdmin />
             <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>

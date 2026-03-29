@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { findVideosForPublishedDay, findVideosInProgramText } from '../../constants/exerciseVideos.js'
+import {
+  findVideosForPublishedDayResolved,
+  findVideosInProgramTextResolved,
+} from '../../utils/coachLibraryVideoMatch.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { SESSION_BLOCKS, FEEDBACK_BLOCKS } from './coachViewConstants.js'
 import { findDia, sessionText, previewText, buildDayQuickSummary, dayFocusLine } from './coachViewUtils.js'
@@ -15,7 +18,7 @@ function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
         <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${coachText.accent}`}>{title}</p>
         <p className={`text-sm ${coachText.muted} leading-relaxed`}>
           {subtitle ||
-            'No hay coincidencias con la biblioteca de ejercicios. Usa Soporte o busca en YouTube el nombre del movimiento.'}
+            'No hay coincidencias con la biblioteca (ni URL de vídeo en Supabase). Usa Soporte o revisa el nombre del movimiento en Contenido Coach → Biblioteca.'}
         </p>
       </div>
     )
@@ -83,7 +86,15 @@ function ClassVideoCollapse({ sessionKey, videos, open, onToggle }) {
   )
 }
 
-export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActiveDay, weekTab, setWeekTab, onOpenSupport }) {
+export default function CoachWeekProgrammingPanel({
+  weekData,
+  activeDay,
+  setActiveDay,
+  weekTab,
+  setWeekTab,
+  onOpenSupport,
+  exerciseLibrary = [],
+}) {
   const dias = weekData?.dias || []
   const [openClassVideos, setOpenClassVideos] = useState({})
 
@@ -151,7 +162,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                 {dias.map((dia) => {
                   const { labels, preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
                   const focus = dayFocusLine(dia, SESSION_BLOCKS)
-                  const videoCount = findVideosForPublishedDay(dia).length
+                  const videoCount = findVideosForPublishedDayResolved(dia, exerciseLibrary).length
                   return (
                     <button
                       key={dia.nombre}
@@ -212,7 +223,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
           {weekTab === 'videos' && (
             <div className="px-6 py-6 space-y-8 pb-10">
               <p className={`text-sm ${coachText.muted} font-bold uppercase tracking-widest leading-relaxed`}>
-                Biblioteca EVO por día — un toque abre YouTube.
+                Vídeos por día — enlaces directos desde la biblioteca (Supabase) cuando hay URL.
               </p>
               {dias.map((dia) => {
                 const vids = findVideosForPublishedDay(dia)
@@ -287,7 +298,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                         <p className={`text-sm ${coachText.muted}`}>Sin contenido para este día.</p>
                       )}
                       <div className={`pt-4 border-t ${coachBorder}`}>
-                        <CoachVideoChips videos={findVideosForPublishedDay(dia)} title={`▶ Vídeos · ${dia.nombre}`} />
+                        <CoachVideoChips videos={findVideosForPublishedDayResolved(dia, exerciseLibrary)} title={`▶ Vídeos · ${dia.nombre}`} />
                       </div>
                     </div>
                   </div>
@@ -336,7 +347,7 @@ export default function CoachWeekProgrammingPanel({ weekData, activeDay, setActi
                   const fbKey = def?.feedbackKey
                   const fbText = fbKey ? sessionText(dia[fbKey]) : ''
                   const slice = [sessionText(dia[key]), fbText].filter(Boolean).join('\n')
-                  const classVideos = findVideosInProgramText(slice)
+                  const classVideos = findVideosInProgramTextResolved(slice, exerciseLibrary)
 
                   return (
                     <div key={key} className={`rounded-xl border ${coachBorder} ${coachBg.card} p-5 shadow-sm space-y-5`}>

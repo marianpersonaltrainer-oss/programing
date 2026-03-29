@@ -459,6 +459,15 @@ En el WOD PREP aprovecha para que monten las anillas y asignen el peso del thrus
 - Sé CREATIVO en las sesiones: no siempre los mismos ejercicios, varía combinaciones
 
 ════════════════════════════════════════
+BIBLIOTECA OFICIAL DE EJERCICIOS (anexo dinámico)
+════════════════════════════════════════
+
+Tras este bloque el cliente puede anexar la lista viva desde Supabase (Documento Maestro):
+nombres oficiales, categoría, clases donde aplica, nivel, notas y URL de vídeo.
+Úsala para escribir ejercicios con el MISMO NOMBRE cuando exista en la lista, y para citar
+URLs de vídeo en la sesión si aporta valor al coach.
+
+════════════════════════════════════════
 FORMATO JSON — SOLO JSON
 ════════════════════════════════════════
 

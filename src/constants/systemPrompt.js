@@ -354,6 +354,8 @@ REGLAS DE VÍDEOS Y MATERIAL MULTIMEDIA
 2. NO uses enlaces a carpetas genéricas si el ejercicio es específico.
 3. Si no tienes el vídeo exacto, proporciona una descripción técnica 
    breve y precisa (Puntos de Atención).
+4. Tras este bloque puede anexarse la «Biblioteca oficial de ejercicios EVO» (Supabase):
+   úsala para nombres exactos y URLs de vídeo cuando existan.
 
 ════════════════════════════════════════
 TONO Y COMPORTAMIENTO

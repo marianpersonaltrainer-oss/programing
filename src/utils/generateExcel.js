@@ -1,6 +1,12 @@
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import { EXERCISE_VIDEOS, EXERCISE_CATEGORIES, findExercisesWithVideos } from '../constants/exerciseVideos.js'
+import { findExercisesWithVideosResolved } from './coachLibraryVideoMatch.js'
+import {
+  GENERATOR_CATEGORY_LABELS,
+  GENERATOR_LEVEL_LABELS,
+  GENERATOR_CLASS_LABELS,
+} from './buildGeneratorLibraryContext.js'
 import { ALL_CLASSES } from '../constants/evoClasses.js'
 
 export { ALL_CLASSES }
@@ -43,7 +49,7 @@ function rowH(sheet, r, h) {
   sheet.getRow(r).height = h
 }
 
-function writeWeekToSheet(sheet, weekData) {
+function writeWeekToSheet(sheet, weekData, libraryRows = null) {
   const n = ALL_CLASSES.length
   const lastCol = COL_LETTERS[n - 1]
 
@@ -186,7 +192,10 @@ function writeWeekToSheet(sheet, weekData) {
 
     // Vídeos del día
     const allText = ALL_CLASSES.map((cls) => dia[cls.key] || '').join(' ')
-    const videos = findExercisesWithVideos(allText)
+    const videos =
+      libraryRows?.length > 0
+        ? findExercisesWithVideosResolved(allText, libraryRows)
+        : findExercisesWithVideos(allText)
     if (videos.length > 0) {
       rowH(sheet, r, 18)
       sheet.mergeCells(`A${r}:${lastCol}${r}`)
@@ -201,10 +210,118 @@ function writeWeekToSheet(sheet, weekData) {
   }
 }
 
-function writeBibliotecaSheet(workbook) {
+const SUPABASE_BIB_CAT_COLORS = {
+  bisagra: 'FFE0F2FE',
+  squat: 'FFFDF4FF',
+  empuje_horizontal: 'FFECFDF5',
+  empuje_vertical: 'FFFEFCE8',
+  jalon: 'FFFFF1F2',
+  rotacion: 'FFE8F5E9',
+  metabolico: 'FFFFF3E0',
+  core: 'FFF3E5F5',
+  olimpico: 'FFE3F2FD',
+  landmine: 'FFFCE4EC',
+  otro: 'FFF5F5F5',
+}
+
+function writeBibliotecaSheet(workbook, libraryRows = null) {
   if (workbook.getWorksheet('Biblioteca EVO')) return
 
   const sheet = workbook.addWorksheet('Biblioteca EVO')
+  const useSupabase = Array.isArray(libraryRows) && libraryRows.length > 0
+
+  if (useSupabase) {
+    sheet.columns = [
+      { key: 'categoria', width: 22 },
+      { key: 'ejercicio', width: 38 },
+      { key: 'nivel', width: 12 },
+      { key: 'clases', width: 28 },
+      { key: 'video', width: 22 },
+    ]
+    sheet.mergeCells('A1:E1')
+    const t = sheet.getRow(1).getCell(1)
+    t.value = 'BIBLIOTECA OFICIAL EVO (Supabase)'
+    fill(t, 'FF4B0082')
+    fnt(t, { bold: true, size: 12, color: 'FFFFFFFF' })
+    aln(t, { h: 'center', v: 'middle', wrap: false })
+    sheet.getRow(1).height = 28
+
+    const hRow = sheet.getRow(2)
+    for (const [i, label] of ['CATEGORÍA', 'EJERCICIO', 'NIVEL', 'CLASES', 'VER VÍDEO'].entries()) {
+      const cell = hRow.getCell(i + 1)
+      cell.value = label
+      fill(cell, 'FF1A1A2E')
+      fnt(cell, { bold: true, size: 9, color: 'FFFFFFFF' })
+      aln(cell, { h: 'center', v: 'middle', wrap: false })
+      brd(cell)
+    }
+    sheet.getRow(2).height = 20
+
+    const sorted = [...libraryRows].sort((a, b) => {
+      const ca = String(a.category || '').localeCompare(String(b.category || ''))
+      if (ca !== 0) return ca
+      return String(a.name || '').localeCompare(String(b.name || ''))
+    })
+
+    let row = 3
+    for (const r of sorted) {
+      const name = String(r.name || '').trim()
+      if (!name) continue
+      const cat = r.category || 'otro'
+      const catLabel = GENERATOR_CATEGORY_LABELS[cat] || cat
+      const bg = SUPABASE_BIB_CAT_COLORS[cat] || SUPABASE_BIB_CAT_COLORS.otro
+      const rr = sheet.getRow(row)
+      rr.height = 16
+
+      const cCell = rr.getCell(1)
+      cCell.value = catLabel
+      fill(cCell, bg)
+      fnt(cCell, { size: 8.5, color: 'FF374151' })
+      aln(cCell, { h: 'left', v: 'middle', wrap: false })
+      brd(cCell)
+
+      const eCell = rr.getCell(2)
+      eCell.value = name
+      fill(eCell, 'FFFFFFFF')
+      fnt(eCell, { size: 9, color: 'FF111827' })
+      aln(eCell, { h: 'left', v: 'middle', wrap: true })
+      brd(eCell)
+
+      const lv = GENERATOR_LEVEL_LABELS[r.level] || r.level || '—'
+      const lvCell = rr.getCell(3)
+      lvCell.value = lv
+      fill(lvCell, 'FFFFFFFF')
+      fnt(lvCell, { size: 8.5, color: 'FF374151' })
+      aln(lvCell, { h: 'center', v: 'middle', wrap: false })
+      brd(lvCell)
+
+      const clsStr = (r.classes || []).map((k) => GENERATOR_CLASS_LABELS[k] || k).join(', ') || '—'
+      const clCell = rr.getCell(4)
+      clCell.value = clsStr
+      fill(clCell, 'FFFFFFFF')
+      fnt(clCell, { size: 8, color: 'FF4B5563' })
+      aln(clCell, { h: 'left', v: 'middle', wrap: true })
+      brd(clCell)
+
+      const vCell = rr.getCell(5)
+      const url = r.video_url?.trim()
+      if (url) {
+        vCell.value = { text: '▶ Ver vídeo', hyperlink: url }
+        fill(vCell, 'FFEFF6FF')
+        fnt(vCell, { size: 9, color: 'FF2563EB' })
+      } else {
+        vCell.value = '—'
+        fill(vCell, 'FFF9FAFB')
+        fnt(vCell, { size: 9, color: 'FF9CA3AF' })
+      }
+      aln(vCell, { h: 'center', v: 'middle', wrap: false })
+      brd(vCell)
+
+      row++
+    }
+    return
+  }
+
   sheet.columns = [
     { key: 'categoria', width: 22 },
     { key: 'ejercicio', width: 35 },
@@ -279,7 +396,7 @@ function writeBibliotecaSheet(workbook) {
   }
 }
 
-export async function generateWeekExcel(weekData, existingBuffer = null) {
+export async function generateWeekExcel(weekData, existingBuffer = null, libraryRows = null) {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'ProgramingEvo'
   workbook.created = new Date()
@@ -299,8 +416,8 @@ export async function generateWeekExcel(weekData, existingBuffer = null) {
     pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
   })
 
-  writeWeekToSheet(sheet, weekData)
-  writeBibliotecaSheet(workbook)
+  writeWeekToSheet(sheet, weekData, libraryRows)
+  writeBibliotecaSheet(workbook, libraryRows)
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], {

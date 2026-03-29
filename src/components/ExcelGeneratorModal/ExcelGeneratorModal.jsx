@@ -10,7 +10,8 @@ import {
   clearHistoryForMesocycle,
   formatHistoryAsContext,
 } from '../../hooks/useWeekHistory.js'
-import { publishWeek, getActiveWeek } from '../../lib/supabase.js'
+import { publishWeek, getActiveWeek, getCoachExerciseLibrary } from '../../lib/supabase.js'
+import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import {
   parseExcelGenerationPlan,
   buildWeekSkeleton,
@@ -156,12 +157,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
    * Una llamada API = un POST. Una semana completa usa callApi dos veces (L–Mi y J–Sa).
    * Modelo: sonnet (`AI_CONFIG.model`), max_tokens: `AI_CONFIG.maxTokens`.
    */
-  async function callApi(userMessage, retries = 3) {
+  async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, retries = 3) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
         model: AI_CONFIG.model,
         max_tokens: AI_CONFIG.maxTokens,
-        system: SYSTEM_PROMPT_EXCEL,
+        system: systemFull,
         messages: [{ role: 'user', content: userMessage }],
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
@@ -208,6 +209,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     setStatus('generating')
     setErrorMsg('')
+
+    let systemExcelFull = SYSTEM_PROMPT_EXCEL
+    try {
+      const libRows = await getCoachExerciseLibrary()
+      const block = buildGeneratorLibraryBlock(libRows)
+      if (block) systemExcelFull += `\n\n${block}`
+    } catch {
+      /* sin biblioteca: generación igual */
+    }
 
     const mesoInfo = weekState.mesocycle
       ? `Mesociclo: ${weekState.mesocycle} | Semana: ${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` | Fase: ${weekState.phase}` : ''}`
@@ -275,14 +285,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
       if (chunkFirst.size > 0) {
         setGenStep(`Generando ${[...chunkFirst].join(' · ')}…`)
-        const part1 = await callApi(buildChunkMessage(chunkFirst, ''))
+        const part1 = await callApi(buildChunkMessage(chunkFirst, ''), systemExcelFull)
         mergeGeneratedDaysIntoAccumulator(acc, part1, chunkFirst)
       }
 
       if (chunkSecond.size > 0) {
         setGenStep(`Generando ${[...chunkSecond].join(' · ')}…`)
         const coherenceBlock = `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
-        const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock))
+        const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock), systemExcelFull)
         mergeGeneratedDaysIntoAccumulator(acc, part2, chunkSecond)
       }
 
@@ -475,7 +485,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
       data.titulo = editTitle || data.titulo
       data.sheetName = editSheetName || `S${weekState.week || 1}`
-      await generateWeekExcel(data, isExcelFile ? existingBuffer : null)
+      let libRows = []
+      try {
+        libRows = await getCoachExerciseLibrary()
+      } catch {
+        /* Excel sin hoja Supabase si falla red */
+      }
+      await generateWeekExcel(data, isExcelFile ? existingBuffer : null, libRows)
       // Guardar en historial automáticamente
       saveWeekToHistory(weekState.mesocycle, weekState.week, data)
       setHistory(getHistoryForMesocycle(weekState.mesocycle))

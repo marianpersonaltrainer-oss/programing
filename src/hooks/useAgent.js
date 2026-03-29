@@ -3,17 +3,34 @@
  * Una llamada a `/api/anthropic` por cada mensaje del usuario (historial completo en `messages`).
  * Modelo: sonnet — misma ruta que ExcelGeneratorModal; ver `API_COSTS.md`.
  */
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
 import { buildWeekContextMessage } from '../utils/buildWeekContext.js'
 import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../constants/config.js'
+import { getCoachExerciseLibrary } from '../lib/supabase.js'
+import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
 
 export function useAgent(weekState) {
   const [messages, setMessages] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState(null)
+  const [libraryAppend, setLibraryAppend] = useState('')
   const abortRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getCoachExerciseLibrary()
+      .then((rows) => {
+        if (!cancelled) setLibraryAppend(buildGeneratorLibraryBlock(rows))
+      })
+      .catch(() => {
+        if (!cancelled) setLibraryAppend('')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const sendMessage = useCallback(async (userText) => {
     setError(null)
@@ -27,6 +44,9 @@ export function useAgent(weekState) {
     }
     if (weekCtx) {
       systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`
+    }
+    if (libraryAppend) {
+      systemWithContext += `\n\n${libraryAppend}`
     }
 
     const newMessages = [
@@ -77,7 +97,7 @@ export function useAgent(weekState) {
       setError(err.message)
       setIsGenerating(false)
     }
-  }, [messages, weekState])
+  }, [messages, weekState, libraryAppend])
 
   const stopGeneration = useCallback(() => {
     abortRef.current?.abort()

@@ -2,6 +2,7 @@ import {
   publishedDayProgramText,
   findVideosInProgramText,
   findVideosForPublishedDay,
+  findExercisesWithVideos,
 } from '../constants/exerciseVideos.js'
 
 /**
@@ -52,4 +53,14 @@ export function findVideosInProgramTextResolved(text, libraryRows) {
   const lib = matchLibraryVideosInLowerText((text || '').toLowerCase(), libraryRows)
   const stat = findVideosInProgramText(text)
   return mergeLibraryAndStatic(lib, stat)
+}
+
+/** Como findExercisesWithVideos (máx. 8) pero prioriza URLs de la biblioteca Supabase. */
+export function findExercisesWithVideosResolved(text, libraryRows) {
+  const lib = matchLibraryVideosInLowerText((text || '').toLowerCase(), libraryRows, {
+    max: 8,
+    dedupeByUrl: true,
+  })
+  const stat = findExercisesWithVideos(text)
+  return mergeLibraryAndStatic(lib, stat).slice(0, 8)
 }

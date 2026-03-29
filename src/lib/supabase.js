@@ -49,6 +49,19 @@ export async function getActiveWeek() {
   return data || null
 }
 
+/** Actualiza el JSON `data` de una fila publicada (requiere políticas RLS que permitan UPDATE). */
+export async function updatePublishedWeekData(rowId, weekData) {
+  const { error } = await supabase
+    .from('published_weeks')
+    .update({
+      data: weekData,
+      titulo: weekData.titulo,
+    })
+    .eq('id', rowId)
+
+  if (error) throw error
+}
+
 // ── Sesiones coach ────────────────────────────────────────────────────────────
 
 export async function createCoachSession(weekId, coachName) {

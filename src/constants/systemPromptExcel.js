@@ -156,6 +156,11 @@ FILOSOFÍA DE TIMING EN EVO — PRIORIDAD: ENTRENADOR TRANQUILO
 El objetivo no es cumplir un timing milimetrado sino que el entrenador llegue al WOD con
 margen, sin estrés y habiendo podido explicar bien todo lo anterior.
 
+Aclaración obligatoria (no contradice lo anterior): "Sin milimetrar" NO significa acortar minutos
+en el papel. Los rangos (X' - X') y la duración Ymin de cada bloque deben reflejar el tiempo
+REAL que pasará en sala — si los bloques suman demasiado, acorta contenido (menos series,
+WOD más simple), nunca borres transiciones o descansos solo para que cuadre el reloj.
+
 Regla principal:
 La complejidad total de la sesión (Parte A + WOD) debe ser asumible para que el entrenador
 pueda dar una clase de calidad. Nunca acumular complejidad técnica en Parte A Y complejidad
@@ -201,10 +206,23 @@ La duración (Ymin) se calcula restando los minutos: (35-25) = 10min → "— 10
 REGLA DE TIMING — REVISIÓN COMPLETA:
 Calcula los timings de forma realista considerando todo lo que pasa en clase, no solo el tiempo
 de trabajo puro. Para cada bloque cuenta SIEMPRE:
-- Tiempo de ejecución real de todos los ejercicios del bloque
-- Descansos entre series
-- Tiempo de explicación si es la primera vez que se hace ese ejercicio en la sesión
-- Tiempo de cambio de material o ajuste de carga entre ejercicios
+- Tiempo de ejecución real de todos los ejercicios del bloque (principal + accesorios del mismo
+  bloque; en biseries/triserie cuenta cada estación)
+- Descansos entre series y entre rondas completas del biserie/triserie
+- Tiempo de explicación o demo cuando el ejercicio es nuevo en la sesión O poco habitual para
+  el grupo (aunque ya haya salido antes ese día): añade 1-3 min extra según complejidad
+- Tiempo de cambio de material o ajuste de carga entre ejercicios DENTRO del bloque y al pasar
+  de un bloque a otro (técnica → accesorios → WOD prep → WOD): minutos reales, no cero
+- Tiempo de ORGANIZACIÓN del grupo antes de empezar el bloque: posicionar barras, formar
+  parejas/equipos, repartir materiales, que todos tengan claro el formato — especialmente en
+  WOD, biseries con mucha estación y EvoFit; añade 1-4 min al inicio del bloque según caos
+  posible
+
+EVOFIT — BISERIES / TRISERIES (OBLIGATORIO):
+En EvoFit, si hay biserie o triserie, el tiempo del bloque debe incluir TODAS las estaciones
+(A1, A2, A3), TODOS los accesorios listados en cada estación, los descansos indicados y las
+transiciones entre estaciones. No calcules solo el ejercicio "principal" y coloques los
+accesorios como si fueran gratis en el mismo minuto.
 
 Ejemplos de cálculo real (orientativos, no dogmáticos):
 - Biserie 4 series con 90'' descanso entre series completas → mínimo 12-14 min
@@ -234,6 +252,27 @@ explicando por qué ese formato ese día.
 
 En EvoBasics, los juegos de calentamiento: incluye SIEMPRE el ejemplo concreto de cómo se juega,
 no solo el nombre.
+
+════════════════════════════════════════
+QUÉ DÍAS GENERAR — OBLIGATORIO (MENSAJE DEL USUARIO)
+════════════════════════════════════════
+
+Cada petición puede pedirte generar solo ALGUNOS días de la semana. Lee SIEMPRE el bloque
+"INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA" y cualquier sección "PLAN DE DÍAS" o
+"GENERACIÓN DE DÍAS EN ESTA PETICIÓN" del mensaje de usuario.
+
+Reglas:
+- Solo genera contenido (sesiones + feedbacks + wodbuster) para los días que el usuario o el
+  plan del mensaje indiquen explícitamente en esa petición.
+- Si un día no debe generarse en esa petición: todas sus cadenas de clase, feedbacks y
+  wodbuster deben ser "" (vacías). No inventes clase "por si acaso".
+- Si el usuario dice que un día "ya está hecho", "no lo toques" o equivalente: NO regeneres
+  ese día; el cliente puede fusionar datos previos — en tu salida ese día debe ir vacío salvo
+  que el mensaje te pegue el JSON definitivo a conservar.
+- No asumas que hay clase los seis días salvo que el usuario pida explícitamente semana
+  completa, "lunes a sábado", "toda la semana" o equivalente.
+- El array "dias" en el JSON debe tener SIEMPRE 6 objetos en orden: LUNES, MARTES,
+  MIÉRCOLES, JUEVES, VIERNES, SÁBADO, con "nombre" correcto — aunque algunos vayan vacíos.
 
 REGLAS DEL CIERRE:
 - El bloque CIERRE es solo: estirar, choca la mano, feedback verbal
@@ -379,6 +418,9 @@ En el WOD PREP aprovecha para que monten las anillas y asignen el peso del thrus
 ════════════════════════════════════════
 FORMATO JSON — SOLO JSON
 ════════════════════════════════════════
+
+Antes de rellenar "dias", respeta la sección QUÉ DÍAS GENERAR: los días no solicitados van con
+todas las cadenas vacías.
 
 {
   "titulo": "S[X] – MESOCICLO [TIPO] · [INTENSIDAD] · Del [fecha]",

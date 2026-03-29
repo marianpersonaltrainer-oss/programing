@@ -10,7 +10,14 @@ import {
   clearHistoryForMesocycle,
   formatHistoryAsContext,
 } from '../../hooks/useWeekHistory.js'
-import { publishWeek } from '../../lib/supabase.js'
+import { publishWeek, getActiveWeek } from '../../lib/supabase.js'
+import {
+  parseExcelGenerationPlan,
+  buildWeekSkeleton,
+  mergeGeneratedDaysIntoAccumulator,
+  applyPreservedFromOverlay,
+  EXCEL_DAY_ORDER,
+} from '../../utils/excelGenerationPlan.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG } from '../../constants/config.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
@@ -216,28 +223,76 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       instructions ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA:\n${instructions}` : '',
     ].filter(Boolean).join('\n\n')
 
+    const plan = parseExcelGenerationPlan(instructions)
+    const firstHalf = new Set(EXCEL_DAY_ORDER.slice(0, 3))
+    const secondHalf = new Set(EXCEL_DAY_ORDER.slice(3, 6))
+    const chunkFirst = new Set([...plan.daysToGenerate].filter((d) => firstHalf.has(d)))
+    const chunkSecond = new Set([...plan.daysToGenerate].filter((d) => secondHalf.has(d)))
+
+    if (plan.daysToGenerate.size === 0) {
+      setErrorMsg(
+        'No hay días para generar: revisa las instrucciones (p. ej. demasiados días marcados como ya hechos o excluidos).',
+      )
+      setStatus('error')
+      return
+    }
+
     try {
-      // — Parte 1: Lunes, Martes, Miércoles —
-      setGenStep('Generando Lunes · Martes · Miércoles...')
-      const part1 = await callApi(
-        `${baseContext}\n\nGenera SOLO los días LUNES, MARTES y MIÉRCOLES en formato JSON. Los días de la semana son: LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO.`
-      )
+      let overlay = null
+      try {
+        const row = await getActiveWeek()
+        if (
+          row?.data &&
+          row.mesociclo === weekState.mesocycle &&
+          Number(row.semana) === Number(weekState.week)
+        ) {
+          overlay = row.data
+        }
+      } catch {
+        overlay = null
+      }
 
-      // — Parte 2: Jueves, Viernes, Sábado —
-      setGenStep('Generando Jueves · Viernes · Sábado...')
-      const part2 = await callApi(
-        `${baseContext}\n\nYA HAS GENERADO LOS PRIMEROS 3 DÍAS:\n${JSON.stringify(part1, null, 2)}\n\nAhora genera SOLO los días JUEVES, VIERNES y SÁBADO en formato JSON, manteniendo una coherencia muscular estricta con los primeros tres días y respetando la distribución semanal de EVO.`
-      )
+      const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
+      applyPreservedFromOverlay(acc, overlay, plan.daysPreserved)
 
-      // — Combinar —
+      const planSummary = `PLAN DE DÍAS (respeta el sistema; los días no pedidos en cada petición van vacíos en el JSON):
+- Generar en esta semana: ${[...plan.daysToGenerate].join(', ')}
+- Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...plan.daysPreserved].join(', ') || 'ninguno'}
+- Excluidos por el usuario: ${[...plan.daysExcluded].join(', ') || 'ninguno'}`
+
+      function buildChunkMessage(chunkDays, coherenceBlock) {
+        const list = [...chunkDays].join(', ')
+        const core = `${baseContext}\n\n${planSummary}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
+
+Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
+
+Solo rellena contenido completo (sesiones, feedbacks, wodbuster) para: ${list}.
+Para el resto de días: todas las cadenas de clase, feedbacks y wodbuster deben ser "" (vacío). No inventes contenido para días fuera de la lista.
+
+Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
+        return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
+      }
+
+      if (chunkFirst.size > 0) {
+        setGenStep(`Generando ${[...chunkFirst].join(' · ')}…`)
+        const part1 = await callApi(buildChunkMessage(chunkFirst, ''))
+        mergeGeneratedDaysIntoAccumulator(acc, part1, chunkFirst)
+      }
+
+      if (chunkSecond.size > 0) {
+        setGenStep(`Generando ${[...chunkSecond].join(' · ')}…`)
+        const coherenceBlock = `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
+        const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock))
+        mergeGeneratedDaysIntoAccumulator(acc, part2, chunkSecond)
+      }
+
       const combined = {
-        titulo: part1.titulo || `S${weekState.week} – MESOCICLO ${(weekState.mesocycle || '').toUpperCase()}`,
+        ...acc,
+        titulo:
+          acc.titulo?.trim() ||
+          `S${weekState.week} – MESOCICLO ${(weekState.mesocycle || '').toUpperCase()}`,
         semana: weekState.week,
         mesociclo: weekState.mesocycle,
-        dias: [
-          ...(part1.dias || []),
-          ...(part2.dias || []),
-        ],
       }
 
       sessionFingerprintsRef.current = buildSessionFingerprintMap(combined)
@@ -511,10 +566,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
                 <label className="block text-[11px] font-bold text-evo-text uppercase tracking-wider">
                   Instrucciones para esta Semana
                 </label>
+                <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
+                  Días a generar: nombra los días (ej. «solo martes y miércoles», «no generes jueves», «toda la semana»).
+                  «Lunes ya está hecho» copia ese día desde la semana activa en Supabase si coincide mesociclo y semana.
+                </p>
                 <textarea
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Ej: Quiero que esta semana sea de descarga. El sábado hay evento especial de CrossFit..."
+                  placeholder="Ej: Toda la semana. / Solo martes y jueves. / No generes miércoles. / El lunes ya está hecho."
                   rows={3}
                   className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed shadow-inner"
                 />

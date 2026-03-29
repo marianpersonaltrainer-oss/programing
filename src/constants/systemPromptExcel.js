@@ -198,6 +198,43 @@ FORMATO DE CADA BLOQUE:
 
 La duración (Ymin) se calcula restando los minutos: (35-25) = 10min → "— 10min"
 
+REGLA DE TIMING — REVISIÓN COMPLETA:
+Calcula los timings de forma realista considerando todo lo que pasa en clase, no solo el tiempo
+de trabajo puro. Para cada bloque cuenta SIEMPRE:
+- Tiempo de ejecución real de todos los ejercicios del bloque
+- Descansos entre series
+- Tiempo de explicación si es la primera vez que se hace ese ejercicio en la sesión
+- Tiempo de cambio de material o ajuste de carga entre ejercicios
+
+Ejemplos de cálculo real (orientativos, no dogmáticos):
+- Biserie 4 series con 90'' descanso entre series completas → mínimo 12-14 min
+- Triserie 3 series con 2' descanso → mínimo 12-15 min
+- Wave Loading 3 ondas con 90'' entre series y 3' entre ondas → mínimo 15-18 min
+- EMOM 10 min → exactamente 10 min + 2-3 min de prep
+- AMRAP 8 min → exactamente 8 min + 3-4 min de prep y explicación
+
+Nunca calcules el timing solo sobre el ejercicio principal ignorando accesorios, descansos o
+transiciones. Si la suma de todos los bloques supera 60 min, reduce la Parte A o simplifica el
+WOD — nunca comprimas los descansos para que cuadre en papel.
+
+REGLA DE JUEGOS, EQUIPOS Y PAREJAS — EXPLICACIÓN DETALLADA:
+Cuando la sesión incluya un juego, dinámica de equipo o trabajo por parejas, explícalo con
+detalle completo. No basta con el nombre del juego ni con «trabajo por parejas» — describe:
+
+- Cómo se forman equipos o parejas (por nivel, aleatorio, el coach decide, etc.)
+- Cuál es el objetivo del juego o la dinámica exacta paso a paso
+- Cómo se puntúa o cómo se sabe quién gana, si aplica
+- Cuántas rondas o cuánto tiempo dura
+- Un ejemplo concreto de cómo se vería en sala con 8 personas
+- Qué hace el coach durante el juego (anima, arbitra, participa, corrige técnica, etc.)
+
+El coach no debe tener que interpretar nada: debe poder leer la descripción y ejecutarla tal
+cual sin hacer preguntas. Si el formato es nuevo o poco habitual, añade una frase de contexto
+explicando por qué ese formato ese día.
+
+En EvoBasics, los juegos de calentamiento: incluye SIEMPRE el ejemplo concreto de cómo se juega,
+no solo el nombre.
+
 REGLAS DEL CIERRE:
 - El bloque CIERRE es solo: estirar, choca la mano, feedback verbal
 - NO escribas "Registrar resultados" de forma automática — solo si ese día hay marca relevante que anotar (ej: nuevo máximo de fuerza)

@@ -1,0 +1,41 @@
+{
+  "name": "ProgramingEvo — Coach EVO",
+  "short_name": "ProgramingEvo",
+  "description": "Programación semanal y soporte para coaches de Evolution Boutique Fitness.",
+  "start_url": "/?coach",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#e8ded2",
+  "theme_color": "#6A1F6D",
+  "icons": [
+    {
+      "src": "/brand/Ppal.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/Ppal.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Vista coach",
+      "short_name": "Coach",
+      "description": "Abre la app de coaches (?coach)",
+      "url": "/?coach",
+      "icons": [{ "src": "/brand/Ppal.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Programador",
+      "short_name": "Prog",
+      "description": "Abre la herramienta de programación",
+      "url": "/",
+      "icons": [{ "src": "/brand/Ppal.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

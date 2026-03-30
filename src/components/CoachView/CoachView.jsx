@@ -188,6 +188,7 @@ export default function CoachView() {
   const [exerciseLibraryError, setExerciseLibraryError] = useState('')
   const [supportUsedToday, setSupportUsedToday] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [supportSessionContext, setSupportSessionContext] = useState(null)
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
@@ -358,15 +359,17 @@ export default function CoachView() {
     await startSession(week, name)
   }
 
-  function openSupport(prefill) {
+  function openSupport(prefill, context = null) {
     setMainTab('soporte')
     setMobileMenuOpen(false)
     if (typeof prefill === 'string') setInput(prefill)
+    setSupportSessionContext(context || null)
   }
 
   function selectNav(id) {
     setMainTab(id)
     setMobileMenuOpen(false)
+    if (id === 'soporte') setSupportSessionContext(null)
   }
 
   async function handleSend(e) {
@@ -399,6 +402,19 @@ export default function CoachView() {
 
     try {
       const history = [...messages, { role: 'user', content: userMsg }]
+      const supportContextBlock = supportSessionContext
+        ? [
+            '',
+            'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
+            `Dia: ${supportSessionContext.dayName || '—'}`,
+            `Clase: ${supportSessionContext.classLabel || '—'}`,
+            `Sesion completa:`,
+            `${supportSessionContext.sessionText || '(sin texto)'}`,
+            '',
+            'Usa este contexto por defecto en la respuesta y no pidas al coach que pegue la sesion.',
+          ].join('\n')
+        : ''
+      const systemPrompt = `${COACH_SUPPORT_SYSTEM_PROMPT}${supportContextBlock}`
       let response
       try {
         response = await fetch('/api/anthropic', {
@@ -409,7 +425,7 @@ export default function CoachView() {
           body: JSON.stringify({
             model: AI_CONFIG.supportModel,
             max_tokens: AI_CONFIG.coachMaxTokens,
-            system: COACH_SUPPORT_SYSTEM_PROMPT,
+            system: systemPrompt,
             messages: history.map((m) => ({ role: m.role, content: m.content })),
           }),
         })

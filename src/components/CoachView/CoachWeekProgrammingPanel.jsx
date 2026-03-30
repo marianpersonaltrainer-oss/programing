@@ -111,10 +111,18 @@ export default function CoachWeekProgrammingPanel({
   const dias = weekData?.dias || []
   const [openClassVideos, setOpenClassVideos] = useState({})
 
-  const ask = (text) => {
-    onOpenSupport(text)
+  const ask = (text, context = null) => {
+    onOpenSupport(text, context)
     setActiveDay('show')
     setWeekTab('dias')
+  }
+
+  const askClassSupport = (dayName, label, sessionValue, prefill) => {
+    ask(prefill, {
+      dayName,
+      classLabel: label,
+      sessionText: sessionValue || '',
+    })
   }
 
   const toggleClassVideos = (key) => {
@@ -386,7 +394,14 @@ export default function CoachWeekProgrammingPanel({
                       <div className={`flex flex-col sm:flex-row flex-wrap gap-2 pt-2 border-t ${coachBorder}`}>
                         <button
                           type="button"
-                          onClick={() => ask(`Sobre ${dayName} · ${label}: tengo una duda: `)}
+                          onClick={() =>
+                            askClassSupport(
+                              dayName,
+                              label,
+                              dia[key],
+                              `Sobre ${dayName} · ${label}: tengo una duda: `,
+                            )
+                          }
                           className="text-xs px-4 py-3 rounded-xl bg-[#6A1F6D] text-white font-bold uppercase tracking-widest shadow-sm hover:bg-[#7d2582] active:scale-[0.98]"
                         >
                           Preguntar por {label}
@@ -394,7 +409,10 @@ export default function CoachWeekProgrammingPanel({
                         <button
                           type="button"
                           onClick={() =>
-                            ask(
+                            askClassSupport(
+                              dayName,
+                              label,
+                              dia[key],
                               `En ${dayName} · ${label}: necesito adaptar por lesión o embarazo. ¿Qué sustituciones y escalado propones? `,
                             )
                           }
@@ -405,7 +423,12 @@ export default function CoachWeekProgrammingPanel({
                         <button
                           type="button"
                           onClick={() =>
-                            ask(`En ${dayName} · ${label}: tengo poco tiempo o poco material. ¿Plan B concreto? `)
+                            askClassSupport(
+                              dayName,
+                              label,
+                              dia[key],
+                              `En ${dayName} · ${label}: tengo poco tiempo o poco material. ¿Plan B concreto? `,
+                            )
                           }
                           className={`text-xs px-4 py-3 rounded-xl border ${coachBorder} ${coachBg.cardMuted} font-bold uppercase tracking-widest ${coachText.primary} hover:border-[#A729AD]/50`}
                         >

@@ -400,32 +400,56 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
   const rt = guideSettings?.response_time?.trim() || guideSettings?.contact_response?.trim()
   const hasContact = Boolean(ch || person || schedule)
 
-  const onBar = variant === 'compact'
-  const tMain = onBar ? coachText.onSidebar : coachText.primary
-  const tMuted = onBar ? coachText.mutedOnSidebar : coachText.muted
-  const tBorder = onBar ? 'border-white/25' : coachBorder
-  const tCard = onBar ? 'bg-white/10 border border-white/20' : `${coachBorder} ${coachBg.card}`
-  const tAccent = onBar ? 'text-[#E8B4F0]' : coachText.accent
+  /** Panel claro legible (acordeón del chat soporte). `compact` = texto claro sobre sidebar oscuro (legacy). */
+  const isEmbedded = variant === 'embedded'
+  const onBar = variant === 'compact' && !isEmbedded
+  const tMain = isEmbedded ? coachText.primary : onBar ? coachText.onSidebar : coachText.primary
+  const tMuted = isEmbedded ? 'text-[#2d2430]' : onBar ? coachText.mutedOnSidebar : coachText.muted
+  const tBorder = isEmbedded ? 'border-[#6A1F6D]/40' : onBar ? 'border-white/25' : coachBorder
+  const tCard = isEmbedded
+    ? `border ${coachBorder} ${coachBg.card} shadow-sm`
+    : onBar
+      ? 'bg-white/10 border border-white/20'
+      : `${coachBorder} ${coachBg.card}`
+  const tAccent = isEmbedded ? 'text-[#6A1F6D]' : onBar ? 'text-[#E8B4F0]' : coachText.accent
+  const h2Class = isEmbedded
+    ? `text-base font-extrabold uppercase tracking-wide border-b ${tBorder} pb-2 mb-3 text-[#1A0A1A] font-evo-display`
+    : onBar
+      ? `text-base font-extrabold uppercase tracking-wide border-b ${tBorder} pb-2 mb-3 ${tMain} font-evo-display`
+      : coachUi.h2
+  const h3Class = isEmbedded
+    ? `text-[15px] font-bold mt-4 mb-2 text-[#1A0A1A] font-evo-body`
+    : onBar
+      ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body`
+      : coachUi.h3
 
   const inner = (
     <>
-      <h2 className={onBar ? `text-base font-extrabold uppercase tracking-wide border-b ${tBorder} pb-2 mb-3 ${tMain} font-evo-display` : coachUi.h2}>
+      <h2 className={h2Class}>
         6. Soporte — Cómo preguntar dudas
       </h2>
-      <p className={`text-base ${tMuted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
-      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Qué tipo de dudas van por soporte</h3>
-      <ul className={`list-disc pl-6 space-y-2 text-base ${tMuted} mb-6`}>
+      <p className={`text-[15px] sm:text-base font-medium ${tMuted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
+      <h3 className={h3Class}>Qué tipo de dudas van por soporte</h3>
+      <ul
+        className={`list-disc pl-5 sm:pl-6 space-y-2 text-[15px] sm:text-base font-medium mb-6 ${
+          isEmbedded ? 'text-[#2d2430]' : `text-base ${tMuted}`
+        }`}
+      >
         {COACH_SOPORTE_SI.map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Qué NO va por soporte</h3>
-      <ul className={`list-disc pl-6 space-y-2 text-base ${tMuted} mb-6`}>
+      <h3 className={h3Class}>Qué NO va por soporte</h3>
+      <ul
+        className={`list-disc pl-5 sm:pl-6 space-y-2 text-[15px] sm:text-base font-medium mb-6 ${
+          isEmbedded ? 'text-[#2d2430]' : `text-base ${tMuted}`
+        }`}
+      >
         {COACH_SOPORTE_NO.map((t, i) => (
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Canal y persona de contacto</h3>
+      <h3 className={h3Class}>Canal y persona de contacto</h3>
       {hasContact ? (
         <div className={`space-y-3 rounded-xl p-4 ${tCard}`}>
           {ch ? (
@@ -461,10 +485,16 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
           </span>
         </p>
       )}
-      <h3 className={onBar ? `text-base font-bold mt-4 mb-2 ${tMain} font-evo-body` : coachUi.h3}>Tiempo de respuesta esperado</h3>
+      <h3 className={h3Class}>Tiempo de respuesta esperado</h3>
       {rt ? (
         <p
-          className={`text-base whitespace-pre-wrap leading-relaxed rounded-xl p-4 border ${onBar ? 'border-white/25 bg-white/10' : `${coachBorder} ${coachBg.card}`} ${tMain}`}
+          className={`text-[15px] sm:text-base whitespace-pre-wrap leading-relaxed rounded-xl p-4 border ${
+            isEmbedded
+              ? `${coachBorder} ${coachBg.card} text-[#1A0A1A]`
+              : onBar
+                ? 'border-white/25 bg-white/10'
+                : `${coachBorder} ${coachBg.card}`
+          } ${isEmbedded ? '' : tMain}`}
         >
           {rt}
         </p>
@@ -479,9 +509,19 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
           {COACH_SOPORTE_PLACEHOLDER_RESPONSE}
         </p>
       )}
-      <p className={`text-xs ${tMuted} font-bold uppercase tracking-widest mt-10 text-center`}>{COACH_SOPORTE_FOOTER}</p>
+      <p
+        className={`text-[11px] font-bold uppercase tracking-widest mt-8 text-center ${
+          isEmbedded ? 'text-[#5c4d6b]' : tMuted
+        }`}
+      >
+        {COACH_SOPORTE_FOOTER}
+      </p>
     </>
   )
+
+  if (variant === 'embedded') {
+    return <div className="px-4 py-4 space-y-2 bg-white">{inner}</div>
+  }
 
   if (variant === 'compact') {
     return <div className="px-6 py-5 space-y-3">{inner}</div>

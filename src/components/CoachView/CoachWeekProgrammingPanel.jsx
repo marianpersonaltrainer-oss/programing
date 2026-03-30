@@ -408,7 +408,7 @@ export default function CoachWeekProgrammingPanel({
                                 `En ${dayName} · ${label}: necesito adaptar por lesión (indica zona o diagnóstico si lo tienes). ¿Qué sustituciones y cargas concretas propones? `,
                               )
                             }
-                            className={`w-full text-left text-xs px-4 py-3.5 rounded-xl border-2 border-amber-600/40 ${coachBg.cardMuted} font-bold uppercase tracking-wide ${coachText.primary} hover:border-amber-600/70 hover:bg-amber-50/80 active:scale-[0.99]`}
+                            className="w-full text-left text-xs px-4 py-3.5 rounded-xl font-bold uppercase tracking-wide text-amber-50 bg-amber-900 border-2 border-amber-950 shadow-sm hover:bg-amber-950 active:scale-[0.99]"
                           >
                             Lesión — sustituciones y escalado
                           </button>
@@ -426,7 +426,7 @@ export default function CoachWeekProgrammingPanel({
                                 `En ${dayName} · ${label}: necesito adaptar para embarazada (indica trimestre o semanas si lo sabes). ¿Qué cambios concretos en la sesión? `,
                               )
                             }
-                            className={`w-full text-left text-xs px-4 py-3.5 rounded-xl border-2 border-pink-600/35 ${coachBg.cardMuted} font-bold uppercase tracking-wide ${coachText.primary} hover:border-pink-600/65 hover:bg-pink-50/60 active:scale-[0.99]`}
+                            className="w-full text-left text-xs px-4 py-3.5 rounded-xl font-bold uppercase tracking-wide text-rose-50 bg-rose-900 border-2 border-rose-950 shadow-sm hover:bg-rose-950 active:scale-[0.99]"
                           >
                             Embarazo — adaptar esta sesión
                           </button>
@@ -446,7 +446,7 @@ export default function CoachWeekProgrammingPanel({
                                 `En ${dayName} · ${label}: necesito adaptar la sesión (poco tiempo, poco material, nivel heterogéneo del grupo u otro). ¿Plan B concreto ejercicio a ejercicio? `,
                               )
                             }
-                            className={`w-full text-left text-xs px-4 py-3.5 rounded-xl border-2 border-[#A729AD]/35 ${coachBg.card} font-bold uppercase tracking-wide ${coachText.primary} hover:border-[#A729AD]/60 hover:bg-[#A729AD]/5 active:scale-[0.99]`}
+                            className="w-full text-left text-xs px-4 py-3.5 rounded-xl font-bold uppercase tracking-wide text-white bg-[#4a154d] border-2 border-[#2f0d32] shadow-sm hover:bg-[#3d1240] active:scale-[0.99]"
                           >
                             Adaptaciones — tiempo, material o grupo
                           </button>
@@ -464,7 +464,7 @@ export default function CoachWeekProgrammingPanel({
                                 `Sobre ${dayName} · ${label}: tengo una duda: `,
                               )
                             }
-                            className="w-full text-left text-xs px-4 py-3 rounded-xl bg-[#6A1F6D] text-white font-bold uppercase tracking-widest shadow-sm hover:bg-[#7d2582] active:scale-[0.98]"
+                            className="w-full text-left text-xs px-4 py-3 rounded-xl bg-[#3f0f42] text-white font-bold uppercase tracking-widest border border-[#2a0a2c] shadow-sm hover:bg-[#4d1850] active:scale-[0.98]"
                           >
                             Otra duda sobre {label}
                           </button>

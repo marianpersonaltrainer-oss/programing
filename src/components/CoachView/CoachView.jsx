@@ -216,10 +216,19 @@ export default function CoachView() {
   const [supportSessionContext, setSupportSessionContext] = useState(null)
   const supportSessionContextRef = useRef(null)
   const messagesEndRef = useRef(null)
+  const supportTextareaRef = useRef(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping, mainTab])
+
+  useEffect(() => {
+    if (mainTab !== 'soporte') return
+    const el = supportTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`
+  }, [input, mainTab])
 
   useEffect(() => {
     if (step === 'chat' && mainTab === 'semana' && activeDay == null) {
@@ -705,7 +714,7 @@ export default function CoachView() {
                     <span className="text-[9px] opacity-70">▼</span>
                   </summary>
                   <div className="max-h-[min(26vh,240px)] overflow-y-auto overscroll-contain border-t border-black/6 bg-white/90">
-                    <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="compact" />
+                    <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="embedded" />
                   </div>
                 </details>
                 <div
@@ -784,19 +793,22 @@ export default function CoachView() {
                       {SUPPORT_LIMIT_MESSAGE}
                     </p>
                   )}
-                  <form onSubmit={handleSend} className="flex gap-2 items-end max-w-4xl mx-auto">
-                    <input
-                      type="text"
+                  <form onSubmit={handleSend} className="flex gap-2 items-end max-w-4xl mx-auto w-full">
+                    <textarea
+                      ref={supportTextareaRef}
+                      rows={3}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={supportAtLimit ? 'Límite alcanzado hoy' : 'Mensaje'}
+                      placeholder={
+                        supportAtLimit ? 'Límite alcanzado hoy' : 'Escribe aquí (varias líneas). Envía con el botón.'
+                      }
                       disabled={isTyping || supportAtLimit}
-                      className="flex-1 rounded-[24px] px-4 py-2.5 text-[15px] min-h-[44px] min-w-0 bg-white border border-black/10 !text-[#111b21] placeholder:text-[#8696a0] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#A729AD]/25 focus:border-[#A729AD]/35 disabled:opacity-50"
+                      className="flex-1 rounded-2xl px-4 py-3 text-[15px] min-h-[5.5rem] max-h-[240px] min-w-0 w-full bg-white border border-black/15 !text-[#111b21] placeholder:text-[#667781] shadow-inner resize-none overflow-y-auto break-words whitespace-pre-wrap [overflow-wrap:anywhere] focus:outline-none focus:ring-2 focus:ring-[#A729AD]/25 focus:border-[#A729AD]/40 disabled:opacity-50"
                     />
                     <button
                       type="submit"
                       disabled={!input.trim() || isTyping || supportAtLimit}
-                      className="w-11 h-11 shrink-0 rounded-full bg-[#6A1F6D] hover:bg-[#7d2582] disabled:opacity-35 text-white flex items-center justify-center shadow-md active:scale-95"
+                      className="w-11 h-11 shrink-0 rounded-full bg-[#5a185c] hover:bg-[#6A1F6D] disabled:opacity-35 text-white flex items-center justify-center shadow-md active:scale-95"
                       aria-label="Enviar"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

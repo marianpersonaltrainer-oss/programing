@@ -189,6 +189,7 @@ export default function CoachView() {
   const [supportUsedToday, setSupportUsedToday] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [supportSessionContext, setSupportSessionContext] = useState(null)
+  const supportSessionContextRef = useRef(null)
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
@@ -363,13 +364,18 @@ export default function CoachView() {
     setMainTab('soporte')
     setMobileMenuOpen(false)
     if (typeof prefill === 'string') setInput(prefill)
-    setSupportSessionContext(context || null)
+    const normalized = context || null
+    supportSessionContextRef.current = normalized
+    setSupportSessionContext(normalized)
   }
 
   function selectNav(id) {
     setMainTab(id)
     setMobileMenuOpen(false)
-    if (id === 'soporte') setSupportSessionContext(null)
+    if (id === 'soporte') {
+      supportSessionContextRef.current = null
+      setSupportSessionContext(null)
+    }
   }
 
   async function handleSend(e) {
@@ -402,14 +408,15 @@ export default function CoachView() {
 
     try {
       const history = [...messages, { role: 'user', content: userMsg }]
-      const supportContextBlock = supportSessionContext
+      const activeSupportContext = supportSessionContextRef.current || supportSessionContext
+      const supportContextBlock = activeSupportContext
         ? [
             '',
             'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
-            `Dia: ${supportSessionContext.dayName || '—'}`,
-            `Clase: ${supportSessionContext.classLabel || '—'}`,
+            `Dia: ${activeSupportContext.dayName || '—'}`,
+            `Clase: ${activeSupportContext.classLabel || '—'}`,
             `Sesion completa:`,
-            `${supportSessionContext.sessionText || '(sin texto)'}`,
+            `${activeSupportContext.sessionText || '(sin texto)'}`,
             '',
             'Usa este contexto por defecto en la respuesta y no pidas al coach que pegue la sesion.',
           ].join('\n')

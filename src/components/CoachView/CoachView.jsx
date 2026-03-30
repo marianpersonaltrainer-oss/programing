@@ -367,6 +367,8 @@ export default function CoachView() {
     const normalized = context || null
     supportSessionContextRef.current = normalized
     setSupportSessionContext(normalized)
+    // DEBUG TEMPORAL: comprobar que el contexto de sesión se setea al abrir soporte desde clase.
+    console.log('CoachSupport openSupport context:', normalized)
   }
 
   function selectNav(id) {
@@ -409,6 +411,12 @@ export default function CoachView() {
     try {
       const history = [...messages, { role: 'user', content: userMsg }]
       const activeSupportContext = supportSessionContextRef.current || supportSessionContext
+      // DEBUG TEMPORAL: confirmar contexto disponible justo antes del primer envío a IA.
+      console.log('CoachSupport handleSend context snapshot:', {
+        hasContext: !!activeSupportContext,
+        ref: supportSessionContextRef.current,
+        state: supportSessionContext,
+      })
       const supportContextBlock = activeSupportContext
         ? [
             '',

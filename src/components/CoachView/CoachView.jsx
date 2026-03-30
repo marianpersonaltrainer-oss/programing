@@ -24,6 +24,7 @@ import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } fr
 import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
+import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -146,6 +147,30 @@ function getSupportMessagesUsedToday() {
   } catch {
     return 0
   }
+}
+
+function normalizeText(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+}
+
+function inferSupportContextFromMessage(userMsg, weekData) {
+  if (!weekData?.dias?.length) return null
+  const m = String(userMsg || '').match(
+    /\b(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado)\b[\s·\-–—,:]+(evo[a-záéíóúñ]+)/i,
+  )
+  if (!m) return null
+  const dayNorm = normalizeText(m[1]).toUpperCase()
+  const classNorm = normalizeText(m[2])
+  const dia = weekData.dias.find((d) => normalizeText(d?.nombre || '').toUpperCase() === dayNorm)
+  const classDef = EVO_SESSION_CLASS_DEFS.find((c) => normalizeText(c.label) === classNorm)
+  if (!dia || !classDef) return null
+  const sessionText = String(dia[classDef.key] || '').trim()
+  if (!sessionText) return null
+  return { dayName: dia.nombre, classLabel: classDef.label, sessionText }
 }
 
 function incrementSupportMessagesUsed() {
@@ -410,26 +435,34 @@ export default function CoachView() {
 
     try {
       const history = [...messages, { role: 'user', content: userMsg }]
-      const activeSupportContext = supportSessionContextRef.current || supportSessionContext
+      const inferredContext = inferSupportContextFromMessage(userMsg, weekData)
+      const activeSupportContext = supportSessionContextRef.current || supportSessionContext || inferredContext
       // DEBUG TEMPORAL: confirmar contexto disponible justo antes del primer envío a IA.
       console.log('CoachSupport handleSend context snapshot:', {
         hasContext: !!activeSupportContext,
         ref: supportSessionContextRef.current,
         state: supportSessionContext,
+        inferred: inferredContext,
       })
       const supportContextBlock = activeSupportContext
         ? [
-            '',
             'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
             `Dia: ${activeSupportContext.dayName || '—'}`,
             `Clase: ${activeSupportContext.classLabel || '—'}`,
             `Sesion completa:`,
             `${activeSupportContext.sessionText || '(sin texto)'}`,
             '',
-            'Usa este contexto por defecto en la respuesta y no pidas al coach que pegue la sesion.',
+            'REGLA: usa este contexto como verdad de la sesion y no pidas al coach que pegue la sesion.',
           ].join('\n')
         : ''
-      const systemPrompt = `${COACH_SUPPORT_SYSTEM_PROMPT}${supportContextBlock}`
+      const systemPrompt = supportContextBlock
+        ? `${supportContextBlock}\n\n${COACH_SUPPORT_SYSTEM_PROMPT}`
+        : COACH_SUPPORT_SYSTEM_PROMPT
+      console.log('CoachSupport system prompt check:', {
+        hasContextBlock: !!supportContextBlock,
+        systemLength: systemPrompt.length,
+        contextPreview: supportContextBlock ? supportContextBlock.slice(0, 180) : null,
+      })
       let response
       try {
         response = await fetch('/api/anthropic', {

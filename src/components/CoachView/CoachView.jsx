@@ -685,24 +685,41 @@ export default function CoachView() {
 
           <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${coachBg.app}`}>
             {mainTab === 'soporte' ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div
-                  className={`flex-shrink-0 max-h-[min(34vh,300px)] overflow-y-auto overscroll-contain border-b ${coachBorder} ${coachBg.sidebar}`}
-                >
-                  <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="compact" />
+              <div className="flex-1 flex flex-col min-h-0 bg-[#e8ded2]">
+                <div className="px-4 py-2.5 border-b border-black/10 bg-white/90 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm">
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold uppercase tracking-widest ${coachText.primary} truncate`}>
+                      Soporte
+                    </p>
+                    <p className={`text-[10px] font-bold uppercase tracking-wide ${coachText.muted} truncate`}>
+                      {supportRemaining} consultas hoy
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full bg-[#A729AD]/15 text-[#6A1F6D] border border-[#A729AD]/20">
+                    {supportRemaining}/{SUPPORT_DAILY_LIMIT}
+                  </span>
                 </div>
-                <p className={`px-6 pt-4 text-sm font-bold text-center uppercase tracking-wide font-evo-body ${coachText.primary}`}>
-                  <span className={coachUi.supportHighlight}>{supportRemaining}</span> de {SUPPORT_DAILY_LIMIT} consultas
-                  disponibles hoy
-                </p>
-                <div className={`flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5 ${coachBg.app}`}>
+                <details className="mx-3 mt-2 rounded-2xl border border-black/8 bg-white/70 shadow-sm overflow-hidden">
+                  <summary className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest cursor-pointer text-[#6B5A6B] list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                    <span>Protocolo y cómo preguntar</span>
+                    <span className="text-[9px] opacity-70">▼</span>
+                  </summary>
+                  <div className="max-h-[min(26vh,240px)] overflow-y-auto overscroll-contain border-t border-black/6 bg-white/90">
+                    <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="compact" />
+                  </div>
+                </details>
+                <div
+                  className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 scroll-smooth"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
                   {messages.length === 0 && (
-                    <div className="text-center py-8 space-y-4">
-                      <p className={`text-lg font-bold uppercase tracking-tight ${coachText.primary}`}>Chat de soporte</p>
-                      <p className={`text-sm font-bold uppercase tracking-widest max-w-sm mx-auto leading-relaxed ${coachText.muted}`}>
-                        Dudas sobre programación, material o la app. Respuestas cortas.
+                    <div className="rounded-2xl border border-black/8 bg-white/95 shadow-sm p-4 space-y-3 mx-auto max-w-lg">
+                      <p className="text-sm font-bold text-[#1A0A1A]">Chatea con el asistente</p>
+                      <p className="text-xs font-medium text-[#6B5A6B] leading-relaxed">
+                        Respuestas cortas y concretas. Si vienes desde un día y clase, el contexto ya va incluido.
                       </p>
-                      <div className="flex flex-wrap gap-2 justify-center mt-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B5A6B]">Sugerencias</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {[
                           '¿Cómo escalo el ejercicio de hoy?',
                           'Tengo poco material, plan B',
@@ -716,7 +733,7 @@ export default function CoachView() {
                             onClick={() => {
                               if (!supportAtLimit) setInput(q)
                             }}
-                            className={`text-xs px-4 py-2.5 rounded-xl border ${coachBorder} ${coachBg.card} font-bold uppercase tracking-wide ${coachText.muted} hover:border-[#A729AD]/50 hover:text-[#A729AD] disabled:opacity-40 disabled:pointer-events-none`}
+                            className="snap-start shrink-0 text-[11px] px-3.5 py-2 rounded-2xl border border-black/10 bg-white font-semibold text-[#1A0A1A]/90 shadow-sm hover:border-[#A729AD]/40 hover:bg-[#A729AD]/5 disabled:opacity-40 disabled:pointer-events-none active:scale-[0.98]"
                           >
                             {q}
                           </button>
@@ -726,12 +743,12 @@ export default function CoachView() {
                   )}
 
                   {messages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in px-0.5`}>
                       <div
-                        className={`max-w-[90%] px-5 py-4 rounded-2xl text-base font-medium leading-relaxed whitespace-pre-wrap ${
+                        className={`max-w-[88%] px-3.5 py-2.5 rounded-[18px] text-[15px] leading-snug whitespace-pre-wrap shadow-[0_1px_2px_rgba(0,0,0,0.06)] ${
                           msg.role === 'user'
-                            ? 'bg-[#6A1F6D] text-white rounded-br-md'
-                            : `rounded-bl-md border ${coachBorder} ${coachBg.card} ${coachText.primary}`
+                            ? 'bg-[#d9fdd3] text-[#111b21] rounded-br-[4px]'
+                            : 'bg-white text-[#111b21] rounded-bl-[4px] border border-black/[0.06]'
                         }`}
                       >
                         {msg.content}
@@ -740,12 +757,12 @@ export default function CoachView() {
                   ))}
 
                   {isTyping && (
-                    <div className="flex justify-start">
-                      <div className={`border ${coachBorder} ${coachBg.card} px-5 py-4 rounded-2xl rounded-bl-md flex gap-1.5`}>
+                    <div className="flex justify-start px-0.5">
+                      <div className="bg-white border border-black/[0.06] px-3.5 py-2.5 rounded-[18px] rounded-bl-[4px] flex gap-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
                         {[0, 150, 300].map((d) => (
                           <div
                             key={d}
-                            className="w-2 h-2 rounded-full bg-[#A729AD]/50 animate-pulse"
+                            className="w-2 h-2 rounded-full bg-[#A729AD]/45 animate-pulse"
                             style={{ animationDelay: `${d}ms` }}
                           />
                         ))}
@@ -754,35 +771,35 @@ export default function CoachView() {
                   )}
 
                   {error && (
-                    <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-center">
-                      <p className="text-xs text-red-700 font-bold uppercase tracking-widest">{error}</p>
+                    <div className="px-3 py-2.5 bg-red-50 border border-red-200/90 rounded-2xl mx-0.5">
+                      <p className="text-xs text-red-800 font-semibold leading-snug">{error}</p>
                     </div>
                   )}
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className={`px-5 py-4 border-t ${coachBorder} ${coachBg.sidebar} flex-shrink-0 safe-area-pb space-y-3`}>
+                <div className="px-3 pt-2 pb-3 border-t border-black/10 bg-[#f0ebe3] flex-shrink-0 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
                   {supportAtLimit && (
-                    <p className="text-sm text-amber-900 font-semibold text-center leading-relaxed px-3 bg-amber-100 border border-amber-300/80 rounded-xl py-3">
+                    <p className="text-xs text-amber-950 font-semibold text-center leading-snug px-3 py-2 mb-2 bg-amber-100 border border-amber-300/80 rounded-2xl">
                       {SUPPORT_LIMIT_MESSAGE}
                     </p>
                   )}
-                  <form onSubmit={handleSend} className="flex gap-3 max-w-4xl mx-auto">
+                  <form onSubmit={handleSend} className="flex gap-2 items-end max-w-4xl mx-auto">
                     <input
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={supportAtLimit ? 'Límite diario alcanzado' : 'Escribe tu duda...'}
+                      placeholder={supportAtLimit ? 'Límite alcanzado hoy' : 'Mensaje'}
                       disabled={isTyping || supportAtLimit}
-                      className={`flex-1 rounded-xl px-5 py-3.5 text-base min-w-0 ${coachBg.card} border ${coachBorder} !text-[#1A0A1A] placeholder-[#6B5A6B] focus:outline-none focus:border-[#A729AD]/50 disabled:opacity-50`}
+                      className="flex-1 rounded-[24px] px-4 py-2.5 text-[15px] min-h-[44px] min-w-0 bg-white border border-black/10 !text-[#111b21] placeholder:text-[#8696a0] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#A729AD]/25 focus:border-[#A729AD]/35 disabled:opacity-50"
                     />
                     <button
                       type="submit"
                       disabled={!input.trim() || isTyping || supportAtLimit}
-                      className="w-14 h-14 shrink-0 rounded-xl bg-[#6A1F6D] hover:bg-[#7d2582] disabled:opacity-40 text-white flex items-center justify-center shadow-lg shadow-purple-900/30 active:scale-95"
+                      className="w-11 h-11 shrink-0 rounded-full bg-[#6A1F6D] hover:bg-[#7d2582] disabled:opacity-35 text-white flex items-center justify-center shadow-md active:scale-95"
                       aria-label="Enviar"
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="22" y1="2" x2="11" y2="13" />
                         <polygon points="22 2 15 22 11 13 2 9 22 2" />
                       </svg>

@@ -305,13 +305,15 @@ export default function CoachView() {
   }
 
   const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
-  const teamNotifications = Array.isArray(weekData?.team_notifications) ? weekData.team_notifications : []
-  const latestTeamNotification = [...teamNotifications]
-    .sort((a, b) => {
-      const ta = a?.created_at ? new Date(a.created_at).getTime() : 0
-      const tb = b?.created_at ? new Date(b.created_at).getTime() : 0
-      return tb - ta
-    })[0] || null
+  const handoverSummary = handoverAlerts
+    .slice(0, 3)
+    .map((r) => {
+      const day = String(r?.day_key || '').toUpperCase()
+      const cls = r?.class_label || 'Clase'
+      const who = r?.coach_name?.trim() || 'Coach'
+      return `${day} · ${cls} (${who})`
+    })
+    .join(' | ')
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -733,19 +735,6 @@ export default function CoachView() {
             </div>
           ) : null}
 
-          {latestTeamNotification ? (
-            <div
-              role="status"
-              className="flex-shrink-0 px-4 py-4 border-b border-indigo-400/50 bg-indigo-100 text-indigo-950 text-sm sm:text-base font-bold font-evo-body leading-snug"
-            >
-              <span className="font-black uppercase tracking-wide">Actualizacion de programacion:</span>{' '}
-              {latestTeamNotification.message || 'Hay cambios recientes en la semana publicada.'}{' '}
-              <span className="font-semibold opacity-80">
-                ({teamNotifications.length} aviso{teamNotifications.length === 1 ? '' : 's'})
-              </span>
-            </div>
-          ) : null}
-
           {handoverAlerts.length > 0 ? (
             <div
               role="status"
@@ -755,6 +744,12 @@ export default function CoachView() {
               {handoverAlerts.length === 1
                 ? 'Hay un aviso con cambios en sesión esta semana.'
                 : `${handoverAlerts.length} avisos con cambios esta semana.`}{' '}
+              {handoverSummary ? (
+                <span className="font-semibold">
+                  {handoverSummary}
+                  {handoverAlerts.length > 3 ? ' ...' : ''}.
+                </span>
+              ) : null}{' '}
               {mainTab === 'feedback' ? (
                 <span className="font-normal">Mira la lista «Esta semana» arriba del formulario.</span>
               ) : (

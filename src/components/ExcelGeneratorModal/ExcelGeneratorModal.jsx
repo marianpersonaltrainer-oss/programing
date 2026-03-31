@@ -131,6 +131,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [savingPublishedEdit, setSavingPublishedEdit] = useState(false)
   const [savedPublishedEdit, setSavedPublishedEdit] = useState(false)
   const [activePublishedWeek, setActivePublishedWeek] = useState(null)
+  const publishedBaselineRef = useRef(null)
   /** Texto de sesión alineado con el feedback (solo memoria del modal). */
   const sessionFingerprintsRef = useRef(new Map())
   const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
@@ -456,6 +457,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setEditSheetName(`S${weekState.week || 1}`)
       setEditingPublishedRowId(null)
       setEditingPublishedIsActive(false)
+      publishedBaselineRef.current = null
       setSavedPublishedEdit(false)
       setGenStep('')
       setStatus('previewing')
@@ -501,11 +503,39 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setErrorMsg('')
       const data = editingJson ? JSON.parse(rawJson) : { ...weekData }
       data.titulo = editTitle || data.titulo
+      const baseline = publishedBaselineRef.current
+      const changedSessionCount = (() => {
+        if (!baseline?.dias || !Array.isArray(data?.dias)) return 0
+        let changed = 0
+        for (let i = 0; i < Math.max(baseline.dias.length, data.dias.length); i += 1) {
+          const prevDia = baseline.dias[i] || {}
+          const nextDia = data.dias[i] || {}
+          for (const { key } of EVO_SESSION_CLASS_DEFS) {
+            if ((prevDia[key] ?? '') !== (nextDia[key] ?? '')) changed += 1
+          }
+        }
+        return changed
+      })()
+      if (changedSessionCount > 0) {
+        const existing = Array.isArray(data.team_notifications) ? data.team_notifications : []
+        const note = {
+          id: `edit-${Date.now()}`,
+          type: 'programming_update',
+          message:
+            changedSessionCount === 1
+              ? 'Se actualizo 1 clase en la programacion semanal.'
+              : `Se actualizaron ${changedSessionCount} clases en la programacion semanal.`,
+          created_at: new Date().toISOString(),
+          author: 'Programador',
+        }
+        data.team_notifications = [note, ...existing].slice(0, 20)
+      }
       await updatePublishedWeekData(editingPublishedRowId, data)
       saveWeekToHistory(weekState.mesocycle, weekState.week, data)
       setHistory(getHistoryForMesocycle(weekState.mesocycle))
       setWeekData(data)
       setRawJson(JSON.stringify(data, null, 2))
+      publishedBaselineRef.current = JSON.parse(JSON.stringify(data))
       setSavedPublishedEdit(true)
     } catch (err) {
       setErrorMsg('Error guardando cambios en Supabase: ' + err.message)
@@ -527,6 +557,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     sourceData.mesociclo = mesociclo || sourceData.mesociclo
     setEditingPublishedRowId(row.id || null)
     setEditingPublishedIsActive(!!row.is_active)
+    publishedBaselineRef.current = JSON.parse(JSON.stringify(sourceData))
     loadWeekDataIntoEditor(sourceData, semana, row.titulo || sourceData.titulo || '')
     onSyncWeekFromHistory?.(semana, mesociclo, sourceData.phase || null)
   }
@@ -688,6 +719,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       sourceData = JSON.parse(JSON.stringify(entry.weekDataFull))
       setEditingPublishedRowId(publishedRow?.id || null)
       setEditingPublishedIsActive(!!publishedRow?.is_active)
+      if (publishedRow?.id) {
+        publishedBaselineRef.current = JSON.parse(JSON.stringify(sourceData))
+      } else {
+        publishedBaselineRef.current = null
+      }
     } else if (publishedRow?.data && Array.isArray(publishedRow.data.dias)) {
       openPublishedRowForEdit(publishedRow, entry?.semana, mesociclo)
       return

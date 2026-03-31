@@ -132,13 +132,13 @@ export default function CoachWeekProgrammingPanel({
   return (
     <div className={`border-b ${coachBorder} ${coachBg.app} relative z-10`}>
       {weekData?.resumen && (
-        <div className={`px-6 py-6 border-b ${coachBorder} ${coachUi.card} rounded-none border-x-0 border-t-0`}>
-          <p className={`text-xs font-bold ${coachText.accent} uppercase tracking-widest mb-2`}>Orientación semanal</p>
-          <p className={`text-base font-bold leading-tight ${coachText.primary} uppercase tracking-tight`}>
+        <div className={`px-5 py-4 border-b ${coachBorder} ${coachUi.card} rounded-none border-x-0 border-t-0`}>
+          <p className={`text-[11px] font-bold ${coachText.accent} uppercase tracking-widest mb-1.5`}>Orientación semanal</p>
+          <p className={`text-sm font-bold leading-tight ${coachText.primary} uppercase tracking-tight`}>
             {weekData.resumen.estimulo} · {weekData.resumen.intensidad}
             {weekData.resumen.foco ? ` · ${weekData.resumen.foco}` : ''}
           </p>
-          <p className={`text-base mt-3 leading-relaxed ${coachText.muted}`}>{weekData.resumen.nota}</p>
+          <p className={`text-sm mt-2 leading-relaxed ${coachText.muted}`}>{weekData.resumen.nota}</p>
         </div>
       )}
 

@@ -6,6 +6,7 @@ import {
   updateSessionActivity,
   getCoachGuideSettings,
   getCoachExerciseLibrary,
+  listCoachSessionFeedbackForWeek,
 } from '../../lib/supabase.js'
 import { AI_CONFIG } from '../../constants/config.js'
 import { COACH_SUPPORT_SYSTEM_PROMPT } from '../../constants/systemPromptCoachSupport.js'
@@ -24,6 +25,7 @@ import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } fr
 import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
+import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
@@ -217,6 +219,8 @@ export default function CoachView() {
   const supportSessionContextRef = useRef(null)
   const messagesEndRef = useRef(null)
   const supportTextareaRef = useRef(null)
+  /** Feedback guardado por coaches esta semana (pase de turno mañana ↔ tarde). */
+  const [peerFeedbackWeek, setPeerFeedbackWeek] = useState([])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -271,6 +275,43 @@ export default function CoachView() {
     if (step !== 'chat') return
     setSupportUsedToday(getSupportMessagesUsedToday())
   }, [step, mainTab])
+
+  useEffect(() => {
+    if (step !== 'chat' || !activeWeekRow?.id) {
+      setPeerFeedbackWeek([])
+      return
+    }
+    let cancelled = false
+    listCoachSessionFeedbackForWeek(activeWeekRow.id)
+      .then((rows) => {
+        if (!cancelled) setPeerFeedbackWeek(Array.isArray(rows) ? rows : [])
+      })
+      .catch(() => {
+        if (!cancelled) setPeerFeedbackWeek([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [step, activeWeekRow?.id, mainTab])
+
+  async function refreshPeerFeedbackWeek() {
+    if (!activeWeekRow?.id) return
+    try {
+      const rows = await listCoachSessionFeedbackForWeek(activeWeekRow.id)
+      setPeerFeedbackWeek(Array.isArray(rows) ? rows : [])
+    } catch {
+      /* noop */
+    }
+  }
+
+  const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
+  const teamNotifications = Array.isArray(weekData?.team_notifications) ? weekData.team_notifications : []
+  const latestTeamNotification = [...teamNotifications]
+    .sort((a, b) => {
+      const ta = a?.created_at ? new Date(a.created_at).getTime() : 0
+      const tb = b?.created_at ? new Date(b.created_at).getTime() : 0
+      return tb - ta
+    })[0] || null
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -686,9 +727,45 @@ export default function CoachView() {
           {guideSettings?.active_notice?.trim() ? (
             <div
               role="status"
-              className="flex-shrink-0 px-4 py-3 border-b border-amber-300/60 bg-amber-50 text-amber-950 text-sm font-semibold text-center font-evo-body leading-snug"
+              className="flex-shrink-0 px-4 py-4 border-b border-amber-300/60 bg-amber-50 text-amber-950 text-base font-bold text-center font-evo-body leading-snug"
             >
               {guideSettings.active_notice.trim()}
+            </div>
+          ) : null}
+
+          {latestTeamNotification ? (
+            <div
+              role="status"
+              className="flex-shrink-0 px-4 py-4 border-b border-indigo-400/50 bg-indigo-100 text-indigo-950 text-sm sm:text-base font-bold font-evo-body leading-snug"
+            >
+              <span className="font-black uppercase tracking-wide">Actualizacion de programacion:</span>{' '}
+              {latestTeamNotification.message || 'Hay cambios recientes en la semana publicada.'}{' '}
+              <span className="font-semibold opacity-80">
+                ({teamNotifications.length} aviso{teamNotifications.length === 1 ? '' : 's'})
+              </span>
+            </div>
+          ) : null}
+
+          {handoverAlerts.length > 0 ? (
+            <div
+              role="status"
+              className="flex-shrink-0 px-4 py-4 border-b border-orange-400/50 bg-orange-100/95 text-sm sm:text-base font-bold font-evo-body leading-snug"
+            >
+              <span className="font-extrabold uppercase tracking-wide">Pase de turno:</span>{' '}
+              {handoverAlerts.length === 1
+                ? 'Hay un aviso con cambios en sesión esta semana.'
+                : `${handoverAlerts.length} avisos con cambios esta semana.`}{' '}
+              {mainTab === 'feedback' ? (
+                <span className="font-normal">Mira la lista «Esta semana» arriba del formulario.</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setMainTab('feedback')}
+                  className="ml-1 underline decoration-orange-900/40 font-bold hover:text-orange-900"
+                >
+                  Ver en Feedback
+                </button>
+              )}
             </div>
           ) : null}
 
@@ -852,6 +929,8 @@ export default function CoachView() {
                     coachName={coachName}
                     sessionId={sessionId}
                     weekRow={activeWeekRow}
+                    peerEntries={peerFeedbackWeek}
+                    onAfterSave={refreshPeerFeedbackWeek}
                   />
                 )}
               </main>

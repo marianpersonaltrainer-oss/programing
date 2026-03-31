@@ -225,8 +225,9 @@ export default function App() {
         <ExcelGeneratorModal
           weekState={weekState}
           onClose={() => setShowExcelModal(false)}
-          onSyncWeekFromHistory={(semana) => {
-            if (weekState.mesocycle) setMesocycle(weekState.mesocycle, semana, weekState.phase)
+          onSyncWeekFromHistory={(semana, mesociclo, phase) => {
+            const targetMeso = mesociclo || weekState.mesocycle
+            if (targetMeso) setMesocycle(targetMeso, semana, phase ?? weekState.phase)
           }}
         />
       )}

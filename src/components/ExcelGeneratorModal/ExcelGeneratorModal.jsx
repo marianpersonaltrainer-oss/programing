@@ -10,7 +10,13 @@ import {
   clearHistoryForMesocycle,
   formatHistoryAsContext,
 } from '../../hooks/useWeekHistory.js'
-import { publishWeek, getActiveWeek, getCoachExerciseLibrary } from '../../lib/supabase.js'
+import {
+  publishWeek,
+  getActiveWeek,
+  getCoachExerciseLibrary,
+  updatePublishedWeekData,
+  getPublishedWeekByMesocycleAndWeek,
+} from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import {
   buildWeekSkeleton,
@@ -117,8 +123,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [editSheetName, setEditSheetName] = useState(`S${weekState.week || 1}`)
   const [history, setHistory]         = useState([])
   const [showHistory, setShowHistory] = useState(false)
+  const [isEditingExistingWeek, setIsEditingExistingWeek] = useState(false)
   const [publishing, setPublishing]   = useState(false)
   const [published, setPublished]     = useState(false)
+  const [editingPublishedRowId, setEditingPublishedRowId] = useState(null)
+  const [editingPublishedIsActive, setEditingPublishedIsActive] = useState(false)
+  const [savingPublishedEdit, setSavingPublishedEdit] = useState(false)
+  const [savedPublishedEdit, setSavedPublishedEdit] = useState(false)
+  const [activePublishedWeek, setActivePublishedWeek] = useState(null)
   /** Texto de sesión alineado con el feedback (solo memoria del modal). */
   const sessionFingerprintsRef = useRef(new Map())
   const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
@@ -134,6 +146,58 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setHistory(getHistoryForMesocycle(weekState.mesocycle))
     }
   }, [weekState.mesocycle])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadActivePublishedWeek() {
+      try {
+        const row = await getActiveWeek()
+        if (!cancelled) setActivePublishedWeek(row || null)
+      } catch {
+        if (!cancelled) setActivePublishedWeek(null)
+      }
+    }
+    loadActivePublishedWeek()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Si la semana ya existe (publicada activa o guardada en historial local), se considera edición.
+  useEffect(() => {
+    let cancelled = false
+
+    async function detectExistingWeekMode() {
+      if (!weekState.mesocycle || !weekState.week) {
+        if (!cancelled) setIsEditingExistingWeek(false)
+        return
+      }
+
+      const hasHistoryEntry = getHistoryForMesocycle(weekState.mesocycle).some(
+        (entry) => Number(entry.semana) === Number(weekState.week),
+      )
+      if (hasHistoryEntry) {
+        if (!cancelled) setIsEditingExistingWeek(true)
+        return
+      }
+
+      try {
+        const active = await getActiveWeek()
+        const matchesActive =
+          active &&
+          active.mesociclo === weekState.mesocycle &&
+          Number(active.semana) === Number(weekState.week)
+        if (!cancelled) setIsEditingExistingWeek(!!matchesActive)
+      } catch {
+        if (!cancelled) setIsEditingExistingWeek(false)
+      }
+    }
+
+    detectExistingWeekMode()
+    return () => {
+      cancelled = true
+    }
+  }, [weekState.mesocycle, weekState.week])
 
   async function handleFileUpload(e) {
     const file = e.target.files?.[0]
@@ -264,8 +328,18 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       return
     }
 
-    setStatus('generating')
+    const contextClean = sanitizePromptTextForLLM(context).trim()
     setErrorMsg('')
+
+    if (!isEditingExistingWeek && !contextClean) {
+      setErrorMsg(
+        'Para crear una semana nueva debes cargar o pegar el Contexto de Programación Anterior. En edición de una semana existente este campo sí puede ir vacío.',
+      )
+      setStatus('error')
+      return
+    }
+
+    setStatus('generating')
 
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     try {
@@ -282,7 +356,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     const historyContext = formatHistoryAsContext(history)
     const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
-    const contextClean = sanitizePromptTextForLLM(context).trim()
     const instructionsClean = sanitizePromptTextForLLM(instructions).trim()
     const historyClean = historyContext ? sanitizePromptTextForLLM(historyContext).trim() : ''
 
@@ -381,6 +454,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setRawJson(JSON.stringify(combined, null, 2))
       setEditTitle(combined.titulo || '')
       setEditSheetName(`S${weekState.week || 1}`)
+      setEditingPublishedRowId(null)
+      setEditingPublishedIsActive(false)
+      setSavedPublishedEdit(false)
       setGenStep('')
       setStatus('previewing')
     } catch (err) {
@@ -404,10 +480,62 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     }
   }
 
+  function loadWeekDataIntoEditor(data, semana, fallbackTitle = '') {
+    sessionFingerprintsRef.current = buildSessionFingerprintMap(data)
+    setStaleFeedbackKeys(new Set())
+    setWeekData(data)
+    setRawJson(JSON.stringify(data, null, 2))
+    setEditTitle(data.titulo || fallbackTitle || '')
+    setEditSheetName(`S${semana}`)
+    setPublished(false)
+    setSavedPublishedEdit(false)
+    setPreviewTab('editar')
+    setEditingJson(false)
+    setStatus('previewing')
+  }
+
+  async function handleSavePublishedEdit() {
+    if (!editingPublishedRowId || !weekData) return
+    try {
+      setSavingPublishedEdit(true)
+      setErrorMsg('')
+      const data = editingJson ? JSON.parse(rawJson) : { ...weekData }
+      data.titulo = editTitle || data.titulo
+      await updatePublishedWeekData(editingPublishedRowId, data)
+      saveWeekToHistory(weekState.mesocycle, weekState.week, data)
+      setHistory(getHistoryForMesocycle(weekState.mesocycle))
+      setWeekData(data)
+      setRawJson(JSON.stringify(data, null, 2))
+      setSavedPublishedEdit(true)
+    } catch (err) {
+      setErrorMsg('Error guardando cambios en Supabase: ' + err.message)
+    } finally {
+      setSavingPublishedEdit(false)
+    }
+  }
+
+  function openPublishedRowForEdit(row, fallbackSemana = null, fallbackMeso = null) {
+    if (!row?.data || !Array.isArray(row.data.dias)) {
+      setErrorMsg('La semana publicada no tiene JSON editable válido en Supabase.')
+      setStatus((s) => (s === 'previewing' ? 'previewing' : 'error'))
+      return
+    }
+    const semana = Number(row.semana) || Number(fallbackSemana) || 1
+    const mesociclo = row.mesociclo || fallbackMeso || weekState.mesocycle || null
+    const sourceData = JSON.parse(JSON.stringify(row.data))
+    sourceData.semana = semana
+    sourceData.mesociclo = mesociclo || sourceData.mesociclo
+    setEditingPublishedRowId(row.id || null)
+    setEditingPublishedIsActive(!!row.is_active)
+    loadWeekDataIntoEditor(sourceData, semana, row.titulo || sourceData.titulo || '')
+    onSyncWeekFromHistory?.(semana, mesociclo, sourceData.phase || null)
+  }
+
   function updateWeekData(updater) {
     setWeekData((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       setRawJson(JSON.stringify(next, null, 2))
+      if (editingPublishedRowId) setSavedPublishedEdit(false)
       return next
     })
   }
@@ -529,29 +657,54 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     if (id !== 'json') setErrorMsg('')
   }
 
-  function openHistoryEntryForEdit(entry) {
-    if (!entry?.weekDataFull || !Array.isArray(entry.weekDataFull.dias)) {
+  async function openHistoryEntryForEdit(entry) {
+    setErrorMsg('')
+    const mesociclo = weekState.mesocycle
+    let publishedRow = null
+    try {
+      if (mesociclo) {
+        publishedRow = await getPublishedWeekByMesocycleAndWeek(mesociclo, entry?.semana)
+      }
+    } catch {
+      publishedRow = null
+    }
+    if (!publishedRow) {
+      try {
+        const active = await getActiveWeek()
+        if (
+          active &&
+          active.mesociclo === mesociclo &&
+          Number(active.semana) === Number(entry?.semana)
+        ) {
+          publishedRow = active
+        }
+      } catch {
+        /* noop */
+      }
+    }
+
+    let sourceData = null
+    if (entry?.weekDataFull && Array.isArray(entry.weekDataFull.dias)) {
+      sourceData = JSON.parse(JSON.stringify(entry.weekDataFull))
+      setEditingPublishedRowId(publishedRow?.id || null)
+      setEditingPublishedIsActive(!!publishedRow?.is_active)
+    } else if (publishedRow?.data && Array.isArray(publishedRow.data.dias)) {
+      openPublishedRowForEdit(publishedRow, entry?.semana, mesociclo)
+      return
+    }
+
+    if (!sourceData) {
       setErrorMsg(
-        'Esta entrada del historial no guarda el JSON completo (es anterior a la actualización). Genera la semana de nuevo y descarga Excel una vez para guardar una copia editable.',
+        'No hay JSON editable en historial ni en Supabase para esta semana. Si esta semana es la activa, prueba refrescar y volver a abrir el modal.',
       )
       setStatus((s) => (s === 'previewing' ? 'previewing' : 'error'))
       return
     }
-    setErrorMsg('')
-    const data = JSON.parse(JSON.stringify(entry.weekDataFull))
-    data.semana = entry.semana
-    data.mesociclo = weekState.mesocycle || data.mesociclo
-    sessionFingerprintsRef.current = buildSessionFingerprintMap(data)
-    setStaleFeedbackKeys(new Set())
-    setWeekData(data)
-    setRawJson(JSON.stringify(data, null, 2))
-    setEditTitle(data.titulo || entry.titulo || '')
-    setEditSheetName(`S${entry.semana}`)
-    setPublished(false)
-    setPreviewTab('editar')
-    setEditingJson(false)
-    setStatus('previewing')
-    onSyncWeekFromHistory?.(entry.semana)
+
+    sourceData.semana = entry.semana
+    sourceData.mesociclo = mesociclo || sourceData.mesociclo
+    loadWeekDataIntoEditor(sourceData, entry.semana, entry.titulo || publishedRow?.titulo || '')
+    onSyncWeekFromHistory?.(entry.semana, sourceData.mesociclo || mesociclo, sourceData.phase || null)
   }
 
   async function handleDownload() {
@@ -607,6 +760,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold text-evo-text uppercase tracking-wider">
                     Contexto de Programación Anterior
+                    <span className="ml-1 text-[9px] text-evo-muted">
+                      {isEditingExistingWeek ? '(opcional en edición)' : '(obligatorio en semana nueva)'}
+                    </span>
                   </label>
                   <div className="flex items-center gap-2">
                     {fileName && (
@@ -657,6 +813,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </div>
                 <p className="text-[10px] text-evo-muted mb-1 font-medium leading-relaxed">
                   Sube archivos (.docx, .xlsx, .txt) o pega la programación previa en texto plano.
+                  {isEditingExistingWeek ? (
+                    <span className="block mt-1 text-[9px] opacity-90">
+                      Modo edición detectado: puedes dejar este campo vacío para ajustar sesiones sin regenerar toda la semana.
+                    </span>
+                  ) : (
+                    <span className="block mt-1 text-[9px] opacity-90">
+                      Semana nueva: este contexto es obligatorio para mantener continuidad metodológica.
+                    </span>
+                  )}
                   <span className="block mt-1 text-[9px] opacity-90">
                     Si al generar ves errores de JSON, un .xlsx muy grande o con caracteres raros puede confundir al modelo: usa un resumen corto pegado aquí o quita el adjunto con «Quitar adjunto».
                   </span>
@@ -745,6 +910,29 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </div>
               )}
 
+              {!weekState.mesocycle && activePublishedWeek?.data && (
+                <div className="border border-indigo-200 rounded-2xl bg-indigo-50/60 px-5 py-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-800">
+                      Semana activa en Supabase detectada
+                    </p>
+                    <p className="text-[10px] text-indigo-900 font-semibold mt-1">
+                      {activePublishedWeek.mesociclo || '—'} · S{activePublishedWeek.semana || '—'} · {activePublishedWeek.titulo || 'Sin título'}
+                    </p>
+                    <p className="text-[9px] text-indigo-700/90 mt-1">
+                      Puedes abrirla y editarla sin configurar mesociclo en el panel izquierdo.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openPublishedRowForEdit(activePublishedWeek)}
+                    className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border border-indigo-300 bg-white text-indigo-800 hover:bg-indigo-100 transition-all"
+                  >
+                    Editar activa
+                  </button>
+                </div>
+              )}
+
               {/* Historial del mesociclo */}
               {history.length > 0 && (
                 <div className="border border-black/5 rounded-2xl overflow-hidden shadow-soft bg-white">
@@ -774,7 +962,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                 {new Date(entry.savedAt).toLocaleDateString()}
                                 {!entry.weekDataFull && (
                                   <span className="block text-amber-700 font-bold mt-0.5">
-                                    Sin JSON completo — no editable hasta volver a generar y exportar
+                                    Sin JSON local — intenta «Editar» (carga Supabase si existe)
                                   </span>
                                 )}
                               </p>
@@ -866,6 +1054,20 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Listo para Exportar</p>
                 </div>
               </div>
+              {editingPublishedRowId && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                  editingPublishedIsActive
+                    ? 'bg-indigo-50 border-indigo-100'
+                    : 'bg-amber-50 border-amber-100'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${editingPublishedIsActive ? 'bg-indigo-500' : 'bg-amber-500'}`} />
+                  <p className={`text-[10px] font-bold uppercase tracking-widest ${
+                    editingPublishedIsActive ? 'text-indigo-700' : 'text-amber-800'
+                  }`}>
+                    {editingPublishedIsActive ? 'Editando semana publicada activa' : 'Editando semana publicada'}
+                  </p>
+                </div>
+              )}
 
               {history.length > 0 && (
                 <details className="rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-2">
@@ -878,7 +1080,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         <div className="min-w-0">
                           <p className="text-[10px] font-bold text-evo-text uppercase">S{entry.semana} — {entry.titulo || 'Sin título'}</p>
                           {!entry.weekDataFull && (
-                            <p className="text-[9px] text-amber-800 font-medium mt-0.5">Sin JSON completo</p>
+                            <p className="text-[9px] text-amber-800 font-medium mt-0.5">Sin JSON local (se intenta Supabase)</p>
                           )}
                         </div>
                         <div className="flex gap-1 shrink-0">
@@ -1252,6 +1454,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             )}
             {status === 'previewing' && (
               <>
+                {editingPublishedRowId && (
+                  <button
+                    onClick={handleSavePublishedEdit}
+                    disabled={savingPublishedEdit}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 text-indigo-700 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                  >
+                    {savedPublishedEdit ? '✓ Cambios guardados' : savingPublishedEdit ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                )}
                 <button
                   onClick={handlePublish}
                   disabled={publishing || published}

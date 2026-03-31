@@ -62,6 +62,22 @@ export async function updatePublishedWeekData(rowId, weekData) {
   if (error) throw error
 }
 
+/** Devuelve la última fila publicada para (mesociclo, semana), activa o no. */
+export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
+  if (!mesociclo || semana == null) return null
+  const { data, error } = await supabase
+    .from('published_weeks')
+    .select('id, mesociclo, semana, titulo, data, is_active, published_at')
+    .eq('mesociclo', mesociclo)
+    .eq('semana', semana)
+    .order('published_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data || null
+}
+
 // ── Sesiones coach ────────────────────────────────────────────────────────────
 
 export async function createCoachSession(weekId, coachName) {
@@ -156,6 +172,29 @@ export async function listCoachSessionFeedback() {
     .order('created_at', { ascending: false })
 
   if (error) throw error
+  return data || []
+}
+
+/** Feedback de coaches filtrado por semana publicada (pase de turno mañana ↔ tarde). */
+export async function listCoachSessionFeedbackForWeek(weekId) {
+  if (weekId == null) return []
+  const { data, error } = await supabase
+    .from('coach_session_feedback')
+    .select('*')
+    .eq('week_id', weekId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    console.warn('listCoachSessionFeedbackForWeek failed', {
+      weekId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+    return []
+  }
   return data || []
 }
 

@@ -28,7 +28,7 @@ import {
 } from '../../utils/excelGenerationPlan.js'
 import { buildWeekWodBusterPaste } from '../../utils/formatWodBusterPaste.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
-import { AI_CONFIG } from '../../constants/config.js'
+import { AI_CONFIG, PROGRAMMING_MODEL, SUPPORT_MODEL } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
@@ -241,12 +241,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
   /**
    * Una llamada API = un POST. Una semana completa usa callApi dos veces (L–Mi y J–Sa).
-   * Modelo: sonnet (`AI_CONFIG.model`), max_tokens: `AI_CONFIG.maxTokens`.
+   * Modelo: PROGRAMMING_MODEL (Sonnet u homólogo), max_tokens: `AI_CONFIG.maxTokens`.
    */
   async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, retries = 3) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
-        model: AI_CONFIG.model,
+        model: PROGRAMMING_MODEL,
         max_tokens: AI_CONFIG.maxTokens,
         system: systemFull,
         messages: [{ role: 'user', content: userMessage }],
@@ -621,7 +621,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: AI_CONFIG.supportModel,
+            model: SUPPORT_MODEL,
             max_tokens: AI_CONFIG.feedbackRegenerateMaxTokens,
             system: SYSTEM_PROMPT_REGENERATE_FEEDBACK,
             messages: [{ role: 'user', content: userMsg }],

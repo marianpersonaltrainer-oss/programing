@@ -8,8 +8,10 @@ import {
   getCoachExerciseLibrary,
   listCoachSessionFeedbackForWeek,
 } from '../../lib/supabase.js'
-import { AI_CONFIG } from '../../constants/config.js'
-import { COACH_SUPPORT_SYSTEM_PROMPT } from '../../constants/systemPromptCoachSupport.js'
+import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
+import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
+import { buildSupportCacheKey, getSupportCachedReply, setSupportCachedReply, supportSlug } from '../../utils/coachSupportCache.js'
+import { matchCoachSupportFaq } from '../../utils/matchCoachSupportFaq.js'
 import CoachWeekProgrammingPanel from './CoachWeekProgrammingPanel.jsx'
 import CoachExerciseLibraryPanel from './CoachExerciseLibraryPanel.jsx'
 import CoachSessionFeedbackForm from './CoachSessionFeedbackForm.jsx'
@@ -217,6 +219,7 @@ export default function CoachView() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [supportSessionContext, setSupportSessionContext] = useState(null)
   const supportSessionContextRef = useRef(null)
+  const supportInFlightAbortRef = useRef(null)
   const messagesEndRef = useRef(null)
   const supportTextareaRef = useRef(null)
   /** Feedback guardado por coaches esta semana (pase de turno mañana ↔ tarde). */
@@ -229,7 +232,10 @@ export default function CoachView() {
   }, [messages, isTyping, mainTab])
 
   useEffect(() => {
-    if (mainTab !== 'soporte') return
+    if (mainTab !== 'soporte') {
+      supportInFlightAbortRef.current?.abort()
+      return
+    }
     const el = supportTextareaRef.current
     if (!el) return
     el.style.height = 'auto'
@@ -471,7 +477,6 @@ export default function CoachView() {
     const userMsg = input.trim()
     setInput('')
     setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
-    setIsTyping(true)
     setError('')
 
     try {
@@ -480,47 +485,82 @@ export default function CoachView() {
     } catch {
       setMessages((prev) => prev.slice(0, -1))
       setInput(userMsg)
-      setIsTyping(false)
       setError('No se pudo guardar el mensaje. Inténtalo de nuevo.')
       return
     }
 
-    const usedAfter = incrementSupportMessagesUsed()
-    setSupportUsedToday(usedAfter)
+    const inferredContext = inferSupportContextFromMessage(userMsg, weekData)
+    const activeSupportContext = supportSessionContextRef.current || supportSessionContext || inferredContext
+    const daySlug = supportSlug(activeSupportContext?.dayName || '')
+    const classSlug = supportSlug(activeSupportContext?.classLabel || '')
+    const qNorm = normalizeText(userMsg).replace(/\s+/g, ' ').trim()
+
+    const faqHit = matchCoachSupportFaq(qNorm)
+    if (faqHit) {
+      const reply = `Respuesta estándar · Sin IA\n\n${faqHit.answer}`
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+      try {
+        await saveMessage(sessionId, 'assistant', reply)
+      } catch {
+        /* noop */
+      }
+      return
+    }
+
+    const weekId = String(activeWeekRow?.id ?? 'no-week')
+    const cacheKey = buildSupportCacheKey(weekId, daySlug, classSlug, qNorm)
+    const cached = getSupportCachedReply(cacheKey)
+    if (cached) {
+      setMessages((prev) => [...prev, { role: 'assistant', content: cached }])
+      try {
+        await saveMessage(sessionId, 'assistant', cached)
+      } catch {
+        /* noop */
+      }
+      return
+    }
+
+    setIsTyping(true)
+
+    const supportContextBlock = activeSupportContext
+      ? [
+          'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
+          `Dia: ${activeSupportContext.dayName || '—'}`,
+          `Clase: ${activeSupportContext.classLabel || '—'}`,
+          `Sesion completa:`,
+          `${activeSupportContext.sessionText || '(sin texto)'}`,
+          '',
+          'REGLA: usa este contexto como verdad de la sesion y no pidas al coach que pegue la sesion.',
+        ].join('\n')
+      : ''
+
+    const hasSession = Boolean(supportContextBlock)
+    const systemCore = buildCoachSupportSystemPrompt(hasSession)
+    const systemPrompt = supportContextBlock ? `${supportContextBlock}\n\n${systemCore}` : systemCore
+
+    supportInFlightAbortRef.current?.abort()
+    const ac = new AbortController()
+    supportInFlightAbortRef.current = ac
 
     try {
       const history = [...messages, { role: 'user', content: userMsg }]
-      const inferredContext = inferSupportContextFromMessage(userMsg, weekData)
-      const activeSupportContext = supportSessionContextRef.current || supportSessionContext || inferredContext
-      const supportContextBlock = activeSupportContext
-        ? [
-            'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
-            `Dia: ${activeSupportContext.dayName || '—'}`,
-            `Clase: ${activeSupportContext.classLabel || '—'}`,
-            `Sesion completa:`,
-            `${activeSupportContext.sessionText || '(sin texto)'}`,
-            '',
-            'REGLA: usa este contexto como verdad de la sesion y no pidas al coach que pegue la sesion.',
-          ].join('\n')
-        : ''
-      const systemPrompt = supportContextBlock
-        ? `${supportContextBlock}\n\n${COACH_SUPPORT_SYSTEM_PROMPT}`
-        : COACH_SUPPORT_SYSTEM_PROMPT
       let response
       try {
         response = await fetch('/api/anthropic', {
           method: 'POST',
+          signal: ac.signal,
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: AI_CONFIG.supportModel,
+            model: SUPPORT_MODEL,
             max_tokens: AI_CONFIG.coachMaxTokens,
             system: systemPrompt,
             messages: history.map((m) => ({ role: m.role, content: m.content })),
           }),
         })
       } catch (e) {
+        if (e?.name === 'AbortError') return
         setError(explainAnthropicFetchFailure(e))
         return
       }
@@ -531,11 +571,16 @@ export default function CoachView() {
         return
       }
       const reply = data.content?.[0]?.text || 'Sin respuesta'
+      setSupportCachedReply(cacheKey, reply)
+      const usedAfter = incrementSupportMessagesUsed()
+      setSupportUsedToday(usedAfter)
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
       await saveMessage(sessionId, 'assistant', reply)
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return
       setError('Error al contactar con el asistente')
     } finally {
+      if (supportInFlightAbortRef.current === ac) supportInFlightAbortRef.current = null
       setIsTyping(false)
     }
   }

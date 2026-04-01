@@ -1,13 +1,13 @@
 /**
  * Agente de chat del dashboard (Marian): programación por días con SYSTEM_PROMPT.
  * Una llamada a `/api/anthropic` por cada mensaje del usuario (historial completo en `messages`).
- * Modelo: sonnet — misma ruta que ExcelGeneratorModal; ver `API_COSTS.md`.
+ * Modelo: PROGRAMMING_MODEL — misma ruta que ExcelGeneratorModal; ver `API_COSTS.md`.
  */
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
 import { buildWeekContextMessage } from '../utils/buildWeekContext.js'
 import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
-import { AI_CONFIG } from '../constants/config.js'
+import { AI_CONFIG, PROGRAMMING_MODEL } from '../constants/config.js'
 import { getCoachExerciseLibrary } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
@@ -70,7 +70,7 @@ export function useAgent(weekState) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: AI_CONFIG.model,
+            model: PROGRAMMING_MODEL,
             max_tokens: AI_CONFIG.maxTokens,
             system: systemWithContext,
             messages: newMessages,

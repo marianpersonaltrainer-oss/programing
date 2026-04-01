@@ -1,0 +1,77 @@
+[
+  {
+    "id": "amrap",
+    "keywords": ["amrap", "as many round", "as many rep", "cuantas rondas", "maximo de rondas"],
+    "answer": "AMRAP = «as many rounds/reps as possible» en el tiempo dado. El grupo hace el mayor número de rondas completas (o repeticiones del circuito) sin pasarse del cronómetro. El coach marca el tiempo y cuenta solo rondas completas salvo que el WOD diga explícitamente reps parciales."
+  },
+  {
+    "id": "for_time",
+    "keywords": ["for time", "a tiempo", "chipper", "time cap", "timecap", "contrarreloj"],
+    "answer": "For time = completar el trabajo lo antes posible (o antes del time cap si hay TC). Chipper = lista larga a completar en orden, normalmente for time. Si hay TC y no terminan, anotan donde llegaron y bajan carga o simplifican en la próxima clase."
+  },
+  {
+    "id": "emom",
+    "keywords": ["emom", "e2mom", "e3mom", "every minute", "cada minuto"],
+    "answer": "EMOM = al inicio de cada minuto haces el trabajo indicado; lo que sobra del minuto es descanso. E2MOM/E3MOM = cada 2 o 3 minutos en lugar de cada 1. El coach debe dejar claro cuándo empieza el reloj y qué pasa si no acaban el bloque en ese minuto (acortar reps o bajar carga)."
+  },
+  {
+    "id": "tabata",
+    "keywords": ["tabata", "20/10", "20 10"],
+    "answer": "Tabata clásico: 8 rondas de 20 s trabajo / 10 s descanso (4 min total por movimiento). En EVO úsalo con movimientos seguros a fatiga; si el grupo está muy heterogéneo, baja intensidad o reduce rondas."
+  },
+  {
+    "id": "rir",
+    "keywords": ["rir", "reps en reserva", "repeticiones en reserva"],
+    "answer": "RIR = repeticiones que te quedarían antes del fallo (0 = al límite, 1–2 = una o dos reps más posibles con buena técnica). En EvoFuerza encaja con progresión por series; en clases mixtas explica en lenguaje simple: «últimas reps duras pero sin perder forma»."
+  },
+  {
+    "id": "wall_ball_escala",
+    "keywords": ["wall ball", "wallball", "medicine ball"],
+    "answer": "Escalado wall ball: bajar altura del target (marcar target más bajo en pared), bajar peso de balón (6→4 kg según stock), o reducir reps por ronda. Alternativa de patrón: thruster ligero con balón o air squat + press con balón si coordinación falla."
+  },
+  {
+    "id": "kb_swing_escala",
+    "keywords": ["kb swing", "kettlebell swing", "swing ruso", "swing americano"],
+    "answer": "Escalado: peso más ligero, menos reps, o versión ruso en lugar de americano si fatiga de agarre. Si la bisagra no sale: deadlift con KB + plank o KB RDL hasta que mejore el patrón."
+  },
+  {
+    "id": "burpee_escala",
+    "keywords": ["burpee", "burpees"],
+    "answer": "Escalado: step-back en lugar de salto, sin flexión (squat thrust), manos en caja, o reducir volumen total. En embarazo o lesión de muñeca: versión inclinada en banco o sin apoyo de manos en suelo."
+  },
+  {
+    "id": "thruster_escala",
+    "keywords": ["thruster", "thrusters"],
+    "answer": "Escalado: mancuernas más ligeras, barra vacía o técnica front squat + push press por separado si el ciclo completo rompe la espalda. En EvoFit prioriza DB thruster; en Funcional respeta % de programación pero baja si técnica falla."
+  },
+  {
+    "id": "peso_principiante",
+    "keywords": ["principiante", "nuevo", "nunca ha hecho", "primer dia", "primer día", "no sabe"],
+    "answer": "Orientación: barra vacía o PVC en técnica; mancuernas 4–8 kg según movimiento; KB 8–12 kg en swings para hombre adulto medio, 6–8 kg mujer como punto de partida (ajusta por forma). Mejor pocas reps bien que muchas mal; sube carga solo si las últimas reps siguen limpias."
+  },
+  {
+    "id": "peso_intermedio",
+    "keywords": ["intermedio", "lleva tiempo", "ya domina"],
+    "answer": "Orientación intermedia: en trabajo de fuerza suele ir 60–75 % del aproximado al RM si la sesión lo pide; en WOD prioriza completar dentro del estímulo (hablar con dificultad al final del set). Si el programa marca @ligero/@medio/@pesado, usa esas etiquetas como ancla antes de inventar kg."
+  },
+  {
+    "id": "ring_row_pull",
+    "keywords": ["ring row", "remo en anillas", "dominada", "pull up", "pull-up"],
+    "answer": "En EVO, en EvoFit si no hay dominada se usa ring row u otra tirón horizontal del día; no gomas en dominadas. Ajusta el cuerpo más vertical u horizontal para igualar dificultad; orientativo 5 dominadas ≈ 8–10 ring rows con buen ángulo."
+  },
+  {
+    "id": "box_jump_escala",
+    "keywords": ["box jump", "salto caja", "step up", "step-up"],
+    "answer": "Escalado: bajar altura de caja, step-up controlado sin salto, o saltos sin encajonamiento (salto al suelo y subida un pie). Miedo o lesión de rodilla: elimina impacto y usa solo step-up o caja baja."
+  },
+  {
+    "id": "doble_under",
+    "keywords": ["doble under", "double under", "comba", "saltos comba"],
+    "answer": "Escalado: saltos simples x2 o x3 reps por cada doble, toques laterales, o saltos sin cuerda marcando el ritmo. En clase mixta da un techo de tiempo en «intentos» de doble y luego versión escalada para que nadie se quede parado."
+  },
+  {
+    "id": "landmine",
+    "keywords": ["landmine", "land mine"],
+    "answer": "Landmine en EVO: presente en Funcional, Basics y Fit con variantes (press, row, RDL, etc.). No es formato típico de Hybrix. Si falta el accesorio: sustituye por movimiento del mismo patrón (empuje inclinado con mancuerna, RDL con KB, etc.) manteniendo el estímulo."
+  }
+]

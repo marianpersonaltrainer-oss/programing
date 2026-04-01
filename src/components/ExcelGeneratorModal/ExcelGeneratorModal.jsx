@@ -102,6 +102,19 @@ function stripCodeFences(text) {
   return t.trim()
 }
 
+const REAL_PROGRAMMING_CONTEXT_PATH = '/context/evo-programacion-real.txt'
+
+async function loadRealProgrammingContextForGenerator() {
+  try {
+    const res = await fetch(REAL_PROGRAMMING_CONTEXT_PATH, { cache: 'no-store' })
+    if (!res.ok) return ''
+    const raw = await res.text()
+    return sanitizePromptTextForLLM(raw).trim()
+  } catch {
+    return ''
+  }
+}
+
 export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFromHistory }) {
   const [context, setContext]           = useState('')
   const [instructions, setInstructions]       = useState('')
@@ -350,18 +363,26 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       /* sin biblioteca: generación igual */
     }
 
+    const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
+    if (methodText) {
+      systemExcelFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
+    }
+
+    const realProgrammingExamples = await loadRealProgrammingContextForGenerator()
+    if (realProgrammingExamples) {
+      systemExcelFull += `\n\nEJEMPLOS REALES DE ESTILO EVO — leer antes de programar:\n${realProgrammingExamples}`
+    }
+
     const mesoInfo = weekState.mesocycle
       ? `Mesociclo: ${weekState.mesocycle} | Semana: ${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` | Fase: ${weekState.phase}` : ''}`
       : 'Mesociclo no configurado'
 
     const historyContext = formatHistoryAsContext(history)
-    const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
     const instructionsClean = sanitizePromptTextForLLM(instructions).trim()
     const historyClean = historyContext ? sanitizePromptTextForLLM(historyContext).trim() : ''
 
     const baseContext = [
       mesoInfo,
-      methodText ? `MÉTODO Y REGLAS PERMANENTES DE EVO:\n${methodText}` : '',
       historyClean ? `HISTORIAL DE SEMANAS ANTERIORES (mismo mesociclo):\n${historyClean}` : '',
       contextClean ? `CONTEXTO ADICIONAL SUBIDO:\n${contextClean}` : '',
       instructionsClean ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA:\n${instructionsClean}` : '',

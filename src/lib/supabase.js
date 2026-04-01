@@ -198,6 +198,32 @@ export async function listCoachSessionFeedbackForWeek(weekId) {
   return data || []
 }
 
+/** ¿Este coach ya pulsó «Leído» en el pase de turno para esta semana? (RPC, persiste en Supabase). */
+export async function coachHasReadHandoverForWeek(weekId, coachName) {
+  if (weekId == null || !String(coachName || '').trim()) return false
+  const { data, error } = await supabase.rpc('coach_has_read_handover', {
+    p_week_id: weekId,
+    p_coach_name: String(coachName).trim(),
+  })
+  if (error) {
+    console.warn('coachHasReadHandoverForWeek', error.message)
+    return false
+  }
+  return !!data
+}
+
+/** Marca el pase de turno como leído para coach + semana (tabla coach_handover_reads). */
+export async function recordCoachHandoverRead(weekId, coachName) {
+  if (weekId == null || !String(coachName || '').trim()) {
+    throw new Error('Falta semana o nombre de coach')
+  }
+  const { error } = await supabase.rpc('record_coach_handover_read', {
+    p_week_id: weekId,
+    p_coach_name: String(coachName).trim(),
+  })
+  if (error) throw error
+}
+
 // ── Biblioteca de ejercicios EVO (coach_exercise_library) ─────────────────────
 
 /** Ejercicios activos para ?coach (lectura pública RLS). Incluye video_url si existe. */

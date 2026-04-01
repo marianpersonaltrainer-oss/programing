@@ -7,6 +7,8 @@ import {
   getCoachGuideSettings,
   getCoachExerciseLibrary,
   listCoachSessionFeedbackForWeek,
+  coachHasReadHandoverForWeek,
+  recordCoachHandoverRead,
 } from '../../lib/supabase.js'
 import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
@@ -146,10 +148,6 @@ const GUIDE_CENTRE_IDS = ['centro', 'clases', 'uso']
 const BOTTOM_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios']
 const MORE_DRAWER_IDS = ['mesociclos', 'material', ...GUIDE_CENTRE_IDS]
 
-function handoverModalStorageKey(sessionId) {
-  return `coach_handover_modal_${sessionId}`
-}
-
 const SUPPORT_DAILY_LIMIT = 10
 const SUPPORT_LIMIT_MESSAGE =
   'Has alcanzado el límite de 10 consultas diarias. El contador se reinicia cada día a las 00:00.'
@@ -242,7 +240,8 @@ export default function CoachView() {
   const [supportUsedToday, setSupportUsedToday] = useState(0)
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false)
   const [guideCentreOpen, setGuideCentreOpen] = useState(false)
-  const [handoverDismissed, setHandoverDismissed] = useState(false)
+  /** null = comprobando en Supabase; false = pendiente de «Leído»; true = ya registrado para esta semana */
+  const [handoverReadForWeek, setHandoverReadForWeek] = useState(null)
   const [moreGuideOpen, setMoreGuideOpen] = useState(false)
   const [supportSessionContext, setSupportSessionContext] = useState(null)
   const supportSessionContextRef = useRef(null)
@@ -261,7 +260,7 @@ export default function CoachView() {
 
   useEffect(() => {
     handoverToastFiredRef.current = false
-  }, [sessionId])
+  }, [activeWeekRow?.id])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -349,16 +348,23 @@ export default function CoachView() {
   }, [activeWeekRow?.id, activeWeekRow?.mesociclo, activeWeekRow?.semana, peerFeedbackWeek])
 
   useEffect(() => {
-    if (!sessionId) {
-      setHandoverDismissed(false)
+    if (step !== 'chat' || !activeWeekRow?.id || !coachName?.trim()) {
+      setHandoverReadForWeek(null)
       return
     }
-    try {
-      setHandoverDismissed(!!localStorage.getItem(handoverModalStorageKey(sessionId)))
-    } catch {
-      setHandoverDismissed(false)
+    let cancelled = false
+    setHandoverReadForWeek(null)
+    coachHasReadHandoverForWeek(activeWeekRow.id, coachName.trim())
+      .then((read) => {
+        if (!cancelled) setHandoverReadForWeek(!!read)
+      })
+      .catch(() => {
+        if (!cancelled) setHandoverReadForWeek(false)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [sessionId])
+  }, [step, activeWeekRow?.id, coachName])
 
   useEffect(() => {
     if (step !== 'chat') return
@@ -376,7 +382,7 @@ export default function CoachView() {
   }, [step, guideSettings?.active_notice, pushCoachToast])
 
   useEffect(() => {
-    if (step !== 'chat' || !sessionId || handoverDismissed) return
+    if (step !== 'chat' || handoverReadForWeek !== false) return
     if (handoverToastFiredRef.current) return
     const alerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
     if (!alerts.length) return
@@ -387,20 +393,25 @@ export default function CoachView() {
     })
     const n = alerts.length
     const body = `${n} ${n === 1 ? 'cambio' : 'cambios'} esta semana — ${parts.join(' · ')}`
+    const wid = activeWeekRow?.id
+    const name = coachName?.trim()
     pushCoachToast({
       id: 'coach-handover',
-      title: 'Pase de turno',
+      variant: 'handover',
+      title: 'Pase de turno — acción requerida',
       body,
-      onDismiss: () => {
-        try {
-          if (sessionId) localStorage.setItem(handoverModalStorageKey(sessionId), '1')
-        } catch {
-          /* noop */
-        }
-        setHandoverDismissed(true)
+      onConfirmRead: async () => {
+        if (wid == null || !name) throw new Error('Falta semana o nombre')
+        await recordCoachHandoverRead(wid, name)
+        setHandoverReadForWeek(true)
       },
+      onDismiss: () => {},
     })
-  }, [step, sessionId, handoverDismissed, peerFeedbackWeek, pushCoachToast])
+  }, [step, handoverReadForWeek, peerFeedbackWeek, pushCoachToast, activeWeekRow?.id, coachName])
+
+  useEffect(() => {
+    if (handoverReadForWeek === true) dismissCoachToast('coach-handover')
+  }, [handoverReadForWeek, dismissCoachToast])
 
   useEffect(() => {
     if (step !== 'chat' || !activeWeekRow?.id) return
@@ -513,7 +524,8 @@ export default function CoachView() {
   }
 
   const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
-  const handoverBadgeCount = !handoverDismissed ? handoverAlerts.length : 0
+  const handoverBadgeCount =
+    handoverReadForWeek === false && handoverAlerts.length > 0 ? handoverAlerts.length : 0
 
   async function handleCodeSubmit(e) {
     e.preventDefault()

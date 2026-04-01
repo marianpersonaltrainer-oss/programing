@@ -3,7 +3,9 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 const TOAST_MS = 5000
 
 /**
- * Toasts apilados abajo-derecha (CSS puro). Cada ítem: { id, title?, body, actionLabel?, onAction?, onDismiss }
+ * Toasts apilados abajo-derecha (CSS puro).
+ * Ítem: { id, title?, body, variant?, actionLabel?, onAction?, onDismiss?, onConfirmRead? }
+ * - variant 'handover': sin auto-cierre, sin toque en la tarjeta; solo botón «Leído ✓» (onConfirmRead opcional async).
  */
 export default function CoachToastStack({ items = [], onDismissItem }) {
   return (
@@ -19,12 +21,15 @@ export default function CoachToastStack({ items = [], onDismissItem }) {
 }
 
 function CoachToast({ item, onDismiss }) {
-  const { title, body, actionLabel, onAction } = item
+  const { title, body, actionLabel, onAction, variant } = item
+  const isHandover = variant === 'handover'
   const timerRef = useRef(null)
   const onDismissRef = useRef(onDismiss)
   onDismissRef.current = onDismiss
   const itemRef = useRef(item)
   itemRef.current = item
+  const [confirming, setConfirming] = useState(false)
+  const [confirmError, setConfirmError] = useState('')
 
   const close = useCallback(() => {
     if (timerRef.current) {
@@ -36,11 +41,71 @@ function CoachToast({ item, onDismiss }) {
   }, [])
 
   useEffect(() => {
+    if (isHandover) return
     timerRef.current = window.setTimeout(close, TOAST_MS)
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [close])
+  }, [close, isHandover])
+
+  async function handleHandoverRead() {
+    const fn = itemRef.current?.onConfirmRead
+    if (!fn) {
+      close()
+      return
+    }
+    setConfirmError('')
+    setConfirming(true)
+    try {
+      await fn()
+      close()
+    } catch (e) {
+      setConfirmError(e?.message || 'No se pudo guardar. Revisa conexión.')
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  if (isHandover) {
+    return (
+      <div
+        role="alert"
+        className="pointer-events-auto text-left rounded-xl border-2 border-white/25 bg-gradient-to-br from-orange-600 via-orange-700 to-red-950 shadow-xl shadow-black/35 px-4 py-4 animate-[coachToastIn_0.28s_ease-out] ring-2 ring-orange-400/40"
+      >
+        <div className="flex gap-3 items-start">
+          <span className="text-2xl leading-none shrink-0" aria-hidden>
+            ⚠️
+          </span>
+          <div className="min-w-0 flex-1 space-y-2">
+            {title ? (
+              <p className="text-xs font-black uppercase tracking-widest text-white/95 drop-shadow-sm">{title}</p>
+            ) : null}
+            <p className="text-sm font-bold text-white leading-snug drop-shadow-sm">{body}</p>
+            <p className="text-[11px] font-semibold text-white/85 leading-snug">
+              Lee el resumen y confirma en Feedback si hace falta. Esto queda registrado para el centro.
+            </p>
+            {confirmError ? (
+              <p className="text-xs font-bold text-amber-200 bg-black/20 rounded-lg px-2 py-1.5">{confirmError}</p>
+            ) : null}
+            <button
+              type="button"
+              disabled={confirming}
+              onClick={handleHandoverRead}
+              className="mt-1 w-full py-3.5 rounded-xl bg-white text-orange-900 font-black text-sm uppercase tracking-widest shadow-lg shadow-black/20 border border-white/90 hover:bg-orange-50 disabled:opacity-60 transition-colors"
+            >
+              {confirming ? 'Guardando…' : 'Leído ✓'}
+            </button>
+          </div>
+        </div>
+        <style>{`
+          @keyframes coachToastIn {
+            from { opacity: 0; transform: translateY(10px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+        `}</style>
+      </div>
+    )
+  }
 
   return (
     <div

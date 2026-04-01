@@ -17,6 +17,7 @@ import {
 } from './coachViewUtils.js'
 import { coachBg, coachBorder, coachText, coachUi, classBadgeClass } from './coachTheme.js'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
+import CoachSessionBlockView from './CoachSessionBlockView.jsx'
 
 const TAB_ACTIVE = 'bg-[#A729AD] text-white shadow-md border border-[#A729AD]'
 const TAB_IDLE = `bg-white/10 text-white/90 border border-white/20 hover:bg-white/15`
@@ -485,7 +486,13 @@ export default function CoachWeekProgrammingPanel({
                           </button>
                         </div>
                       </div>
-                      <CoachFormattedSession text={dia[key]} accentColor={color} />
+                      <CoachSessionBlockView
+                        sessionText={dia[key]}
+                        accentColor={color}
+                        dayName={dayName}
+                        classLabel={label}
+                        exerciseLibrary={exerciseLibrary}
+                      />
 
                       {fbText ? (
                         <div className="space-y-2">

@@ -3,7 +3,9 @@ import { DAYS_ORDER, DAYS_ES } from '../../constants/evoColors.js'
 import { ALL_CLASS_LABELS } from '../../constants/evoClasses.js'
 import { saveCoachSessionFeedback } from '../../lib/supabase.js'
 import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
+import { appendFeedbackLogEntry } from '../../utils/coachFeedbackLocalLog.js'
 import { coachBg, coachBorder, coachField, coachText, coachUi } from './coachTheme.js'
+import CoachFeedbackWeekSummary from './CoachFeedbackWeekSummary.jsx'
 
 const SESSION_HOW = [
   { value: 'muy_bien', label: 'Muy bien' },
@@ -49,6 +51,7 @@ export default function CoachSessionFeedbackForm({
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!prefill || prefill.token == null) return
@@ -81,6 +84,19 @@ export default function CoachSessionFeedbackForm({
         group_feelings: groupFeelings.trim() || null,
         notes_next_week: notesNextWeek.trim() || null,
       })
+      appendFeedbackLogEntry({
+        week_id: weekRow.id,
+        mesociclo: weekRow.mesociclo ?? null,
+        semana: weekRow.semana != null ? Number(weekRow.semana) : null,
+        day_key: dayKey,
+        class_label: classLabel,
+        session_how: sessionHow,
+        time_for_explanation: timeExplain,
+        group_feelings: groupFeelings.trim() || null,
+        notes_next_week: notesNextWeek.trim() || null,
+        source: 'local_save',
+      })
+      setSummaryRefreshKey((k) => k + 1)
       setMessage('Guardado correctamente.')
       setChangedDetails('')
       setGroupFeelings('')
@@ -114,6 +130,8 @@ export default function CoachSessionFeedbackForm({
       <p className={`text-sm ${coachText.muted} mb-8 leading-relaxed`}>
         Ayuda a programar la siguiente semana: una entrada por día y clase que hayas impartido.
       </p>
+
+      <CoachFeedbackWeekSummary weekRow={weekRow} refreshKey={summaryRefreshKey} peerCount={peerEntries.length} />
 
       {weekPeerSorted.length > 0 ? (
         <section

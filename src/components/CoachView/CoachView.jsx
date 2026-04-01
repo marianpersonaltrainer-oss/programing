@@ -28,6 +28,7 @@ import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
+import { mergeServerFeedbackIntoLog } from '../../utils/coachFeedbackLocalLog.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
@@ -301,6 +302,16 @@ export default function CoachView() {
       cancelled = true
     }
   }, [step, activeWeekRow?.id, mainTab])
+
+  useEffect(() => {
+    if (!activeWeekRow?.id) return
+    mergeServerFeedbackIntoLog(
+      peerFeedbackWeek,
+      activeWeekRow.id,
+      activeWeekRow.mesociclo,
+      activeWeekRow.semana,
+    )
+  }, [activeWeekRow?.id, activeWeekRow?.mesociclo, activeWeekRow?.semana, peerFeedbackWeek])
 
   async function refreshPeerFeedbackWeek() {
     if (!activeWeekRow?.id) return

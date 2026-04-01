@@ -1,12 +1,17 @@
 const HISTORY_KEY = 'programingevo_history'
 
-function loadHistory() {
+export function loadHistory() {
   try {
     const saved = localStorage.getItem(HISTORY_KEY)
     return saved ? JSON.parse(saved) : {}
   } catch {
     return {}
   }
+}
+
+/** Lista de mesociclos que tienen al menos una semana guardada en este dispositivo. */
+export function listMesocyclesInHistory() {
+  return Object.keys(loadHistory()).sort()
 }
 
 function saveHistory(history) {

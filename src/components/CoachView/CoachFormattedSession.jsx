@@ -36,7 +36,7 @@ function partsWithBoldTimings(line) {
   return out
 }
 
-export default function CoachFormattedSession({ text, accentColor = '#6A1F6D' }) {
+export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', renderAfterLine }) {
   const raw = String(text ?? '')
   const lines = raw.split('\n')
 
@@ -45,6 +45,7 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D' })
       {lines.map((line, i) => {
         const trimmed = line.trimEnd()
         const t = trimmed.trim()
+        const suffix = renderAfterLine && t ? renderAfterLine(line, i, t) : null
 
         if (!t) {
           return <div key={i} className="h-2" aria-hidden />
@@ -52,14 +53,32 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D' })
 
         if (isLikelyBlockHeader(t)) {
           return (
-            <p
-              key={i}
-              className="font-extrabold uppercase tracking-wide text-[13px] mt-3 first:mt-0 mb-1"
-              style={{ color: accentColor }}
-            >
-              {partsWithBoldTimings(t).map((p, j) =>
+            <div key={i}>
+              <p
+                className="font-extrabold uppercase tracking-wide text-[13px] mt-3 first:mt-0 mb-1"
+                style={{ color: accentColor }}
+              >
+                {partsWithBoldTimings(t).map((p, j) =>
+                  p.type === 'time' ? (
+                    <strong key={j} className="text-[#1A0A1A] font-black">
+                      {p.text}
+                    </strong>
+                  ) : (
+                    <span key={j}>{p.text}</span>
+                  ),
+                )}
+              </p>
+              {suffix}
+            </div>
+          )
+        }
+
+        return (
+          <div key={i}>
+            <p className="pl-4 sm:pl-6 text-[#1A0A1A]/95 mb-0.5">
+              {partsWithBoldTimings(trimmed).map((p, j) =>
                 p.type === 'time' ? (
-                  <strong key={j} className="text-[#1A0A1A] font-black">
+                  <strong key={j} className="font-bold text-[#1A0A1A]">
                     {p.text}
                   </strong>
                 ) : (
@@ -67,21 +86,8 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D' })
                 ),
               )}
             </p>
-          )
-        }
-
-        return (
-          <p key={i} className="pl-4 sm:pl-6 text-[#1A0A1A]/95 mb-0.5">
-            {partsWithBoldTimings(trimmed).map((p, j) =>
-              p.type === 'time' ? (
-                <strong key={j} className="font-bold text-[#1A0A1A]">
-                  {p.text}
-                </strong>
-              ) : (
-                <span key={j}>{p.text}</span>
-              ),
-            )}
-          </p>
+            {suffix}
+          </div>
         )
       })}
     </div>

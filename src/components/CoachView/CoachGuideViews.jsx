@@ -33,6 +33,7 @@ import {
 } from '../../data/coachGuideContent.js'
 import { coachUi, coachText, coachBorder, coachBg } from './coachTheme.js'
 import { CLASS_BAR_HEX } from '../../constants/evoClasses.js'
+import CoachWeekHistoryBrowser from './CoachWeekHistoryBrowser.jsx'
 
 function MesoTable({ columns, rows, rowKey }) {
   return (
@@ -215,6 +216,7 @@ export function CoachGuideClases() {
 export function CoachGuideMesociclos() {
   return (
     <CoachGuideScroll>
+      <CoachWeekHistoryBrowser />
       <h2 className={coachUi.h2}>3. Los mesociclos — Cómo funciona la progresión</h2>
       <div className={coachUi.prose}>
         {COACH_MESOCICLO_INTRO.map((p, i) => (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
 import CoachScreenModeOverlay from './CoachScreenModeOverlay.jsx'
 import { parseTimedBlocks, classElapsedMinutes, findActiveTimedBlock } from '../../utils/parseSessionTimings.js'
@@ -71,14 +71,25 @@ export default function CoachSessionBlockView({
   const [timerRunning, setTimerRunning] = useState(false)
   const [startedAt, setStartedAt] = useState(null)
   const [, setTick] = useState(0)
+  const tickIntervalRef = useRef(null)
 
   const blocks = parseTimedBlocks(sessionText)
   const hasTimings = blocks.length > 0
 
   useEffect(() => {
-    if (!timerRunning || !startedAt) return undefined
-    const id = setInterval(() => setTick((t) => t + 1), 1000)
-    return () => clearInterval(id)
+    if (tickIntervalRef.current != null) {
+      clearInterval(tickIntervalRef.current)
+      tickIntervalRef.current = null
+    }
+    if (timerRunning && startedAt) {
+      tickIntervalRef.current = window.setInterval(() => setTick((t) => t + 1), 1000)
+    }
+    return () => {
+      if (tickIntervalRef.current != null) {
+        clearInterval(tickIntervalRef.current)
+        tickIntervalRef.current = null
+      }
+    }
   }, [timerRunning, startedAt])
 
   const elapsedMs = timerRunning && startedAt ? Date.now() - startedAt : 0

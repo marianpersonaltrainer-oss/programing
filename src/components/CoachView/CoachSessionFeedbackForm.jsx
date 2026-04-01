@@ -136,7 +136,7 @@ export default function CoachSessionFeedbackForm({
     <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-xl mx-auto`}>
       <h2 className={coachUi.h2}>Feedback de clase</h2>
       <p className={`text-sm ${coachText.muted} mb-8 leading-relaxed`}>
-        Ayuda a programar la siguiente semana: una entrada por día y clase que hayas impartido.
+        Una entrada por día y clase. La nota para el siguiente coach aparece en el detalle de esa clase la próxima vez que la des.
       </p>
 
       <CoachFeedbackWeekSummary weekRow={weekRow} refreshKey={summaryRefreshKey} peerCount={peerEntries.length} />
@@ -186,9 +186,16 @@ export default function CoachSessionFeedbackForm({
                   ) : changed ? (
                     <p className="mt-2 font-medium opacity-90">Indicó cambios sin detalle.</p>
                   ) : null}
-                  {!changed && (row.group_feelings?.trim() || row.notes_next_week?.trim()) ? (
+                  {!changed && row.group_feelings?.trim() ? (
                     <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
-                      {[row.group_feelings?.trim(), row.notes_next_week?.trim()].filter(Boolean).join(' · ')}
+                      <span className="font-semibold text-[#1A0A1A]/80">Sensaciones:</span>{' '}
+                      {row.group_feelings.trim()}
+                    </p>
+                  ) : null}
+                  {!changed && row.notes_next_week?.trim() ? (
+                    <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
+                      <span className="font-semibold text-[#1A0A1A]/80">Nota siguiente coach:</span>{' '}
+                      {row.notes_next_week.trim()}
                     </p>
                   ) : null}
                 </li>
@@ -326,14 +333,17 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Notas para la siguiente semana
+            Nota para el siguiente coach
           </label>
+          <p className={`text-xs ${coachText.muted} mb-2 leading-relaxed`}>
+            Visible en el detalle de esta clase el próximo día que la impartas (día + tipo de clase).
+          </p>
           <textarea
             value={notesNextWeek}
             onChange={(e) => setNotesNextWeek(e.target.value)}
             rows={3}
             className={coachField}
-            placeholder="Qué tendría en cuenta quien programe…"
+            placeholder="Ej.: el AMRAP se quedó corto, quitar una ronda la próxima vez…"
           />
         </div>
 

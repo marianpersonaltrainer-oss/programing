@@ -30,10 +30,14 @@ import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchF
 import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
 import { mergeServerFeedbackIntoLog } from '../../utils/coachFeedbackLocalLog.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+import { DAYS_ES } from '../../constants/evoColors.js'
+import { buildCoachNewWeekToastBody } from '../../utils/coachSessionPrep.js'
+import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
 const COACH_AUTH_KEY = 'evo_coach_auth'
+const COACH_LAST_SEEN_WEEK_KEY = 'evo_coach_last_seen_week_id'
 
 export { COACH_CODE_KEY }
 /** @deprecated usar getExpectedCoachCode; se mantiene por compatibilidad con imports antiguos */
@@ -239,7 +243,6 @@ export default function CoachView() {
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false)
   const [guideCentreOpen, setGuideCentreOpen] = useState(false)
   const [handoverDismissed, setHandoverDismissed] = useState(false)
-  const [handoverModalOpen, setHandoverModalOpen] = useState(false)
   const [moreGuideOpen, setMoreGuideOpen] = useState(false)
   const [supportSessionContext, setSupportSessionContext] = useState(null)
   const supportSessionContextRef = useRef(null)
@@ -250,6 +253,15 @@ export default function CoachView() {
   const [peerFeedbackWeek, setPeerFeedbackWeek] = useState([])
   /** Desde Semana → Feedback: { token, dayKey, classLabel } */
   const [feedbackPrefill, setFeedbackPrefill] = useState(null)
+
+  const { items: coachToasts, push: pushCoachToast, dismiss: dismissCoachToast } = useCoachToastQueue()
+  const centroToastKeyRef = useRef('')
+  const handoverToastFiredRef = useRef(false)
+  const newWeekToastQueuedRef = useRef(null)
+
+  useEffect(() => {
+    handoverToastFiredRef.current = false
+  }, [sessionId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -349,13 +361,82 @@ export default function CoachView() {
   }, [sessionId])
 
   useEffect(() => {
+    if (step !== 'chat') return
+    const msg = guideSettings?.active_notice?.trim()
+    if (!msg) return
+    const key = `${msg.length}:${msg.slice(0, 120)}`
+    if (centroToastKeyRef.current === key) return
+    centroToastKeyRef.current = key
+    pushCoachToast({
+      id: `coach-centro-${key.length}-${key.slice(0, 20)}`,
+      title: 'Aviso del centro',
+      body: msg,
+      onDismiss: () => {},
+    })
+  }, [step, guideSettings?.active_notice, pushCoachToast])
+
+  useEffect(() => {
+    if (step !== 'chat' || !sessionId || handoverDismissed) return
+    if (handoverToastFiredRef.current) return
     const alerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
-    if (step !== 'chat' || !sessionId || handoverDismissed || alerts.length === 0) {
-      setHandoverModalOpen(false)
+    if (!alerts.length) return
+    handoverToastFiredRef.current = true
+    const parts = alerts.slice(0, 8).map((r) => {
+      const d = DAYS_ES[r.day_key] || r.day_key || ''
+      return [d, r.class_label || 'Clase'].filter(Boolean).join(' ')
+    })
+    const n = alerts.length
+    const body = `${n} ${n === 1 ? 'cambio' : 'cambios'} esta semana — ${parts.join(' · ')}`
+    pushCoachToast({
+      id: 'coach-handover',
+      title: 'Pase de turno',
+      body,
+      onDismiss: () => {
+        try {
+          if (sessionId) localStorage.setItem(handoverModalStorageKey(sessionId), '1')
+        } catch {
+          /* noop */
+        }
+        setHandoverDismissed(true)
+      },
+    })
+  }, [step, sessionId, handoverDismissed, peerFeedbackWeek, pushCoachToast])
+
+  useEffect(() => {
+    if (step !== 'chat' || !activeWeekRow?.id) return
+    const wid = String(activeWeekRow.id)
+    let last = ''
+    try {
+      last = localStorage.getItem(COACH_LAST_SEEN_WEEK_KEY) || ''
+    } catch {
+      /* noop */
+    }
+    if (last === wid) {
+      newWeekToastQueuedRef.current = wid
       return
     }
-    setHandoverModalOpen(true)
-  }, [step, sessionId, handoverDismissed, peerFeedbackWeek])
+    if (newWeekToastQueuedRef.current === wid) return
+    newWeekToastQueuedRef.current = wid
+    const body = buildCoachNewWeekToastBody(weekData, activeWeekRow)
+    pushCoachToast({
+      id: `coach-new-week-${wid}`,
+      title: 'Nueva semana publicada',
+      body,
+      actionLabel: 'Ver',
+      onAction: () => {
+        setMainTab('semana')
+        setActiveDay('show')
+        setWeekTab('dias')
+      },
+      onDismiss: () => {
+        try {
+          localStorage.setItem(COACH_LAST_SEEN_WEEK_KEY, wid)
+        } catch {
+          /* noop */
+        }
+      },
+    })
+  }, [step, activeWeekRow?.id, activeWeekRow?.mesociclo, activeWeekRow?.semana, weekData, pushCoachToast])
 
   useEffect(() => {
     let mounted = true
@@ -432,29 +513,7 @@ export default function CoachView() {
   }
 
   const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
-  const handoverSummary = handoverAlerts
-    .slice(0, 3)
-    .map((r) => {
-      const day = String(r?.day_key || '').toUpperCase()
-      const cls = r?.class_label || 'Clase'
-      const who = r?.coach_name?.trim() || 'Coach'
-      return `${day} · ${cls} (${who})`
-    })
-    .join(' | ')
-
   const handoverBadgeCount = !handoverDismissed ? handoverAlerts.length : 0
-
-  function dismissHandoverModal() {
-    if (sessionId) {
-      try {
-        localStorage.setItem(handoverModalStorageKey(sessionId), '1')
-      } catch {
-        /* noop */
-      }
-      setHandoverDismissed(true)
-    }
-    setHandoverModalOpen(false)
-  }
 
   async function handleCodeSubmit(e) {
     e.preventDefault()
@@ -752,54 +811,7 @@ export default function CoachView() {
 
   return (
     <div className={coachUi.shell}>
-      {handoverModalOpen ? (
-        <div
-          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="handover-modal-title"
-        >
-          <div
-            className={`w-full sm:max-w-lg max-h-[min(92dvh,640px)] overflow-y-auto rounded-t-2xl sm:rounded-2xl border ${coachBorder} ${coachBg.card} shadow-2xl p-5 sm:p-6 space-y-4`}
-          >
-            <h2 id="handover-modal-title" className={`text-lg font-black uppercase tracking-tight ${coachText.title}`}>
-              Pase de turno
-            </h2>
-            <p className={`text-sm font-semibold ${coachText.muted}`}>
-              {handoverAlerts.length === 1
-                ? 'Hay un aviso con cambios en sesión esta semana.'
-                : `${handoverAlerts.length} avisos con cambios en sesión esta semana.`}
-            </p>
-            <ul className="space-y-3">
-              {handoverAlerts.map((r, i) => {
-                const day = String(r?.day_key || '').toUpperCase()
-                const cls = r?.class_label || 'Clase'
-                const who = r?.coach_name?.trim() || 'Coach'
-                const det = String(r?.changed_details || '').trim()
-                return (
-                  <li
-                    key={r?.id ?? `${day}-${cls}-${i}`}
-                    className={`rounded-xl border ${coachBorder} ${coachBg.cardAlt} p-4 space-y-1.5`}
-                  >
-                    <p className={`text-sm font-black uppercase tracking-wide ${coachText.primary}`}>
-                      {day} · {cls}
-                    </p>
-                    <p className={`text-xs font-bold ${coachText.muted}`}>Coach: {who}</p>
-                    {det ? <p className={`text-sm font-medium leading-snug ${coachText.primary}`}>{det}</p> : null}
-                  </li>
-                )
-              })}
-            </ul>
-            <button
-              type="button"
-              onClick={dismissHandoverModal}
-              className="w-full py-3.5 rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] text-white font-bold text-sm uppercase tracking-widest shadow-md"
-            >
-              Entendido
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <CoachToastStack items={coachToasts} onDismissItem={dismissCoachToast} />
 
       {moreDrawerOpen ? (
         <button
@@ -891,44 +903,6 @@ export default function CoachView() {
               </p>
             </div>
           </header>
-
-          {guideSettings?.active_notice?.trim() ? (
-            <div
-              role="status"
-              className="flex-shrink-0 px-4 py-4 border-b border-amber-300/60 bg-amber-50 text-amber-950 text-base font-bold text-center font-evo-body leading-snug"
-            >
-              {guideSettings.active_notice.trim()}
-            </div>
-          ) : null}
-
-          {handoverDismissed && handoverAlerts.length > 0 ? (
-            <div
-              role="status"
-              className="flex-shrink-0 px-4 py-4 border-b border-orange-400/50 bg-orange-100/95 text-sm sm:text-base font-bold font-evo-body leading-snug"
-            >
-              <span className="font-extrabold uppercase tracking-wide">Pase de turno:</span>{' '}
-              {handoverAlerts.length === 1
-                ? 'Hay un aviso con cambios en sesión esta semana.'
-                : `${handoverAlerts.length} avisos con cambios esta semana.`}{' '}
-              {handoverSummary ? (
-                <span className="font-semibold">
-                  {handoverSummary}
-                  {handoverAlerts.length > 3 ? ' ...' : ''}.
-                </span>
-              ) : null}{' '}
-              {mainTab === 'feedback' ? (
-                <span className="font-normal">Mira la lista «Esta semana» arriba del formulario.</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setMainTab('feedback')}
-                  className="ml-1 underline decoration-orange-900/40 font-bold hover:text-orange-900"
-                >
-                  Ver en Feedback
-                </button>
-              )}
-            </div>
-          ) : null}
 
           <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${coachBg.app}`}>
             {mainTab === 'soporte' ? (

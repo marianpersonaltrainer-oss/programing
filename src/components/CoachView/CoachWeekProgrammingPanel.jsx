@@ -20,8 +20,10 @@ import { DAYS_ES } from '../../constants/evoColors.js'
 import { coachHasFeedbackForDay } from '../../utils/coachFeedbackLocalLog.js'
 import {
   extractMaterialHints,
+  findLastCoachHandoffNote,
   findLastFeedbackForClassLabel,
   formatFeedbackEntrySummary,
+  handoffNoteMetaLine,
 } from '../../utils/coachSessionPrep.js'
 import { printCoachDaySession } from '../../utils/coachPrintSession.js'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
@@ -522,6 +524,7 @@ export default function CoachWeekProgrammingPanel({
 
                   const copyId = `${dayName}-${key}`
                   const fk = dayNombreToFeedbackKey(dayName)
+                  const lastHandoff = findLastCoachHandoffNote(label, weekRow?.id ?? null)
                   return (
                     <div key={key} className={`rounded-xl border ${coachBorder} ${coachBg.card} p-5 shadow-sm space-y-5`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -553,6 +556,23 @@ export default function CoachWeekProgrammingPanel({
                           </button>
                         </div>
                       </div>
+                      {lastHandoff ? (
+                        <div
+                          className="rounded-lg border border-amber-300/70 bg-[#fffbeb] px-4 py-3.5 space-y-2 shadow-[3px_4px_0_rgba(180,130,0,0.12)] -rotate-[0.35deg]"
+                          role="note"
+                        >
+                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-900/85 flex items-center gap-2">
+                            <span className="text-base leading-none" aria-hidden>
+                              📝
+                            </span>
+                            Nota para ti (último coach)
+                          </p>
+                          <p className="text-[11px] font-semibold text-amber-900/75">{handoffNoteMetaLine(lastHandoff)}</p>
+                          <p className="text-sm font-semibold text-amber-950 leading-snug whitespace-pre-wrap">
+                            {lastHandoff.note}
+                          </p>
+                        </div>
+                      ) : null}
                       <CoachSessionBlockView
                         sessionText={dia[key]}
                         accentColor={color}

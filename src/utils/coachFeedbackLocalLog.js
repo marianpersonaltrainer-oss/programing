@@ -86,10 +86,12 @@ export function summarizeFeedbackForWeek(weekId, mesociclo, semana) {
     if (te === 'si') timeSi += 1
     else if (te === 'no') timeNo += 1
     else if (te === 'justo') timeJusto += 1
-    const parts = [e.group_feelings, e.notes_next_week].filter((x) => String(x || '').trim())
-    if (parts.length) {
+    const gf = String(e.group_feelings || '').trim()
+    const nx = String(e.notes_next_week || '').trim()
+    if (gf || nx) {
       recentNotes.push({
-        note: parts.join(' · '),
+        group_feelings: gf,
+        notes_next_week: nx,
         at: e.created_at || e.savedAt,
         class_label: e.class_label,
         day_key: e.day_key,

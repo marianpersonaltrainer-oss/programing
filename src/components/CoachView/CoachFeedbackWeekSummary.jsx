@@ -90,7 +90,7 @@ export default function CoachFeedbackWeekSummary({ weekRow, refreshKey = 0, peer
       {recentNotes.length > 0 ? (
         <div>
           <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Notas recientes
+            Sensaciones y notas para el siguiente coach
           </p>
           <ul className="space-y-2 text-sm">
             {recentNotes.map((n, i) => (
@@ -98,7 +98,16 @@ export default function CoachFeedbackWeekSummary({ weekRow, refreshKey = 0, peer
                 <p className={`text-[10px] font-bold uppercase tracking-wide ${coachText.accent}`}>
                   {DAYS_ES[n.day_key] || n.day_key || '—'} · {n.class_label || '—'}
                 </p>
-                <p className={`${coachText.primary} leading-snug mt-1 whitespace-pre-wrap`}>{n.note}</p>
+                {n.group_feelings ? (
+                  <p className={`${coachText.muted} leading-snug mt-1 whitespace-pre-wrap`}>
+                    <span className="font-bold text-[#1A0A1A]/75">Sensaciones:</span> {n.group_feelings}
+                  </p>
+                ) : null}
+                {n.notes_next_week ? (
+                  <p className={`${coachText.primary} leading-snug mt-1 whitespace-pre-wrap`}>
+                    <span className="font-bold">Siguiente coach:</span> {n.notes_next_week}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -286,6 +286,10 @@ export function mergeGeneratedDaysIntoAccumulator(accumulator, partialJson, allo
         continue
       }
       const v = src[k]
+      if (k === 'wodbuster' && typeof v === 'string') {
+        merged[k] = v
+        continue
+      }
       if (typeof v === 'string' && v.trim() !== '') merged[k] = v
     }
     accumulator.dias[i] = merged

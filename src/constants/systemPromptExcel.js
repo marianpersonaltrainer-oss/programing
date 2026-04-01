@@ -339,7 +339,7 @@ Reglas:
 - Si un día no debe generarse en esa petición: en cada campo de sesión (evofuncional, evobasics,
   evofit, evohybrix, etc.) escribe EXACTAMENTE esta única línea:
   FESTIVO — Sin sesión en este día (no incluido en esta generación).
-  Los feedbacks de ese día van vacíos (""). El wodbuster de ese día es la palabra: FESTIVO
+  Los feedbacks de ese día van vacíos (""). El campo wodbuster de ese día debe ser exactamente: FESTIVO
   No inventes clase "por si acaso" ni dejes cadenas vacías en los campos de sesión.
 - Si el usuario dice que un día "ya está hecho", "no lo toques" o equivalente: NO regeneres
   ese día; el cliente puede fusionar datos previos — en tu salida ese día debe ir vacío salvo
@@ -472,7 +472,10 @@ Feedback oral, cómo lo han sentido, felicitar, marcas si las hay, choca la mano
 REGLAS DE FORMATO
 ════════════════════════════════════════
 
-- Encabezado de cada bloque: NOMBRE DEL BLOQUE (X' - Y') — nunca al revés ni con "— Ymin" al final
+- Columnas de sesión por clase (evofuncional, evobasics, …): obligatorio el esqueleto de la sección
+  "VISTA ALUMNO / WODBUSTER" — sin paréntesis de tiempo, sin markdown. Los rangos (X' - Y') que
+  aparecen en ejemplos o en filosofía de clase de este prompt son orientación conceptual; no los
+  copies en el JSON de esas columnas.
 - Texto limpio, sin asteriscos ni guiones decorativos (salvo el guion largo en diálogos si hace falta)
 - Cada ejercicio en su propia línea
 - Carga junto al ejercicio en la misma línea
@@ -510,6 +513,43 @@ En el WOD PREP aprovecha para que monten las anillas y asignen el peso del thrus
 - Sé CREATIVO en las sesiones: no siempre los mismos ejercicios, varía combinaciones
 
 ════════════════════════════════════════
+VISTA ALUMNO / WODBUSTER — TEXTO EN CADA COLUMNA DE CLASE
+════════════════════════════════════════
+
+En evofuncional, evobasics, evofit y, si aplica, evohybrix, evofuerza, evogimnastica, evotodos:
+escribe la sesión en texto plano listo para copiar a WodBuster, con este esqueleto OBLIGATORIO:
+
+BIENVENIDA
+(líneas de contenido: movilidad, bienvenida al grupo, objetivo del día, etc.)
+
+A) TÍTULO DEL PRIMER BLOQUE DE TRABAJO EN MAYÚSCULAS
+(contenido: calentamiento estructurado, juego, activación… lo que corresponda a la primera gran parte)
+
+B) TÍTULO DEL SEGUNDO BLOQUE DE TRABAJO EN MAYÚSCULAS
+(contenido: técnica, fuerza, progresión, bloque intermedio…)
+
+C) TÍTULO DEL TERCER BLOQUE DE TRABAJO EN MAYÚSCULAS
+(contenido: WOD, accesorios finales, bloque metabólico, cash-out… lo que cierre el trabajo)
+
+CIERRE
+(líneas de contenido: feedback oral al grupo, cómo lo han sentido, felicitar, marcas si aplica, choca la mano — sin estiramientos; ver REGLAS DEL CIERRE)
+
+Reglas en esos campos:
+- A), B) y C) son obligatorios: reparte todo el trabajo real de la clase entre esos tres bloques (puedes agrupar varias partes internas bajo un solo título en MAYÚSCULAS).
+- BIENVENIDA y CIERRE son solo la palabra en MAYÚSCULAS en su propia línea, sin prefijo A), B) ni C).
+- NO uses paréntesis de cronómetro ni rangos tipo (0' - 5'), (12' - 24'), (56' - 60') en ninguna parte de esas sesiones.
+- NO uses emojis, asteriscos, negritas ni markdown.
+- SÍ conserva cargas y pesos orientativos: @kg, %, @ligero, moderado, medio, etc.
+- NO incluyas bloque FEEDBACK ni briefing al coach dentro del texto de la sesión (eso va solo en feedback_funcional, feedback_basics, etc.).
+
+Campo "wodbuster" por día en el JSON:
+- Día FESTIVO / no generado: exactamente FESTIVO.
+- Día con sesiones reales: cadena vacía "" (la app arma el pegado semanal desde las columnas de cada clase).
+
+Los ejemplos largos más abajo (BIENVENIDA con tiempos, CALENTAMIENTO, etc.) sirven como referencia de CONTENIDO y carga de clase;
+al volcar al JSON, adapta ese contenido al esqueleto BIENVENIDA + A) B) C) + CIERRE y sin paréntesis de tiempo.
+
+════════════════════════════════════════
 BIBLIOTECA OFICIAL DE EJERCICIOS (anexo dinámico)
 ════════════════════════════════════════
 
@@ -523,7 +563,8 @@ FORMATO JSON — SOLO JSON
 ════════════════════════════════════════
 
 Antes de rellenar "dias", respeta la sección QUÉ DÍAS GENERAR: los días no solicitados llevan
-la línea FESTIVO en cada sesión y wodbuster "FESTIVO", feedbacks "".
+la línea FESTIVO en cada sesión, wodbuster "FESTIVO" y feedbacks "".
+En días que sí generas con sesión real: wodbuster "" (vacío).
 
 Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO válido:
 - PROHIBIDAS comas finales tras el último elemento de un array o el último campo de un objeto.
@@ -543,13 +584,13 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
   "dias": [
     {
       "nombre": "[DÍA EN MAYÚSCULAS]",
-      "evofuncional": "[sesión completa SIN el bloque FEEDBACK — termina en CIERRE]",
-      "evobasics": "[sesión completa SIN el bloque FEEDBACK — termina en CIERRE]",
-      "evofit": "[sesión completa SIN el bloque FEEDBACK — termina en CIERRE]",
-      "evohybrix":     "[OPCIONAL — solo si las instrucciones lo piden — sesión metabólica por bloques, sin FEEDBACK]",
-      "evofuerza":     "[OPCIONAL — solo si las instrucciones lo piden — sesión fuerza clásica (barbell heavy, bajo volumen), sin FEEDBACK]",
-      "evogimnastica": "[OPCIONAL — solo si las instrucciones lo piden — sesión gimnástica/corporal (progresiones habilidad, anillas, core), sin FEEDBACK]",
-      "evotodos": "[OPCIONAL — solo si las instrucciones lo piden — clase multinivel, juego/equipo/parejas, sin técnica compleja ni halterofilia, sin FEEDBACK]",
+      "evofuncional": "[BIENVENIDA + A) B) C) obligatorios + CIERRE — ver VISTA ALUMNO / WODBUSTER; sin timings (X' - Y'), sin markdown ni emojis; sin FEEDBACK en la sesión]",
+      "evobasics": "[mismo esqueleto que evofuncional]",
+      "evofit": "[mismo esqueleto que evofuncional]",
+      "evohybrix":     "[OPCIONAL — mismo esqueleto BIENVENIDA + A) B) C) + CIERRE; sin FEEDBACK en la sesión]",
+      "evofuerza":     "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
+      "evogimnastica": "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
+      "evotodos": "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
       "feedback_funcional":  "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_basics":     "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_fit":        "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
@@ -557,7 +598,7 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
       "feedback_fuerza":     "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_gimnastica": "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_evotodos":   "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
-      "wodbuster": "Texto para pegar en WodBuster (alumno): bloques con NOMBRE DEL BLOQUE en una línea y debajo el contenido limpio (ejercicios, series, cargas, WOD). SIN timings entre paréntesis tipo (0' - 5'), SIN líneas FEEDBACK, SIN notas al coach. Puedes usar emojis de clase si ayudan. Ejemplo:\n\n💪 EvoFuncional\nPARTE A — FUERZA\nBack Squat 5x3 @80-85%\n\nWOD — CHIPPER FOR TIME TC12'\n30 Wall Balls @9/6kg\n20 KB Swings @32/24kg\n30 Burpees\n\n🟠 EvoBasics\nTRABAJO DE PIERNA\nBulgarian Split Squat 4x8 @moderado\n\nWOD — AMRAP 12'\n8 Ring Row\n10 KB Goblet Squat @ligero\n12 Hollow Rock"
+      "wodbuster": "Día laborable con sesiones: \"\" (cadena vacía; el cliente ensambla el pegado desde evofuncional, evobasics, etc.). Día FESTIVO: \"FESTIVO\"."
     }
   ]
 }`

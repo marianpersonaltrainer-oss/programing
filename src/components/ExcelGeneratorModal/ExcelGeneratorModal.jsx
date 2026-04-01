@@ -427,7 +427,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
       const planSummary = `PLAN DE DÍAS (obligatorio):
 - Días marcados en el selector del cliente: ${[...selectedCanon].join(', ')}
-- Generar contenido real (sesiones, feedbacks, wodbuster) SOLO para: ${[...daysToGenerate].join(', ')}
+- Generar contenido real (sesiones y feedbacks) SOLO para: ${[...daysToGenerate].join(', ')}
+  En esos días el campo wodbuster del JSON debe ser cadena vacía "" (el pegado WodBuster lo arma la app desde las columnas de clase).
 - Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...daysPreserved].join(', ') || 'ninguno'}
 - Excluidos por texto del usuario ("no generes X"): ${[...daysExcluded].join(', ') || 'ninguno'}
 - Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente la línea FESTIVO del system prompt — no vacío, no texto inventado.`
@@ -438,7 +439,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
 Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
 
-Solo rellena contenido completo (sesiones, feedbacks, wodbuster) para: ${list}.
+Solo rellena contenido completo (sesiones y feedbacks) para: ${list}; en esos días wodbuster = "".
 Para el resto de días: sesiones = línea FESTIVO obligatoria (ver system prompt); feedbacks vacíos; wodbuster "FESTIVO". No inventes sesiones para días fuera de la lista.
 
 Respeta QUÉ DÍAS GENERAR del prompt del sistema.`

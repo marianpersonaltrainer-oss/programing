@@ -221,6 +221,8 @@ export default function CoachView() {
   const supportTextareaRef = useRef(null)
   /** Feedback guardado por coaches esta semana (pase de turno mañana ↔ tarde). */
   const [peerFeedbackWeek, setPeerFeedbackWeek] = useState([])
+  /** Desde Semana → Feedback: { token, dayKey, classLabel } */
+  const [feedbackPrefill, setFeedbackPrefill] = useState(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -444,17 +446,18 @@ export default function CoachView() {
     const normalized = context || null
     supportSessionContextRef.current = normalized
     setSupportSessionContext(normalized)
-    // DEBUG TEMPORAL: comprobar que el contexto de sesión se setea al abrir soporte desde clase.
-    console.log('CoachSupport openSupport context:', normalized)
+  }
+
+  function openFeedbackFromClass(dayKey, classLabel) {
+    if (!dayKey || !classLabel) return
+    setFeedbackPrefill({ token: Date.now(), dayKey, classLabel })
+    setMainTab('feedback')
+    setMobileMenuOpen(false)
   }
 
   function selectNav(id) {
     setMainTab(id)
     setMobileMenuOpen(false)
-    if (id === 'soporte') {
-      supportSessionContextRef.current = null
-      setSupportSessionContext(null)
-    }
   }
 
   async function handleSend(e) {
@@ -489,13 +492,6 @@ export default function CoachView() {
       const history = [...messages, { role: 'user', content: userMsg }]
       const inferredContext = inferSupportContextFromMessage(userMsg, weekData)
       const activeSupportContext = supportSessionContextRef.current || supportSessionContext || inferredContext
-      // DEBUG TEMPORAL: confirmar contexto disponible justo antes del primer envío a IA.
-      console.log('CoachSupport handleSend context snapshot:', {
-        hasContext: !!activeSupportContext,
-        ref: supportSessionContextRef.current,
-        state: supportSessionContext,
-        inferred: inferredContext,
-      })
       const supportContextBlock = activeSupportContext
         ? [
             'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
@@ -510,11 +506,6 @@ export default function CoachView() {
       const systemPrompt = supportContextBlock
         ? `${supportContextBlock}\n\n${COACH_SUPPORT_SYSTEM_PROMPT}`
         : COACH_SUPPORT_SYSTEM_PROMPT
-      console.log('CoachSupport system prompt check:', {
-        hasContextBlock: !!supportContextBlock,
-        systemLength: systemPrompt.length,
-        contextPreview: supportContextBlock ? supportContextBlock.slice(0, 180) : null,
-      })
       let response
       try {
         response = await fetch('/api/anthropic', {
@@ -772,11 +763,27 @@ export default function CoachView() {
                     <p className={`text-xs font-bold uppercase tracking-widest ${coachText.primary} truncate`}>
                       Soporte
                     </p>
-                    <p className={`text-[10px] font-bold uppercase tracking-wide ${coachText.muted} truncate`}>
-                      {supportRemaining} consultas hoy
+                    <p
+                      className={`text-[10px] font-bold uppercase tracking-wide truncate ${
+                        supportRemaining === 0 ? 'text-red-800' : supportRemaining <= 3 ? 'text-amber-900' : coachText.muted
+                      }`}
+                    >
+                      {supportRemaining === 0
+                        ? 'Límite diario. Se renueva mañana.'
+                        : `${supportRemaining} consultas hoy`}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full bg-[#A729AD]/15 text-[#6A1F6D] border border-[#A729AD]/20">
+                  <span
+                    className={`shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full border ${
+                      supportRemaining === 0
+                        ? 'bg-red-100 text-red-900 border-red-300'
+                        : supportRemaining === 1
+                          ? 'bg-red-50 text-red-800 border-red-200'
+                          : supportRemaining <= 3
+                            ? 'bg-amber-100 text-amber-950 border-amber-300'
+                            : 'bg-[#A729AD]/15 text-[#6A1F6D] border border-[#A729AD]/20'
+                    }`}
+                  >
                     {supportRemaining}/{SUPPORT_DAILY_LIMIT}
                   </span>
                 </div>
@@ -904,6 +911,7 @@ export default function CoachView() {
                     weekTab={weekTab}
                     setWeekTab={setWeekTab}
                     onOpenSupport={openSupport}
+                    onOpenFeedbackFromClass={openFeedbackFromClass}
                     exerciseLibrary={exerciseLibrary}
                   />
                 )}
@@ -926,6 +934,7 @@ export default function CoachView() {
                     weekRow={activeWeekRow}
                     peerEntries={peerFeedbackWeek}
                     onAfterSave={refreshPeerFeedbackWeek}
+                    prefill={feedbackPrefill}
                   />
                 )}
               </main>

@@ -1,3 +1,4 @@
+import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { FEEDBACK_BLOCKS } from './coachViewConstants.js'
 
 export function sessionText(val) {
@@ -48,5 +49,61 @@ export function dayFocusLine(dia, SESSION_BLOCKS) {
   }
   const wb = sessionText(dia.wodbuster)
   if (wb) return previewText(wb, 5, 220)
+  return null
+}
+
+/** Día marcado FESTIVO en datos publicados (todas las sesiones no vacías empiezan por FESTIVO, o sin sesiones y wodbuster FESTIVO). */
+export function isFestivoDay(dia) {
+  if (!dia) return false
+  const contents = EVO_SESSION_CLASS_DEFS.map(({ key }) => sessionText(dia[key])).filter(Boolean)
+  if (contents.length === 0) {
+    return /^FESTIVO\b/i.test(sessionText(dia.wodbuster))
+  }
+  return contents.every((t) => /^FESTIVO\b/i.test(t.split('\n')[0].trim()))
+}
+
+const NORM = (s) =>
+  String(s || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+
+/** `dia.nombre` (LUNES, MIÉRCOLES…) → clave `CoachSessionFeedbackForm` / DAYS_ORDER */
+export function dayNombreToFeedbackKey(nombre) {
+  const n = NORM(nombre)
+  const map = {
+    LUNES: 'monday',
+    MARTES: 'tuesday',
+    MIERCOLES: 'wednesday',
+    JUEVES: 'thursday',
+    VIERNES: 'friday',
+    SABADO: 'saturday',
+  }
+  return map[n] || null
+}
+
+/** Vecinos en el array `dias` publicado (mismo orden que la semana). */
+export function getAdjacentDayNames(dias, activeName) {
+  if (!Array.isArray(dias) || !activeName || activeName === 'show') return { prev: null, next: null }
+  const i = dias.findIndex(
+    (d) => NORM(d?.nombre) === NORM(activeName),
+  )
+  if (i < 0) return { prev: null, next: null }
+  return {
+    prev: i > 0 ? dias[i - 1]?.nombre ?? null : null,
+    next: i < dias.length - 1 ? dias[i + 1]?.nombre ?? null : null,
+  }
+}
+
+/** Siguiente o anterior día con sesión (salta días FESTIVO). */
+export function getAdjacentNavDayName(dias, activeName, direction) {
+  if (!Array.isArray(dias) || !activeName || activeName === 'show') return null
+  const i = dias.findIndex((d) => NORM(d?.nombre) === NORM(activeName))
+  if (i < 0) return null
+  const delta = direction === 'prev' ? -1 : 1
+  for (let j = i + delta; j >= 0 && j < dias.length; j += delta) {
+    if (!isFestivoDay(dias[j])) return dias[j].nombre
+  }
   return null
 }

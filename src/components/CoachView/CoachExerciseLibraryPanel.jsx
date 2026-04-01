@@ -35,9 +35,18 @@ function openVideoUrl(url) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+function normSearch(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+}
+
 export default function CoachExerciseLibraryPanel({ exercises, loading, error }) {
   const [filterClass, setFilterClass] = useState('')
   const [filterLevel, setFilterLevel] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const filtered = useMemo(() => {
     let list = exercises || []
@@ -47,8 +56,16 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
     if (filterLevel) {
       list = list.filter((e) => e.level === filterLevel)
     }
+    const q = normSearch(searchQuery)
+    if (q) {
+      list = list.filter((e) => {
+        const name = normSearch(e.name)
+        const notes = normSearch(e.notes)
+        return name.includes(q) || notes.includes(q)
+      })
+    }
     return list
-  }, [exercises, filterClass, filterLevel])
+  }, [exercises, filterClass, filterLevel, searchQuery])
 
   const byCategory = useMemo(() => {
     const m = new Map()
@@ -76,6 +93,17 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
       )}
 
       <div className={`flex flex-wrap gap-3 mb-8 p-4 rounded-xl border ${coachBorder} ${coachBg.card}`}>
+        <div className="flex flex-col gap-1 min-w-[200px] flex-1">
+          <label className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>Buscar</label>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Nombre o notas…"
+            className={`rounded-lg border ${coachBorder} px-3 py-2 text-sm ${coachText.primary} bg-white w-full`}
+            autoComplete="off"
+          />
+        </div>
         <div className="flex flex-col gap-1 min-w-[140px]">
           <label className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>Clase</label>
           <select

@@ -5,8 +5,18 @@ import {
 } from '../../utils/coachLibraryVideoMatch.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { SESSION_BLOCKS, FEEDBACK_BLOCKS } from './coachViewConstants.js'
-import { findDia, sessionText, previewText, buildDayQuickSummary, dayFocusLine } from './coachViewUtils.js'
+import {
+  findDia,
+  sessionText,
+  previewText,
+  buildDayQuickSummary,
+  dayFocusLine,
+  isFestivoDay,
+  getAdjacentNavDayName,
+  dayNombreToFeedbackKey,
+} from './coachViewUtils.js'
 import { coachBg, coachBorder, coachText, coachUi, classBadgeClass } from './coachTheme.js'
+import CoachFormattedSession from './CoachFormattedSession.jsx'
 
 const TAB_ACTIVE = 'bg-[#A729AD] text-white shadow-md border border-[#A729AD]'
 const TAB_IDLE = `bg-white/10 text-white/90 border border-white/20 hover:bg-white/15`
@@ -99,6 +109,27 @@ function ClassVideoCollapse({ sessionKey, videos, open, onToggle }) {
   )
 }
 
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(String(text || ''))
+    return true
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = String(text || '')
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      return true
+    } catch {
+      return false
+    }
+  }
+}
+
 export default function CoachWeekProgrammingPanel({
   weekData,
   activeDay,
@@ -106,10 +137,12 @@ export default function CoachWeekProgrammingPanel({
   weekTab,
   setWeekTab,
   onOpenSupport,
+  onOpenFeedbackFromClass,
   exerciseLibrary = [],
 }) {
   const dias = weekData?.dias || []
   const [openClassVideos, setOpenClassVideos] = useState({})
+  const [copiedKey, setCopiedKey] = useState(null)
 
   const ask = (text, context = null) => {
     onOpenSupport(text, context)
@@ -181,9 +214,24 @@ export default function CoachWeekProgrammingPanel({
               </p>
               <div className="grid gap-5 sm:grid-cols-2">
                 {dias.map((dia) => {
+                  const festivo = isFestivoDay(dia)
                   const { labels, preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
                   const focus = dayFocusLine(dia, SESSION_BLOCKS)
                   const videoCount = findVideosForPublishedDayResolved(dia, exerciseLibrary).length
+                  if (festivo) {
+                    return (
+                      <div
+                        key={dia.nombre}
+                        className={`text-left rounded-xl p-6 border ${coachBorder} bg-gray-200/80 opacity-60 cursor-not-allowed min-h-[200px] flex flex-col`}
+                        aria-label={`${dia.nombre}, festivo`}
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <p className={`text-lg font-black ${coachText.primary} uppercase tracking-tight`}>{dia.nombre}</p>
+                        </div>
+                        <p className={`text-sm font-bold uppercase tracking-widest ${coachText.muted}`}>Festivo · sin sesión</p>
+                      </div>
+                    )
+                  }
                   return (
                     <button
                       key={dia.nombre}
@@ -247,7 +295,7 @@ export default function CoachWeekProgrammingPanel({
                 Vídeos por día — enlaces directos desde la biblioteca (Supabase) cuando hay URL.
               </p>
               {dias.map((dia) => {
-                const vids = findVideosForPublishedDay(dia)
+                const vids = findVideosForPublishedDayResolved(dia, exerciseLibrary)
                 return (
                   <div key={dia.nombre} className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
@@ -300,7 +348,7 @@ export default function CoachWeekProgrammingPanel({
                           <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color }}>
                             {label}
                           </p>
-                          <pre className={`text-sm ${coachText.primary} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia[key]}</pre>
+                          <CoachFormattedSession text={dia[key]} accentColor={color || '#6A1F6D'} />
                         </div>
                       ))}
                       {feedbacks.map(({ label, key }) => (
@@ -312,7 +360,7 @@ export default function CoachWeekProgrammingPanel({
                       {wb && (
                         <div className={`rounded-xl p-4 border border-emerald-700/30 bg-emerald-50/80`}>
                           <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest mb-2">WodBuster / alumno</p>
-                          <pre className={`text-sm ${coachText.primary} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia.wodbuster}</pre>
+                          <CoachFormattedSession text={dia.wodbuster} accentColor="#047857" />
                         </div>
                       )}
                       {!sessions.length && !feedbacks.length && !wb && (
@@ -345,6 +393,40 @@ export default function CoachWeekProgrammingPanel({
             >
               ← Volver a días
             </button>
+            {(() => {
+              const prev = getAdjacentNavDayName(dias, activeDay, 'prev')
+              const next = getAdjacentNavDayName(dias, activeDay, 'next')
+              return (
+                <>
+                  <button
+                    type="button"
+                    disabled={!prev}
+                    onClick={() => prev && setActiveDay(prev)}
+                    className={`text-xs font-bold uppercase tracking-widest border px-3 py-2 rounded-xl ${
+                      prev
+                        ? `${coachText.accent} border-[#A729AD]/40 hover:bg-[#A729AD]/10`
+                        : 'opacity-30 cursor-not-allowed border-black/10'
+                    }`}
+                    aria-label="Día anterior"
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!next}
+                    onClick={() => next && setActiveDay(next)}
+                    className={`text-xs font-bold uppercase tracking-widest border px-3 py-2 rounded-xl ${
+                      next
+                        ? `${coachText.accent} border-[#A729AD]/40 hover:bg-[#A729AD]/10`
+                        : 'opacity-30 cursor-not-allowed border-black/10'
+                    }`}
+                    aria-label="Día siguiente"
+                  >
+                    →
+                  </button>
+                </>
+              )
+            })()}
             <span className={`text-base font-black ${coachText.primary} uppercase tracking-tight`}>{activeDay}</span>
           </div>
           {(() => {
@@ -370,12 +452,40 @@ export default function CoachWeekProgrammingPanel({
                   const slice = [sessionText(dia[key]), fbText].filter(Boolean).join('\n')
                   const classVideos = findVideosInProgramTextResolved(slice, exerciseLibrary)
 
+                  const copyId = `${dayName}-${key}`
+                  const fk = dayNombreToFeedbackKey(dayName)
                   return (
                     <div key={key} className={`rounded-xl border ${coachBorder} ${coachBg.card} p-5 shadow-sm space-y-5`}>
-                      <p className="text-base font-black uppercase tracking-tight" style={{ color }}>
-                        {label}
-                      </p>
-                      <pre className={`text-sm ${coachText.primary} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia[key]}</pre>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <p className="text-base font-black uppercase tracking-tight flex-1 min-w-0" style={{ color }}>
+                          {label}
+                        </p>
+                        <div className="flex flex-wrap gap-2 shrink-0">
+                          {typeof onOpenFeedbackFromClass === 'function' && fk ? (
+                            <button
+                              type="button"
+                              onClick={() => onOpenFeedbackFromClass(fk, label)}
+                              className={`text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.accent} hover:bg-[#A729AD]/10`}
+                            >
+                              Feedback
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok = await copyTextToClipboard(dia[key])
+                              if (ok) {
+                                setCopiedKey(copyId)
+                                setTimeout(() => setCopiedKey((c) => (c === copyId ? null : c)), 2000)
+                              }
+                            }}
+                            className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl bg-[#3f0f42] text-white border border-[#2a0a2c] hover:bg-[#4d1850]"
+                          >
+                            {copiedKey === copyId ? 'Copiado ✓' : 'Copiar'}
+                          </button>
+                        </div>
+                      </div>
+                      <CoachFormattedSession text={dia[key]} accentColor={color} />
 
                       {fbText ? (
                         <div className="space-y-2">
@@ -481,9 +591,25 @@ export default function CoachWeekProgrammingPanel({
                 ) : null}
 
                 {wb ? (
-                  <div className={`rounded-xl p-5 border border-emerald-700/35 bg-emerald-50/90 shadow-sm`}>
-                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest mb-2">Vista alumno (WodBuster)</p>
-                    <pre className={`text-sm ${coachText.primary} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{dia.wodbuster}</pre>
+                  <div className={`rounded-xl p-5 border border-emerald-700/35 bg-emerald-50/90 shadow-sm space-y-2`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest">Vista alumno (WodBuster)</p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const id = `${dayName}-wodbuster`
+                          const ok = await copyTextToClipboard(dia.wodbuster)
+                          if (ok) {
+                            setCopiedKey(id)
+                            setTimeout(() => setCopiedKey((c) => (c === id ? null : c)), 2000)
+                          }
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl bg-emerald-800 text-white border border-emerald-950 hover:bg-emerald-900"
+                      >
+                        {copiedKey === `${dayName}-wodbuster` ? 'Copiado ✓' : 'Copiar'}
+                      </button>
+                    </div>
+                    <CoachFormattedSession text={dia.wodbuster} accentColor="#047857" />
                   </div>
                 ) : null}
               </div>

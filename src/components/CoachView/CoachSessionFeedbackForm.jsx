@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DAYS_ORDER, DAYS_ES } from '../../constants/evoColors.js'
 import { ALL_CLASS_LABELS } from '../../constants/evoClasses.js'
 import { saveCoachSessionFeedback } from '../../lib/supabase.js'
+import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
 import { coachBg, coachBorder, coachField, coachText, coachUi } from './coachTheme.js'
 
 const SESSION_HOW = [
@@ -17,7 +18,26 @@ const TIME_EXPLAIN = [
   { value: 'justo', label: 'Justo' },
 ]
 
-export default function CoachSessionFeedbackForm({ coachName, sessionId, weekRow }) {
+function formatFeedbackTime(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return ''
+  }
+}
+
+export default function CoachSessionFeedbackForm({
+  coachName,
+  sessionId,
+  weekRow,
+  peerEntries = [],
+  onAfterSave,
+  /** { token: number, dayKey: string, classLabel: string } — se aplica al cambiar token (desde Semana). */
+  prefill = null,
+}) {
   const [dayKey, setDayKey] = useState('monday')
   const [classLabel, setClassLabel] = useState(ALL_CLASS_LABELS[0] || 'EvoFuncional')
   const [sessionHow, setSessionHow] = useState('bien')
@@ -29,6 +49,12 @@ export default function CoachSessionFeedbackForm({ coachName, sessionId, weekRow
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!prefill || prefill.token == null) return
+    if (prefill.dayKey && DAYS_ORDER.includes(prefill.dayKey)) setDayKey(prefill.dayKey)
+    if (prefill.classLabel && ALL_CLASS_LABELS.includes(prefill.classLabel)) setClassLabel(prefill.classLabel)
+  }, [prefill?.token])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -60,6 +86,7 @@ export default function CoachSessionFeedbackForm({ coachName, sessionId, weekRow
       setGroupFeelings('')
       setNotesNextWeek('')
       setChangedSomething(false)
+      await onAfterSave?.()
     } catch (err) {
       console.error(err)
       setError(err?.message || 'No se pudo guardar. Revisa conexión y permisos en Supabase.')
@@ -68,12 +95,87 @@ export default function CoachSessionFeedbackForm({ coachName, sessionId, weekRow
     }
   }
 
+  const selfNorm = coachName?.trim().toLowerCase() || ''
+  const weekPeerSorted = [...peerEntries].sort((a, b) => {
+    const ta = a?.created_at ? new Date(a.created_at).getTime() : 0
+    const tb = b?.created_at ? new Date(b.created_at).getTime() : 0
+    return tb - ta
+  })
+  const anyWithChange = weekPeerSorted.some((r) => coachFeedbackRowIndicatesChange(r))
+  const othersWithChange = weekPeerSorted.filter(
+    (r) =>
+      coachFeedbackRowIndicatesChange(r) &&
+      (r?.coach_name?.trim().toLowerCase() || '') !== selfNorm,
+  )
+
   return (
     <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-xl mx-auto`}>
       <h2 className={coachUi.h2}>Feedback de clase</h2>
       <p className={`text-sm ${coachText.muted} mb-8 leading-relaxed`}>
         Ayuda a programar la siguiente semana: una entrada por día y clase que hayas impartido.
       </p>
+
+      {weekPeerSorted.length > 0 ? (
+        <section
+          className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-3`}
+          aria-label="Feedback de coaches esta semana"
+        >
+          <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
+            Esta semana (pase de turno)
+          </h3>
+          <p className={`text-xs ${coachText.muted} leading-relaxed`}>
+            Incluye tus envíos y los del resto del equipo. Los que marcaron cambios en sesión van resaltados.
+          </p>
+          <ul className="space-y-3">
+            {weekPeerSorted.map((row) => {
+              const changed = coachFeedbackRowIndicatesChange(row)
+              const isOwn = (row?.coach_name?.trim().toLowerCase() || '') === selfNorm
+              const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
+              const when = formatFeedbackTime(row.created_at)
+              return (
+                <li
+                  key={row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}
+                  className={`rounded-xl border p-3 text-sm ${
+                    changed
+                      ? 'border-orange-400/70 bg-orange-50/90 text-orange-950'
+                      : `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold">
+                    {isOwn ? (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#6A1F6D] text-white">
+                        Tú
+                      </span>
+                    ) : null}
+                    <span>{dayLabel}</span>
+                    <span className={coachText.muted}>·</span>
+                    <span>{row.class_label || '—'}</span>
+                    <span className={`font-semibold ${coachText.muted}`}>
+                      · {row.coach_name?.trim() || 'Coach'}
+                      {when ? ` · ${when}` : ''}
+                    </span>
+                  </div>
+                  {changed && row.changed_details?.trim() ? (
+                    <p className="mt-2 font-semibold leading-snug whitespace-pre-wrap">{row.changed_details.trim()}</p>
+                  ) : changed ? (
+                    <p className="mt-2 font-medium opacity-90">Indicó cambios sin detalle.</p>
+                  ) : null}
+                  {!changed && (row.group_feelings?.trim() || row.notes_next_week?.trim()) ? (
+                    <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
+                      {[row.group_feelings?.trim(), row.notes_next_week?.trim()].filter(Boolean).join(' · ')}
+                    </p>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+          {othersWithChange.length === 0 && anyWithChange ? (
+            <p className={`text-xs ${coachText.muted}`}>
+              Solo constan tus avisos con cambios; cuando otro coach envíe feedback, aparecerá aquí.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <form onSubmit={handleSubmit} className={`space-y-6 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-sm`}>
         <div>

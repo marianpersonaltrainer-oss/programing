@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { resolveVideoUrlForExerciseLabel } from '../../constants/exerciseVideos.js'
 import { coachBg, coachBorder, coachText, coachUi, CLASS_BADGE_CLASS } from './coachTheme.js'
+import { getAllCoachExerciseNotes, setCoachExerciseNote } from '../../utils/coachLibraryCoachNotes.js'
 
 const CLASS_KEY_TO_LABEL = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((d) => [d.key, d.label]))
 
@@ -47,6 +48,11 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
   const [filterClass, setFilterClass] = useState('')
   const [filterLevel, setFilterLevel] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [coachNotesById, setCoachNotesById] = useState({})
+
+  useEffect(() => {
+    setCoachNotesById((prev) => ({ ...getAllCoachExerciseNotes(), ...prev }))
+  }, [exercises])
 
   const filtered = useMemo(() => {
     let list = exercises || []
@@ -198,6 +204,23 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                       </a>
                     )
                   })()}
+                  <div className="pt-1">
+                    <label className={`block text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-1`}>
+                      Mis notas (solo en este dispositivo)
+                    </label>
+                    <textarea
+                      value={coachNotesById[String(e.id)] ?? ''}
+                      onChange={(ev) => {
+                        const v = ev.target.value
+                        const id = String(e.id)
+                        setCoachNotesById((prev) => ({ ...prev, [id]: v }))
+                        setCoachExerciseNote(e.id, v)
+                      }}
+                      rows={2}
+                      placeholder="Cues, correcciones habituales, escalado que usas en clase…"
+                      className={`w-full rounded-lg border ${coachBorder} px-3 py-2 text-sm ${coachText.primary} bg-white`}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

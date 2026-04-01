@@ -72,12 +72,12 @@ export const coachAdminUi = {
 
 /** Badges de clase — fondos claros */
 export const CLASS_BADGE_CLASS = {
-  EvoFuncional: 'bg-[#3C78D8]/12 text-[#1e4a8c] border-[#3C78D8]/45',
+  EvoFuncional: 'bg-[#6A1F6D]/14 text-[#3d0f40] border-[#6A1F6D]/45',
   EvoBasics: 'bg-[#E69138]/12 text-[#8b4513] border-[#E69138]/45',
   EvoFit: 'bg-[#6AA84F]/12 text-[#2d5016] border-[#6AA84F]/45',
-  EvoHybrix: 'bg-[#F4C430]/18 text-[#6b5900] border-[#F4C430]/55',
+  EvoHybrix: 'bg-[#2563EB]/12 text-[#1e3a8a] border-[#2563EB]/45',
   EvoFuerza: 'bg-[#CC0000]/10 text-[#7f1d1d] border-[#CC0000]/45',
-  'EvoGimnástica': 'bg-[#E91E8C]/10 text-[#831843] border-[#E91E8C]/45',
+  'EvoGimnástica': 'bg-[#C9A227]/22 text-[#4a3b08] border-[#C9A227]/55',
   EvoTodos: 'bg-[#A729AD]/12 text-[#5a0d5c] border-[#A729AD]/45',
 }
 

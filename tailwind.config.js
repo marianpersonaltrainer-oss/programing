@@ -24,12 +24,12 @@ export default {
           'muted-on-dark': '#C4A8C4',
         },
         clase: {
-          funcional: '#3C78D8',
+          funcional: '#6A1F6D',
           basics: '#E69138',
           fit: '#6AA84F',
           fuerza: '#CC0000',
-          gimnasticos: '#E91E8C',
-          hybrix: '#F4C430',
+          gimnasticos: '#C9A227',
+          hybrix: '#2563EB',
         },
       },
       fontFamily: {

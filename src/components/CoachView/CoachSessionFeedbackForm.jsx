@@ -65,9 +65,14 @@ export default function CoachSessionFeedbackForm({
       setError('Falta sesión o semana activa. Recarga la página.')
       return
     }
-    setSaving(true)
     setError('')
     setMessage('')
+    if (changedSomething && !changedDetails.trim()) {
+      setError('Si marcaste que cambiaste algo, describe qué cambiaste.')
+      return
+    }
+
+    setSaving(true)
     try {
       await saveCoachSessionFeedback({
         coach_session_id: sessionId,
@@ -90,8 +95,11 @@ export default function CoachSessionFeedbackForm({
         semana: weekRow.semana != null ? Number(weekRow.semana) : null,
         day_key: dayKey,
         class_label: classLabel,
+        coach_name: coachName.trim(),
         session_how: sessionHow,
         time_for_explanation: timeExplain,
+        changed_something: changedSomething,
+        changed_details: changedSomething ? changedDetails.trim() : null,
         group_feelings: groupFeelings.trim() || null,
         notes_next_week: notesNextWeek.trim() || null,
         source: 'local_save',
@@ -287,15 +295,20 @@ export default function CoachSessionFeedbackForm({
               No
             </button>
           </div>
-          {changedSomething && (
-            <textarea
-              value={changedDetails}
-              onChange={(e) => setChangedDetails(e.target.value)}
-              placeholder="Describe qué cambiaste y por qué…"
-              rows={3}
-              className={coachField}
-            />
-          )}
+          {changedSomething ? (
+            <div>
+              <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+                ¿Qué cambiaste?
+              </label>
+              <textarea
+                value={changedDetails}
+                onChange={(e) => setChangedDetails(e.target.value)}
+                placeholder="Ej.: sustituí X por Y, bajé cargas en el bisagra, acorté el WOD…"
+                rows={3}
+                className={coachField}
+              />
+            </div>
+          ) : null}
         </div>
 
         <div>

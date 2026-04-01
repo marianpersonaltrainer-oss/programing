@@ -1,5 +1,5 @@
 /**
- * Clases de sesión EVO — colores alineados con WodBuster (manual de marca).
+ * Clases de sesión EVO — paleta fija Coach (Sprint 4): morado / naranja / verde / azul / rojo / dorado + EvoTodos marca.
  * Único origen para Excel, coach badges, prompts y UI.
  *
  * EvoFuerza, EvoGimnástica y EvoTodos: solo cuando las instrucciones lo piden explícitamente.
@@ -10,8 +10,8 @@ export const EVO_SESSION_CLASS_DEFS = [
     key: 'evofuncional',
     feedbackKey: 'feedback_funcional',
     label: 'EvoFuncional',
-    color: '#3C78D8',
-    excelArgb: 'FF3C78D8',
+    color: '#6A1F6D',
+    excelArgb: 'FF6A1F6D',
   },
   {
     key: 'evobasics',
@@ -31,8 +31,8 @@ export const EVO_SESSION_CLASS_DEFS = [
     key: 'evohybrix',
     feedbackKey: 'feedback_hybrix',
     label: 'EvoHybrix',
-    color: '#F4C430',
-    excelArgb: 'FFF4C430',
+    color: '#2563EB',
+    excelArgb: 'FF2563EB',
   },
   {
     key: 'evofuerza',
@@ -45,8 +45,8 @@ export const EVO_SESSION_CLASS_DEFS = [
     key: 'evogimnastica',
     feedbackKey: 'feedback_gimnastica',
     label: 'EvoGimnástica',
-    color: '#E91E8C',
-    excelArgb: 'FFE91E8C',
+    color: '#C9A227',
+    excelArgb: 'FFC9A227',
   },
   {
     key: 'evotodos',
@@ -84,11 +84,11 @@ export const CLASS_COLOR_BY_LABEL = Object.fromEntries(
 export const ALL_CLASS_LABELS = EVO_SESSION_CLASS_DEFS.map(({ label }) => label)
 
 export const CLASS_BAR_HEX = {
-  funcional: '#3C78D8',
+  funcional: '#6A1F6D',
   basics: '#E69138',
   fit: '#6AA84F',
-  hybrix: '#F4C430',
+  hybrix: '#2563EB',
   fuerza: '#CC0000',
-  gimnastica: '#E91E8C',
+  gimnastica: '#C9A227',
   evotodos: '#A729AD',
 }

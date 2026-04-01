@@ -114,18 +114,37 @@ function IconEjercicios(props) {
     </svg>
   )
 }
+function IconMas(props) {
+  return (
+    <svg className={props.className} fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  )
+}
 
-const NAV_ITEMS = [
-  { id: 'semana', label: 'Semana', Icon: IconSemana },
-  { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
-  { id: 'centro', label: 'Centro', Icon: IconCentro },
-  { id: 'clases', label: 'Clases', Icon: IconClases },
-  { id: 'mesociclos', label: 'Ciclos', Icon: IconCiclos },
-  { id: 'uso', label: 'Uso app', Icon: IconUso },
-  { id: 'material', label: 'Material', Icon: IconMaterial },
-  { id: 'feedback', label: 'Feedback', Icon: IconFeedback },
-  { id: 'soporte', label: 'Soporte', Icon: IconSoporte },
-]
+const NAV_DEFS = {
+  semana: { id: 'semana', label: 'Semana', Icon: IconSemana },
+  soporte: { id: 'soporte', label: 'Soporte', Icon: IconSoporte },
+  feedback: { id: 'feedback', label: 'Feedback', Icon: IconFeedback },
+  ejercicios: { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
+  mesociclos: { id: 'mesociclos', label: 'Ciclos', Icon: IconCiclos },
+  material: { id: 'material', label: 'Material', Icon: IconMaterial },
+  centro: { id: 'centro', label: 'Centro', Icon: IconCentro },
+  clases: { id: 'clases', label: 'Clases', Icon: IconClases },
+  uso: { id: 'uso', label: 'Uso app', Icon: IconUso },
+}
+
+/** Orden lateral desktop y sección principal del menú «Más» móvil */
+const PRIMARY_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios', 'mesociclos', 'material']
+const GUIDE_CENTRE_IDS = ['centro', 'clases', 'uso']
+const BOTTOM_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios']
+const MORE_DRAWER_IDS = ['mesociclos', 'material', ...GUIDE_CENTRE_IDS]
+
+function handoverModalStorageKey(sessionId) {
+  return `coach_handover_modal_${sessionId}`
+}
 
 const SUPPORT_DAILY_LIMIT = 10
 const SUPPORT_LIMIT_MESSAGE =
@@ -217,7 +236,11 @@ export default function CoachView() {
   const [exerciseLibraryLoading, setExerciseLibraryLoading] = useState(true)
   const [exerciseLibraryError, setExerciseLibraryError] = useState('')
   const [supportUsedToday, setSupportUsedToday] = useState(0)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [moreDrawerOpen, setMoreDrawerOpen] = useState(false)
+  const [guideCentreOpen, setGuideCentreOpen] = useState(false)
+  const [handoverDismissed, setHandoverDismissed] = useState(false)
+  const [handoverModalOpen, setHandoverModalOpen] = useState(false)
+  const [moreGuideOpen, setMoreGuideOpen] = useState(false)
   const [supportSessionContext, setSupportSessionContext] = useState(null)
   const supportSessionContextRef = useRef(null)
   const supportInFlightAbortRef = useRef(null)
@@ -313,35 +336,26 @@ export default function CoachView() {
     )
   }, [activeWeekRow?.id, activeWeekRow?.mesociclo, activeWeekRow?.semana, peerFeedbackWeek])
 
-  async function refreshPeerFeedbackWeek() {
-    if (!activeWeekRow?.id) return
-    try {
-      const rows = await listCoachSessionFeedbackForWeek(activeWeekRow.id)
-      setPeerFeedbackWeek(Array.isArray(rows) ? rows : [])
-    } catch {
-      /* noop */
+  useEffect(() => {
+    if (!sessionId) {
+      setHandoverDismissed(false)
+      return
     }
-  }
-
-  const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
-  const handoverSummary = handoverAlerts
-    .slice(0, 3)
-    .map((r) => {
-      const day = String(r?.day_key || '').toUpperCase()
-      const cls = r?.class_label || 'Clase'
-      const who = r?.coach_name?.trim() || 'Coach'
-      return `${day} · ${cls} (${who})`
-    })
-    .join(' | ')
+    try {
+      setHandoverDismissed(!!localStorage.getItem(handoverModalStorageKey(sessionId)))
+    } catch {
+      setHandoverDismissed(false)
+    }
+  }, [sessionId])
 
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)')
-    const onChange = () => {
-      if (mq.matches) setMobileMenuOpen(false)
+    const alerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
+    if (step !== 'chat' || !sessionId || handoverDismissed || alerts.length === 0) {
+      setHandoverModalOpen(false)
+      return
     }
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
+    setHandoverModalOpen(true)
+  }, [step, sessionId, handoverDismissed, peerFeedbackWeek])
 
   useEffect(() => {
     let mounted = true
@@ -397,6 +411,50 @@ export default function CoachView() {
       clearTimeout(timeout)
     }
   }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const onChange = () => {
+      if (mq.matches) setMoreDrawerOpen(false)
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  async function refreshPeerFeedbackWeek() {
+    if (!activeWeekRow?.id) return
+    try {
+      const rows = await listCoachSessionFeedbackForWeek(activeWeekRow.id)
+      setPeerFeedbackWeek(Array.isArray(rows) ? rows : [])
+    } catch {
+      /* noop */
+    }
+  }
+
+  const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
+  const handoverSummary = handoverAlerts
+    .slice(0, 3)
+    .map((r) => {
+      const day = String(r?.day_key || '').toUpperCase()
+      const cls = r?.class_label || 'Clase'
+      const who = r?.coach_name?.trim() || 'Coach'
+      return `${day} · ${cls} (${who})`
+    })
+    .join(' | ')
+
+  const handoverBadgeCount = !handoverDismissed ? handoverAlerts.length : 0
+
+  function dismissHandoverModal() {
+    if (sessionId) {
+      try {
+        localStorage.setItem(handoverModalStorageKey(sessionId), '1')
+      } catch {
+        /* noop */
+      }
+      setHandoverDismissed(true)
+    }
+    setHandoverModalOpen(false)
+  }
 
   async function handleCodeSubmit(e) {
     e.preventDefault()
@@ -458,7 +516,7 @@ export default function CoachView() {
 
   function openSupport(prefill, context = null) {
     setMainTab('soporte')
-    setMobileMenuOpen(false)
+    setMoreDrawerOpen(false)
     if (typeof prefill === 'string') setInput(prefill)
     const normalized = context || null
     supportSessionContextRef.current = normalized
@@ -469,12 +527,12 @@ export default function CoachView() {
     if (!dayKey || !classLabel) return
     setFeedbackPrefill({ token: Date.now(), dayKey, classLabel })
     setMainTab('feedback')
-    setMobileMenuOpen(false)
+    setMoreDrawerOpen(false)
   }
 
   function selectNav(id) {
     setMainTab(id)
-    setMobileMenuOpen(false)
+    setMoreDrawerOpen(false)
   }
 
   async function handleSend(e) {
@@ -694,42 +752,74 @@ export default function CoachView() {
 
   return (
     <div className={coachUi.shell}>
-      {mobileMenuOpen && (
-        <button
-          type="button"
-          className={`fixed inset-0 z-40 ${coachBg.overlay} md:hidden`}
-          aria-label="Cerrar menú"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <aside
-          className={`
-            fixed z-50 top-0 bottom-0 left-0 w-[200px] flex flex-col shrink-0
-            ${coachBg.sidebar} border-r ${coachBorder}
-            transition-transform duration-200 ease-out
-            md:relative md:translate-x-0 md:z-0
-            ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          `}
-          aria-label="Navegación principal"
+      {handoverModalOpen ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="handover-modal-title"
         >
-          <div className={`p-4 border-b ${coachBorder} flex items-center justify-between md:hidden`}>
-            <span className={`text-sm font-bold ${coachText.onSidebar}`}>Menú</span>
+          <div
+            className={`w-full sm:max-w-lg max-h-[min(92dvh,640px)] overflow-y-auto rounded-t-2xl sm:rounded-2xl border ${coachBorder} ${coachBg.card} shadow-2xl p-5 sm:p-6 space-y-4`}
+          >
+            <h2 id="handover-modal-title" className={`text-lg font-black uppercase tracking-tight ${coachText.title}`}>
+              Pase de turno
+            </h2>
+            <p className={`text-sm font-semibold ${coachText.muted}`}>
+              {handoverAlerts.length === 1
+                ? 'Hay un aviso con cambios en sesión esta semana.'
+                : `${handoverAlerts.length} avisos con cambios en sesión esta semana.`}
+            </p>
+            <ul className="space-y-3">
+              {handoverAlerts.map((r, i) => {
+                const day = String(r?.day_key || '').toUpperCase()
+                const cls = r?.class_label || 'Clase'
+                const who = r?.coach_name?.trim() || 'Coach'
+                const det = String(r?.changed_details || '').trim()
+                return (
+                  <li
+                    key={r?.id ?? `${day}-${cls}-${i}`}
+                    className={`rounded-xl border ${coachBorder} ${coachBg.cardAlt} p-4 space-y-1.5`}
+                  >
+                    <p className={`text-sm font-black uppercase tracking-wide ${coachText.primary}`}>
+                      {day} · {cls}
+                    </p>
+                    <p className={`text-xs font-bold ${coachText.muted}`}>Coach: {who}</p>
+                    {det ? <p className={`text-sm font-medium leading-snug ${coachText.primary}`}>{det}</p> : null}
+                  </li>
+                )
+              })}
+            </ul>
             <button
               type="button"
-              className={`p-2 rounded-lg ${coachBg.sidebarHover} ${coachText.onSidebar}`}
-              onClick={() => setMobileMenuOpen(false)}
-              aria-label="Cerrar"
+              onClick={dismissHandoverModal}
+              className="w-full py-3.5 rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] text-white font-bold text-sm uppercase tracking-widest shadow-md"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
+              Entendido
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {moreDrawerOpen ? (
+        <button
+          type="button"
+          className={`fixed inset-0 z-[115] ${coachBg.overlay} md:hidden`}
+          aria-label="Cerrar menú Más"
+          onClick={() => setMoreDrawerOpen(false)}
+        />
+      ) : null}
+
+      <div className="flex flex-1 min-h-0 overflow-hidden pb-[max(4.25rem,calc(3.5rem+env(safe-area-inset-bottom,0px)))] md:pb-0">
+        <aside
+          className={`hidden md:flex w-[200px] flex-col shrink-0 ${coachBg.sidebar} border-r ${coachBorder}`}
+          aria-label="Navegación principal"
+        >
           <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
-            {NAV_ITEMS.map(({ id, label, Icon }) => {
+            {PRIMARY_NAV_IDS.map((navId) => {
+              const { id, label, Icon } = NAV_DEFS[navId]
               const active = mainTab === id
+              const showFbBadge = id === 'feedback' && handoverBadgeCount > 0
               return (
                 <button
                   key={id}
@@ -739,11 +829,51 @@ export default function CoachView() {
                     active ? coachNav.active : coachNav.idle
                   }`}
                 >
-                  <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-white' : ''}`} />
+                  <span className="relative shrink-0">
+                    <Icon className={`w-5 h-5 ${active ? 'text-white' : ''}`} />
+                    {showFbBadge ? (
+                      <span className="absolute -top-1.5 -right-2 min-w-[1.125rem] h-[18px] px-0.5 rounded-full bg-orange-500 text-white text-[10px] font-black flex items-center justify-center tabular-nums leading-none border border-white/30">
+                        {handoverBadgeCount > 9 ? '9+' : handoverBadgeCount}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="truncate">{label}</span>
                 </button>
               )
             })}
+            <details
+              className="pt-1"
+              open={guideCentreOpen}
+              onToggle={(e) => setGuideCentreOpen(e.currentTarget.open)}
+            >
+              <summary
+                className={`list-none cursor-pointer w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-[11px] font-bold uppercase tracking-widest ${coachText.mutedOnSidebar} ${coachBg.sidebarHover} hover:text-white [&::-webkit-details-marker]:hidden`}
+              >
+                <span className="truncate">Guía del centro</span>
+                <span className="ml-auto text-[9px] opacity-70 shrink-0" aria-hidden>
+                  ▼
+                </span>
+              </summary>
+              <div className="mt-1 ml-1 pl-2 border-l border-white/15 space-y-0.5">
+                {GUIDE_CENTRE_IDS.map((navId) => {
+                  const { id, label, Icon } = NAV_DEFS[navId]
+                  const active = mainTab === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => selectNav(id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[13px] font-semibold transition-colors ${
+                        active ? coachNav.active : coachNav.idle
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-white' : ''}`} />
+                      <span className="truncate">{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </details>
           </nav>
         </aside>
 
@@ -751,17 +881,6 @@ export default function CoachView() {
           <header
             className={`flex items-center gap-3 px-4 py-3 border-b ${coachBorder} ${coachBg.app} flex-shrink-0 z-30 safe-area-pt`}
           >
-            <button
-              type="button"
-              className="md:hidden p-2.5 rounded-xl hover:bg-[#A729AD]/10 text-[#1A0A1A] border border-transparent hover:border-[#A729AD]/30"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-expanded={mobileMenuOpen}
-              aria-label="Abrir menú de navegación"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
             <div className="h-10 shrink-0 flex items-center">
               <EvoLogo imgClassName="h-9 w-auto max-w-[120px] object-contain object-left" />
             </div>
@@ -782,7 +901,7 @@ export default function CoachView() {
             </div>
           ) : null}
 
-          {handoverAlerts.length > 0 ? (
+          {handoverDismissed && handoverAlerts.length > 0 ? (
             <div
               role="status"
               className="flex-shrink-0 px-4 py-4 border-b border-orange-400/50 bg-orange-100/95 text-sm sm:text-base font-bold font-evo-body leading-snug"
@@ -969,6 +1088,8 @@ export default function CoachView() {
                     onOpenSupport={openSupport}
                     onOpenFeedbackFromClass={openFeedbackFromClass}
                     exerciseLibrary={exerciseLibrary}
+                    coachName={coachName}
+                    weekRow={activeWeekRow}
                   />
                 )}
                 {mainTab === 'ejercicios' && (
@@ -998,6 +1119,121 @@ export default function CoachView() {
           </div>
         </div>
       </div>
+
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[110] md:hidden flex items-stretch justify-around bg-[#1A0D1A] border-t border-white/10 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] px-0.5 shadow-[0_-6px_28px_rgba(0,0,0,0.18)]"
+        aria-label="Navegación inferior"
+      >
+        {BOTTOM_NAV_IDS.map((navId) => {
+          const { id, label, Icon } = NAV_DEFS[navId]
+          const active = mainTab === id
+          const showFbBadge = id === 'feedback' && handoverBadgeCount > 0
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => selectNav(id)}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-xl transition-colors ${
+                active ? 'text-white bg-white/10' : 'text-[#C4A8C4] hover:text-white/90'
+              }`}
+            >
+              <span className="relative">
+                <Icon className="w-6 h-6" />
+                {showFbBadge ? (
+                  <span className="absolute -top-1.5 -right-2 min-w-[1.125rem] h-[18px] px-0.5 rounded-full bg-orange-500 text-white text-[10px] font-black flex items-center justify-center tabular-nums leading-none border border-[#1A0D1A]">
+                    {handoverBadgeCount > 9 ? '9+' : handoverBadgeCount}
+                  </span>
+                ) : null}
+              </span>
+              <span className="text-[9px] font-bold uppercase tracking-wide truncate max-w-full px-0.5">{label}</span>
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setMoreDrawerOpen(true)}
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-xl transition-colors ${
+            MORE_DRAWER_IDS.includes(mainTab) ? 'text-white bg-white/10' : 'text-[#C4A8C4] hover:text-white/90'
+          }`}
+        >
+          <IconMas className="w-6 h-6" />
+          <span className="text-[9px] font-bold uppercase tracking-wide">Más</span>
+        </button>
+      </nav>
+
+      {moreDrawerOpen ? (
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-[116] md:hidden max-h-[min(78dvh,560px)] flex flex-col rounded-t-2xl border-t border-x ${coachBorder} ${coachBg.card} shadow-2xl pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
+          role="dialog"
+          aria-label="Más opciones"
+        >
+          <div className={`flex items-center justify-between gap-3 px-4 py-3 border-b ${coachBorder} shrink-0`}>
+            <p className={`text-sm font-black uppercase tracking-wide ${coachText.title}`}>Más</p>
+            <button
+              type="button"
+              onClick={() => setMoreDrawerOpen(false)}
+              className={`p-2 rounded-xl ${coachText.muted} hover:bg-black/5`}
+              aria-label="Cerrar"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="overflow-y-auto py-2 px-3 space-y-1 flex-1 min-h-0">
+            {['mesociclos', 'material'].map((navId) => {
+              const { id, label, Icon } = NAV_DEFS[navId]
+              const active = mainTab === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => selectNav(id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left text-[14px] font-semibold border ${coachBorder} ${
+                    active ? 'bg-[#A729AD]/12 border-[#A729AD]/35 text-[#6A1F6D]' : `${coachBg.cardAlt} ${coachText.primary}`
+                  }`}
+                >
+                  <Icon className="w-5 h-5 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              )
+            })}
+            <details
+              className="rounded-xl border border-[#6A1F6D]/25 overflow-hidden"
+              open={moreGuideOpen}
+              onToggle={(e) => setMoreGuideOpen(e.currentTarget.open)}
+            >
+              <summary
+                className={`list-none cursor-pointer px-4 py-3.5 text-[12px] font-bold uppercase tracking-widest ${coachText.muted} flex items-center justify-between gap-2 bg-[#F3EAF8] [&::-webkit-details-marker]:hidden`}
+              >
+                Guía del centro
+                <span className="text-[9px] opacity-70" aria-hidden>
+                  ▼
+                </span>
+              </summary>
+              <div className="p-2 space-y-1 border-t border-[#6A1F6D]/15">
+                {GUIDE_CENTRE_IDS.map((navId) => {
+                  const { id, label, Icon } = NAV_DEFS[navId]
+                  const active = mainTab === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => selectNav(id)}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left text-[14px] font-semibold ${
+                        active ? 'bg-[#A729AD]/12 text-[#6A1F6D]' : coachText.primary
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 shrink-0" />
+                      <span>{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </details>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -18,7 +18,7 @@ export default function CoachFeedbackWeekSummary({ weekRow, refreshKey = 0, peer
 
   if (!summary || summary.count === 0) return null
 
-  const { how, timeSi, timeNo, timeJusto, recentNotes } = summary
+  const { how, timeSi, timeNo, timeJusto, recentNotes, recentChanges } = summary
   const totalHow = how.muy_bien + how.bien + how.regular + how.mal
   const timeTotal = timeSi + timeNo + timeJusto
 
@@ -65,6 +65,24 @@ export default function CoachFeedbackWeekSummary({ weekRow, refreshKey = 0, peer
             <li className={`rounded-xl px-3 py-2 border ${coachBorder} ${coachBg.cardMuted}`}>
               <span className="font-bold text-rose-900">Corto / faltó</span> · {timeNo}
             </li>
+          </ul>
+        </div>
+      ) : null}
+
+      {recentChanges?.length > 0 ? (
+        <div>
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+            Cambios en sesión (detalle)
+          </p>
+          <ul className="space-y-2 text-sm">
+            {recentChanges.map((c, i) => (
+              <li key={i} className={`rounded-xl border border-orange-300/60 bg-orange-50/90 px-3 py-2 text-orange-950`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wide`}>
+                  {DAYS_ES[c.day_key] || c.day_key || '—'} · {c.class_label || '—'}
+                </p>
+                <p className="font-semibold leading-snug mt-1 whitespace-pre-wrap">{c.text}</p>
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}

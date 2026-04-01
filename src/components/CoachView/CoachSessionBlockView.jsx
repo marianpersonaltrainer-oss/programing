@@ -5,6 +5,7 @@ import { parseTimedBlocks, classElapsedMinutes, findActiveTimedBlock } from '../
 import { findLibraryRowsForLine } from '../../utils/coachLibraryLineMatch.js'
 import { resolveVideoUrlForExerciseLabel } from '../../constants/exerciseVideos.js'
 import { coachBorder, coachText, coachBg } from './coachTheme.js'
+import { getCoachExerciseNote } from '../../utils/coachLibraryCoachNotes.js'
 
 function formatClockFromMs(elapsedMs) {
   const s = Math.floor(elapsedMs / 1000)
@@ -25,6 +26,7 @@ function EscaladosDetails({ rows }) {
       <ul className="mt-2 space-y-2 text-xs">
         {rows.map((r) => {
           const url = resolveVideoUrlForExerciseLabel(r.name, r.video_url)
+          const coachNote = r.id != null ? getCoachExerciseNote(r.id).trim() : ''
           return (
             <li key={r.id || r.name} className={`${coachText.muted} leading-snug`}>
               <span className={`font-bold ${coachText.primary}`}>{r.name}</span>
@@ -32,6 +34,11 @@ function EscaladosDetails({ rows }) {
                 <span className="text-[10px] ml-2 opacity-80">({LEVEL_ES[r.level] || r.level})</span>
               ) : null}
               {r.notes?.trim() ? <p className="mt-0.5 whitespace-pre-wrap">{r.notes.trim()}</p> : null}
+              {coachNote ? (
+                <p className="mt-1 text-[11px] font-semibold text-[#4a1750] whitespace-pre-wrap border-l-2 border-[#A729AD]/40 pl-2">
+                  Mi nota: {coachNote}
+                </p>
+              ) : null}
               {url ? (
                 <a
                   href={url}

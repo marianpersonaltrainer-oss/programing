@@ -46,8 +46,11 @@ export function mergeServerFeedbackIntoLog(rows, weekId, mesociclo, semana) {
       semana: r.semana != null ? Number(r.semana) : semana != null ? Number(semana) : null,
       day_key: r.day_key,
       class_label: r.class_label,
+      coach_name: r.coach_name ?? null,
       session_how: r.session_how,
       time_for_explanation: r.time_for_explanation,
+      changed_something: r.changed_something,
+      changed_details: r.changed_details,
       group_feelings: r.group_feelings,
       notes_next_week: r.notes_next_week,
       created_at: r.created_at,
@@ -100,6 +103,28 @@ export function summarizeFeedbackForWeek(weekId, mesociclo, semana) {
     return tb - ta
   })
 
+  const recentChanges = []
+  for (const e of filtered) {
+    const ch =
+      e.changed_something === true ||
+      e.changed_something === 'true' ||
+      e.changed_something === 1 ||
+      e.changed_something === '1' ||
+      e.changed_something === 't'
+    if (!ch) continue
+    recentChanges.push({
+      text: String(e.changed_details || '').trim() || '(Sin detalle)',
+      at: e.created_at || e.savedAt,
+      class_label: e.class_label,
+      day_key: e.day_key,
+    })
+  }
+  recentChanges.sort((a, b) => {
+    const ta = a.at ? new Date(a.at).getTime() : 0
+    const tb = b.at ? new Date(b.at).getTime() : 0
+    return tb - ta
+  })
+
   return {
     count: filtered.length,
     how,
@@ -107,5 +132,25 @@ export function summarizeFeedbackForWeek(weekId, mesociclo, semana) {
     timeNo,
     timeJusto,
     recentNotes: recentNotes.slice(0, 10),
+    recentChanges: recentChanges.slice(0, 10),
   }
+}
+
+/** ¿Este coach tiene al menos un feedback guardado (log local) para ese día de esa semana? */
+export function coachHasFeedbackForDay(weekId, dayKey, coachName) {
+  if (weekId == null || !dayKey) return false
+  const cn = String(coachName || '')
+    .trim()
+    .toLowerCase()
+  if (!cn) return false
+  const { entries } = readFeedbackLog()
+  const w = String(weekId)
+  return entries.some((e) => {
+    if (e.day_key !== dayKey) return false
+    if (e.week_id == null || String(e.week_id) !== w) return false
+    const en = String(e.coach_name || '')
+      .trim()
+      .toLowerCase()
+    return en === cn
+  })
 }

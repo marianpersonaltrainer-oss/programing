@@ -16,6 +16,14 @@ import {
   dayNombreToFeedbackKey,
 } from './coachViewUtils.js'
 import { coachBg, coachBorder, coachText, coachUi, classBadgeClass } from './coachTheme.js'
+import { DAYS_ES } from '../../constants/evoColors.js'
+import { coachHasFeedbackForDay } from '../../utils/coachFeedbackLocalLog.js'
+import {
+  extractMaterialHints,
+  findLastFeedbackForClassLabel,
+  formatFeedbackEntrySummary,
+} from '../../utils/coachSessionPrep.js'
+import { printCoachDaySession } from '../../utils/coachPrintSession.js'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
 import CoachSessionBlockView from './CoachSessionBlockView.jsx'
 
@@ -140,10 +148,13 @@ export default function CoachWeekProgrammingPanel({
   onOpenSupport,
   onOpenFeedbackFromClass,
   exerciseLibrary = [],
+  coachName = '',
+  weekRow = null,
 }) {
   const dias = weekData?.dias || []
   const [openClassVideos, setOpenClassVideos] = useState({})
   const [copiedKey, setCopiedKey] = useState(null)
+  const [prepDayName, setPrepDayName] = useState(null)
 
   const ask = (text, context = null) => {
     onOpenSupport(text, context)
@@ -219,6 +230,12 @@ export default function CoachWeekProgrammingPanel({
                   const { labels, preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
                   const focus = dayFocusLine(dia, SESSION_BLOCKS)
                   const videoCount = findVideosForPublishedDayResolved(dia, exerciseLibrary).length
+                  const dayKey = dayNombreToFeedbackKey(dia.nombre)
+                  const hasDayFeedback =
+                    dayKey &&
+                    weekRow?.id &&
+                    coachName?.trim() &&
+                    coachHasFeedbackForDay(weekRow.id, dayKey, coachName)
                   if (festivo) {
                     return (
                       <div
@@ -242,11 +259,35 @@ export default function CoachWeekProgrammingPanel({
                     >
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <p className={`text-lg font-black ${coachText.primary} uppercase tracking-tight`}>{dia.nombre}</p>
-                        {videoCount > 0 && (
-                          <span className="text-xs font-bold uppercase tracking-wide text-[#6A1F6D] bg-[#A729AD]/15 border border-[#A729AD]/35 px-2.5 py-1 rounded-lg shrink-0">
-                            ▶ {videoCount}
-                          </span>
-                        )}
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            {videoCount > 0 ? (
+                              <span className="text-xs font-bold uppercase tracking-wide text-[#6A1F6D] bg-[#A729AD]/15 border border-[#A729AD]/35 px-2.5 py-1 rounded-lg">
+                                ▶ {videoCount}
+                              </span>
+                            ) : null}
+                            {hasDayFeedback ? (
+                              <span
+                                className="text-emerald-600 text-xl font-black leading-none"
+                                title="Enviaste feedback este día (log en este dispositivo)"
+                                aria-label="Feedback este día registrado"
+                              >
+                                ✓
+                              </span>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setPrepDayName(dia.nombre)
+                            }}
+                            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.accent} hover:bg-[#A729AD]/10`}
+                          >
+                            Preparar clase
+                          </button>
+                        </div>
                       </div>
                       {focus && (
                         <div className={`mb-4 rounded-lg border ${coachBorder} ${coachBg.cardMuted} px-4 py-3`}>
@@ -429,6 +470,32 @@ export default function CoachWeekProgrammingPanel({
               )
             })()}
             <span className={`text-base font-black ${coachText.primary} uppercase tracking-tight`}>{activeDay}</span>
+            <button
+              type="button"
+              onClick={() => {
+                const dia = findDia(dias, activeDay)
+                if (!dia) return
+                const blocks = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key])).map(({ label, key }) => ({
+                  classLabel: label,
+                  text: sessionText(dia[key]),
+                }))
+                if (sessionText(dia.wodbuster)) {
+                  blocks.push({
+                    classLabel: 'Vista alumno (WodBuster)',
+                    text: sessionText(dia.wodbuster),
+                  })
+                }
+                printCoachDaySession({
+                  coachName: coachName?.trim() || '—',
+                  dateLabel: new Date().toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' }),
+                  dayLabel: activeDay,
+                  blocks,
+                })
+              }}
+              className={`text-[10px] font-bold uppercase tracking-widest ml-auto px-4 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.primary} hover:bg-[#A729AD]/10`}
+            >
+              Imprimir día
+            </button>
           </div>
           {(() => {
             const dia = findDia(dias, activeDay)
@@ -624,6 +691,110 @@ export default function CoachWeekProgrammingPanel({
           })()}
         </div>
       )}
+
+      {prepDayName
+        ? (() => {
+            const diaPrep = findDia(dias, prepDayName)
+            if (!diaPrep) return null
+            const combinedText = [
+              ...SESSION_BLOCKS.map(({ key }) => sessionText(diaPrep[key])).filter(Boolean),
+              sessionText(diaPrep.wodbuster),
+            ].join('\n')
+            const hints = extractMaterialHints(combinedText)
+            const blocksWithText = SESSION_BLOCKS.filter(({ key }) => sessionText(diaPrep[key]))
+            return (
+              <div
+                className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/45"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="prep-class-title"
+                onClick={() => setPrepDayName(null)}
+              >
+                <div
+                  className={`w-full sm:max-w-lg max-h-[min(88dvh,560px)] overflow-y-auto rounded-t-2xl sm:rounded-2xl border ${coachBorder} ${coachBg.card} shadow-2xl flex flex-col`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className={`px-5 py-4 border-b ${coachBorder} flex items-start justify-between gap-3 shrink-0`}>
+                    <div>
+                      <h2 id="prep-class-title" className={`text-lg font-black uppercase tracking-tight ${coachText.title}`}>
+                        Preparar clase
+                      </h2>
+                      <p className={`text-sm font-bold ${coachText.primary} mt-1`}>{diaPrep.nombre}</p>
+                      <p className={`text-[10px] ${coachText.muted} mt-1`}>Material sugerido y último feedback de cada clase (datos locales).</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPrepDayName(null)}
+                      className={`p-2 rounded-xl ${coachText.muted} hover:bg-black/5 shrink-0`}
+                      aria-label="Cerrar"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="px-5 py-4 space-y-5 overflow-y-auto">
+                    <section>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+                        Material a tener a mano
+                      </p>
+                      {hints.length ? (
+                        <ul className={`list-disc list-inside text-sm ${coachText.primary} space-y-1`}>
+                          {hints.map((h) => (
+                            <li key={h}>{h}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className={`text-sm ${coachText.muted}`}>
+                          No detectamos palabras clave de material en el texto. Revisa el detalle del día o añade notas en
+                          biblioteca.
+                        </p>
+                      )}
+                    </section>
+                    <section className="space-y-3">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
+                        Último feedback por clase (log local)
+                      </p>
+                      {blocksWithText.length ? (
+                        blocksWithText.map(({ label, key }) => {
+                          const last = findLastFeedbackForClassLabel(label, weekRow?.id ?? null)
+                          return (
+                            <div
+                              key={key}
+                              className={`rounded-xl border ${coachBorder} ${coachBg.cardAlt} p-4 space-y-2`}
+                            >
+                              <p className={`text-xs font-black uppercase tracking-wide ${coachText.accent}`}>{label}</p>
+                              {last ? (
+                                <>
+                                  <p className={`text-[10px] ${coachText.muted}`}>
+                                    {last.created_at || last.savedAt
+                                      ? new Date(last.created_at || last.savedAt).toLocaleString('es-ES', {
+                                          dateStyle: 'short',
+                                          timeStyle: 'short',
+                                        })
+                                      : '—'}
+                                    {last.day_key ? ` · ${DAYS_ES[last.day_key] || last.day_key}` : ''}
+                                  </p>
+                                  <p className={`text-sm leading-snug ${coachText.primary} whitespace-pre-wrap`}>
+                                    {formatFeedbackEntrySummary(last)}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className={`text-sm ${coachText.muted}`}>Sin entradas previas para esta clase en el log.</p>
+                              )}
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <p className={`text-sm ${coachText.muted}`}>Este día no tiene bloques de sesión en los datos.</p>
+                      )}
+                    </section>
+                  </div>
+                </div>
+              </div>
+            )
+          })()
+        : null}
     </div>
   )
 }

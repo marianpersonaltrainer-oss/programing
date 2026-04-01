@@ -81,6 +81,16 @@ export default function CoachSessionBlockView({
       clearInterval(tickIntervalRef.current)
       tickIntervalRef.current = null
     }
+    setTimerRunning(false)
+    setStartedAt(null)
+    setTick(0)
+  }, [dayName])
+
+  useEffect(() => {
+    if (tickIntervalRef.current != null) {
+      clearInterval(tickIntervalRef.current)
+      tickIntervalRef.current = null
+    }
     if (timerRunning && startedAt) {
       tickIntervalRef.current = window.setInterval(() => setTick((t) => t + 1), 1000)
     }

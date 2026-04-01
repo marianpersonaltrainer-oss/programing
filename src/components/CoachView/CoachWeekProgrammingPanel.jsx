@@ -240,13 +240,13 @@ export default function CoachWeekProgrammingPanel({
                     return (
                       <div
                         key={dia.nombre}
-                        className="text-left rounded-xl p-6 border border-gray-200/90 bg-gray-100 opacity-60 cursor-not-allowed min-h-[200px] flex flex-col"
+                        className="text-left rounded-xl p-6 bg-gray-100 opacity-60 cursor-not-allowed min-h-[200px] flex flex-col border-0 shadow-none ring-0"
                         aria-label={`${dia.nombre}, festivo`}
                       >
                         <div className="flex items-start justify-between gap-3 mb-4">
-                          <p className="text-lg font-medium text-gray-400 uppercase tracking-tight">{dia.nombre}</p>
+                          <p className="text-lg font-medium text-gray-800 uppercase tracking-tight">{dia.nombre}</p>
                         </div>
-                        <p className="text-sm font-medium uppercase tracking-widest text-gray-400">Festivo · sin sesión</p>
+                        <p className="text-sm font-medium uppercase tracking-widest text-gray-600">Festivo · sin sesión</p>
                       </div>
                     )
                   }

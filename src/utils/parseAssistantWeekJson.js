@@ -1,3 +1,5 @@
+import { jsonrepair } from 'jsonrepair'
+
 /**
  * La API devuelve texto del asistente; dentro debe ir un único objeto JSON semanal.
  * El modelo a veces produce JSON casi válido (comas finales, fences, comillas tipográficas).
@@ -78,6 +80,12 @@ export function parseAssistantWeekJson(assistantText) {
     repairCommonLlMJsonIssues(slice),
     repairCommonLlMJsonIssues(slice.replace(/[\u201C\u201D\u2018\u2019]/g, '"')),
   ]
+  try {
+    const repaired = jsonrepair(slice)
+    if (repaired && !variants.includes(repaired)) variants.push(repaired)
+  } catch {
+    /* jsonrepair no pudo reparar; seguimos con las otras variantes */
+  }
 
   let lastErr
   for (const candidate of variants) {

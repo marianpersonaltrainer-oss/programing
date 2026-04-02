@@ -3,10 +3,6 @@
     "api/**/*.js": {
       "maxDuration": 300,
       "memory": 1024
-    },
-    "api/anthropic.js": {
-      "maxDuration": 300,
-      "memory": 1024
     }
   },
   "rewrites": [

@@ -16,8 +16,8 @@ export function explainAnthropicFetchFailure(err) {
   if (isLikelyNetworkAbort) {
     return (
       'No se pudo completar la llamada a la IA (conexión cortada antes de respuesta). ' +
-      'En Vercel plan Hobby el tiempo máximo de /api suele ser ~10 s; la generación Excel con Sonnet y un contexto grande suele tardar más y el servidor corta la petición — el navegador muestra «Failed to fetch». ' +
-      'Opciones: usar plan Pro (o superior) y redeploy con maxDuration 60 s en vercel.json, o ejecutar en local con `vercel dev` / preview donde el límite no aplica igual. ' +
+      'Si la respuesta tarda demasiado, la plataforma o la red puede cortar la solicitud y el navegador muestra «Failed to fetch». ' +
+      'Usa plan Pro (o superior), mantén `maxDuration` alto en `vercel.json` y reduce contexto/adjuntos muy largos en esa generación. ' +
       'También revisa ANTHROPIC_API_KEY en Production, red/VPN y extensiones que bloqueen solicitudes.'
     )
   }

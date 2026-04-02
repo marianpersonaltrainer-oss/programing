@@ -87,6 +87,8 @@ ${ctx}
   return `${baseSystem}\n\n${replacement}`
 }
 
+const ANTHROPIC_UPSTREAM_TIMEOUT_MS = 110000
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
@@ -125,7 +127,13 @@ export default async function handler(req, res) {
     })
   }
 
+  let upstreamTimeoutId = null
+  const upstreamAbort = new AbortController()
   try {
+    upstreamTimeoutId = setTimeout(() => {
+      upstreamAbort.abort()
+    }, ANTHROPIC_UPSTREAM_TIMEOUT_MS)
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -139,6 +147,7 @@ export default async function handler(req, res) {
         system: system === undefined ? undefined : injectWeekContext(system, weekContext),
         messages,
       }),
+      signal: upstreamAbort.signal,
     })
 
     const rawText = await response.text()
@@ -171,6 +180,15 @@ export default async function handler(req, res) {
 
     return res.status(200).json(data)
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      return res.status(504).json({
+        error: {
+          type: 'upstream_timeout',
+          message:
+            'La API de Anthropic tardó demasiado en responder y se canceló la llamada para evitar corte brusco de la función. Reintenta: el cliente divide y reintenta automáticamente.',
+        },
+      })
+    }
     const msg = error?.message ? String(error.message).slice(0, 500) : 'unknown'
     console.error('Serverless Function Error:', error)
     return res.status(500).json({
@@ -180,5 +198,7 @@ export default async function handler(req, res) {
           msg,
       },
     })
+  } finally {
+    if (upstreamTimeoutId) clearTimeout(upstreamTimeoutId)
   }
 }

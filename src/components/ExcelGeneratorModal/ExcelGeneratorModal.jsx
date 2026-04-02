@@ -37,6 +37,7 @@ import { buildWeekContext } from '../../utils/buildWeekContext.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
+const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 3600
 
 /** Hasta 2 días consecutivos (orden LUN→SÁ) por llamada para acotar tiempo de respuesta de la IA. */
 function buildConsecutiveDayChunks(daysToGenerateSet) {
@@ -262,7 +263,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
         model: PROGRAMMING_MODEL,
-        max_tokens: AI_CONFIG.maxTokens,
+        max_tokens: Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL),
         system: systemFull,
         weekContext,
         messages: [{ role: 'user', content: userMessage }],

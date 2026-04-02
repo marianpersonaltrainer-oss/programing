@@ -77,12 +77,15 @@ function normalizeSectionHeaders(text) {
  * @param {string} raw
  * @returns {string}
  */
+const NO_PROGRAMADA_LINE = /^\(no programada esta semana\)\s*$/i
+
 export function formatClassSessionForWodBusterPaste(raw) {
   if (raw == null) return ''
   const trimmed = String(raw).trim()
   if (!trimmed || trimmed === 'FESTIVO') return ''
   const firstLine = trimmed.split('\n')[0].trim()
   if (/^FESTIVO\b/i.test(firstLine)) return ''
+  if (NO_PROGRAMADA_LINE.test(trimmed) || NO_PROGRAMADA_LINE.test(firstLine)) return ''
 
   let t = stripFeedbackSection(trimmed)
   t = stripMarkdownChars(t)

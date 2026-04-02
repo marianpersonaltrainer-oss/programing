@@ -228,18 +228,23 @@ export function parseExcelDayRulesFromText(instructions) {
 export function resolveDaysToGenerateFromSelection(selectedCanon, instructionsAndContext) {
   const selected = selectedCanon instanceof Set ? selectedCanon : new Set(selectedCanon)
   const { daysPreserved, daysExcluded } = parseExcelDayRulesFromText(instructionsAndContext)
+  // El selector de días manda: no quitamos días por «no generes X» en el texto (evita falsos
+  // positivos cuando el contexto menciona jueves u otros días). Para no generar un día: desmárcalo.
   const daysToGenerate = new Set(
-    [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d) && !daysPreserved.has(d) && !daysExcluded.has(d)),
+    [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d) && !daysPreserved.has(d)),
   )
   return { daysToGenerate, daysPreserved, daysExcluded, selectedDays: selected }
 }
 
-/** Texto único para días no incluidos en la generación parcial (sustituye sesiones vacías). */
+/** Clase no impartida esta semana (día laborable, sin cierre festivo). */
+export const NO_PROGRAMADA_SESSION_LINE = '(no programada esta semana)'
+
+/** Cierre real del gimnasio / festivo (solo cuando aplique explícitamente). */
 export const FESTIVO_SESSION_LINE =
   'FESTIVO — Sin sesión en este día (no incluido en esta generación).'
 
 /**
- * Fuerza marcador FESTIVO en días que no tocaba generar ni preservar (corrige si el modelo rellenó de más).
+ * Rellena días no generados ni preservados con «no programada»; no usar FESTIVO salvo cierre festivo real.
  */
 export function applyFestivoToNonGeneratedDays(accumulator, daysToGenerate, daysPreserved) {
   const gen = daysToGenerate instanceof Set ? daysToGenerate : new Set(daysToGenerate)
@@ -252,10 +257,10 @@ export function applyFestivoToNonGeneratedDays(accumulator, daysToGenerate, days
     const base = accumulator.dias[i] && typeof accumulator.dias[i] === 'object' ? accumulator.dias[i] : {}
     const row = { ...emptyDay(name), ...base, nombre: name }
     for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
-      row[key] = FESTIVO_SESSION_LINE
+      row[key] = NO_PROGRAMADA_SESSION_LINE
       row[feedbackKey] = ''
     }
-    row.wodbuster = 'FESTIVO'
+    row.wodbuster = ''
     accumulator.dias[i] = row
   }
   return accumulator

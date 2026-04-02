@@ -336,18 +336,20 @@ Reglas:
 - Solo genera contenido (sesiones + feedbacks + wodbuster) para los días que el usuario o el
   plan del mensaje indiquen explícitamente en esa petición (incluye rangos tipo "lunes a miércoles",
   "primeros tres días", "primera mitad de la semana" cuando aparezcan en instrucciones o contexto).
-- Si un día no debe generarse en esa petición: en cada campo de sesión (evofuncional, evobasics,
-  evofit, evohybrix, etc.) escribe EXACTAMENTE esta única línea:
-  FESTIVO — Sin sesión en este día (no incluido en esta generación).
-  Los feedbacks de ese día van vacíos (""). El campo wodbuster de ese día debe ser exactamente: FESTIVO
-  No inventes clase "por si acaso" ni dejes cadenas vacías en los campos de sesión.
+- Si un día no debe generarse en esa petición (no está en la lista del selector / plan): en cada campo
+  de sesión (evofuncional, evobasics, evofit, evohybrix, etc.) escribe EXACTAMENTE esta única línea:
+  (no programada esta semana)
+  Los feedbacks de ese día van vacíos (""). El campo wodbuster de ese día debe ser cadena vacía "".
+  No inventes clase "por si acaso" ni dejes cadenas vacías distintas del texto anterior.
+- Solo si el usuario indica explícitamente cierre del gimnasio / festivo real: en cada sesión de ese día
+  usa la línea FESTIVO — Sin sesión en este día (no incluido en esta generación), feedbacks "" y wodbuster "FESTIVO".
 - Si el usuario dice que un día "ya está hecho", "no lo toques" o equivalente: NO regeneres
   ese día; el cliente puede fusionar datos previos — en tu salida ese día debe ir vacío salvo
   que el mensaje te pegue el JSON definitivo a conservar.
 - No asumas que hay clase los seis días salvo que el usuario pida explícitamente semana
   completa, "lunes a sábado", "toda la semana" o equivalente.
 - El array "dias" en el JSON debe tener SIEMPRE 6 objetos en orden: LUNES, MARTES,
-  MIÉRCOLES, JUEVES, VIERNES, SÁBADO, con "nombre" correcto — los no pedidos llevan FESTIVO como arriba.
+  MIÉRCOLES, JUEVES, VIERNES, SÁBADO, con "nombre" correcto — los no pedidos llevan (no programada esta semana) como arriba salvo festivo explícito (FESTIVO).
 
 REGLAS DEL CIERRE:
 - El bloque CIERRE dura siempre 3-5 minutos (un solo rango, p. ej. CIERRE (56' - 60')).
@@ -543,8 +545,9 @@ Reglas en esos campos:
 - NO incluyas bloque FEEDBACK ni briefing al coach dentro del texto de la sesión (eso va solo en feedback_funcional, feedback_basics, etc.).
 
 Campo "wodbuster" por día en el JSON:
-- Día FESTIVO / no generado: exactamente FESTIVO.
+- Día laborable sin esa clase / no generado en esta petición: "" (vacío).
 - Día con sesiones reales: cadena vacía "" (la app arma el pegado semanal desde las columnas de cada clase).
+- Día festivo real (cierre del gimnasio), solo si el usuario lo pide: exactamente "FESTIVO".
 
 Los ejemplos largos más abajo (BIENVENIDA con tiempos, CALENTAMIENTO, etc.) sirven como referencia de CONTENIDO y carga de clase;
 al volcar al JSON, adapta ese contenido al esqueleto BIENVENIDA + A) B) C) + CIERRE y sin paréntesis de tiempo.
@@ -563,7 +566,8 @@ FORMATO JSON — SOLO JSON
 ════════════════════════════════════════
 
 Antes de rellenar "dias", respeta la sección QUÉ DÍAS GENERAR: los días no solicitados llevan
-la línea FESTIVO en cada sesión, wodbuster "FESTIVO" y feedbacks "".
+la línea (no programada esta semana) en cada sesión, wodbuster "" y feedbacks "".
+Solo en festivo explícito: línea FESTIVO, wodbuster "FESTIVO" y feedbacks "".
 En días que sí generas con sesión real: wodbuster "" (vacío).
 
 Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO válido:
@@ -598,7 +602,7 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
       "feedback_fuerza":     "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_gimnastica": "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
       "feedback_evotodos":   "[Briefing al coach — 4-6 frases, texto corrido; ver TONO DEL FEEDBACK]",
-      "wodbuster": "Día laborable con sesiones: \"\" (cadena vacía; el cliente ensambla el pegado desde evofuncional, evobasics, etc.). Día FESTIVO: \"FESTIVO\"."
+      "wodbuster": "Día laborable con sesiones: \"\" (cadena vacía; el cliente ensambla el pegado desde evofuncional, evobasics, etc.). No generado / sin clase: \"\". Festivo real: \"FESTIVO\"."
     }
   ]
 }`

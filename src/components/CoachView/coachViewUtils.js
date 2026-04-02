@@ -62,6 +62,20 @@ export function isFestivoDay(dia) {
   return contents.every((t) => /^FESTIVO\b/i.test(t.split('\n')[0].trim()))
 }
 
+function isNoProgramadaLine(t) {
+  const line = String(t).split('\n')[0].trim()
+  return /^\(no programada esta semana\)\s*$/i.test(line)
+}
+
+/** Salta festivo y días solo con «no programada esta semana» en la navegación ← → */
+export function isNavSkippedDay(dia) {
+  if (!dia) return false
+  if (isFestivoDay(dia)) return true
+  const contents = EVO_SESSION_CLASS_DEFS.map(({ key }) => sessionText(dia[key])).filter(Boolean)
+  if (contents.length === 0) return false
+  return contents.every((t) => isNoProgramadaLine(t))
+}
+
 const NORM = (s) =>
   String(s || '')
     .trim()
@@ -96,14 +110,14 @@ export function getAdjacentDayNames(dias, activeName) {
   }
 }
 
-/** Siguiente o anterior día con sesión (salta días FESTIVO). */
+/** Siguiente o anterior día con sesión (salta festivo y «no programada esta semana»). */
 export function getAdjacentNavDayName(dias, activeName, direction) {
   if (!Array.isArray(dias) || !activeName || activeName === 'show') return null
   const i = dias.findIndex((d) => NORM(d?.nombre) === NORM(activeName))
   if (i < 0) return null
   const delta = direction === 'prev' ? -1 : 1
   for (let j = i + delta; j >= 0 && j < dias.length; j += delta) {
-    if (!isFestivoDay(dias[j])) return dias[j].nombre
+    if (!isNavSkippedDay(dias[j])) return dias[j].nombre
   }
   return null
 }

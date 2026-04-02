@@ -10,6 +10,7 @@ const PAREN_TIMING = /(\(\s*\d+\s*['′']?\s*[-–]\s*\d+\s*['′']?\s*\))/g
 function isLikelyBlockHeader(trimmed) {
   if (!trimmed) return false
   if (/^FESTIVO\b/i.test(trimmed)) return false
+  if (/^\(no programada esta semana\)/i.test(trimmed)) return false
   if (/^[ABC]\)\s+\S/i.test(trimmed)) return true
   if (/^(BIENVENIDA|CIERRE|CALENTAMIENTO|TÉCNICA|TECNICA|WOD|FUERZA|PARTE|BLOQUE|ACCESORIOS|CASH|CHIPPER|HYBRIX|FOR TIME|AMRAP|EMOM|E2MOM|E3MOM)\b/i.test(trimmed))
     return true

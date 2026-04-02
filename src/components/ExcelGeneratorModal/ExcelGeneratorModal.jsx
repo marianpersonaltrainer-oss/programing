@@ -415,7 +415,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     const planSourceText = [instructionsClean, contextClean].filter(Boolean).join('\n\n')
     const selectedCanon = new Set(EXCEL_DAY_ORDER.filter((d) => dayPicker[d]))
-    const { daysToGenerate, daysPreserved, daysExcluded } = resolveDaysToGenerateFromSelection(
+    const { daysToGenerate, daysPreserved } = resolveDaysToGenerateFromSelection(
       selectedCanon,
       planSourceText,
     )
@@ -423,7 +423,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     if (daysToGenerate.size === 0) {
       setErrorMsg(
-        'No hay días para generar: marca al menos un día arriba y revisa el texto (p. ej. «lunes ya está hecho» o «no generes martes» quita días del seleccionado).',
+        'No hay días para generar: marca al menos un día arriba o revisa si pusiste «lunes ya está hecho» (eso preserva el día y no lo manda a la IA).',
       )
       setStatus('error')
       return
@@ -453,8 +453,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 - Generar contenido real (sesiones y feedbacks) SOLO para: ${[...daysToGenerate].join(', ')}
   En esos días el campo wodbuster del JSON debe ser cadena vacía "" (el pegado WodBuster lo arma la app desde las columnas de clase).
 - Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...daysPreserved].join(', ') || 'ninguno'}
-- Excluidos por texto del usuario ("no generes X"): ${[...daysExcluded].join(', ') || 'ninguno'}
-- Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente la línea FESTIVO del system prompt — no vacío, no texto inventado.`
+- Para NO generar un día: desmárcalo en el selector (el texto ya no excluye días automáticamente).
+- Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente: (no programada esta semana). Feedbacks "". wodbuster "". Festivo real del gimnasio (solo si el usuario lo indica): ver system prompt (FESTIVO).`
 
       function buildChunkMessage(chunkDays, coherenceBlock) {
         const list = [...chunkDays].join(', ')
@@ -463,7 +463,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
 
 Solo rellena contenido completo (sesiones y feedbacks) para: ${list}; en esos días wodbuster = "".
-Para el resto de días: sesiones = línea FESTIVO obligatoria (ver system prompt); feedbacks vacíos; wodbuster "FESTIVO". No inventes sesiones para días fuera de la lista.
+Para el resto de días: cada sesión = exactamente (no programada esta semana); feedbacks ""; wodbuster "". Festivo real solo si el usuario lo pide (FESTIVO). No inventes sesiones para días fuera de la lista.
 
 Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
@@ -921,13 +921,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   Instrucciones para esta Semana
                 </label>
                 <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
-                  Elige los días con los controles de abajo (obligatorio). Aquí solo: exclusiones («no generes jueves») o
-                  «lunes ya está hecho» (copia desde Supabase si coincide mesociclo y semana).
+                  Elige los días con los controles de abajo (obligatorio). Aquí solo: «lunes ya está hecho» (preserva y
+                  fusiona desde Supabase si coincide mesociclo y semana). Para omitir un día, desmárcalo en el selector.
                 </p>
                 <textarea
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Ej: No generes miércoles. / El lunes ya está hecho. (Los días con contenido los marcas abajo.)"
+                  placeholder="Ej: El lunes ya está hecho. / Énfasis en tracción. (Para no generar un día, desmárcalo arriba.)"
                   rows={3}
                   className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed shadow-inner"
                 />
@@ -958,8 +958,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     </div>
                   </div>
                   <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
-                    Marca exactamente qué días deben tener programación nueva. «Lunes ya hecho» o «no generes X» en el texto
-                    quitan esos días aunque sigan marcados.
+                    Marca exactamente qué días debe rellenar la IA. «Lunes ya hecho» en el texto preserva ese día (no lo
+                    regenera) aunque siga marcado.
                   </p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     {EXCEL_DAY_ORDER.map((d) => (

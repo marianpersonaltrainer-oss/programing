@@ -29,6 +29,7 @@ import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } fr
 import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
+import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../../utils/parseAnthropicProxyBody.js'
 import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
 import { mergeServerFeedbackIntoLog } from '../../utils/coachFeedbackLocalLog.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
@@ -705,8 +706,15 @@ export default function CoachView() {
         return
       }
 
-      const data = await response.json()
-      if (!response.ok) {
+      const responseText = await response.text()
+      let data
+      try {
+        data = parseAnthropicProxyBody(responseText)
+      } catch {
+        setError('La respuesta del servidor no es JSON válido.')
+        return
+      }
+      if (!response.ok || isAnthropicProxyFailure(data)) {
         setError(data?.error?.message || `Error ${response.status}`)
         return
       }

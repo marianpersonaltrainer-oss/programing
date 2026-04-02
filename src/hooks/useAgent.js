@@ -11,6 +11,7 @@ import { AI_CONFIG, PROGRAMMING_MODEL } from '../constants/config.js'
 import { getCoachExerciseLibrary } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
+import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../utils/parseAnthropicProxyBody.js'
 
 export function useAgent(weekState) {
   const [messages, setMessages] = useState([])
@@ -82,12 +83,17 @@ export function useAgent(weekState) {
         throw new Error(explainAnthropicFetchFailure(e))
       }
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}))
-        throw new Error(errData?.error?.message || `Error ${response.status}`)
+      const responseText = await response.text()
+      let data
+      try {
+        data = parseAnthropicProxyBody(responseText)
+      } catch {
+        throw new Error('La respuesta del servidor no es JSON válido.')
       }
 
-      const data = await response.json()
+      if (!response.ok || isAnthropicProxyFailure(data)) {
+        throw new Error(data?.error?.message || `Error ${response.status}`)
+      }
       const assistantContent = data.content?.[0]?.text || ''
 
       const updated = [

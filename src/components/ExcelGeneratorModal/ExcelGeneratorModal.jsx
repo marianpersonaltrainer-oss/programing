@@ -30,6 +30,7 @@ import { buildWeekWodBusterPaste } from '../../utils/formatWodBusterPaste.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG, PROGRAMMING_MODEL, SUPPORT_MODEL } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
+import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../../utils/parseAnthropicProxyBody.js'
 import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
@@ -284,32 +285,40 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         throw new Error(explainAnthropicFetchFailure(e))
       }
 
+      const responseText = await response.text()
+
+      let data
+      try {
+        data = parseAnthropicProxyBody(responseText)
+      } catch {
+        throw new Error('La respuesta del servidor no es JSON válido.')
+      }
+
+      const failed = !response.ok || isAnthropicProxyFailure(data)
+      const errType = data?.error?.type
       const retriable =
         response.status === 529 ||
         response.status === 503 ||
         response.status === 429 ||
         response.status === 504 ||
-        response.status === 502
-      if (retriable) {
-        if (attempt < retries) {
-          const wait = (attempt + 1) * 15
-          const hint =
-            response.status === 504 || response.status === 502
-              ? 'Tiempo límite del servidor (504/502)'
-              : 'API saturada o en mantenimiento'
-          setGenStep(`${hint} — reintentando en ${wait}s…`)
-          await new Promise((r) => setTimeout(r, wait * 1000))
-          continue
-        }
+        response.status === 502 ||
+        (failed && (errType === 'upstream_timeout' || errType === 'rate_limit_error'))
+      if (retriable && attempt < retries) {
+        const wait = (attempt + 1) * 15
+        const hint =
+          response.status === 504 ||
+          response.status === 502 ||
+          errType === 'upstream_timeout'
+            ? 'Tiempo límite del servidor (504/502)'
+            : 'API saturada o en mantenimiento'
+        setGenStep(`${hint} — reintentando en ${wait}s…`)
+        await new Promise((r) => setTimeout(r, wait * 1000))
+        continue
       }
 
-      const responseText = await response.text()
-
-      if (!response.ok) {
-        let err = {}
-        try {
-          err = responseText ? JSON.parse(responseText) : {}
-        } catch {
+      if (failed) {
+        let err = data
+        if (!err || typeof err !== 'object') {
           err = {
             error: {
               message:
@@ -319,7 +328,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           }
         }
         console.error('API Error Response:', err)
-        if (response.status === 504 || response.status === 502) {
+        if (response.status === 504 || response.status === 502 || errType === 'upstream_timeout') {
           throw new Error(
             'Tiempo de espera agotado en Vercel (504): la llamada a la IA superó el límite de tu despliegue. ' +
               'Plan Hobby solo permite ~10 s (no sirve para esta generación). Con Pro, el repo ya pide maxDuration 300 s — haz Redeploy del proyecto. ' +
@@ -331,13 +340,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           (typeof err?.error === 'string' && err.error) ||
           err?.message
         throw new Error(apiMsg || `Error ${response.status}`)
-      }
-
-      let data
-      try {
-        data = JSON.parse(responseText)
-      } catch {
-        throw new Error('La respuesta del servidor no es JSON válido.')
       }
       const text = data.content?.[0]?.text || ''
       try {
@@ -682,12 +684,17 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         throw new Error(explainAnthropicFetchFailure(e))
       }
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err?.error?.message || `Error ${response.status}`)
+      const responseText = await response.text()
+      let data
+      try {
+        data = parseAnthropicProxyBody(responseText)
+      } catch {
+        throw new Error('La respuesta del servidor no es JSON válido.')
       }
 
-      const data = await response.json()
+      if (!response.ok || isAnthropicProxyFailure(data)) {
+        throw new Error(data?.error?.message || `Error ${response.status}`)
+      }
       const raw = data.content?.[0]?.text || ''
       const feedback = stripCodeFences(raw)
       if (!feedback.trim()) throw new Error('La API no devolvió texto de feedback.')
@@ -1070,8 +1077,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               <div className="flex items-center gap-2 text-[10px] text-indigo-600 font-bold bg-indigo-50/50 rounded-2xl px-5 py-4 border border-indigo-100/50 uppercase tracking-tight shadow-sm">
                 <span className="text-sm">💡</span>
                 <span>
-                  Generaremos Lunes→Sábado (Funcional + Basics + Fit). Tiempo real en servidor: ~1–4 min (2
-                  llamadas a la IA); en Vercel hace falta plan Pro y redeploy para tiempos largos.
+                  Generaremos Lunes→Sábado (Funcional + Basics + Fit). Tiempo real en servidor: ~1–5 min (varias
+                  llamadas a la IA, según días marcados); en Vercel hace falta plan Pro y redeploy para tiempos largos.
                 </span>
               </div>
             </>

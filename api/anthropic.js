@@ -6,6 +6,10 @@
  * igual que en coach-exercise-library.js. Desestructurar `undefined` lanza TypeError → 500.
  *
  * Duración: `vercel.json` → functions maxDuration (300 s). Plan Pro + redeploy.
+ *
+ * Keep-alive: mientras se espera a Anthropic se envían espacios en chunked encoding para que
+ * la conexión navegador→Vercel no quede totalmente inactiva (evita «Failed to fetch» en redes
+ * con timeout agresivo). El cliente ignora el prefijo y parsea el JSON final (ver parseAnthropicProxyBody).
  */
 
 /** Traduce errores conocidos de Anthropic a mensaje útil en español. */
@@ -88,6 +92,7 @@ ${ctx}
 }
 
 const ANTHROPIC_UPSTREAM_TIMEOUT_MS = 110000
+const CLIENT_HEARTBEAT_MS = 10000
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -129,7 +134,34 @@ export default async function handler(req, res) {
 
   let upstreamTimeoutId = null
   const upstreamAbort = new AbortController()
+  let heartbeat = null
+  let streamStarted = false
+
+  const clearHeartbeat = () => {
+    if (heartbeat) {
+      clearInterval(heartbeat)
+      heartbeat = null
+    }
+  }
+
   try {
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Accel-Buffering': 'no',
+    })
+    streamStarted = true
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders()
+    }
+    heartbeat = setInterval(() => {
+      try {
+        res.write(' ')
+      } catch {
+        /* cliente cerró */
+      }
+    }, CLIENT_HEARTBEAT_MS)
+
     upstreamTimeoutId = setTimeout(() => {
       upstreamAbort.abort()
     }, ANTHROPIC_UPSTREAM_TIMEOUT_MS)
@@ -156,13 +188,16 @@ export default async function handler(req, res) {
       data = rawText ? JSON.parse(rawText) : {}
     } catch {
       console.error('Anthropic no-JSON body:', rawText?.slice(0, 500))
-      return res.status(502).json({
-        error: {
-          message:
-            'La API de Anthropic devolvió un cuerpo que no es JSON. Revisa el modelo y los logs de Vercel (Functions → anthropic).',
-          preview: String(rawText || '').slice(0, 200),
-        },
-      })
+      clearHeartbeat()
+      return res.end(
+        JSON.stringify({
+          error: {
+            message:
+              'La API de Anthropic devolvió un cuerpo que no es JSON. Revisa el modelo y los logs de Vercel (Functions → anthropic).',
+            preview: String(rawText || '').slice(0, 200),
+          },
+        }),
+      )
     }
 
     if (!response.ok) {
@@ -172,15 +207,31 @@ export default async function handler(req, res) {
         data && typeof data.error === 'object' && !Array.isArray(data.error)
           ? { ...data.error, message }
           : { type: 'api_error', message }
-      return res.status(response.status).json({
-        ...data,
-        error: baseError,
-      })
+      clearHeartbeat()
+      return res.end(
+        JSON.stringify({
+          ...data,
+          error: baseError,
+        }),
+      )
     }
 
-    return res.status(200).json(data)
+    clearHeartbeat()
+    return res.end(JSON.stringify(data))
   } catch (error) {
+    clearHeartbeat()
     if (error?.name === 'AbortError') {
+      if (streamStarted && !res.writableEnded) {
+        return res.end(
+          JSON.stringify({
+            error: {
+              type: 'upstream_timeout',
+              message:
+                'La API de Anthropic tardó demasiado en responder y se canceló la llamada para evitar corte brusco de la función. Reintenta: el cliente divide y reintenta automáticamente.',
+            },
+          }),
+        )
+      }
       return res.status(504).json({
         error: {
           type: 'upstream_timeout',
@@ -191,6 +242,17 @@ export default async function handler(req, res) {
     }
     const msg = error?.message ? String(error.message).slice(0, 500) : 'unknown'
     console.error('Serverless Function Error:', error)
+    if (streamStarted && !res.writableEnded) {
+      return res.end(
+        JSON.stringify({
+          error: {
+            message:
+              'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y que el proyecto use Node 20. Detalle técnico (sin claves): ' +
+              msg,
+          },
+        }),
+      )
+    }
     return res.status(500).json({
       error: {
         message:

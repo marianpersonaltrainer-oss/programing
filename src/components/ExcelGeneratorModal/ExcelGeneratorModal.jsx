@@ -35,6 +35,19 @@ import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.j
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 
+/** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
+const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
+
+/** Hasta 2 días consecutivos (orden LUN→SÁ) por llamada para acotar tiempo de respuesta de la IA. */
+function buildConsecutiveDayChunks(daysToGenerateSet) {
+  const ordered = EXCEL_DAY_ORDER.filter((d) => daysToGenerateSet.has(d))
+  const chunks = []
+  for (let i = 0; i < ordered.length; i += 2) {
+    chunks.push(new Set(ordered.slice(i, i + 2)))
+  }
+  return chunks
+}
+
 async function extractTextFromFile(file) {
   const ext = file.name.split('.').pop().toLowerCase()
 
@@ -241,7 +254,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }
 
   /**
-   * Una llamada API = un POST. Una semana completa usa callApi dos veces (L–Mi y J–Sa).
+   * Una llamada API = un POST. La semana se parte en tramos de hasta 2 días consecutivos
+   * (varias llamadas si marcas muchos días) para reducir timeouts en serverless.
    * Modelo: PROGRAMMING_MODEL (Sonnet u homólogo), max_tokens: `AI_CONFIG.maxTokens`.
    */
   async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, weekContext = '', retries = 3) {
@@ -372,7 +386,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     const realProgrammingExamples = await loadRealProgrammingContextForGenerator()
     if (realProgrammingExamples) {
-      systemExcelFull += `\n\nEJEMPLOS REALES DE ESTILO EVO — leer antes de programar:\n${realProgrammingExamples}`
+      let block = realProgrammingExamples
+      if (block.length > EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS) {
+        block =
+          block.slice(0, EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS) +
+          '\n\n[…truncado por límite de tamaño del prompt para esta generación]'
+      }
+      systemExcelFull += `\n\nEJEMPLOS REALES DE ESTILO EVO — leer antes de programar:\n${block}`
     }
 
     const mesoInfo = weekState.mesocycle
@@ -396,10 +416,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       selectedCanon,
       planSourceText,
     )
-    const firstHalf = new Set(EXCEL_DAY_ORDER.slice(0, 3))
-    const secondHalf = new Set(EXCEL_DAY_ORDER.slice(3, 6))
-    const chunkFirst = new Set([...daysToGenerate].filter((d) => firstHalf.has(d)))
-    const chunkSecond = new Set([...daysToGenerate].filter((d) => secondHalf.has(d)))
+    const dayChunks = buildConsecutiveDayChunks(daysToGenerate)
 
     if (daysToGenerate.size === 0) {
       setErrorMsg(
@@ -449,17 +466,19 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
       }
 
-      if (chunkFirst.size > 0) {
-        setGenStep(`Generando ${[...chunkFirst].join(' · ')}…`)
-        const part1 = await callApi(buildChunkMessage(chunkFirst, ''), systemExcelFull, weekContextText)
-        mergeGeneratedDaysIntoAccumulator(acc, part1, chunkFirst)
-      }
-
-      if (chunkSecond.size > 0) {
-        setGenStep(`Generando ${[...chunkSecond].join(' · ')}…`)
-        const coherenceBlock = `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
-        const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock), systemExcelFull, weekContextText)
-        mergeGeneratedDaysIntoAccumulator(acc, part2, chunkSecond)
+      for (let ci = 0; ci < dayChunks.length; ci++) {
+        const chunk = dayChunks[ci]
+        const coherenceBlock =
+          ci === 0
+            ? ''
+            : `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
+        setGenStep(
+          dayChunks.length > 1
+            ? `Generando ${[...chunk].join(' · ')}… (${ci + 1}/${dayChunks.length})`
+            : `Generando ${[...chunk].join(' · ')}…`,
+        )
+        const part = await callApi(buildChunkMessage(chunk, coherenceBlock), systemExcelFull, weekContextText)
+        mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
       }
 
       applyFestivoToNonGeneratedDays(acc, daysToGenerate, daysPreserved)

@@ -467,19 +467,47 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
       }
 
+      function isTimeoutLikeGenerationError(err) {
+        const m = String(err?.message || '').toLowerCase()
+        return (
+          m.includes('504') ||
+          m.includes('502') ||
+          m.includes('timeout') ||
+          m.includes('upstream_timeout') ||
+          m.includes('failed to fetch') ||
+          m.includes('conexión cortada')
+        )
+      }
+
+      function buildCoherenceBlockFromAccumulator() {
+        return `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
+      }
+
+      async function generateChunkWithFallback(chunk, ci, total, allowCoherence) {
+        const chunkDaysText = [...chunk].join(' · ')
+        const coherenceBlock = allowCoherence ? buildCoherenceBlockFromAccumulator() : ''
+        setGenStep(total > 1 ? `Generando ${chunkDaysText}… (${ci + 1}/${total})` : `Generando ${chunkDaysText}…`)
+        try {
+          const part = await callApi(buildChunkMessage(chunk, coherenceBlock), systemExcelFull, weekContextText)
+          mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
+        } catch (err) {
+          if (chunk.size > 1 && isTimeoutLikeGenerationError(err)) {
+            const splitDays = [...chunk]
+            setGenStep(`Respuesta lenta en ${splitDays.join(' · ')}; reintentando por día…`)
+            for (let si = 0; si < splitDays.length; si++) {
+              const singleChunk = new Set([splitDays[si]])
+              const singleAllowCoherence = allowCoherence || si > 0
+              await generateChunkWithFallback(singleChunk, ci, total, singleAllowCoherence)
+            }
+            return
+          }
+          throw err
+        }
+      }
+
       for (let ci = 0; ci < dayChunks.length; ci++) {
         const chunk = dayChunks[ci]
-        const coherenceBlock =
-          ci === 0
-            ? ''
-            : `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
-        setGenStep(
-          dayChunks.length > 1
-            ? `Generando ${[...chunk].join(' · ')}… (${ci + 1}/${dayChunks.length})`
-            : `Generando ${[...chunk].join(' · ')}…`,
-        )
-        const part = await callApi(buildChunkMessage(chunk, coherenceBlock), systemExcelFull, weekContextText)
-        mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
+        await generateChunkWithFallback(chunk, ci, dayChunks.length, ci > 0)
       }
 
       applyFestivoToNonGeneratedDays(acc, daysToGenerate, daysPreserved)

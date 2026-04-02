@@ -5,7 +5,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
-import { buildWeekContextMessage } from '../utils/buildWeekContext.js'
+import { buildWeekContext } from '../utils/buildWeekContext.js'
 import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG, PROGRAMMING_MODEL } from '../constants/config.js'
 import { getCoachExerciseLibrary } from '../lib/supabase.js'
@@ -37,7 +37,7 @@ export function useAgent(weekState) {
     setError(null)
     setIsGenerating(true)
 
-    const weekCtx = buildWeekContextMessage(weekState)
+    const weekCtx = await buildWeekContext(weekState)
     const methodText = getMethodText().trim()
     let systemWithContext = SYSTEM_PROMPT
     if (methodText) {
@@ -73,6 +73,7 @@ export function useAgent(weekState) {
             model: PROGRAMMING_MODEL,
             max_tokens: AI_CONFIG.maxTokens,
             system: systemWithContext,
+            weekContext: weekCtx || '',
             messages: newMessages,
           }),
         })

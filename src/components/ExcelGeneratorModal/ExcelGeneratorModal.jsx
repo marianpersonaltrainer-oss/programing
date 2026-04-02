@@ -33,6 +33,7 @@ import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchF
 import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+import { buildWeekContext } from '../../utils/buildWeekContext.js'
 
 async function extractTextFromFile(file) {
   const ext = file.name.split('.').pop().toLowerCase()
@@ -243,12 +244,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
    * Una llamada API = un POST. Una semana completa usa callApi dos veces (L–Mi y J–Sa).
    * Modelo: PROGRAMMING_MODEL (Sonnet u homólogo), max_tokens: `AI_CONFIG.maxTokens`.
    */
-  async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, retries = 3) {
+  async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, weekContext = '', retries = 3) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
         model: PROGRAMMING_MODEL,
         max_tokens: AI_CONFIG.maxTokens,
         system: systemFull,
+        weekContext,
         messages: [{ role: 'user', content: userMessage }],
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
@@ -408,6 +410,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
 
     try {
+      const weekContextText = await buildWeekContext(weekState)
       let overlay = null
       try {
         const row = await getActiveWeek()
@@ -448,14 +451,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
       if (chunkFirst.size > 0) {
         setGenStep(`Generando ${[...chunkFirst].join(' · ')}…`)
-        const part1 = await callApi(buildChunkMessage(chunkFirst, ''), systemExcelFull)
+        const part1 = await callApi(buildChunkMessage(chunkFirst, ''), systemExcelFull, weekContextText)
         mergeGeneratedDaysIntoAccumulator(acc, part1, chunkFirst)
       }
 
       if (chunkSecond.size > 0) {
         setGenStep(`Generando ${[...chunkSecond].join(' · ')}…`)
         const coherenceBlock = `CONTEXTO YA GENERADO (coherencia muscular y semanal; mantén en tu salida vacíos los días que no te tocan en esta petición):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
-        const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock), systemExcelFull)
+        const part2 = await callApi(buildChunkMessage(chunkSecond, coherenceBlock), systemExcelFull, weekContextText)
         mergeGeneratedDaysIntoAccumulator(acc, part2, chunkSecond)
       }
 

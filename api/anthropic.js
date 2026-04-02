@@ -64,6 +64,25 @@ function parseRequestBody(req) {
   return null
 }
 
+function injectWeekContext(system, weekContext) {
+  const baseSystem = typeof system === 'string' ? system : ''
+  const ctx = String(weekContext || '').trim()
+  if (!ctx) return baseSystem
+
+  const startMarker = 'CONTEXTO DE LA SEMANA (MEMORIA ACUMULADA)'
+  const endMarker = 'REGLAS DE VÍDEOS Y MATERIAL MULTIMEDIA'
+  const start = baseSystem.indexOf(startMarker)
+  const end = baseSystem.indexOf(endMarker)
+
+  const section = `CONTEXTO DE LA SEMANA — ${ctx}`
+  if (start >= 0 && end > start) {
+    return `${baseSystem.slice(0, start)}${section}\n\n${baseSystem.slice(end)}`
+  }
+
+  // Fallback: prompts que no tienen la sección antigua (p.ej. algunos flows de Excel).
+  return `${baseSystem}\n\n${section}`
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
@@ -76,7 +95,7 @@ export default async function handler(req, res) {
     })
   }
 
-  const { model, max_tokens, system, messages } = body
+  const { model, max_tokens, system, weekContext, messages } = body
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({
@@ -113,7 +132,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: model || 'claude-sonnet-4-20250514',
         max_tokens: max_tokens || 8000,
-        system: system === undefined ? undefined : system,
+        system: system === undefined ? undefined : injectWeekContext(system, weekContext),
         messages,
       }),
     })

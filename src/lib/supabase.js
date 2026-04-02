@@ -78,6 +78,26 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
   return data || null
 }
 
+/** Referencia compacta de semanas del último año (si existe tabla `weeks`). */
+export async function listWeeksLastYear(limit = 40) {
+  const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('weeks')
+    .select('title, resumen, start_date')
+    .gte('start_date', since)
+    .order('start_date', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    if (error.code === 'PGRST116' || error.message?.includes('does not exist') || error.message?.includes('relation')) {
+      return []
+    }
+    console.warn('listWeeksLastYear:', error.message)
+    return []
+  }
+  return data || []
+}
+
 // ── Sesiones coach ────────────────────────────────────────────────────────────
 
 export async function createCoachSession(weekId, coachName) {

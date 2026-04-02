@@ -68,19 +68,23 @@ function injectWeekContext(system, weekContext) {
   const baseSystem = typeof system === 'string' ? system : ''
   const ctx = String(weekContext || '').trim()
   if (!ctx) return baseSystem
+  const replacement = `CONTEXTO DE LA SEMANA
+════════════════════════════════════════
 
-  const startMarker = 'CONTEXTO DE LA SEMANA (MEMORIA ACUMULADA)'
-  const endMarker = 'REGLAS DE VÍDEOS Y MATERIAL MULTIMEDIA'
-  const start = baseSystem.indexOf(startMarker)
-  const end = baseSystem.indexOf(endMarker)
+${ctx}
 
-  const section = `CONTEXTO DE LA SEMANA — ${ctx}`
-  if (start >= 0 && end > start) {
-    return `${baseSystem.slice(0, start)}${section}\n\n${baseSystem.slice(end)}`
+════════════════════════════════════════
+`
+
+  // Reemplazo delimitado entre la sección de memoria semanal y la siguiente sección de vídeos.
+  const sectionRe =
+    /CONTEXTO DE LA SEMANA \(MEMORIA ACUMULADA\)[\s\S]*?(?=REGLAS DE V[IÍ]DEOS Y MATERIAL MULTIMEDIA)/m
+  if (sectionRe.test(baseSystem)) {
+    return baseSystem.replace(sectionRe, replacement)
   }
 
-  // Fallback: prompts que no tienen la sección antigua (p.ej. algunos flows de Excel).
-  return `${baseSystem}\n\n${section}`
+  // Fallback: prompts que no tienen esta sección (p.ej. algunos flows de Excel).
+  return `${baseSystem}\n\n${replacement}`
 }
 
 export default async function handler(req, res) {

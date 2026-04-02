@@ -41,16 +41,12 @@ function parseHistoryAndActive(weekState) {
   const semanaActual = Number(weekState?.week ?? active?.week ?? 0) || 0
   const totalWeeks = Number(weekState?.totalWeeks ?? active?.totalWeeks ?? 0) || 0
 
+  // Toma las semanas más recientes disponibles (sin asumir continuidad ni filtrar < semana actual).
   const weeks = Array.isArray(history?.[mesociclo]) ? [...history[mesociclo]] : []
-  weeks.sort((a, b) => Number(a?.semana || 0) - Number(b?.semana || 0))
-
-  const prevTarget = semanaActual - 1
-  let previous = weeks.find((w) => Number(w?.semana) === prevTarget) || null
-  if (!previous) {
-    previous = weeks
-      .filter((w) => Number(w?.semana || 0) < semanaActual)
-      .sort((a, b) => Number(b?.semana || 0) - Number(a?.semana || 0))[0] || null
-  }
+  const recent = weeks
+    .sort((a, b) => Number(b?.semana || 0) - Number(a?.semana || 0))
+    .slice(0, 2)
+  const previous = recent[0] || null
 
   return { mesociclo, semanaActual, totalWeeks, previous }
 }

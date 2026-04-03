@@ -38,7 +38,8 @@ import { buildWeekContext } from '../../utils/buildWeekContext.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
-const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 3600
+/** Techo por POST: 2 días + feedbacks + JSON superan 3600 y JUEVES (2.º del par MIÉ–JUE) quedaba truncado. */
+const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 6500
 
 /** Hasta 2 días consecutivos (orden LUN→SÁ) por llamada para acotar tiempo de respuesta de la IA. */
 function buildConsecutiveDayChunks(daysToGenerateSet) {

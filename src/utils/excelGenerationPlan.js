@@ -236,6 +236,18 @@ export function resolveDaysToGenerateFromSelection(selectedCanon, instructionsAn
     [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d) && !daysPreserved.has(d)),
   )
 
+  const desdeSelector = EXCEL_DAY_ORDER.filter((d) => selected.has(d))
+  const decisiónFinal = EXCEL_DAY_ORDER.filter((d) => daysToGenerate.has(d))
+  console.log('[ProgramingEvo][Excel plan] resolveDaysToGenerateFromSelection', {
+    desdeSelectorOrdenLunesASab: desdeSelector,
+    preservadosDelTexto: [...daysPreserved].sort(),
+    excluidosDetectadosEnTexto_noAfectanSelector: [...daysExcluded].sort(),
+    diasQueSeMandaranALaIA: decisiónFinal,
+    juevesEnSelector: selected.has('JUEVES'),
+    juevesPreservadoPorTexto: daysPreserved.has('JUEVES'),
+    juevesEnDiasToGenerate: daysToGenerate.has('JUEVES'),
+  })
+
   return { daysToGenerate, daysPreserved, daysExcluded, selectedDays: selected }
 }
 

@@ -420,6 +420,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       planSourceText,
     )
     const dayChunks = buildConsecutiveDayChunks(daysToGenerate)
+    console.log('[ProgramingEvo][Excel UI] trozos consecutivos enviados a la IA (orden)', {
+      numChunks: dayChunks.length,
+      chunks: dayChunks.map((c) => [...c]),
+      juevesEnAlgunChunk: dayChunks.some((c) => c.has('JUEVES')),
+    })
 
     if (daysToGenerate.size === 0) {
       setErrorMsg(
@@ -490,9 +495,20 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         const coherenceBlock = allowCoherence ? buildCoherenceBlockFromAccumulator() : ''
         setGenStep(total > 1 ? `Generando ${chunkDaysText}… (${ci + 1}/${total})` : `Generando ${chunkDaysText}…`)
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock)
+        console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
+          diasEnEstePOST: [...chunk],
+          juevesEnEstePOST: chunk.has('JUEVES'),
+        })
         try {
           const part = await callApi(userMessageForApi, systemExcelFull, weekContextText)
           mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
+          const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
+          if (ji >= 0 && chunk.has('JUEVES')) {
+            const jf = String(acc.dias[ji]?.evofuncional ?? '')
+            console.log('[ProgramingEvo][Excel merge] tras chunk', ci + 1, 'JUEVES evofuncional length:', jf.length, {
+              preview: jf.slice(0, 100),
+            })
+          }
         } catch (err) {
           if (chunk.size > 1 && isTimeoutLikeGenerationError(err)) {
             const splitDays = [...chunk]

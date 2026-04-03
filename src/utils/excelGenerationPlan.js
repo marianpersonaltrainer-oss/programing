@@ -123,8 +123,10 @@ function extractPreservedDays(normalized) {
       `(?:\\b${slug}\\b\\s+ya\\s+(?:esta\\s+)?(?:hecho|hecha|lista|listo|completo|completa)\\b)|(?:\\b(?:ya\\s+)?(?:esta\\s+)?(?:hecho|hecha|lista)\\b\\s+(?:el\\s+)?\\b${slug}\\b)`,
       'i',
     )
+    // No incluir «generes» aquí: combinado con saltos de línea podía marcar un día como preservado
+    // sin querer (p. ej. contexto largo). Para no tocar un día: «no toques / regeneres / cambies el X».
     const noTouchRe = new RegExp(
-      `\\bno\\s+(?:toques|generes|modifiques|regeneres|cambies)\\s+(?:el\\s+)?\\b${slug}\\b`,
+      `\\bno\\s+(?:toques|modifiques|regeneres|cambies)\\s+(?:el\\s+)?\\b${slug}\\b`,
       'i',
     )
     if (doneRe.test(normalized) || noTouchRe.test(normalized)) preserved.add(canon)
@@ -234,18 +236,6 @@ export function resolveDaysToGenerateFromSelection(selectedCanon, instructionsAn
     [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d) && !daysPreserved.has(d)),
   )
 
-  const desdeSelector = EXCEL_DAY_ORDER.filter((d) => selected.has(d))
-  const decisiónFinal = EXCEL_DAY_ORDER.filter((d) => daysToGenerate.has(d))
-  console.log('[ProgramingEvo][Excel plan] resolveDaysToGenerateFromSelection', {
-    desdeSelectorOrdenLunesASab: desdeSelector,
-    preservadosDelTexto: [...daysPreserved].sort(),
-    excluidosDetectadosEnTexto_noAfectanSelector: [...daysExcluded].sort(),
-    diasQueSeMandaranALaIA: decisiónFinal,
-    juevesEnSelector: selected.has('JUEVES'),
-    juevesPreservadoPorTexto: daysPreserved.has('JUEVES'),
-    juevesEnDiasToGenerate: daysToGenerate.has('JUEVES'),
-  })
-
   return { daysToGenerate, daysPreserved, daysExcluded, selectedDays: selected }
 }
 
@@ -285,16 +275,69 @@ export function dayChunkForHalfWeek(dayCanon) {
   return i <= 2 ? 'first' : 'second'
 }
 
+/** Alinea `nombre` del JSON del modelo con LUNES…SÁBADO (acentos / mayúsculas). */
+export function resolveDayCanonFromNombre(raw) {
+  if (raw == null || String(raw).trim() === '') return null
+  const n = normalizeForMatch(raw)
+  for (const canon of EXCEL_DAY_ORDER) {
+    if (normalizeForMatch(canon) === n) return canon
+  }
+  for (const { canon, slug } of DAY_SLUGS) {
+    if (n === slug) return canon
+  }
+  return null
+}
+
+/**
+ * El modelo a veces devuelve `dias` en orden incorrecto: fusionamos por `nombre` y
+ * solo usamos índice del array como respaldo.
+ */
+function mapPartialDiasByCanon(partialDias, allowed) {
+  const byCanon = new Map()
+  if (allowed.size === 1 && partialDias.length === 1) {
+    const item = partialDias[0]
+    if (item && typeof item === 'object') {
+      byCanon.set([...allowed][0], item)
+      return byCanon
+    }
+  }
+
+  const consumed = new Set()
+  for (let j = 0; j < partialDias.length; j++) {
+    const item = partialDias[j]
+    if (!item || typeof item !== 'object') continue
+    const canon = resolveDayCanonFromNombre(item.nombre)
+    if (canon && allowed.has(canon)) {
+      byCanon.set(canon, item)
+      consumed.add(j)
+    }
+  }
+
+  for (let j = 0; j < partialDias.length; j++) {
+    if (consumed.has(j)) continue
+    const item = partialDias[j]
+    if (!item || typeof item !== 'object') continue
+    if (j >= EXCEL_DAY_ORDER.length) continue
+    const canon = EXCEL_DAY_ORDER[j]
+    if (!allowed.has(canon) || byCanon.has(canon)) continue
+    byCanon.set(canon, item)
+  }
+
+  return byCanon
+}
+
 /** Une respuesta parcial del modelo solo en los días permitidos; no pisa cadenas no vacías con vacío del modelo salvo que forceEmpty. */
 export function mergeGeneratedDaysIntoAccumulator(accumulator, partialJson, allowedDayNames) {
   const allowed = allowedDayNames instanceof Set ? allowedDayNames : new Set(allowedDayNames)
   const partialDias = partialJson?.dias
   if (!Array.isArray(partialDias)) return accumulator
 
+  const byCanon = mapPartialDiasByCanon(partialDias, allowed)
+
   for (let i = 0; i < EXCEL_DAY_ORDER.length; i++) {
     const name = EXCEL_DAY_ORDER[i]
     if (!allowed.has(name)) continue
-    const src = partialDias[i]
+    const src = byCanon.get(name) ?? partialDias[i]
     if (!src || typeof src !== 'object') continue
     const target = accumulator.dias[i] || emptyDay(name)
     const merged = { ...target }

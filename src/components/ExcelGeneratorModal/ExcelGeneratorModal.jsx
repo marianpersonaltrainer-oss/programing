@@ -415,18 +415,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     const planSourceText = [instructionsClean, contextClean].filter(Boolean).join('\n\n')
     const selectedCanon = new Set(EXCEL_DAY_ORDER.filter((d) => dayPicker[d]))
-    console.log('[ProgramingEvo][Excel UI] antes de resolve: dayPicker por día', {
-      ...Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, !!dayPicker[d]])),
-    })
     const { daysToGenerate, daysPreserved } = resolveDaysToGenerateFromSelection(
       selectedCanon,
       planSourceText,
     )
     const dayChunks = buildConsecutiveDayChunks(daysToGenerate)
-    console.log('[ProgramingEvo][Excel UI] trozos consecutivos enviados a la IA (orden)', {
-      numChunks: dayChunks.length,
-      chunks: dayChunks.map((c) => [...c]),
-    })
 
     if (daysToGenerate.size === 0) {
       setErrorMsg(
@@ -497,27 +490,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         const coherenceBlock = allowCoherence ? buildCoherenceBlockFromAccumulator() : ''
         setGenStep(total > 1 ? `Generando ${chunkDaysText}… (${ci + 1}/${total})` : `Generando ${chunkDaysText}…`)
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock)
-        const bloqueDiasEnPrompt = [
-          '——— [ProgramingEvo] BLOQUE DÍAS QUE VE LA IA (PLAN + ESTA PETICIÓN) ———',
-          planSummary,
-          '',
-          `GENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${[...chunk].join(', ')}.`,
-          '——— fin bloque ———',
-        ].join('\n')
-        console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
-          diasEnEstePOST: [...chunk],
-          juevesEnEstePOST: chunk.has('JUEVES'),
-          longitudUserMessageChars: userMessageForApi.length,
-        })
-        console.log(bloqueDiasEnPrompt)
         try {
           const part = await callApi(userMessageForApi, systemExcelFull, weekContextText)
           mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
-          const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
-          if (ji >= 0 && chunk.has('JUEVES')) {
-            const jf = acc.dias[ji]?.evofuncional ?? ''
-            console.log('[ProgramingEvo][Excel merge] tras chunk', ci + 1, 'JUEVES evofuncional (preview):', jf.slice(0, 120))
-          }
         } catch (err) {
           if (chunk.size > 1 && isTimeoutLikeGenerationError(err)) {
             const splitDays = [...chunk]

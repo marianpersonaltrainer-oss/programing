@@ -57,6 +57,38 @@ export function extractMaterialHints(text) {
 }
 
 /**
+ * Feedback ya publicado en el JSON semanal (campo `feedback_*` del día).
+ * Excluye vacío y el placeholder habitual de «no programada».
+ */
+export function hasNonTrivialPublishedFeedback(text) {
+  const t = String(text || '').trim()
+  if (!t) return false
+  if (/^\(no programada esta semana\)\s*$/i.test(t)) return false
+  return true
+}
+
+/**
+ * Última entrada del log para esa clase en la semana publicada y en ese día de la semana
+ * (p. ej. Preparar clase para Lunes → solo `day_key === 'monday'`).
+ * Evita mostrar feedback de otro día (martes) u otra semana.
+ */
+export function findLastLocalFeedbackSameWeekAndDay(classLabel, currentWeekId, dayKey) {
+  if (!classLabel || currentWeekId == null || !dayKey) return null
+  const { entries } = readFeedbackLog()
+  const wid = String(currentWeekId)
+  const same = entries.filter(
+    (e) =>
+      (e.class_label || '') === classLabel &&
+      e.week_id != null &&
+      String(e.week_id) === wid &&
+      e.day_key === dayKey,
+  )
+  if (!same.length) return null
+  same.sort((a, b) => entryTime(b) - entryTime(a))
+  return same[0]
+}
+
+/**
  * Última entrada del log local para esa clase (excluyendo la semana actual si hay otra más antigua).
  */
 export function findLastFeedbackForClassLabel(classLabel, currentWeekId) {

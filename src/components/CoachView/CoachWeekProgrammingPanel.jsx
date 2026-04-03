@@ -21,9 +21,10 @@ import { coachHasFeedbackForDay } from '../../utils/coachFeedbackLocalLog.js'
 import {
   extractMaterialHints,
   findLastCoachHandoffNote,
-  findLastFeedbackForClassLabel,
   formatFeedbackEntrySummary,
+  findLastLocalFeedbackSameWeekAndDay,
   handoffNoteMetaLine,
+  hasNonTrivialPublishedFeedback,
 } from '../../utils/coachSessionPrep.js'
 import { printCoachDaySession } from '../../utils/coachPrintSession.js'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
@@ -722,6 +723,8 @@ export default function CoachWeekProgrammingPanel({
             ].join('\n')
             const hints = extractMaterialHints(combinedText)
             const blocksWithText = SESSION_BLOCKS.filter(({ key }) => sessionText(diaPrep[key]))
+            const prepDayKey = dayNombreToFeedbackKey(diaPrep.nombre)
+            const weekIdForPrep = weekRow?.id ?? null
             return (
               <div
                 className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/45"
@@ -740,7 +743,9 @@ export default function CoachWeekProgrammingPanel({
                         Preparar clase
                       </h2>
                       <p className={`text-sm font-bold ${coachText.primary} mt-1`}>{diaPrep.nombre}</p>
-                      <p className={`text-[10px] ${coachText.muted} mt-1`}>Material sugerido y último feedback de cada clase (datos locales).</p>
+                      <p className={`text-[10px] ${coachText.muted} mt-1`}>
+                        Material sugerido; feedback publicado en la programación primero y el log local como complemento.
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -773,35 +778,60 @@ export default function CoachWeekProgrammingPanel({
                     </section>
                     <section className="space-y-3">
                       <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
-                        Último feedback por clase (log local)
+                        Feedback por clase
                       </p>
                       {blocksWithText.length ? (
                         blocksWithText.map(({ label, key }) => {
-                          const last = findLastFeedbackForClassLabel(label, weekRow?.id ?? null)
+                          const def = EVO_SESSION_CLASS_DEFS.find((d) => d.key === key)
+                          const fbKey = def?.feedbackKey
+                          const publishedRaw = fbKey ? sessionText(diaPrep[fbKey]) : ''
+                          const hasPub = hasNonTrivialPublishedFeedback(publishedRaw)
+                          const complement =
+                            prepDayKey && weekIdForPrep != null
+                              ? findLastLocalFeedbackSameWeekAndDay(label, weekIdForPrep, prepDayKey)
+                              : null
                           return (
                             <div
                               key={key}
                               className={`rounded-xl border ${coachBorder} ${coachBg.cardAlt} p-4 space-y-2`}
                             >
                               <p className={`text-xs font-black uppercase tracking-wide ${coachText.accent}`}>{label}</p>
-                              {last ? (
-                                <>
+                              {hasPub ? (
+                                <div className="space-y-1">
+                                  <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
+                                    Publicado (programación)
+                                  </p>
+                                  <p className={`text-sm leading-snug ${coachText.primary} whitespace-pre-wrap`}>
+                                    {publishedRaw}
+                                  </p>
+                                </div>
+                              ) : null}
+                              {complement ? (
+                                <div className={`space-y-1 ${hasPub ? `pt-2 border-t ${coachBorder}` : ''}`}>
+                                  <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
+                                    {hasPub
+                                      ? 'Complemento — log local (esta semana, este día)'
+                                      : 'Log local (esta semana, este día)'}
+                                  </p>
                                   <p className={`text-[10px] ${coachText.muted}`}>
-                                    {last.created_at || last.savedAt
-                                      ? new Date(last.created_at || last.savedAt).toLocaleString('es-ES', {
+                                    {complement.created_at || complement.savedAt
+                                      ? new Date(complement.created_at || complement.savedAt).toLocaleString('es-ES', {
                                           dateStyle: 'short',
                                           timeStyle: 'short',
                                         })
                                       : '—'}
-                                    {last.day_key ? ` · ${DAYS_ES[last.day_key] || last.day_key}` : ''}
+                                    {complement.day_key ? ` · ${DAYS_ES[complement.day_key] || complement.day_key}` : ''}
                                   </p>
                                   <p className={`text-sm leading-snug ${coachText.primary} whitespace-pre-wrap`}>
-                                    {formatFeedbackEntrySummary(last)}
+                                    {formatFeedbackEntrySummary(complement)}
                                   </p>
-                                </>
-                              ) : (
-                                <p className={`text-sm ${coachText.muted}`}>Sin entradas previas para esta clase en el log.</p>
-                              )}
+                                </div>
+                              ) : null}
+                              {!hasPub && !complement ? (
+                                <p className={`text-sm ${coachText.muted}`}>
+                                  Sin feedback publicado para esta clase ni entradas relevantes en el log.
+                                </p>
+                              ) : null}
                             </div>
                           )
                         })

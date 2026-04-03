@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   getActiveWeek,
   createCoachSession,
@@ -258,6 +258,46 @@ export default function CoachView() {
   const centroToastKeyRef = useRef('')
   const handoverToastFiredRef = useRef(false)
   const newWeekToastQueuedRef = useRef(null)
+  /** Sincronizado con `activeWeekRow.id` para comparar sin closures obsoletos al refrescar en foco. */
+  const activeWeekIdRef = useRef(null)
+
+  useEffect(() => {
+    activeWeekIdRef.current = activeWeekRow?.id ?? null
+  }, [activeWeekRow?.id])
+
+  const refreshActiveWeekOnFocus = useCallback(async () => {
+    if (step === 'loading') return
+    try {
+      const week = await getActiveWeek()
+      const prevId = activeWeekIdRef.current
+      if (!week) {
+        if (prevId != null) {
+          setWeekData(null)
+          setActiveWeekRow(null)
+          if (step === 'chat') setStep('noweek')
+        }
+        return
+      }
+      if (week.id === prevId) return
+      setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
+      setWeekData(week.data)
+    } catch (e) {
+      console.warn('CoachView: refreshActiveWeekOnFocus', e)
+    }
+  }, [step])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshActiveWeekOnFocus()
+    }
+    const onWinFocus = () => void refreshActiveWeekOnFocus()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onWinFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onWinFocus)
+    }
+  }, [refreshActiveWeekOnFocus])
 
   useEffect(() => {
     handoverToastFiredRef.current = false

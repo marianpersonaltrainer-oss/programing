@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react'
+import {
+  loadLearnedState,
+  saveLearnedState,
+  getLearnedRulesConcatenated,
+  removeAutoLearnedEntry,
+  clearAutoLearnedEntries,
+  clearAllLearned,
+} from '../../utils/methodLearnedStorage.js'
 
 const METHOD_KEY = 'programingevo_method'
-const METHOD_LEARNED_KEY = 'programingevo_method_learned'
 
 export const DEFAULT_METHOD = `FILOSOFÍA EVO
 EVO es un centro funcional con formato CrossFit pero con identidad propia. Adulto activo 28-55 años. Abierto a ejercicios nuevos, accesorios y creatividad.
@@ -29,14 +36,10 @@ ESTILO DE PROGRAMACIÓN
 
 export const DEFAULT_LEARNED_PLACEHOLDER = `Anota aquí correcciones tras revisar semanas, frases que funcionaron en sala, errores a no repetir, ejemplos reales de cómo explicar un formato, etc.
 
-(Este bloque se envía siempre al generar semana Excel y al agente de programación del dashboard.)`
+(Las entradas automáticas al editar sesiones aparecen debajo con fecha; aquí va tu texto libre.)`
 
 export function getLearnedRulesText() {
-  try {
-    return localStorage.getItem(METHOD_LEARNED_KEY) ?? ''
-  } catch {
-    return ''
-  }
+  return getLearnedRulesConcatenated()
 }
 
 /** Texto completo para APIs: método base + reglas aprendidas (si hay). */
@@ -48,7 +51,7 @@ export function getMethodText() {
   } catch {
     base = DEFAULT_METHOD
   }
-  const learned = getLearnedRulesText().trim()
+  const learned = getLearnedRulesConcatenated().trim()
   if (!learned) return base
   return `${base}\n\n════════════════════════════════════════\nREGLAS APRENDIDAS\n════════════════════════════════════════\n\n${learned}`
 }
@@ -61,34 +64,44 @@ export function saveMethodText(baseText) {
   }
 }
 
+/** Sustituye solo el bloque manual; preserva entradas automáticas. */
 export function saveLearnedRulesText(text) {
+  const state = loadLearnedState()
+  state.manual = text
+  saveLearnedState(state)
+}
+
+function formatAutoDate(iso) {
   try {
-    localStorage.setItem(METHOD_LEARNED_KEY, text)
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
   } catch {
-    // ignore
+    return '—'
   }
 }
 
 export default function MethodPanel({ onClose }) {
   const [baseText, setBaseText] = useState('')
-  const [learnedText, setLearnedText] = useState('')
+  const [learnedManual, setLearnedManual] = useState('')
+  const [autoEntries, setAutoEntries] = useState([])
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     try {
       const b = localStorage.getItem(METHOD_KEY)
       setBaseText(b || DEFAULT_METHOD)
-      const l = localStorage.getItem(METHOD_LEARNED_KEY)
-      setLearnedText(l ?? '')
     } catch {
       setBaseText(DEFAULT_METHOD)
-      setLearnedText('')
     }
+    const s = loadLearnedState()
+    setLearnedManual(s.manual)
+    setAutoEntries(s.auto)
   }, [])
 
   function handleSave() {
     saveMethodText(baseText)
-    saveLearnedRulesText(learnedText)
+    saveLearnedState({ manual: learnedManual, auto: autoEntries })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -101,10 +114,23 @@ export default function MethodPanel({ onClose }) {
   }
 
   function handleClearLearned() {
-    if (window.confirm('¿Vaciar por completo Reglas aprendidas?')) {
-      setLearnedText('')
-      saveLearnedRulesText('')
+    if (window.confirm('¿Vaciar manual y todas las reglas automáticas?')) {
+      clearAllLearned()
+      setLearnedManual('')
+      setAutoEntries([])
     }
+  }
+
+  function handleClearAutoOnly() {
+    if (window.confirm('¿Vaciar solo las sugerencias automáticas (ediciones de sesión)?')) {
+      clearAutoLearnedEntries()
+      setAutoEntries([])
+    }
+  }
+
+  function handleRemoveAuto(id) {
+    removeAutoLearnedEntry(id)
+    setAutoEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
   return (
@@ -148,30 +174,67 @@ export default function MethodPanel({ onClose }) {
             />
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label className="block text-[10px] font-bold text-evo-text uppercase tracking-widest">Reglas aprendidas</label>
-              <button
-                type="button"
-                onClick={handleClearLearned}
-                className="text-[9px] text-evo-muted font-bold uppercase tracking-widest hover:text-red-500"
-              >
-                Vaciar
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-[10px] font-bold text-evo-text uppercase tracking-widest">Reglas aprendidas · manual</label>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={handleClearAutoOnly}
+                  className="text-[9px] text-evo-muted font-bold uppercase tracking-widest hover:text-amber-700"
+                >
+                  Vaciar automáticas
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearLearned}
+                  className="text-[9px] text-evo-muted font-bold uppercase tracking-widest hover:text-red-500"
+                >
+                  Vaciar todo
+                </button>
+              </div>
             </div>
             <p className="text-[9px] text-evo-muted leading-relaxed">
-              Correcciones, ejemplos reales de sala, cosas que no quieres que el modelo repita. Se concatena al método base en cada generación.
+              Texto libre más abajo; las frases generadas al guardar ediciones de sesión se listan con fecha (puedes borrarlas una a una).
             </p>
             <textarea
-              value={learnedText}
+              value={learnedManual}
               onChange={(e) => {
-                setLearnedText(e.target.value)
+                setLearnedManual(e.target.value)
                 setSaved(false)
               }}
               spellCheck={false}
               placeholder={DEFAULT_LEARNED_PLACEHOLDER}
-              className="w-full min-h-[160px] bg-amber-50/40 border border-amber-100 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] font-mono leading-relaxed focus:outline-none focus:border-amber-300/60 focus:bg-white transition-all shadow-inner resize-y"
+              className="w-full min-h-[120px] bg-amber-50/40 border border-amber-100 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] font-mono leading-relaxed focus:outline-none focus:border-amber-300/60 focus:bg-white transition-all shadow-inner resize-y"
             />
           </div>
+
+          {autoEntries.length ? (
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-evo-text uppercase tracking-widest">
+                Desde ediciones de sesión ({autoEntries.length})
+              </label>
+              <ul className="space-y-2">
+                {autoEntries.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex gap-3 items-start p-3 rounded-2xl border border-amber-100 bg-amber-50/30 text-xs text-[#1A0A1A]"
+                  >
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-[9px] font-bold text-evo-muted uppercase tracking-wider">{formatAutoDate(e.at)}</p>
+                      <p className="leading-relaxed whitespace-pre-wrap">{e.text}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAuto(e.id)}
+                      className="shrink-0 text-[9px] font-bold uppercase text-red-600 hover:text-red-700"
+                    >
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50">

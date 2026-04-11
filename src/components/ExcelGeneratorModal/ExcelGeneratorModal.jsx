@@ -364,9 +364,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const contextClean = sanitizePromptTextForLLM(context).trim()
     setErrorMsg('')
 
-    if (!isEditingExistingWeek && !contextClean) {
+    const contextOptional =
+      isEditingExistingWeek || editingPublishedRowId != null || weekData != null
+
+    if (!contextOptional && !contextClean) {
       setErrorMsg(
-        'Para crear una semana nueva debes cargar o pegar el Contexto de Programación Anterior. En edición de una semana existente este campo sí puede ir vacío.',
+        'Para crear una semana nueva debes cargar o pegar el Contexto de Programación Anterior. Si editas o regeneras una semana que ya está cargada en el modal, el contexto es opcional.',
       )
       setStatus('error')
       return
@@ -438,17 +441,21 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     try {
       const weekContextText = await buildWeekContext(weekState)
       let overlay = null
-      try {
-        const row = await getActiveWeek()
-        if (
-          row?.data &&
-          row.mesociclo === weekState.mesocycle &&
-          Number(row.semana) === Number(weekState.week)
-        ) {
-          overlay = row.data
+      if (weekData && Array.isArray(weekData.dias)) {
+        overlay = weekData
+      } else {
+        try {
+          const row = await getActiveWeek()
+          if (
+            row?.data &&
+            row.mesociclo === weekState.mesocycle &&
+            Number(row.semana) === Number(weekState.week)
+          ) {
+            overlay = row.data
+          }
+        } catch {
+          overlay = null
         }
-      } catch {
-        overlay = null
       }
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
@@ -547,8 +554,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setRawJson(JSON.stringify(combined, null, 2))
       setEditTitle(combined.titulo || '')
       setEditSheetName(`S${weekState.week || 1}`)
-      setEditingPublishedRowId(null)
-      setEditingPublishedIsActive(false)
+      /* Conservar edición de fila publicada: sigue pudiendo «Guardar cambios» y contexto sigue siendo opcional al regenerar. */
       setSavedPublishedEdit(false)
       setGenStep('')
       setStatus('previewing')
@@ -828,6 +834,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     }
   }
 
+  const contextOptionalUi =
+    isEditingExistingWeek || editingPublishedRowId != null || weekData != null
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-3xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] animate-fade-in shadow-2xl overflow-hidden">
@@ -859,7 +868,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   <label className="text-[11px] font-bold text-evo-text uppercase tracking-wider">
                     Contexto de Programación Anterior
                     <span className="ml-1 text-[9px] text-evo-muted">
-                      {isEditingExistingWeek ? '(opcional en edición)' : '(obligatorio en semana nueva)'}
+                      {contextOptionalUi
+                        ? '(opcional: semana en edición / ya cargada)'
+                        : '(obligatorio en semana nueva)'}
                     </span>
                   </label>
                   <div className="flex items-center gap-2">
@@ -911,9 +922,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </div>
                 <p className="text-[10px] text-evo-muted mb-1 font-medium leading-relaxed">
                   Sube archivos (.docx, .xlsx, .txt) o pega la programación previa en texto plano.
-                  {isEditingExistingWeek ? (
+                  {contextOptionalUi ? (
                     <span className="block mt-1 text-[9px] opacity-90">
-                      Modo edición detectado: puedes dejar este campo vacío para ajustar sesiones sin regenerar toda la semana.
+                      Puedes dejar este campo vacío si editas o regeneras una semana ya cargada (el JSON actual se usa como base
+                      para días preservados).
                     </span>
                   ) : (
                     <span className="block mt-1 text-[9px] opacity-90">

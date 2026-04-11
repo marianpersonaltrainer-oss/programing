@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { buildEditHistoryEntry } from '../utils/publishedWeekEditLog.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -51,15 +52,56 @@ export async function getActiveWeek() {
 
 /** Actualiza el JSON `data` de una fila publicada (requiere políticas RLS que permitan UPDATE). */
 export async function updatePublishedWeekData(rowId, weekData) {
+  const { data: row, error: fetchErr } = await supabase
+    .from('published_weeks')
+    .select('data, edit_history')
+    .eq('id', rowId)
+    .single()
+
+  if (fetchErr) throw fetchErr
+
+  const entry = buildEditHistoryEntry(row?.data, weekData, {
+    actor: 'programador',
+    source: 'generar_programacion',
+  })
+  const hist = Array.isArray(row?.edit_history) ? [...row.edit_history] : []
+  if (entry) hist.push(entry)
+  const edit_history = hist.slice(-150)
+
   const { error } = await supabase
     .from('published_weeks')
     .update({
       data: weekData,
       titulo: weekData.titulo,
+      edit_history,
     })
     .eq('id', rowId)
 
   if (error) throw error
+}
+
+/** Listado para selectores (export admin, etc.). */
+export async function listPublishedWeeksSummary(limit = 80) {
+  const { data, error } = await supabase
+    .from('published_weeks')
+    .select('id, titulo, semana, mesociclo, published_at, is_active')
+    .order('published_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return data || []
+}
+
+/** Fila completa por id (export, auditoría). */
+export async function getPublishedWeekById(id) {
+  if (id == null) return null
+  const { data, error } = await supabase.from('published_weeks').select('*').eq('id', id).single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null
+    throw error
+  }
+  return data
 }
 
 /** Devuelve la última fila publicada para (mesociclo, semana), activa o no. */

@@ -17,16 +17,21 @@ function classFromRow(row) {
   return row?.class_label || '—'
 }
 
+function isTrivialProgramadaLine(t) {
+  const line = String(t || '').split('\n')[0].trim()
+  return /^\(no programada esta semana\)\s*$/i.test(line)
+}
+
 /**
  * @param {object} opts
  * @param {object} opts.weekRow — fila published_weeks (id, titulo, semana, mesociclo, data, edit_history, published_at)
- * @param {object[]} opts.feedbackRows — coach_session_feedback para week_id
+ * @param {object[]} opts.feedbackRows — filas `coach_session_feedback` con `week_id` = published_weeks.id
  */
 export async function buildWeekExportWorkbook({ weekRow, feedbackRows = [] }) {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'ProgramingEvo'
 
-  // ── Hoja 1: Feedback ─────────────────────────────────
+  // ── Hoja 1: Feedback (coaches + briefings publicados en JSON) ───────────────
   const shF = wb.addWorksheet('Feedback', {
     properties: { defaultRowHeight: 18 },
     views: [{ state: 'frozen', ySplit: 1 }],
@@ -34,16 +39,34 @@ export async function buildWeekExportWorkbook({ weekRow, feedbackRows = [] }) {
   shF.columns = [
     { header: 'Día', key: 'day', width: 14 },
     { header: 'Clase', key: 'class', width: 18 },
+    { header: 'Origen', key: 'origin', width: 20 },
     { header: 'Coach', key: 'coach', width: 16 },
     { header: 'Sesión (cómo fue)', key: 'how', width: 14 },
     { header: 'Tiempo explicación', key: 'time', width: 16 },
     { header: 'Cambió algo', key: 'changed', width: 12 },
-    { header: 'Detalle cambios', key: 'changedDet', width: 36 },
-    { header: 'Sensaciones grupo', key: 'group', width: 36 },
-    { header: 'Nota siguiente coach', key: 'next', width: 40 },
+    { header: 'Detalle cambios', key: 'changedDet', width: 32 },
+    { header: 'Sensaciones grupo', key: 'group', width: 32 },
+    { header: 'Nota siguiente coach', key: 'next', width: 36 },
+    { header: 'Briefing publicado (JSON)', key: 'briefingJson', width: 40 },
     { header: 'Fecha', key: 'at', width: 20 },
   ]
   shF.getRow(1).font = { bold: true }
+
+  const secCoach = shF.addRow({
+    day: '▼ Feedback coaches (coach_session_feedback · week_id = id semana)',
+    class: '',
+    origin: '',
+    coach: '',
+    how: '',
+    time: '',
+    changed: '',
+    changedDet: '',
+    group: '',
+    next: '',
+    briefingJson: '',
+    at: '',
+  })
+  secCoach.font = { bold: true, italic: true }
 
   const counts = { muy_bien: 0, bien: 0, regular: 0, mal: 0, otro: 0 }
   for (const r of feedbackRows) {
@@ -53,6 +76,7 @@ export async function buildWeekExportWorkbook({ weekRow, feedbackRows = [] }) {
     shF.addRow({
       day: dayLabel(r.day_key),
       class: classFromRow(r),
+      origin: 'Coach sala',
       coach: r.coach_name || '—',
       how: HOW_LABELS[how] || how || '—',
       time: r.time_for_explanation || '—',
@@ -60,14 +84,16 @@ export async function buildWeekExportWorkbook({ weekRow, feedbackRows = [] }) {
       changedDet: r.changed_details || '',
       group: r.group_feelings || '',
       next: r.notes_next_week || '',
+      briefingJson: '',
       at: r.created_at ? new Date(r.created_at).toLocaleString('es-ES') : '—',
     })
   }
 
   if (feedbackRows.length === 0) {
     shF.addRow({
-      day: '(sin registros)',
+      day: '(sin registros de coaches para esta semana)',
       class: '—',
+      origin: '—',
       coach: '—',
       how: '—',
       time: '—',
@@ -75,14 +101,74 @@ export async function buildWeekExportWorkbook({ weekRow, feedbackRows = [] }) {
       changedDet: '',
       group: '',
       next: '',
+      briefingJson: '',
+      at: '—',
+    })
+  }
+
+  shF.addRow({})
+  const secJson = shF.addRow({
+    day: '▼ Feedback publicado en programación (JSON · data.dias · feedback_*)',
+    class: '',
+    origin: '',
+    coach: '',
+    how: '',
+    time: '',
+    changed: '',
+    changedDet: '',
+    group: '',
+    next: '',
+    briefingJson: '',
+    at: '',
+  })
+  secJson.font = { bold: true, italic: true }
+
+  let jsonFeedbackRows = 0
+  for (const dia of weekRow?.data?.dias || []) {
+    const dayName = String(dia?.nombre || '—')
+    for (const { label, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+      const txt = String(dia[feedbackKey] || '').trim()
+      if (!txt || isTrivialProgramadaLine(txt)) continue
+      jsonFeedbackRows += 1
+      shF.addRow({
+        day: dayName,
+        class: label,
+        origin: 'Programación JSON',
+        coach: '—',
+        how: '—',
+        time: '—',
+        changed: '—',
+        changedDet: '',
+        group: '',
+        next: '',
+        briefingJson: txt,
+        at: '—',
+      })
+    }
+  }
+
+  if (jsonFeedbackRows === 0) {
+    shF.addRow({
+      day: '(sin textos de feedback en JSON para esta semana)',
+      class: '—',
+      origin: '—',
+      coach: '—',
+      how: '—',
+      time: '—',
+      changed: '—',
+      changedDet: '',
+      group: '',
+      next: '',
+      briefingJson: '',
       at: '—',
     })
   }
 
   shF.addRow({})
   const rSum = shF.addRow({
-    day: 'RESUMEN sesión (conteo)',
+    day: 'RESUMEN sesión (solo coaches)',
     class: `Muy bien: ${counts.muy_bien}`,
+    origin: '',
     coach: `Bien: ${counts.bien}`,
     how: `Regular: ${counts.regular}`,
     time: `Mal: ${counts.mal}`,
@@ -90,6 +176,7 @@ export async function buildWeekExportWorkbook({ weekRow, feedbackRows = [] }) {
     changedDet: '',
     group: '',
     next: '',
+    briefingJson: `Filas JSON: ${jsonFeedbackRows}`,
     at: '',
   })
   rSum.font = { bold: true }

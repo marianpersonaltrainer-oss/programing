@@ -260,6 +260,32 @@ export async function listCoachSessionFeedbackForWeek(weekId) {
   return data || []
 }
 
+/**
+ * Misma fila que `listCoachSessionFeedbackForWeek`, pero para export admin: más filas y columnas explícitas.
+ * `coach_session_feedback.week_id` referencia `published_weeks.id` (no existe `published_week_id` en la tabla).
+ */
+export async function fetchCoachSessionFeedbackForPublishedWeekExport(publishedWeekId) {
+  if (publishedWeekId == null || publishedWeekId === '') return []
+  const { data, error } = await supabase
+    .from('coach_session_feedback')
+    .select(
+      'id, week_id, day_key, class_label, coach_name, session_how, time_for_explanation, changed_something, changed_details, group_feelings, notes_next_week, created_at',
+    )
+    .eq('week_id', publishedWeekId)
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  if (error) {
+    console.warn('fetchCoachSessionFeedbackForPublishedWeekExport failed', {
+      publishedWeekId,
+      code: error.code,
+      message: error.message,
+    })
+    return []
+  }
+  return data || []
+}
+
 /** ¿Este coach ya pulsó «Leído» en el pase de turno para esta semana? (RPC, persiste en Supabase). */
 export async function coachHasReadHandoverForWeek(weekId, coachName) {
   if (weekId == null || !String(coachName || '').trim()) return false

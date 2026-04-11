@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   listPublishedWeeksSummary,
   getPublishedWeekById,
-  listCoachSessionFeedbackForWeek,
+  fetchCoachSessionFeedbackForPublishedWeekExport,
 } from '../../lib/supabase.js'
 import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
 import { buildWeekExportWorkbook, weekExportFileBaseName } from '../../utils/buildWeekExportWorkbook.js'
@@ -48,7 +48,7 @@ export default function CoachWeekExportAdmin() {
       setError('')
       try {
         const row = await getPublishedWeekById(selectedId)
-        const fb = await listCoachSessionFeedbackForWeek(selectedId)
+        const fb = await fetchCoachSessionFeedbackForPublishedWeekExport(selectedId)
         if (!cancelled) {
           setWeekRow(row)
           setFeedbackRows(Array.isArray(fb) ? fb : [])

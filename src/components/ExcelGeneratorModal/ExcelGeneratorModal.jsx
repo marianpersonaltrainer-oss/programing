@@ -169,6 +169,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [dayPicker, setDayPicker] = useState(() =>
     Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, true])),
   )
+  /** Pestaña «Editar»: día visible (el resto de la semana en tabs, sin scroll infinito). */
+  const [editFocusDayIdx, setEditFocusDayIdx] = useState(0)
 
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
@@ -176,6 +178,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setHistory(getHistoryForMesocycle(weekState.mesocycle))
     }
   }, [weekState.mesocycle])
+
+  useEffect(() => {
+    const n = weekData?.dias?.length ?? 0
+    if (n <= 0) return
+    setEditFocusDayIdx((i) => Math.min(Math.max(0, i), n - 1))
+  }, [weekData?.dias?.length])
 
   useEffect(() => {
     let cancelled = false
@@ -838,8 +846,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     isEditingExistingWeek || editingPublishedRowId != null || weekData != null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="w-full max-w-3xl bg-white border border-black/5 rounded-3xl flex flex-col max-h-[90vh] animate-fade-in shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-4">
+      <div
+        className={`w-full bg-white border border-black/5 rounded-3xl flex flex-col max-h-[min(94vh,900px)] animate-fade-in shadow-2xl overflow-hidden ${
+          status === 'previewing' ? 'max-w-[min(96vw,1280px)]' : 'max-w-3xl'
+        }`}
+      >
 
         {/* Header */}
         <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between flex-shrink-0 bg-white shadow-sm">
@@ -857,7 +869,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 py-4 space-y-4">
 
           {/* IDLE / INPUT */}
           {(status === 'idle' || status === 'error') && (
@@ -1273,13 +1285,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               )}
 
               {previewTab === 'editar' && weekData && (
-                <div className="space-y-5 max-h-[min(52vh,480px)] overflow-y-auto pr-1 custom-scrollbar border border-black/5 rounded-2xl p-4 bg-gray-50/30">
-                  <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest leading-relaxed">
-                    Cambia textos aquí; al publicar o descargar se usa esta versión. No hace falta tocar JSON salvo que quieras.
+                <div className="space-y-5 border border-black/5 rounded-2xl p-4 sm:p-5 bg-gray-50/30">
+                  <p className="text-xs text-evo-muted font-bold uppercase tracking-widest leading-relaxed">
+                    Cambia textos aquí; al publicar o descargar se usa esta versión. Usa las pestañas de día para
+                    enfocar un día — el editor de sesión gana altura en pantalla.
                   </p>
 
-                  <div className="rounded-2xl border border-evo-accent/20 bg-white p-4 space-y-3 shadow-sm">
-                    <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">Orientación semanal</p>
+                  <div className="rounded-2xl border border-evo-accent/20 bg-white p-4 sm:p-5 space-y-3 shadow-sm">
+                    <p className="text-xs font-bold text-evo-accent uppercase tracking-widest">Orientación semanal</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {[
                         { k: 'estimulo', label: 'Estímulo' },
@@ -1287,7 +1300,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         { k: 'foco', label: 'Foco' },
                       ].map(({ k, label }) => (
                         <label key={k} className="block space-y-1">
-                          <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">{label}</span>
+                          <span className="text-[10px] font-bold text-evo-muted uppercase tracking-widest">{label}</span>
                           <input
                             type="text"
                             value={(weekData.resumen && weekData.resumen[k]) || ''}
@@ -1297,13 +1310,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                 resumen: { ...(prev.resumen || {}), [k]: e.target.value },
                               }))
                             }
-                            className="w-full text-xs !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40"
+                            className="w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2.5 focus:outline-none focus:border-evo-accent/40"
                           />
                         </label>
                       ))}
                     </div>
                     <label className="block space-y-1">
-                      <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">Nota metodológica</span>
+                      <span className="text-[10px] font-bold text-evo-muted uppercase tracking-widest">Nota metodológica</span>
                       <textarea
                         rows={3}
                         value={(weekData.resumen && weekData.resumen.nota) || ''}
@@ -1313,115 +1326,152 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                             resumen: { ...(prev.resumen || {}), nota: e.target.value },
                           }))
                         }
-                        className="w-full text-xs !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
+                        className="w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2.5 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
                       />
                     </label>
                   </div>
 
-                  {(weekData.dias || []).map((dia, diaIdx) => (
-                    <div key={dia.nombre || diaIdx} className="rounded-2xl border border-black/8 bg-white p-4 space-y-4 shadow-sm">
-                      <p className="text-[12px] font-bold text-evo-text uppercase tracking-wide border-b border-black/5 pb-2">
-                        {dia.nombre || `Día ${diaIdx + 1}`}
-                      </p>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <span className="text-[10px] font-bold text-evo-muted uppercase tracking-widest w-full sm:w-auto sm:mr-2">
+                      Día
+                    </span>
+                    {(weekData.dias || []).map((d, i) => (
+                      <button
+                        key={d.nombre || i}
+                        type="button"
+                        onClick={() => setEditFocusDayIdx(i)}
+                        className={`px-3 py-2 rounded-xl text-sm font-bold uppercase tracking-wide border transition-colors ${
+                          editFocusDayIdx === i
+                            ? 'bg-evo-accent text-white border-evo-accent shadow-sm'
+                            : 'bg-white text-evo-text border-black/10 hover:border-evo-accent/40 hover:bg-evo-accent/5'
+                        }`}
+                      >
+                        {d.nombre || `Día ${i + 1}`}
+                      </button>
+                    ))}
+                  </div>
 
-                      {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => (
-                        <label key={key} className="block space-y-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>
-                            {label}
-                          </span>
-                          <textarea
-                            rows={6}
-                            value={dia[key] || ''}
-                            onChange={(e) =>
-                              handleSessionFieldChange(diaIdx, key, feedbackKey, e.target.value)
-                            }
-                            placeholder={`Texto de la sesión ${label}…`}
-                            className="w-full text-[11px] font-mono !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2 focus:outline-none focus:border-evo-accent/40 leading-relaxed"
-                          />
-                        </label>
-                      ))}
+                  {(() => {
+                    const dias = weekData.dias || []
+                    const diaIdx = Math.min(Math.max(0, editFocusDayIdx), Math.max(0, dias.length - 1))
+                    const dia = dias[diaIdx]
+                    if (!dia) return null
+                    const sessionTextareaClass =
+                      'w-full min-h-[min(52vh,520px)] sm:min-h-[min(56vh,560px)] text-sm sm:text-[15px] font-mono !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-4 py-3 focus:outline-none focus:border-evo-accent/50 focus:ring-2 focus:ring-evo-accent/15 leading-relaxed resize-y'
+                    const secondaryTextareaClass =
+                      'w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border rounded-xl px-4 py-3 focus:outline-none leading-relaxed resize-y'
+                    return (
+                      <div key={dia.nombre || diaIdx} className="rounded-2xl border border-black/8 bg-white p-4 sm:p-5 space-y-4 shadow-sm">
+                        <p className="text-sm font-bold text-evo-text uppercase tracking-wide border-b border-black/5 pb-2">
+                          {dia.nombre || `Día ${diaIdx + 1}`}
+                        </p>
 
-                      <div className="pt-2 border-t border-dashed border-black/10 space-y-3">
-                        <p className="text-[9px] font-bold text-indigo-700 uppercase tracking-widest">Feedbacks (coaching)</p>
-                        {EVO_SESSION_CLASS_DEFS.map(({ key: sessionKey, feedbackKey, label }) => {
-                          const shortLabel = `Feedback · ${label.replace(/^Evo/, '')}`
-                          const sk = feedbackStaleKey(diaIdx, feedbackKey)
-                          const isStale = staleFeedbackKeys.has(sk)
-                          const isBusy = regeneratingFeedbackKey === sk
-                          return (
-                            <div key={feedbackKey} className="block space-y-1.5">
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <span className="text-[9px] font-bold text-evo-muted uppercase tracking-widest">
-                                  {shortLabel}
-                                </span>
-                                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                  {isStale && (
-                                    <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-200/80">
-                                      Desactualizado
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() =>
-                                      regenerateFeedbackForClass(
+                        {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => (
+                          <label key={key} className="block space-y-2">
+                            <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>
+                              {label}
+                            </span>
+                            <textarea
+                              rows={14}
+                              value={dia[key] || ''}
+                              onChange={(e) =>
+                                handleSessionFieldChange(diaIdx, key, feedbackKey, e.target.value)
+                              }
+                              placeholder={`Texto de la sesión ${label}…`}
+                              spellCheck={false}
+                              className={sessionTextareaClass}
+                            />
+                          </label>
+                        ))}
+
+                        <div className="pt-2 border-t border-dashed border-black/10 space-y-4">
+                          <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">
+                            Feedbacks (coaching)
+                          </p>
+                          {EVO_SESSION_CLASS_DEFS.map(({ key: sessionKey, feedbackKey, label }) => {
+                            const shortLabel = `Feedback · ${label.replace(/^Evo/, '')}`
+                            const sk = feedbackStaleKey(diaIdx, feedbackKey)
+                            const isStale = staleFeedbackKeys.has(sk)
+                            const isBusy = regeneratingFeedbackKey === sk
+                            return (
+                              <div key={feedbackKey} className="block space-y-2">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <span className="text-xs font-bold text-evo-muted uppercase tracking-widest">
+                                    {shortLabel}
+                                  </span>
+                                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    {isStale && (
+                                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-200/80">
+                                        Desactualizado
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      onClick={() =>
+                                        regenerateFeedbackForClass(
+                                          diaIdx,
+                                          sessionKey,
+                                          feedbackKey,
+                                          dia.nombre,
+                                          label,
+                                          dia[sessionKey] || '',
+                                        )
+                                      }
+                                      className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-white text-indigo-800 hover:bg-indigo-50 disabled:opacity-50 disabled:pointer-events-none"
+                                    >
+                                      {isBusy ? 'Regenerando…' : 'Regenerar feedback'}
+                                    </button>
+                                  </div>
+                                </div>
+                                {isStale && (
+                                  <p className="text-xs text-amber-900/90 leading-snug bg-amber-50/80 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                                    Sesión editada: el feedback puede no coincidir con el entrenamiento actual.
+                                  </p>
+                                )}
+                                <label className="block">
+                                  <textarea
+                                    rows={4}
+                                    value={dia[feedbackKey] || ''}
+                                    onChange={(e) =>
+                                      handleFeedbackFieldChange(
                                         diaIdx,
                                         sessionKey,
                                         feedbackKey,
-                                        dia.nombre,
-                                        label,
-                                        dia[sessionKey] || '',
+                                        e.target.value,
                                       )
                                     }
-                                    className="text-[9px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border border-indigo-200 bg-white text-indigo-800 hover:bg-indigo-50 disabled:opacity-50 disabled:pointer-events-none"
-                                  >
-                                    {isBusy ? 'Regenerando…' : 'Regenerar feedback'}
-                                  </button>
-                                </div>
+                                    placeholder="Briefing pre-sala: máx. 4 frases, máx. 100 palabras (riesgo, grupo, peso si hace falta, una acción)…"
+                                    spellCheck={false}
+                                    className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
+                                  />
+                                </label>
                               </div>
-                              {isStale && (
-                                <p className="text-[10px] text-amber-900/90 leading-snug bg-amber-50/80 border border-amber-100 rounded-lg px-2.5 py-1.5">
-                                  Sesión editada: el feedback puede no coincidir con el entrenamiento actual.
-                                </p>
-                              )}
-                              <label className="block">
-                                <textarea
-                                  rows={3}
-                                  value={dia[feedbackKey] || ''}
-                                  onChange={(e) =>
-                                    handleFeedbackFieldChange(
-                                      diaIdx,
-                                      sessionKey,
-                                      feedbackKey,
-                                      e.target.value,
-                                    )
-                                  }
-                                  placeholder="Briefing pre-sala: máx. 4 frases, máx. 100 palabras (riesgo, grupo, peso si hace falta, una acción)…"
-                                  className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-indigo-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-300 leading-relaxed bg-indigo-50/20"
-                                />
-                              </label>
-                            </div>
-                          )
-                        })}
-                      </div>
+                            )
+                          })}
+                        </div>
 
-                      <label className="block space-y-1.5 pt-2 border-t border-black/5">
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">WodBuster (vista alumno)</span>
-                        <textarea
-                          rows={5}
-                          value={dia.wodbuster || ''}
-                          onChange={(e) =>
-                            updateWeekData((prev) => {
-                              const dias = [...(prev.dias || [])]
-                              dias[diaIdx] = { ...dias[diaIdx], wodbuster: e.target.value }
-                              return { ...prev, dias }
-                            })
-                          }
-                          className="w-full text-[11px] !text-[#1A0A1A] caret-[#1A0A1A] border border-emerald-100 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-300 leading-relaxed bg-emerald-50/15"
-                        />
-                      </label>
-                    </div>
-                  ))}
+                        <label className="block space-y-2 pt-2 border-t border-black/5">
+                          <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest">
+                            WodBuster (vista alumno)
+                          </span>
+                          <textarea
+                            rows={8}
+                            value={dia.wodbuster || ''}
+                            onChange={(e) =>
+                              updateWeekData((prev) => {
+                                const nextDias = [...(prev.dias || [])]
+                                nextDias[diaIdx] = { ...nextDias[diaIdx], wodbuster: e.target.value }
+                                return { ...prev, dias: nextDias }
+                              })
+                            }
+                            spellCheck={false}
+                            className={`${secondaryTextareaClass} border-emerald-100 focus:border-emerald-300 bg-emerald-50/15 min-h-[10rem]`}
+                          />
+                        </label>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
 

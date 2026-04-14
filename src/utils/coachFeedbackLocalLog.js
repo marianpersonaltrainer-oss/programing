@@ -2,6 +2,7 @@
 
 const KEY = 'programingevo_coach_feedback_local_v1'
 const MAX = 400
+const READ_KEY = 'programingevo_coach_feedback_reads_v1'
 
 export function readFeedbackLog() {
   try {
@@ -155,4 +156,49 @@ export function coachHasFeedbackForDay(weekId, dayKey, coachName) {
       .toLowerCase()
     return en === cn
   })
+}
+
+function readReadMap() {
+  try {
+    const raw = localStorage.getItem(READ_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeReadMap(map) {
+  try {
+    localStorage.setItem(READ_KEY, JSON.stringify(map))
+  } catch {
+    /* quota */
+  }
+}
+
+export function feedbackReadScopeKey(weekId, coachName) {
+  const w = weekId == null ? 'no_week' : String(weekId)
+  const c = String(coachName || '')
+    .trim()
+    .toLowerCase()
+  return `${w}::${c}`
+}
+
+/** @returns {Set<string>} */
+export function getReadFeedbackIds(scopeKey) {
+  if (!scopeKey) return new Set()
+  const map = readReadMap()
+  const arr = Array.isArray(map[scopeKey]) ? map[scopeKey] : []
+  return new Set(arr.map((x) => String(x)))
+}
+
+export function markFeedbackRead(scopeKey, feedbackId) {
+  if (!scopeKey || feedbackId == null) return
+  const map = readReadMap()
+  const prev = Array.isArray(map[scopeKey]) ? map[scopeKey] : []
+  const nextSet = new Set(prev.map((x) => String(x)))
+  nextSet.add(String(feedbackId))
+  const trimmed = Array.from(nextSet).slice(-200)
+  map[scopeKey] = trimmed
+  writeReadMap(map)
 }

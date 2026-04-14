@@ -1231,6 +1231,7 @@ export default function CoachView() {
                     coachName={coachName}
                     sessionId={sessionId}
                     weekRow={activeWeekRow}
+                    weekData={weekData}
                     peerEntries={peerFeedbackWeek}
                     onAfterSave={refreshPeerFeedbackWeek}
                     prefill={feedbackPrefill}

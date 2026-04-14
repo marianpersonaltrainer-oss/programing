@@ -4,6 +4,12 @@ import { ALL_CLASS_LABELS } from '../../constants/evoClasses.js'
 import { saveCoachSessionFeedback } from '../../lib/supabase.js'
 import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
 import { appendFeedbackLogEntry } from '../../utils/coachFeedbackLocalLog.js'
+import {
+  feedbackReadScopeKey,
+  getReadFeedbackIds,
+  markFeedbackRead,
+} from '../../utils/coachFeedbackLocalLog.js'
+import { appendAutoLearnedLines } from '../../utils/methodLearnedStorage.js'
 import { coachBg, coachBorder, coachField, coachText, coachUi } from './coachTheme.js'
 import CoachFeedbackWeekSummary from './CoachFeedbackWeekSummary.jsx'
 
@@ -31,10 +37,75 @@ function formatFeedbackTime(iso) {
   }
 }
 
+const DAY_KEY_TO_NAME = {
+  monday: 'LUNES',
+  tuesday: 'MARTES',
+  wednesday: 'MIERCOLES',
+  thursday: 'JUEVES',
+  friday: 'VIERNES',
+  saturday: 'SABADO',
+}
+
+function extractMainExerciseFromBlockB(sessionText) {
+  const src = String(sessionText || '')
+  if (!src.trim()) return ''
+  const lines = src.split('\n').map((l) => l.trim())
+  let bStart = -1
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^B\)\s*/i.test(lines[i])) {
+      bStart = i
+      break
+    }
+  }
+  if (bStart < 0) return ''
+  let bEnd = lines.length
+  for (let i = bStart + 1; i < lines.length; i += 1) {
+    if (/^(C\)\s*|CIERRE\b)/i.test(lines[i])) {
+      bEnd = i
+      break
+    }
+  }
+  for (let i = bStart + 1; i < bEnd; i += 1) {
+    const line = lines[i]
+    if (!line) continue
+    if (/^[A-ZÁÉÍÓÚÜÑ0-9\s/+().-]{4,}$/.test(line)) continue
+    if (/:$/.test(line)) continue
+    if (/^(ESCALADOS?|TÉCNICA|TECNICA|APROXIMACIÓN|APROXIMACION|BIENVENIDA|WOD PREP)\b/i.test(line)) continue
+    return line.replace(/^[-•]\s*/, '')
+  }
+  return ''
+}
+
+function buildLearnedLinesFromCoachFeedback({
+  dayKey,
+  classLabel,
+  changedSomething,
+  changedDetails,
+  timeExplain,
+  sessionText,
+}) {
+  const day = DAYS_ES[dayKey] || dayKey || 'Día'
+  const cls = classLabel || 'Clase'
+  const main = extractMainExerciseFromBlockB(sessionText)
+  const suffix = main ? ` después de ${main}` : ''
+  const lines = []
+  if (changedSomething) {
+    const reason = String(changedDetails || '').trim() || 'cambios en sesión sin detalle'
+    lines.push(`${day} ${cls} — ${reason}${suffix}`)
+  }
+  if (timeExplain === 'no') {
+    lines.push(`${day} ${cls} — faltó tiempo para explicar${suffix}`)
+  } else if (timeExplain === 'justo') {
+    lines.push(`${day} ${cls} — tiempo de explicación muy justo${suffix}`)
+  }
+  return lines
+}
+
 export default function CoachSessionFeedbackForm({
   coachName,
   sessionId,
   weekRow,
+  weekData = null,
   peerEntries = [],
   onAfterSave,
   /** { token: number, dayKey: string, classLabel: string } — se aplica al cambiar token (desde Semana). */
@@ -52,6 +123,12 @@ export default function CoachSessionFeedbackForm({
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0)
+  const [readChangedIds, setReadChangedIds] = useState(() => new Set())
+
+  useEffect(() => {
+    const scope = feedbackReadScopeKey(weekRow?.id ?? null, coachName)
+    setReadChangedIds(getReadFeedbackIds(scope))
+  }, [weekRow?.id, coachName, peerEntries.length])
 
   useEffect(() => {
     if (!prefill || prefill.token == null) return
@@ -104,6 +181,25 @@ export default function CoachSessionFeedbackForm({
         notes_next_week: notesNextWeek.trim() || null,
         source: 'local_save',
       })
+      const dayName = DAY_KEY_TO_NAME[dayKey] || ''
+      const dia = weekData?.dias?.find((d) => String(d?.nombre || '').trim().toUpperCase() === dayName)
+      const classKey = (dia &&
+        Object.keys(dia).find((k) => {
+          const v = String(dia[k] || '')
+          if (!v) return false
+          if (!/^evo/i.test(k)) return false
+          return String(classLabel || '').toLowerCase().includes(k.replace(/^evo/, '').toLowerCase())
+        })) ||
+        null
+      const learnedLines = buildLearnedLinesFromCoachFeedback({
+        dayKey,
+        classLabel,
+        changedSomething,
+        changedDetails: changedSomething ? changedDetails : '',
+        timeExplain,
+        sessionText: classKey ? dia?.[classKey] || '' : '',
+      })
+      if (learnedLines.length) appendAutoLearnedLines(learnedLines)
       setSummaryRefreshKey((k) => k + 1)
       setMessage('Guardado correctamente.')
       setChangedDetails('')
@@ -131,6 +227,7 @@ export default function CoachSessionFeedbackForm({
       coachFeedbackRowIndicatesChange(r) &&
       (r?.coach_name?.trim().toLowerCase() || '') !== selfNorm,
   )
+  const unreadOthersWithChange = othersWithChange.filter((r) => !readChangedIds.has(String(r.id ?? '')))
 
   return (
     <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-xl mx-auto`}>
@@ -150,12 +247,22 @@ export default function CoachSessionFeedbackForm({
             Esta semana (pase de turno)
           </h3>
           <p className={`text-xs ${coachText.muted} leading-relaxed`}>
-            Incluye tus envíos y los del resto del equipo. Los que marcaron cambios en sesión van resaltados.
+            Incluye tus envíos y los del resto del equipo. Los cambios no leídos aparecen resaltados para pase de turno.
           </p>
+          {unreadOthersWithChange.length > 0 ? (
+            <div className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-orange-900">
+                Pendientes de leer: {unreadOthersWithChange.length}
+              </p>
+            </div>
+          ) : null}
           <ul className="space-y-3">
             {weekPeerSorted.map((row) => {
               const changed = coachFeedbackRowIndicatesChange(row)
               const isOwn = (row?.coach_name?.trim().toLowerCase() || '') === selfNorm
+              const rowId = String(row?.id ?? '')
+              const isRead = rowId ? readChangedIds.has(rowId) : false
+              if (changed && !isOwn && isRead) return null
               const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
               const when = formatFeedbackTime(row.created_at)
               return (
@@ -163,7 +270,9 @@ export default function CoachSessionFeedbackForm({
                   key={row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}
                   className={`rounded-xl border p-3 text-sm ${
                     changed
-                      ? 'border-orange-400/70 bg-orange-50/90 text-orange-950'
+                      ? isRead
+                        ? `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
+                        : 'border-orange-400/80 bg-orange-100 text-orange-950 ring-2 ring-orange-300/60'
                       : `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
                   }`}
                 >
@@ -185,6 +294,25 @@ export default function CoachSessionFeedbackForm({
                     <p className="mt-2 font-semibold leading-snug whitespace-pre-wrap">{row.changed_details.trim()}</p>
                   ) : changed ? (
                     <p className="mt-2 font-medium opacity-90">Indicó cambios sin detalle.</p>
+                  ) : null}
+                  {changed && !isOwn && rowId ? (
+                    <div className="mt-2">
+                      {isRead ? (
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Leído ✓</p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const scope = feedbackReadScopeKey(weekRow?.id ?? null, coachName)
+                            markFeedbackRead(scope, rowId)
+                            setReadChangedIds((prev) => new Set([...prev, rowId]))
+                          }}
+                          className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-orange-400 bg-white text-orange-900 hover:bg-orange-50"
+                        >
+                          Marcar leído
+                        </button>
+                      )}
+                    </div>
                   ) : null}
                   {!changed && row.group_feelings?.trim() ? (
                     <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>

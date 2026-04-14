@@ -1,10 +1,23 @@
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { FEEDBACK_BLOCKS } from './coachViewConstants.js'
 
+const NO_PROGRAMADA_RE = /^\(no programada esta semana\)\s*$/i
+const FESTIVO_RE = /^FESTIVO\b/i
+
 export function sessionText(val) {
   if (val == null) return ''
   const s = String(val).trim()
   return s
+}
+
+/** Texto de clase que realmente representa trabajo de ese día (no placeholders). */
+export function hasProgrammedSessionText(val) {
+  const t = sessionText(val)
+  if (!t) return false
+  const first = t.split('\n')[0].trim()
+  if (NO_PROGRAMADA_RE.test(first)) return false
+  if (FESTIVO_RE.test(first)) return false
+  return true
 }
 
 export function findDia(dias, name) {
@@ -26,8 +39,8 @@ export function previewText(text, maxLines = 4, maxChars = 320) {
 
 export function buildDayQuickSummary(dia, SESSION_BLOCKS) {
   if (!dia) return { labels: [], preview: '' }
-  const labels = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key])).map(({ label }) => label)
-  const firstBlock = SESSION_BLOCKS.map(({ key }) => dia[key]).find((v) => sessionText(v))
+  const labels = SESSION_BLOCKS.filter(({ key }) => hasProgrammedSessionText(dia[key])).map(({ label }) => label)
+  const firstBlock = SESSION_BLOCKS.map(({ key }) => dia[key]).find((v) => hasProgrammedSessionText(v))
   const preview = previewText(firstBlock || dia.wodbuster || '', 5, 400)
   return { labels, preview }
 }

@@ -8,6 +8,7 @@ import { SESSION_BLOCKS, FEEDBACK_BLOCKS } from './coachViewConstants.js'
 import {
   findDia,
   sessionText,
+  hasProgrammedSessionText,
   previewText,
   buildDayQuickSummary,
   dayFocusLine,
@@ -372,7 +373,7 @@ export default function CoachWeekProgrammingPanel({
                 Todas las sesiones por día (como Excel publicado).
               </p>
               {dias.map((dia) => {
-                const sessions = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+                const sessions = SESSION_BLOCKS.filter(({ key }) => hasProgrammedSessionText(dia[key]))
                 const feedbacks = FEEDBACK_BLOCKS.filter(({ key }) => sessionText(dia[key]))
                 const wb = sessionText(dia.wodbuster)
                 return (
@@ -510,7 +511,7 @@ export default function CoachWeekProgrammingPanel({
               )
             }
             const dayName = dia.nombre
-            const blocksWithSession = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key]))
+            const blocksWithSession = SESSION_BLOCKS.filter(({ key }) => hasProgrammedSessionText(dia[key]))
             const wb = sessionText(dia.wodbuster)
 
             return (

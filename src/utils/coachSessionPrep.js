@@ -107,21 +107,21 @@ export function findLastFeedbackForClassLabel(classLabel, currentWeekId) {
 
 /**
  * Última «nota para el siguiente coach» (notes_next_week) para esa clase en el log local.
- * Prioriza otra semana distinta a la actual si existe.
+ * Si hay semana activa, SOLO devuelve notas de esa semana para evitar arrastrar notas antiguas.
  */
 export function findLastCoachHandoffNote(classLabel, currentWeekId) {
   if (!classLabel) return null
   const { entries } = readFeedbackLog()
-  const withNote = entries.filter(
+  let withNote = entries.filter(
     (e) => (e.class_label || '') === classLabel && String(e.notes_next_week || '').trim(),
   )
   if (!withNote.length) return null
-  withNote.sort((a, b) => entryTime(b) - entryTime(a))
   const wid = currentWeekId != null ? String(currentWeekId) : null
   if (wid) {
-    const older = withNote.find((e) => e.week_id != null && String(e.week_id) !== wid)
-    if (older) return formatHandoffNote(older)
+    withNote = withNote.filter((e) => e.week_id != null && String(e.week_id) === wid)
+    if (!withNote.length) return null
   }
+  withNote.sort((a, b) => entryTime(b) - entryTime(a))
   return formatHandoffNote(withNote[0])
 }
 

@@ -284,6 +284,8 @@ export default function CoachView() {
   const [peerFeedbackWeek, setPeerFeedbackWeek] = useState([])
   /** Desde Semana → Feedback: { token, dayKey, classLabel } */
   const [feedbackPrefill, setFeedbackPrefill] = useState(null)
+  /** Evita flash de datos antiguos mientras cambia la semana activa. */
+  const [isWeekSwitching, setIsWeekSwitching] = useState(false)
 
   const { items: coachToasts, push: pushCoachToast, dismiss: dismissCoachToast } = useCoachToastQueue()
   const centroToastKeyRef = useRef('')
@@ -295,6 +297,22 @@ export default function CoachView() {
   useEffect(() => {
     activeWeekIdRef.current = activeWeekRow?.id ?? null
   }, [activeWeekRow?.id])
+
+  const resetWeekDerivedState = useCallback(() => {
+    setPeerFeedbackWeek([])
+    setFeedbackPrefill(null)
+    setHandoverReadForWeek(null)
+    setActiveDay('show')
+    setWeekTab('dias')
+    setSupportSessionContext(null)
+    supportSessionContextRef.current = null
+    setMessages([])
+    setInput('')
+    handoverToastFiredRef.current = false
+    centroToastKeyRef.current = ''
+    newWeekToastQueuedRef.current = null
+    dismissCoachToast('coach-handover')
+  }, [dismissCoachToast])
 
   const refreshActiveWeekOnFocus = useCallback(async () => {
     if (step === 'loading') return
@@ -310,17 +328,17 @@ export default function CoachView() {
         return
       }
       if (week.id === prevId) return
+      setIsWeekSwitching(true)
       // Semana activa distinta: limpiamos estado ligado a la semana anterior para evitar stale UI.
-      setPeerFeedbackWeek([])
-      setFeedbackPrefill(null)
-      setHandoverReadForWeek(null)
-      dismissCoachToast('coach-handover')
+      resetWeekDerivedState()
       setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
       setWeekData(week.data)
+      setIsWeekSwitching(false)
     } catch (e) {
       console.warn('CoachView: refreshActiveWeekOnFocus', e)
+      setIsWeekSwitching(false)
     }
-  }, [step, dismissCoachToast])
+  }, [step, resetWeekDerivedState])
 
   useEffect(() => {
     const onVisible = () => {
@@ -1007,7 +1025,16 @@ export default function CoachView() {
           </header>
 
           <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${coachBg.app}`}>
-            {mainTab === 'soporte' ? (
+            {isWeekSwitching ? (
+              <div className="flex-1 min-h-0 flex items-center justify-center px-6">
+                <div className={`rounded-2xl border ${coachBorder} ${coachBg.card} px-6 py-5 text-center space-y-2 shadow-sm`}>
+                  <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>Actualizando semana</p>
+                  <p className={`text-sm font-semibold ${coachText.primary}`}>
+                    Cargando datos nuevos del programador...
+                  </p>
+                </div>
+              </div>
+            ) : mainTab === 'soporte' ? (
               <div className="flex-1 flex flex-col min-h-0 bg-[#e8ded2]">
                 <div className="px-4 py-2.5 border-b border-black/10 bg-white/90 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm">
                   <div className="min-w-0">

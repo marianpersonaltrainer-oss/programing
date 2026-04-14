@@ -80,3 +80,74 @@ export function buildLearnedLinesFromEditReasons({ dayLabel, classLabels, select
   }
   return lines
 }
+
+function cleanReasonLabel(label) {
+  return String(label || '')
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .trim()
+}
+
+function extractMainExerciseFromBlockB(sessionText) {
+  const src = String(sessionText || '')
+  if (!src.trim()) return ''
+  const lines = src.split('\n').map((l) => l.trim())
+  let bStart = -1
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^B\)\s*/i.test(lines[i])) {
+      bStart = i
+      break
+    }
+  }
+  if (bStart < 0) return ''
+  let bEnd = lines.length
+  for (let i = bStart + 1; i < lines.length; i += 1) {
+    if (/^(C\)\s*|CIERRE\b)/i.test(lines[i])) {
+      bEnd = i
+      break
+    }
+  }
+  for (let i = bStart + 1; i < bEnd; i += 1) {
+    const line = lines[i]
+    if (!line) continue
+    if (/^[A-ZÁÉÍÓÚÜÑ0-9\s/+().-]{4,}$/.test(line)) continue
+    if (/:$/.test(line)) continue
+    if (/^(ESCALADOS?|TÉCNICA|TECNICA|APROXIMACIÓN|APROXIMACION|BIENVENIDA|WOD PREP)\b/i.test(line)) continue
+    return line.replace(/^[-•]\s*/, '')
+  }
+  return ''
+}
+
+/**
+ * Líneas concretas para aprendizaje: día + clase + motivo + ejercicio principal detectado.
+ * Ejemplo: "Lunes EvoFuncional — WOD demasiado largo después de Back Squat"
+ */
+export function buildContextualLearnedLinesFromEditReasons({
+  dayLabel,
+  classLabels,
+  selectedPresetIds,
+  otherText,
+  sessionContent,
+}) {
+  const labels = (classLabels || []).filter(Boolean)
+  const classes = labels.length ? labels : ['Sesión']
+  const ids = new Set(selectedPresetIds || [])
+  const reasons = []
+  for (const p of EDIT_REASON_PRESETS) {
+    if (ids.has(p.id)) reasons.push(cleanReasonLabel(p.label))
+  }
+  if (ids.has(EDIT_REASON_OTHER_ID)) {
+    const note = String(otherText || '').trim().slice(0, EDIT_REASON_OTHER_MAX)
+    if (note) reasons.push(note)
+  }
+  if (!reasons.length) return []
+  const main = extractMainExerciseFromBlockB(sessionContent)
+  const suffix = main ? ` después de ${main}` : ''
+  const day = String(dayLabel || '').trim() || 'Día'
+  const out = []
+  for (const cls of classes) {
+    for (const reason of reasons) {
+      out.push(`${day} ${cls} — ${reason}${suffix}`)
+    }
+  }
+  return out
+}

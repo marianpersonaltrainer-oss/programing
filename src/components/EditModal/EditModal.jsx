@@ -10,6 +10,7 @@ import {
   EDIT_REASON_OTHER_MAX,
   EDIT_REASON_MAX_CHIPS,
   buildLearnedLinesFromEditReasons,
+  buildContextualLearnedLinesFromEditReasons,
 } from '../../utils/methodLearnedFromEdit.js'
 
 export default function EditModal({ day, session, onSave, onClose }) {
@@ -97,12 +98,20 @@ export default function EditModal({ day, session, onSave, onClose }) {
 
   function handleLearnConfirm() {
     if (!pendingSave) return
-    const lines = buildLearnedLinesFromEditReasons({
+    const genericLines = buildLearnedLinesFromEditReasons({
       dayLabel: DAYS_ES[pendingSave.day] || pendingSave.day,
       classLabels: pendingSave.classes || [],
       selectedPresetIds: learnSelected,
       otherText,
     })
+    const contextualLines = buildContextualLearnedLinesFromEditReasons({
+      dayLabel: DAYS_ES[pendingSave.day] || pendingSave.day,
+      classLabels: pendingSave.classes || [],
+      selectedPresetIds: learnSelected,
+      otherText,
+      sessionContent: pendingSave.content || '',
+    })
+    const lines = [...new Set([...genericLines, ...contextualLines])]
     if (lines.length) appendAutoLearnedLines(lines)
     const p = pendingSave
     setPhase('edit')

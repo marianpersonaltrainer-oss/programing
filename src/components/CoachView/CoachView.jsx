@@ -42,7 +42,7 @@ const COACH_SESSION_KEY = 'evo_coach_session'
 const COACH_AUTH_KEY = 'evo_coach_auth'
 const COACH_LAST_SEEN_WEEK_KEY = 'evo_coach_last_seen_week_id'
 const COACH_NOTICE_READ_KEY = 'evo_coach_notice_read_v1'
-const COACH_NOTICE_READ_MAX = 80
+const COACH_NOTICE_READ_MAX = 20
 
 export { COACH_CODE_KEY }
 /** @deprecated usar getExpectedCoachCode; se mantiene por compatibilidad con imports antiguos */
@@ -77,6 +77,24 @@ function coachNoticeWasSeen(fingerprint) {
   if (!fingerprint) return false
   const map = readCoachNoticeMap()
   return Object.prototype.hasOwnProperty.call(map, fingerprint)
+}
+
+function stableSmallHash(text) {
+  let h = 0
+  const s = String(text || '')
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0
+  }
+  return h.toString(16)
+}
+
+function buildCoachNoticeFingerprint(settings) {
+  const msg = String(settings?.active_notice || '').trim()
+  if (!msg) return ''
+  const updated = String(settings?.updated_at || '').trim()
+  if (updated) return `coach_notice:${updated}`
+  const title = 'Aviso del centro'
+  return `coach_notice_hash:${stableSmallHash(`${title}::${msg}`)}`
 }
 
 function IconSemana(props) {
@@ -465,22 +483,23 @@ export default function CoachView() {
     if (step !== 'chat') return
     const msg = guideSettings?.active_notice?.trim()
     if (!msg) return
-    const key = `${msg.length}:${msg.slice(0, 180)}`
-    if (centroToastKeyRef.current === key) return
-    if (coachNoticeWasSeen(key)) {
-      centroToastKeyRef.current = key
+    const fingerprint = buildCoachNoticeFingerprint(guideSettings)
+    if (!fingerprint) return
+    if (centroToastKeyRef.current === fingerprint) return
+    if (coachNoticeWasSeen(fingerprint)) {
+      centroToastKeyRef.current = fingerprint
       return
     }
-    centroToastKeyRef.current = key
-    // En cuanto el coach lo ve en pantalla, lo marcamos como leído.
-    markCoachNoticeSeen(key)
+    centroToastKeyRef.current = fingerprint
     pushCoachToast({
-      id: `coach-centro-${key.length}-${key.slice(0, 20)}`,
+      id: `coach-centro-${fingerprint}`,
       title: 'Aviso del centro',
       body: msg,
-      onDismiss: () => {},
+      onDismiss: () => {
+        markCoachNoticeSeen(fingerprint)
+      },
     })
-  }, [step, guideSettings?.active_notice, pushCoachToast])
+  }, [step, guideSettings?.active_notice, guideSettings?.updated_at, pushCoachToast])
 
   useEffect(() => {
     if (step !== 'chat' || handoverReadForWeek !== false) return

@@ -200,7 +200,7 @@ export async function getCoachGuideSettings() {
   const { data, error } = await supabase
     .from('coach_guide_settings')
     .select(
-      'contact_channel, contact_response, material_override, active_notice, material_table, contact_person, contact_schedule, response_time',
+      'contact_channel, contact_response, material_override, active_notice, material_table, contact_person, contact_schedule, response_time, updated_at',
     )
     .eq('id', 'default')
     .maybeSingle()

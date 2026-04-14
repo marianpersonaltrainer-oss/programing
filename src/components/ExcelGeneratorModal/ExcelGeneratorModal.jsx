@@ -101,6 +101,50 @@ function feedbackStaleKey(diaIdx, feedbackKey) {
   return `${diaIdx}::${feedbackKey}`
 }
 
+function extractMainExerciseFromBlockB(sessionText) {
+  const src = String(sessionText || '')
+  if (!src.trim()) return ''
+  const lines = src.split('\n').map((l) => l.trim())
+  let bStart = -1
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^B\)\s*/i.test(lines[i])) {
+      bStart = i
+      break
+    }
+  }
+  if (bStart < 0) return ''
+  let bEnd = lines.length
+  for (let i = bStart + 1; i < lines.length; i += 1) {
+    if (/^(C\)\s*|CIERRE\b)/i.test(lines[i])) {
+      bEnd = i
+      break
+    }
+  }
+  for (let i = bStart + 1; i < bEnd; i += 1) {
+    const line = lines[i]
+    if (!line) continue
+    if (/^[A-ZÁÉÍÓÚÜÑ0-9\s/+().-]{4,}$/.test(line)) continue
+    if (/:$/.test(line)) continue
+    if (/^(ESCALADOS?|TÉCNICA|TECNICA|APROXIMACIÓN|APROXIMACION|BIENVENIDA|WOD PREP)\b/i.test(line)) continue
+    return line.replace(/^[-•]\s*/, '')
+  }
+  return ''
+}
+
+function buildWeeklyClassBSummary(dias, currentDiaIdx, sessionKey) {
+  const out = []
+  const max = Math.min(Math.max(0, currentDiaIdx - 1), Math.max(0, (dias || []).length - 1))
+  for (let i = 0; i <= max; i += 1) {
+    const dia = dias?.[i]
+    const raw = String(dia?.[sessionKey] || '').trim()
+    if (!raw || /^\(no programada esta semana\)\s*$/i.test(raw) || /^FESTIVO\b/i.test(raw)) continue
+    const main = extractMainExerciseFromBlockB(raw)
+    if (!main) continue
+    out.push({ dayLabel: dia?.nombre || `Día ${i + 1}`, main })
+  }
+  return out
+}
+
 function buildSessionFingerprintMap(weekData) {
   const m = new Map()
   ;(weekData?.dias || []).forEach((dia, diaIdx) => {
@@ -1381,6 +1425,35 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                               spellCheck={false}
                               className={sessionTextareaClass}
                             />
+                            {(() => {
+                              const summary = buildWeeklyClassBSummary(dias, diaIdx, key)
+                              const hasAny = summary.length > 0
+                              return (
+                                <details className="rounded-xl border border-black/8 bg-[#faf8fc]">
+                                  <summary className="cursor-pointer list-none px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-[#6A1F6D] flex items-center justify-between [&::-webkit-details-marker]:hidden">
+                                    <span>Lo que llevas esta semana — {label}</span>
+                                    <span className="text-[9px] opacity-70">{hasAny ? `${summary.length} días` : 'sin datos'}</span>
+                                  </summary>
+                                  <div className="px-3 pb-3 pt-0.5 border-t border-black/5">
+                                    {hasAny ? (
+                                      <ul className="space-y-1.5">
+                                        {summary.map((row) => (
+                                          <li key={`${row.dayLabel}-${row.main}`} className="text-xs text-[#1A0A1A]">
+                                            <span className="font-bold">{row.dayLabel}</span>
+                                            <span className="mx-1.5 text-black/40">→</span>
+                                            <span>{row.main}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-xs text-[#6B5A6B]">
+                                        Aún no hay bloque B detectado en días anteriores de esta clase.
+                                      </p>
+                                    )}
+                                  </div>
+                                </details>
+                              )
+                            })()}
                           </label>
                         ))}
 

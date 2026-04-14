@@ -279,12 +279,17 @@ export default function CoachView() {
         return
       }
       if (week.id === prevId) return
+      // Semana activa distinta: limpiamos estado ligado a la semana anterior para evitar stale UI.
+      setPeerFeedbackWeek([])
+      setFeedbackPrefill(null)
+      setHandoverReadForWeek(null)
+      dismissCoachToast('coach-handover')
       setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
       setWeekData(week.data)
     } catch (e) {
       console.warn('CoachView: refreshActiveWeekOnFocus', e)
     }
-  }, [step])
+  }, [step, dismissCoachToast])
 
   useEffect(() => {
     const onVisible = () => {

@@ -41,11 +41,42 @@ const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
 const COACH_AUTH_KEY = 'evo_coach_auth'
 const COACH_LAST_SEEN_WEEK_KEY = 'evo_coach_last_seen_week_id'
+const COACH_NOTICE_READ_KEY = 'evo_coach_notice_read_v1'
+const COACH_NOTICE_READ_MAX = 80
 
 export { COACH_CODE_KEY }
 /** @deprecated usar getExpectedCoachCode; se mantiene por compatibilidad con imports antiguos */
 export function getCoachCode() {
   return getExpectedCoachCode()
+}
+
+function readCoachNoticeMap() {
+  try {
+    const raw = localStorage.getItem(COACH_NOTICE_READ_KEY)
+    const parsed = JSON.parse(raw || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function markCoachNoticeSeen(fingerprint) {
+  if (!fingerprint) return
+  try {
+    const prev = readCoachNoticeMap()
+    const next = { ...prev, [fingerprint]: Date.now() }
+    const entries = Object.entries(next).sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
+    const trimmed = Object.fromEntries(entries.slice(0, COACH_NOTICE_READ_MAX))
+    localStorage.setItem(COACH_NOTICE_READ_KEY, JSON.stringify(trimmed))
+  } catch {
+    /* noop */
+  }
+}
+
+function coachNoticeWasSeen(fingerprint) {
+  if (!fingerprint) return false
+  const map = readCoachNoticeMap()
+  return Object.prototype.hasOwnProperty.call(map, fingerprint)
 }
 
 function IconSemana(props) {
@@ -416,9 +447,15 @@ export default function CoachView() {
     if (step !== 'chat') return
     const msg = guideSettings?.active_notice?.trim()
     if (!msg) return
-    const key = `${msg.length}:${msg.slice(0, 120)}`
+    const key = `${msg.length}:${msg.slice(0, 180)}`
     if (centroToastKeyRef.current === key) return
+    if (coachNoticeWasSeen(key)) {
+      centroToastKeyRef.current = key
+      return
+    }
     centroToastKeyRef.current = key
+    // En cuanto el coach lo ve en pantalla, lo marcamos como leído.
+    markCoachNoticeSeen(key)
     pushCoachToast({
       id: `coach-centro-${key.length}-${key.slice(0, 20)}`,
       title: 'Aviso del centro',

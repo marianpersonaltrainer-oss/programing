@@ -31,7 +31,9 @@ jobs:
             echo "Either SUPABASE_POOLER_URL or SUPABASE_DB_URL secret is required"
             exit 1
           fi
-          DB_URL="$(echo "$RAW_URL" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//')"
+          DB_URL="$(echo "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^"//' -e 's/"$//')"
+          # Guard against the most common copy typo: db-<ref>.supabase.co
+          DB_URL="${DB_URL/@db-/@db.}"
           if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
             echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
             exit 1

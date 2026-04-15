@@ -39,6 +39,14 @@ jobs:
           DB_URL="$(echo "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^"//' -e 's/"$//')"
           # Guard against the most common copy typo: db-<ref>.supabase.co
           DB_URL="${DB_URL/@db-/@db.}"
+          # Guard against copied markdown wrappers or separators.
+          DB_URL="${DB_URL//|/}"
+          DB_URL="${DB_URL//[/}"
+          DB_URL="${DB_URL//]/}"
+          if [[ "$DB_URL" == *"YOUR-PASSWORD"* ]]; then
+            echo "Connection URI still contains YOUR-PASSWORD placeholder. Replace it with the real DB password."
+            exit 1
+          fi
           if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
             echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
             exit 1

@@ -29,6 +29,7 @@ jobs:
         env:
           SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
@@ -44,8 +45,17 @@ jobs:
           DB_URL="${DB_URL//[/}"
           DB_URL="${DB_URL//]/}"
           if [[ "$DB_URL" == *"YOUR-PASSWORD"* ]]; then
-            echo "Connection URI still contains YOUR-PASSWORD placeholder. Replace it with the real DB password."
-            exit 1
+            if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+              echo "Connection URI contains YOUR-PASSWORD. Set SUPABASE_DB_PASSWORD secret or replace placeholder in URI."
+              exit 1
+            fi
+            ENCODED_PASSWORD="$(python3 - <<'PY'
+import os
+import urllib.parse
+print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD", ""), safe=""))
+PY
+)"
+            DB_URL="${DB_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
           fi
           if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
             echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"

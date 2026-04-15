@@ -22,14 +22,16 @@ jobs:
 
       - name: Generate dump
         env:
+          SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          if [ -z "${SUPABASE_DB_URL:-}" ]; then
-            echo "SUPABASE_DB_URL secret is required"
+          RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
+          if [ -z "${RAW_URL:-}" ]; then
+            echo "Either SUPABASE_POOLER_URL or SUPABASE_DB_URL secret is required"
             exit 1
           fi
-          DB_URL="$(echo "$SUPABASE_DB_URL" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//')"
+          DB_URL="$(echo "$RAW_URL" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//')"
           if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
             echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
             exit 1

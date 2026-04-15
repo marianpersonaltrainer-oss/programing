@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client jq
+          sudo apt-get install -y postgresql-client jq gh
 
       - name: Generate dump
         env:
@@ -29,9 +29,22 @@ jobs:
             echo "SUPABASE_DB_URL secret is required"
             exit 1
           fi
+          DB_URL="$(echo "$SUPABASE_DB_URL" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//')"
+          if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
+            echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
+            exit 1
+          fi
+          if [[ "$DB_URL" != *"sslmode="* ]]; then
+            if [[ "$DB_URL" == *"?"* ]]; then
+              DB_URL="${DB_URL}&sslmode=require"
+            else
+              DB_URL="${DB_URL}?sslmode=require"
+            fi
+          fi
+          echo "::add-mask::$DB_URL"
           DATE_UTC="$(date -u +%F)"
           FILE="backup-${DATE_UTC}.sql"
-          pg_dump "${SUPABASE_DB_URL}" --no-owner --no-privileges --format=plain --file "${FILE}"
+          pg_dump --dbname="${DB_URL}" --no-owner --no-privileges --format=plain --file "${FILE}"
           gzip -f "${FILE}"
           echo "BACKUP_TAG=backup-${DATE_UTC}" >> "$GITHUB_ENV"
           echo "BACKUP_FILE=${FILE}.gz" >> "$GITHUB_ENV"

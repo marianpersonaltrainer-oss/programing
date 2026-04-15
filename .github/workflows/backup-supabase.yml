@@ -1,0 +1,64 @@
+name: Backup Supabase
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client jq
+
+      - name: Generate dump
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "SUPABASE_DB_URL secret is required"
+            exit 1
+          fi
+          DATE_UTC="$(date -u +%F)"
+          FILE="backup-${DATE_UTC}.sql"
+          pg_dump "${SUPABASE_DB_URL}" --no-owner --no-privileges --format=plain --file "${FILE}"
+          gzip -f "${FILE}"
+          echo "BACKUP_TAG=backup-${DATE_UTC}" >> "$GITHUB_ENV"
+          echo "BACKUP_FILE=${FILE}.gz" >> "$GITHUB_ENV"
+
+      - name: Upload backup as release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.BACKUP_TAG }}
+          name: ${{ env.BACKUP_TAG }}
+          files: ${{ env.BACKUP_FILE }}
+          make_latest: false
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retention (keep latest 30 backup releases)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mapfile -t backup_tags < <(gh release list --limit 200 --json tagName --jq '.[] | .tagName' | awk '/^backup-/')
+          if [ "${#backup_tags[@]}" -le 30 ]; then
+            echo "No cleanup needed (${#backup_tags[@]} backups)."
+            exit 0
+          fi
+          for tag in "${backup_tags[@]:30}"; do
+            echo "Deleting old backup release: ${tag}"
+            gh release delete "${tag}" --yes --cleanup-tag
+          done
+

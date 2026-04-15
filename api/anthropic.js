@@ -12,6 +12,11 @@
  * con timeout agresivo). El cliente ignora el prefijo y parsea el JSON final (ver parseAnthropicProxyBody).
  */
 
+const ALLOWED_ORIGIN_PREFIXES = [
+  'https://programing-evo.vercel.app',
+  'http://localhost:5173',
+]
+
 /** Traduce errores conocidos de Anthropic a mensaje útil en español. */
 function userFacingMessage(data, httpStatus) {
   const raw =
@@ -68,6 +73,100 @@ function parseRequestBody(req) {
   return null
 }
 
+function getRequestOrigin(req) {
+  const origin = String(req.headers?.origin || '').trim()
+  if (origin) return origin
+  const referer = String(req.headers?.referer || '').trim()
+  return referer
+}
+
+function isOriginAllowed(originValue) {
+  const v = String(originValue || '').trim()
+  if (!v) return false
+  return ALLOWED_ORIGIN_PREFIXES.some((p) => v.startsWith(p))
+}
+
+function getClientIp(req) {
+  const xff = String(req.headers?.['x-forwarded-for'] || '')
+  const firstForwarded = xff.split(',')[0]?.trim()
+  const ipRaw =
+    firstForwarded ||
+    String(req.headers?.['x-real-ip'] || '').trim() ||
+    req.socket?.remoteAddress ||
+    'unknown'
+  return String(ipRaw).replace(/^::ffff:/, '')
+}
+
+function getSupabaseAdminConfig() {
+  const url = String(process.env.VITE_SUPABASE_URL || '').trim()
+  const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+  if (!url || !serviceKey) return null
+  return { url, serviceKey }
+}
+
+async function checkRateLimitViaSupabase({ ip, endpoint, limit, windowMinutes }) {
+  const cfg = getSupabaseAdminConfig()
+  if (!cfg) {
+    console.warn('Rate-limit bypass: missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+    return { exceeded: false }
+  }
+  const rpcUrl = `${cfg.url.replace(/\/$/, '')}/rest/v1/rpc/check_rate_limit`
+  const r = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: cfg.serviceKey,
+      Authorization: `Bearer ${cfg.serviceKey}`,
+    },
+    body: JSON.stringify({
+      p_ip: ip,
+      p_endpoint: endpoint,
+      p_limit: limit,
+      p_window_minutes: windowMinutes,
+    }),
+  })
+  if (!r.ok) {
+    const t = await r.text().catch(() => '')
+    throw new Error(`rate_limit_rpc_failed_${r.status}_${t.slice(0, 120)}`)
+  }
+  const payload = await r.json().catch(() => null)
+  const exceeded =
+    payload === true ||
+    payload?.check_rate_limit === true ||
+    (Array.isArray(payload) && payload[0]?.check_rate_limit === true)
+  return { exceeded: !!exceeded }
+}
+
+async function insertApiUsageLogViaSupabase({ endpoint, model, usage, ip }) {
+  const cfg = getSupabaseAdminConfig()
+  if (!cfg) return
+  const inputTokens = Number(usage?.input_tokens || 0) || 0
+  const outputTokens = Number(usage?.output_tokens || 0) || 0
+  const totalTokens = Number(usage?.total_tokens || inputTokens + outputTokens) || 0
+  const url = `${cfg.url.replace(/\/$/, '')}/rest/v1/api_usage_log`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: cfg.serviceKey,
+      Authorization: `Bearer ${cfg.serviceKey}`,
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      endpoint: String(endpoint || ''),
+      model: String(model || ''),
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      total_tokens: totalTokens,
+      ip: String(ip || ''),
+    }),
+  })
+  if (!response.ok) {
+    const txt = await response.text().catch(() => '')
+    throw new Error(`api_usage_log_insert_failed_${response.status}_${txt.slice(0, 120)}`)
+  }
+}
+
 function injectWeekContext(system, weekContext) {
   const baseSystem = typeof system === 'string' ? system : ''
   const ctx = String(weekContext || '').trim()
@@ -99,6 +198,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
+  const originValue = getRequestOrigin(req)
+  const isDev = process.env.NODE_ENV === 'development'
+  if (!(isDev && !originValue) && !isOriginAllowed(originValue)) {
+    return res.status(403).json({ error: 'origin_not_allowed' })
+  }
+
   const body = parseRequestBody(req)
   if (body === null) {
     return res.status(400).json({
@@ -106,7 +211,28 @@ export default async function handler(req, res) {
     })
   }
 
-  const { model, max_tokens, system, weekContext, messages } = body
+  const { model, max_tokens, system, weekContext, messages, supportMode } = body
+  const ip = getClientIp(req)
+  const endpoint = supportMode ? '/api/anthropic:support' : '/api/anthropic'
+  const rateLimit = supportMode ? 10 : 30
+  const rateWindowMinutes = 10
+
+  try {
+    const { exceeded } = await checkRateLimitViaSupabase({
+      ip,
+      endpoint,
+      limit: rateLimit,
+      windowMinutes: rateWindowMinutes,
+    })
+    if (exceeded) {
+      return res.status(429).json({
+        error: 'rate_limit_exceeded',
+        retry_after_seconds: rateWindowMinutes * 60,
+      })
+    }
+  } catch (e) {
+    console.error('Rate limit check failed:', e)
+  }
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({
@@ -214,6 +340,17 @@ export default async function handler(req, res) {
           error: baseError,
         }),
       )
+    }
+
+    try {
+      await insertApiUsageLogViaSupabase({
+        endpoint,
+        model: data?.model || model || 'claude-sonnet-4-20250514',
+        usage: data?.usage || {},
+        ip,
+      })
+    } catch (e) {
+      console.error('api_usage_log insert failed:', e)
     }
 
     clearHeartbeat()

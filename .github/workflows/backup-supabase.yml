@@ -49,12 +49,7 @@ jobs:
               echo "Connection URI contains YOUR-PASSWORD. Set SUPABASE_DB_PASSWORD secret or replace placeholder in URI."
               exit 1
             fi
-            ENCODED_PASSWORD="$(python3 - <<'PY'
-import os
-import urllib.parse
-print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD", ""), safe=""))
-PY
-)"
+            ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD",""), safe=""))')"
             DB_URL="${DB_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
           fi
           if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then

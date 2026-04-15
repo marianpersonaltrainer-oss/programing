@@ -1,6 +1,11 @@
 name: Backup Supabase
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/backup-supabase.yml
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:

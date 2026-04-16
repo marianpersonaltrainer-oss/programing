@@ -29,6 +29,72 @@ export const COACH_CENTRO_EXPECT = [
   'Que sienta que el coach estaba ahí para él, no gestionando el tiempo.',
 ]
 
+/** Guía ampliada EvoGimnástica (rotación, escalados, ejemplos). Visible en app → Clases. */
+export const COACH_GIMNASTICA_EXTENDED_BLOCKS = [
+  {
+    title: 'Identidad — qué la diferencia',
+    body: [
+      'EvoGimnástica no es «más dominadas»: es cuerpo libre con cabeza, progresión clara y sensación de equipo. La marca es la mezcla técnica + juego (relevos, carreras cortas, circuitos con tiempo, ritmo) para que la gente salga pensando «esto no lo hago en otro sitio».',
+      'Regla de oro para el coach: máximo ~1 minuto de explicación por bloque; el resto es hacer, corregir y animar. Escalados listos abajo — cópialos a pizarra o WodBuster sin reescribir.',
+    ],
+  },
+  {
+    title: 'Rotación semanal (variedad)',
+    body: [
+      'Semana tipo A — Tracción + core: pull-ups y variantes, scapular, hollow/arch, holds de plancha lateral/frontal.',
+      'Semana tipo B — Empuje + balance: pike push y progresiones, handstand (pared o free scale), shoulder taps, L-sit scaled si encaja.',
+      'Semana tipo C — Acrobático + dinámico: cartwheels básicos, kipping educado, saltos seguros, juegos de agilidad (conos, relevos).',
+      'Rota A → B → C en semanas sucesivas cuando programes; si la hoja trae un skill concreto, encaja ese skill dentro del tipo de semana que toque.',
+    ],
+  },
+  {
+    title: 'Escalados copy-paste (por movimiento)',
+    body: [
+      'Pull-up — Beginner: dead hang 20–40 s + banda gruesa o ring rows 3×8–12. Intermedio: scap pulls + pull-up asistido ligero o negativas 3×3–5. Avanzado: strict pull-ups 4×4–8 o variaciones temporizadas.',
+      'Handstand / vertical — Beginner: pike en caja + wall walk 1–2 subidas controladas. Intermedio: chest-to-wall hold 20–40 s + shoulder taps asistidos. Avanzado: hold freestanding cortos o HSPU scaled a déficit bajo.',
+      'Dip anillas — Beginner: soporte en rack/box, dips de banco pies en suelo. Intermedio: ring support hold + dip negatives 3×3–5. Avanzado: ring dips completos en volumen moderado.',
+      'Core — Beginner: dead bug + plank 20–30 s. Intermedio: hollow hold + arch rocks. Avanzado: L-sit en paralelas o barra + hollow rocks en combo.',
+    ],
+  },
+  {
+    title: 'Semana ejemplo 1 — Tracción + core (~55 min)',
+    body: [
+      'Bloque 1 (8–10 min): Juego corto — relevo de dead hang por equipos (sumar segundos sin soltar). Explicación: «solo colgar, hombros activos».',
+      'Bloque 2 (15 min): Skill — pull progression. Tres filas: A ring rows + scap pulls, B asistido, C strict o volumen. 4 rondas, descanso al acabar fila.',
+      'Bloque 3 (12 min): Core — hollow/arch en parejas (uno hace hollow 20 s, el otro arch 20 s) × 4 vueltas.',
+      'Bloque 4 (15 min): Circuito AMRAP suave 12 min: 8 ring rows o pull scaled + 20 s plank + 10 arch rocks. Música a volumen medio — última vuelta «sprint» de actitud, no de técnica rota.',
+      'Cierre (3 min): una frase sobre qué notaron en el agarre y en el abdomen.',
+    ],
+  },
+  {
+    title: 'Semana ejemplo 2 — Empuje + balance (~55 min)',
+    body: [
+      'Bloque 1 (8 min): Warm — wall walk 2–3 + pike walk on box. Objetivo: hombros calientes, no fatiga.',
+      'Bloque 2 (18 min): Pike push / HSPU scaled — 5 series, RPE 7. Opciones de la tabla de escalados.',
+      'Bloque 3 (15 min): Handstand — chest-to-wall + taps (3× máx taps manteniendo línea). Quien no vertical: plancha alta con elevación de manos.',
+      'Bloque 4 (12 min): «Carrera de handstand» por parejas: metros acumulados en hold wall (cambio cada vez que cae la línea). Competencia amistosa, risas permitidas.',
+      'Cierre: recordar un solo cue de hombros («empuja el suelo») para el día siguiente.',
+    ],
+  },
+  {
+    title: 'Semana ejemplo 3 — Acrobático + dinámico (~55 min)',
+    body: [
+      'Bloque 1 (10 min): Movilidad cadera + hombro + 2–3 cartwheels por lado con aterrizaje en mat.',
+      'Bloque 2 (12 min): Kipping educado en barra baja o rings: swing controlado + 3–5 reps muy pulidas (no contar si rompe hueco).',
+      'Bloque 3 (10 min): Saltos — broad jump técnico + salto al cajón bajo en series cortas.',
+      'Bloque 4 (18 min): Circuito por tiempo — 4 rondas, 1 min trabajo / 30 s paso: burpees sin pecho (versión suave), jumping pull-up o high pull, sit-up, desplazamiento lateral conos.',
+      'Cierre: celebrar un «momento random» de la clase (mejor caída salvada, mejor cartwheel, etc.).',
+    ],
+  },
+  {
+    title: 'Diversión sin perder técnica',
+    body: [
+      'Cada sesión debe incluir al menos un elemento de formato: relevo, parejas, AMRAP corto, EMOM ligero, batalla por equipos con métrica tonta (metros, segundos, risas).',
+      'Si la programación viene muy seca, tú añades el marco lúdico (cronómetro visible, equipos de colores, última ronda musical) sin cambiar el skill publicado.',
+    ],
+  },
+]
+
 export const COACH_CLASS_CARDS = [
   {
     id: 'funcional',
@@ -92,15 +158,16 @@ export const COACH_CLASS_CARDS = [
   },
   {
     id: 'gimnastica',
-    title: 'EVOGIMNÁSTICA — Skills corporales (solo si está en programación)',
+    title: 'EVOGIMNÁSTICA — Skills + diversión (solo si está en programación)',
     audience:
-      'Cuando el programador incluye esta columna. Alumnos con base y tiempo para técnica; progresiones escaladas.',
-    has: 'Dominadas, muscle up scaled, handstand y progresiones, core gimnástico, anillas con criterio técnico.',
+      'Intermedio EVO: muchos dominan o van hacia pull-up; handstand poco trabajado; ring dips raros. No es clase de competición: es técnica accesible, variada y con sensación de «esto solo pasa aquí».',
+    has: 'Rotación semanal de focos (tracción/core · empuje/balance · acro/dinámico). Siempre con juego o formato que rompa la monotonía. Escalados copy-paste para tres niveles.',
     structure:
-      'Movilidad y activación → Skill principal con progresiones → Volumen técnico o circuito ligado al skill → Cierre.',
-    can: 'Pull-ups asistidos, jumping muscle up, box HSPU, handstand hold wall, L-sit scaled, hollow/arch work.',
-    cannot: 'Improvisar skills de competición si no vienen en la programación.',
-    feel: '«He tocado técnica real; salgo con una progresión clara.»',
+      'Calentamiento corto y divertido → Bloque técnico (explicación máx. ~1 min por bloque) → Trabajo principal con opciones A/B/C → Cierre sin estiramientos largos.',
+    can: 'Dead hang, scap pull, wall walk, pike en caja, kipping controlado, hollow/arch, cartwheels básicos, relevos, circuitos por tiempo, música si encaja.',
+    cannot: 'Semana tras semana el mismo bloque solo de tracción dura. Técnica seca sin ningún elemento lúdico o competitivo amistoso. Improvisar skills que no vengan en la programación.',
+    feel: '«He progresado en algo concreto, me lo he pasado bien y no era «otro día igual de anillas».»',
+    extendedBlocks: COACH_GIMNASTICA_EXTENDED_BLOCKS,
   },
   {
     id: 'evotodos',

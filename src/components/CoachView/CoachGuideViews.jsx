@@ -202,6 +202,20 @@ export function CoachGuideClases() {
                 {c.weekNote && (
                   <p className={`text-sm ${coachText.muted} border-t ${coachBorder} pt-3`}>{c.weekNote}</p>
                 )}
+                {c.extendedBlocks?.length > 0 && (
+                  <div className={`space-y-5 border-t ${coachBorder} pt-4 mt-2`}>
+                    {c.extendedBlocks.map((block) => (
+                      <div key={block.title}>
+                        <p className={`text-xs font-bold uppercase tracking-widest ${coachText.title} mb-2`}>{block.title}</p>
+                        <ul className={`list-disc pl-5 space-y-2 text-sm sm:text-base ${coachText.muted}`}>
+                          {block.body.map((line, li) => (
+                            <li key={li}>{line}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <p className={`text-base italic border-t ${coachBorder} pt-4 ${coachText.accent}`}>{c.feel}</p>
               </div>
             </article>

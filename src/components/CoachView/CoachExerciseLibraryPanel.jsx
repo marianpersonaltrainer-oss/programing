@@ -189,6 +189,11 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label={
+                          isSearch
+                            ? `Buscar en YouTube: ${e.name} (nueva pestaña)`
+                            : `Abrir vídeo: ${e.name} (nueva pestaña)`
+                        }
                         className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#A729AD] hover:underline"
                       >
                         {isSearch ? '▶ Buscar en YouTube' : '▶ Ver vídeo'}

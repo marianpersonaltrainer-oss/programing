@@ -34,6 +34,10 @@ import CoachSessionBlockView from './CoachSessionBlockView.jsx'
 const TAB_ACTIVE = 'bg-[#A729AD] text-white shadow-md border border-[#A729AD]'
 const TAB_IDLE = `bg-white/10 text-white/90 border border-white/20 hover:bg-white/15`
 
+function coachClassNavShortLabel(label) {
+  return String(label || '').replace(/^Evo/i, '').trim() || label
+}
+
 function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   if (!videos?.length) {
     return (
@@ -413,81 +417,113 @@ export default function CoachWeekProgrammingPanel({
 
       {activeDay !== 'show' && activeDay != null && (
         <div className={`border-t ${coachBorder}`}>
-          <div
-            className={`px-6 py-4 flex flex-wrap items-center gap-2 sticky top-0 z-[1] border-b ${coachBorder} bg-white/95 backdrop-blur-sm`}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setActiveDay('show')
-                setWeekTab('dias')
-              }}
-              className={`text-xs font-bold uppercase tracking-widest ${coachText.accent} border border-[#A729AD]/40 px-4 py-2 rounded-xl hover:bg-[#A729AD]/10`}
-            >
-              ← Volver a días
-            </button>
-            {(() => {
-              const prev = getAdjacentNavDayName(dias, activeDay, 'prev')
-              const next = getAdjacentNavDayName(dias, activeDay, 'next')
-              return (
-                <>
+          {(() => {
+            const diaNav = findDia(dias, activeDay)
+            const navBlocks = diaNav
+              ? SESSION_BLOCKS.filter(({ key }) => hasProgrammedSessionText(diaNav[key]))
+              : []
+            return (
+              <div
+                className={`sticky top-0 z-[1] border-b ${coachBorder} bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.04)]`}
+              >
+                <div className={`px-6 py-4 flex flex-wrap items-center gap-2`}>
                   <button
                     type="button"
-                    disabled={!prev}
-                    onClick={() => prev && setActiveDay(prev)}
-                    className={`text-xs font-bold uppercase tracking-widest border px-3 py-2 rounded-xl ${
-                      prev
-                        ? `${coachText.accent} border-[#A729AD]/40 hover:bg-[#A729AD]/10`
-                        : 'opacity-30 cursor-not-allowed border-black/10'
-                    }`}
-                    aria-label="Día anterior"
+                    onClick={() => {
+                      setActiveDay('show')
+                      setWeekTab('dias')
+                    }}
+                    className={`text-xs font-bold uppercase tracking-widest ${coachText.accent} border border-[#A729AD]/40 px-4 py-2 rounded-xl hover:bg-[#A729AD]/10`}
                   >
-                    ←
+                    ← Volver a días
                   </button>
+                  {(() => {
+                    const prev = getAdjacentNavDayName(dias, activeDay, 'prev')
+                    const next = getAdjacentNavDayName(dias, activeDay, 'next')
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled={!prev}
+                          onClick={() => prev && setActiveDay(prev)}
+                          className={`text-xs font-bold uppercase tracking-widest border px-3 py-2 rounded-xl ${
+                            prev
+                              ? `${coachText.accent} border-[#A729AD]/40 hover:bg-[#A729AD]/10`
+                              : 'opacity-30 cursor-not-allowed border-black/10'
+                          }`}
+                          aria-label="Día anterior"
+                        >
+                          ←
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!next}
+                          onClick={() => next && setActiveDay(next)}
+                          className={`text-xs font-bold uppercase tracking-widest border px-3 py-2 rounded-xl ${
+                            next
+                              ? `${coachText.accent} border-[#A729AD]/40 hover:bg-[#A729AD]/10`
+                              : 'opacity-30 cursor-not-allowed border-black/10'
+                          }`}
+                          aria-label="Día siguiente"
+                        >
+                          →
+                        </button>
+                      </>
+                    )
+                  })()}
+                  <span className={`text-base font-black ${coachText.primary} uppercase tracking-tight`}>{activeDay}</span>
                   <button
                     type="button"
-                    disabled={!next}
-                    onClick={() => next && setActiveDay(next)}
-                    className={`text-xs font-bold uppercase tracking-widest border px-3 py-2 rounded-xl ${
-                      next
-                        ? `${coachText.accent} border-[#A729AD]/40 hover:bg-[#A729AD]/10`
-                        : 'opacity-30 cursor-not-allowed border-black/10'
-                    }`}
-                    aria-label="Día siguiente"
+                    onClick={() => {
+                      const dia = findDia(dias, activeDay)
+                      if (!dia) return
+                      const blocks = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key])).map(({ label, key }) => ({
+                        classLabel: label,
+                        text: sessionText(dia[key]),
+                      }))
+                      if (sessionText(dia.wodbuster)) {
+                        blocks.push({
+                          classLabel: 'Vista alumno (WodBuster)',
+                          text: sessionText(dia.wodbuster),
+                        })
+                      }
+                      printCoachDaySession({
+                        coachName: coachName?.trim() || '—',
+                        dateLabel: new Date().toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' }),
+                        dayLabel: activeDay,
+                        blocks,
+                      })
+                    }}
+                    className={`text-[10px] font-bold uppercase tracking-widest ml-auto px-4 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.primary} hover:bg-[#A729AD]/10`}
                   >
-                    →
+                    Imprimir día
                   </button>
-                </>
-              )
-            })()}
-            <span className={`text-base font-black ${coachText.primary} uppercase tracking-tight`}>{activeDay}</span>
-            <button
-              type="button"
-              onClick={() => {
-                const dia = findDia(dias, activeDay)
-                if (!dia) return
-                const blocks = SESSION_BLOCKS.filter(({ key }) => sessionText(dia[key])).map(({ label, key }) => ({
-                  classLabel: label,
-                  text: sessionText(dia[key]),
-                }))
-                if (sessionText(dia.wodbuster)) {
-                  blocks.push({
-                    classLabel: 'Vista alumno (WodBuster)',
-                    text: sessionText(dia.wodbuster),
-                  })
-                }
-                printCoachDaySession({
-                  coachName: coachName?.trim() || '—',
-                  dateLabel: new Date().toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' }),
-                  dayLabel: activeDay,
-                  blocks,
-                })
-              }}
-              className={`text-[10px] font-bold uppercase tracking-widest ml-auto px-4 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.primary} hover:bg-[#A729AD]/10`}
-            >
-              Imprimir día
-            </button>
-          </div>
+                </div>
+                {navBlocks.length > 0 ? (
+                  <nav
+                    className="flex gap-2 overflow-x-auto overscroll-x-contain scroll-smooth px-4 pb-2.5 pt-1 border-t border-black/6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    aria-label="Ir a clase del día"
+                  >
+                    {navBlocks.map((block) => (
+                      <button
+                        key={block.key}
+                        type="button"
+                        onClick={() => {
+                          document.getElementById(`coach-class-anchor-${block.key}`)?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          })
+                        }}
+                        className={`shrink-0 text-xs font-bold uppercase tracking-wide px-3.5 py-2 rounded-xl border border-[#A729AD]/35 bg-[#F3EAF8] text-[#4a154d] hover:bg-[#A729AD]/15 active:scale-[0.98] transition-transform`}
+                      >
+                        {coachClassNavShortLabel(block.label)}
+                      </button>
+                    ))}
+                  </nav>
+                ) : null}
+              </div>
+            )
+          })()}
           {(() => {
             const dia = findDia(dias, activeDay)
             if (!dia) {
@@ -515,7 +551,11 @@ export default function CoachWeekProgrammingPanel({
                   const fk = dayNombreToFeedbackKey(dayName)
                   const lastHandoff = findLastCoachHandoffNote(label, weekRow?.id ?? null)
                   return (
-                    <div key={key} className={`rounded-xl border ${coachBorder} ${coachBg.card} p-5 shadow-sm space-y-5`}>
+                    <div
+                      key={key}
+                      id={`coach-class-anchor-${key}`}
+                      className={`scroll-mt-36 rounded-xl border ${coachBorder} ${coachBg.card} p-5 shadow-sm space-y-5`}
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <p className="text-base font-black uppercase tracking-tight flex-1 min-w-0" style={{ color }}>
                           {label}

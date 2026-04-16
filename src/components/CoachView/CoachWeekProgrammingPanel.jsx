@@ -4,6 +4,9 @@ import {
   findVideosInProgramTextResolved,
 } from '../../utils/coachLibraryVideoMatch.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+
+/** Saltos en detalle de día: Funcional, Basics, Fit, Gimnástica (solo si hay texto ese día). */
+const DAY_DETAIL_JUMP_CLASS_KEYS = new Set(['evofuncional', 'evobasics', 'evofit', 'evogimnastica'])
 import { SESSION_BLOCKS, FEEDBACK_BLOCKS } from './coachViewConstants.js'
 import {
   findDia,
@@ -422,7 +425,9 @@ export default function CoachWeekProgrammingPanel({
           {(() => {
             const diaNav = findDia(dias, activeDay)
             const navBlocks = diaNav
-              ? SESSION_BLOCKS.filter(({ key }) => hasProgrammedSessionText(diaNav[key]))
+              ? SESSION_BLOCKS.filter(
+                  ({ key }) => DAY_DETAIL_JUMP_CLASS_KEYS.has(key) && hasProgrammedSessionText(diaNav[key]),
+                )
               : []
             return (
               <div

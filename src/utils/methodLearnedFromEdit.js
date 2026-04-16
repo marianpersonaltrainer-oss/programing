@@ -1,5 +1,7 @@
 /** Frases automáticas al guardar una edición de sesión (EditModal). */
 
+import { extractMainExerciseFromBlockB } from './sessionBlockB.js'
+
 export const EDIT_REASON_OTHER_MAX = 200
 export const EDIT_REASON_MAX_CHIPS = 3
 
@@ -85,36 +87,6 @@ function cleanReasonLabel(label) {
   return String(label || '')
     .replace(/^[^\p{L}\p{N}]+/u, '')
     .trim()
-}
-
-function extractMainExerciseFromBlockB(sessionText) {
-  const src = String(sessionText || '')
-  if (!src.trim()) return ''
-  const lines = src.split('\n').map((l) => l.trim())
-  let bStart = -1
-  for (let i = 0; i < lines.length; i += 1) {
-    if (/^B\)\s*/i.test(lines[i])) {
-      bStart = i
-      break
-    }
-  }
-  if (bStart < 0) return ''
-  let bEnd = lines.length
-  for (let i = bStart + 1; i < lines.length; i += 1) {
-    if (/^(C\)\s*|CIERRE\b)/i.test(lines[i])) {
-      bEnd = i
-      break
-    }
-  }
-  for (let i = bStart + 1; i < bEnd; i += 1) {
-    const line = lines[i]
-    if (!line) continue
-    if (/^[A-ZÁÉÍÓÚÜÑ0-9\s/+().-]{4,}$/.test(line)) continue
-    if (/:$/.test(line)) continue
-    if (/^(ESCALADOS?|TÉCNICA|TECNICA|APROXIMACIÓN|APROXIMACION|BIENVENIDA|WOD PREP)\b/i.test(line)) continue
-    return line.replace(/^[-•]\s*/, '')
-  }
-  return ''
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import ExcelJS from 'exceljs'
 import mammoth from 'mammoth'
 import { SYSTEM_PROMPT_EXCEL, SYSTEM_PROMPT_REGENERATE_FEEDBACK } from '../../constants/systemPromptExcel.js'
@@ -37,6 +37,8 @@ import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.j
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { formatPreviousWeekCoachFeedbackForPrompt } from '../../utils/formatPreviousWeekCoachFeedbackForPrompt.js'
+import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
+import { buildWeekSessionClassReview } from '../../utils/weekSessionReview.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
@@ -103,36 +105,6 @@ function feedbackStaleKey(diaIdx, feedbackKey) {
   return `${diaIdx}::${feedbackKey}`
 }
 
-function extractMainExerciseFromBlockB(sessionText) {
-  const src = String(sessionText || '')
-  if (!src.trim()) return ''
-  const lines = src.split('\n').map((l) => l.trim())
-  let bStart = -1
-  for (let i = 0; i < lines.length; i += 1) {
-    if (/^B\)\s*/i.test(lines[i])) {
-      bStart = i
-      break
-    }
-  }
-  if (bStart < 0) return ''
-  let bEnd = lines.length
-  for (let i = bStart + 1; i < lines.length; i += 1) {
-    if (/^(C\)\s*|CIERRE\b)/i.test(lines[i])) {
-      bEnd = i
-      break
-    }
-  }
-  for (let i = bStart + 1; i < bEnd; i += 1) {
-    const line = lines[i]
-    if (!line) continue
-    if (/^[A-ZÁÉÍÓÚÜÑ0-9\s/+().-]{4,}$/.test(line)) continue
-    if (/:$/.test(line)) continue
-    if (/^(ESCALADOS?|TÉCNICA|TECNICA|APROXIMACIÓN|APROXIMACION|BIENVENIDA|WOD PREP)\b/i.test(line)) continue
-    return line.replace(/^[-•]\s*/, '')
-  }
-  return ''
-}
-
 function buildWeeklyClassBSummary(dias, currentDiaIdx, sessionKey) {
   const out = []
   const max = Math.min(Math.max(0, currentDiaIdx - 1), Math.max(0, (dias || []).length - 1))
@@ -145,6 +117,75 @@ function buildWeeklyClassBSummary(dias, currentDiaIdx, sessionKey) {
     out.push({ dayLabel: dia?.nombre || `Día ${i + 1}`, main })
   }
   return out
+}
+
+function weekReviewSeverityShell(row, highlightDayIdx) {
+  const ring = row.dayIdx === highlightDayIdx ? ' ring-2 ring-evo-accent/35 ring-offset-1' : ''
+  if (row.placeholder) {
+    return `rounded-lg px-2 py-1.5 text-[11px] leading-snug border-l-4 border-slate-300 bg-slate-50/90 text-slate-600${ring}`
+  }
+  const bar =
+    row.severity === 'red'
+      ? 'border-l-4 border-red-500 bg-red-50/55'
+      : row.severity === 'orange'
+        ? 'border-l-4 border-orange-400 bg-orange-50/45'
+        : row.severity === 'yellow'
+          ? 'border-l-4 border-amber-400 bg-amber-50/40'
+          : 'border-l-4 border-emerald-500/55 bg-emerald-50/35'
+  return `rounded-lg px-2 py-1.5 text-[11px] leading-snug ${bar}${ring}`
+}
+
+function WeekSessionClassReviewAside({ dias, sessionKey, label, highlightDayIdx, resumenFoco }) {
+  const review = useMemo(
+    () => buildWeekSessionClassReview(dias || [], sessionKey, { resumenFoco: resumenFoco || '' }),
+    [dias, sessionKey, resumenFoco],
+  )
+  const statusEmoji = review.hasAnyIssue ? '⚠️' : review.hasAnyProgram ? '✅' : '—'
+  return (
+    <details className="rounded-xl border border-black/10 bg-[#faf8fc] shadow-sm overflow-hidden">
+      <summary className="cursor-pointer list-none px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-[#4a2a52] flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+        <span className="truncate min-w-0">Revisión de semana — {label}</span>
+        <span className="shrink-0 text-[10px] opacity-80 tabular-nums">{statusEmoji}</span>
+      </summary>
+      <div className="px-3 pb-3 pt-0 border-t border-black/6 space-y-2 max-h-[min(60vh,420px)] overflow-y-auto">
+        <p className="text-[10px] text-[#6B5A6B] leading-snug pt-2">
+          Detección orientativa (heurística); siempre revisa el texto completo.
+        </p>
+        {!review.hasAnyProgram ? (
+          <p className="text-xs text-[#6B5A6B]">Sin sesiones programadas para esta clase en la semana.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {review.rows.map((row) => (
+              <li key={row.dayIdx} className={weekReviewSeverityShell(row, highlightDayIdx)}>
+                <div className="font-bold text-[#1A0A1A] flex flex-wrap items-center gap-x-1 gap-y-0">
+                  <span>{row.dayLabel}</span>
+                  {row.dayIdx === highlightDayIdx && (
+                    <span className="text-[9px] font-bold uppercase text-evo-accent tracking-wide">· editando</span>
+                  )}
+                </div>
+                {row.placeholder ? (
+                  <p className="text-[10px] text-evo-muted mt-0.5">Sin programa</p>
+                ) : (
+                  <>
+                    <p className="text-[10px] text-[#1A0A1A]/90 mt-0.5 font-mono break-words">{row.mainLine}</p>
+                    {row.hints.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5 text-[10px] text-[#5c1a1a] list-disc pl-3.5">
+                        {row.hints.map((h, hi) => (
+                          <li key={hi}>{h}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[10px] text-emerald-900/85 mt-0.5">Sin avisos heurísticos</p>
+                    )}
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
+  )
 }
 
 function buildSessionFingerprintMap(weekData) {
@@ -1504,52 +1545,71 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           {dia.nombre || `Día ${diaIdx + 1}`}
                         </p>
 
-                        {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => (
-                          <label key={key} className="block space-y-2">
-                            <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>
-                              {label}
-                            </span>
-                            <textarea
-                              rows={14}
-                              value={dia[key] || ''}
-                              onChange={(e) =>
-                                handleSessionFieldChange(diaIdx, key, feedbackKey, e.target.value)
-                              }
-                              placeholder={`Texto de la sesión ${label}…`}
-                              spellCheck={false}
-                              className={sessionTextareaClass}
-                            />
-                            {(() => {
-                              const summary = buildWeeklyClassBSummary(dias, diaIdx, key)
-                              const hasAny = summary.length > 0
-                              return (
-                                <details className="rounded-xl border border-black/8 bg-[#faf8fc]">
-                                  <summary className="cursor-pointer list-none px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-[#6A1F6D] flex items-center justify-between [&::-webkit-details-marker]:hidden">
-                                    <span>Lo que llevas esta semana — {label}</span>
-                                    <span className="text-[9px] opacity-70">{hasAny ? `${summary.length} días` : 'sin datos'}</span>
-                                  </summary>
-                                  <div className="px-3 pb-3 pt-0.5 border-t border-black/5">
-                                    {hasAny ? (
-                                      <ul className="space-y-1.5">
-                                        {summary.map((row) => (
-                                          <li key={`${row.dayLabel}-${row.main}`} className="text-xs text-[#1A0A1A]">
-                                            <span className="font-bold">{row.dayLabel}</span>
-                                            <span className="mx-1.5 text-black/40">→</span>
-                                            <span>{row.main}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="text-xs text-[#6B5A6B]">
-                                        Aún no hay bloque B detectado en días anteriores de esta clase.
-                                      </p>
-                                    )}
-                                  </div>
-                                </details>
-                              )
-                            })()}
-                          </label>
-                        ))}
+                        {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => {
+                          const resumenFoco = (weekData.resumen && weekData.resumen.foco) || ''
+                          return (
+                            <div
+                              key={key}
+                              className="flex flex-col lg:flex-row-reverse lg:items-start gap-3 lg:gap-4"
+                            >
+                              <aside className="w-full lg:w-[280px] lg:max-w-[280px] lg:shrink-0 lg:sticky lg:top-3 self-start">
+                                <WeekSessionClassReviewAside
+                                  dias={dias}
+                                  sessionKey={key}
+                                  label={label}
+                                  highlightDayIdx={diaIdx}
+                                  resumenFoco={resumenFoco}
+                                />
+                              </aside>
+                              <label className="block min-w-0 flex-1 space-y-2">
+                                <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>
+                                  {label}
+                                </span>
+                                <textarea
+                                  rows={14}
+                                  value={dia[key] || ''}
+                                  onChange={(e) =>
+                                    handleSessionFieldChange(diaIdx, key, feedbackKey, e.target.value)
+                                  }
+                                  placeholder={`Texto de la sesión ${label}…`}
+                                  spellCheck={false}
+                                  className={sessionTextareaClass}
+                                />
+                                {(() => {
+                                  const summary = buildWeeklyClassBSummary(dias, diaIdx, key)
+                                  const hasAny = summary.length > 0
+                                  return (
+                                    <details className="rounded-xl border border-black/8 bg-[#faf8fc]">
+                                      <summary className="cursor-pointer list-none px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-[#6A1F6D] flex items-center justify-between [&::-webkit-details-marker]:hidden">
+                                        <span>Lo que llevas esta semana — {label}</span>
+                                        <span className="text-[9px] opacity-70">
+                                          {hasAny ? `${summary.length} días` : 'sin datos'}
+                                        </span>
+                                      </summary>
+                                      <div className="px-3 pb-3 pt-0.5 border-t border-black/5">
+                                        {hasAny ? (
+                                          <ul className="space-y-1.5">
+                                            {summary.map((row) => (
+                                              <li key={`${row.dayLabel}-${row.main}`} className="text-xs text-[#1A0A1A]">
+                                                <span className="font-bold">{row.dayLabel}</span>
+                                                <span className="mx-1.5 text-black/40">→</span>
+                                                <span>{row.main}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : (
+                                          <p className="text-xs text-[#6B5A6B]">
+                                            Aún no hay bloque B detectado en días anteriores de esta clase.
+                                          </p>
+                                        )}
+                                      </div>
+                                    </details>
+                                  )
+                                })()}
+                              </label>
+                            </div>
+                          )
+                        })}
 
                         <div className="pt-2 border-t border-dashed border-black/10 space-y-4">
                           <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">

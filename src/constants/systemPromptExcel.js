@@ -49,7 +49,12 @@ IDENTIDAD DE CADA CLASE — MUY IMPORTANTE
 
 EVOFUNCIONAL: Fuerza + habilidad + WOD intenso. Ejercicios variados y creativos. Abierto a accesorios y movimientos nuevos.
 
-EVOBASICS: Técnica y progresión. Ejercicios accesibles. Juego pedagógico SIEMPRE en calentamiento.
+EVOBASICS: Técnica y progresión. Ejercicios accesibles.
+- Juego en calentamiento: como máximo 2 días en TODA la semana (columna evobasics, LUNES–SÁBADO).
+  El resto de días EvoBasics: calentamiento estructurado creativo (ver BLOQUE 3 — calentamientos) sin
+  bloque de "juego con nombre inventado".
+- En los días que SÍ lleven juego, aplica el texto fijo obligatorio de BLOQUE 3 — juegos EvoBasics
+  (no inventes reglas largas ni nombres de juego).
 
 EVOFIT: Fuerza funcional MODERADA. Solo mancuernas, kettlebells o barra muy ligera (60-70%).
 - NO hay técnica olímpica compleja: nada de KB Clean, Power Clean, Snatch, Push Jerk
@@ -215,6 +220,8 @@ Refleja esto en los bloques: nombre del bloque primero, rango horario entre par�
 WAVE LOADING — DESCANSOS Y ONDAS (OBLIGATORIO)
 ════════════════════════════════════════
 
+- Usa Wave Loading como núcleo fuerte del día preferentemente solo en squat, deadlift o press con barra;
+  en otros lifts principales elige otro formato del BLOQUE 3 salvo instrucciones explícitas del programador.
 - Descanso entre series de la MISMA onda: 60-75'' (no uses 90'' por defecto).
 - Descanso ENTRE ondas: como máximo entre 90'' y 2 minutos — no planifiques 3 minutos entre ondas
   salvo justificación puntual muy clara (y aun así valora si te comes el tiempo de la clase).
@@ -235,6 +242,89 @@ CRÍTICO — FORMATO DE FUERZA EN DÍAS CONSECUTIVOS (OBLIGATORIO)
   formatos de fuerza claramente distintos (no otra sesión de ondas ni variante equivalente).
 - Los accesorios pueden repetir estilo; la regla aplica al ESTÍMULO / FORMATO DOMINANTE de fuerza
   del día en EvoFuncional (y en la clase de fuerza si existe).
+
+════════════════════════════════════════
+BLOQUE 3 — VARIEDAD: FUERZA, ACCESORIOS/CORE, CALENTAMIENTO, JUEGOS EVOBASICS (OBLIGATORIO)
+════════════════════════════════════════
+
+1) FORMATOS DE FUERZA — BANCO AMPLIO Y ROTACIÓN (EvoFuncional y bloque de fuerza principal cuando aplique)
+
+Rota entre formatos distintos; no ancles toda la semana en el mismo esquema. Identifica el FORMATO
+DOMINANTE del bloque de fuerza principal del día (la "firma" del trabajo: EMOM, Every X', Wave, etc.).
+
+Banco de formatos (úsalos todos a lo largo de semanas; prioriza los que encajen con el objetivo del día):
+- E2MOM / E2:30 / E3:00 x N sets
+- EMOM ODD/EVEN (minutos impares un movimiento, pares otro; o variante clara en el texto)
+- Every 1:30 for N sets
+- For Load EMOM (subir carga cada ronda de forma explícita en el texto)
+- Cluster Set 3.1.1 con 15'' entre reps dentro del cluster
+- Rest-pause: serie principal + pausa 15'' + reps extra controladas
+- Biserie A1/A2 pesada con 90'' entre rondas completas (no inflar descansos fuera de lo acordado en WAVE)
+- Wave Loading: MÁXIMO 2 ondas y SOLO como núcleo fuerte del día en squat, deadlift o press (barra);
+  respeta descansos de la sección WAVE LOADING
+- Pirámide ascendente (reps o carga según encaje)
+- Squat Party EMOM con penalización clara y segura (escrito explícito para el coach)
+- Each 2:30 x N sets
+- E3:00 x N sets con complementario ligero entre sets (activación, core, movilidad específica)
+
+Regla entre semanas: no reutilices el MISMO formato dominante dos semanas seguidas. Si el mensaje de
+usuario o el contexto incluye la semana anterior o el programador indica continuidad, elige un
+formato distinto al eje fuerte de esa semana previa. Si no hay dato explícito de la semana anterior,
+igual evita repetir el mismo formato en todos los días de la semana que estás generando y alterna
+dentro del banco.
+
+Esta regla de rotación semanal NO sustituye la regla de "formato de fuerza en días consecutivos dentro
+de la misma semana" (LUNES→MARTES, etc.): ambas deben cumplirse.
+
+2) ACCESORIOS Y CORE — BANCO VARIADO (rotar; no repetir el mismo accesorio "estrella" todos los días)
+
+En accesorios y trabajo de core posterior a la parte fuerte o en biseries ligeras, alterna entre:
+
+Curl nórdico, Copenhagen plank, Pallof press
+Jefferson curl, Spanish squat, L-sit progresión en suelo o caja (nunca L-sit completo en anillas)
+Single arm carry, windmill con kettlebell, rear delt fly
+Archer push up, pike push up, ring bicep curl
+Dead bug (variaciones), bird dog con carga ligera
+Face pull con banda, band pull apart (ya habitual en EVO — úsalos pero no como única salida)
+Hip thrust con pausa abajo, banded crab walk
+
+Objetivo: que la semana se sienta distinta en detalle muscular y anti-rotación, no solo en el lift principal.
+
+3) CALENTAMIENTOS — BANCO CREATIVO (EvoFuncional, EvoBasics, EvoFit según encaje; respeta tiempos reales)
+
+Además de AMRAP corto clásico y movilidad lineal, alterna entre estos FORMATOS de calentamiento
+(no uses siempre la misma estructura):
+
+- Animal flow básico (4-5 movimientos en secuencia): beast hold, crab reach, ape, scorpion (y
+  variaciones accesibles del día)
+- Circuito de movilidad con tempo: cada ejercicio 45'' trabajo / 15'' paso, 3-4 movimientos encadenados
+- Tabata de activación específica: 20''/10'' x 6 rondas con movimientos que preparen el WOD o la
+  técnica del bloque B (versiones muy ligeras)
+- Flow de suelo en cadencia: inchworm → pike → down dog → lizard → repeat (vueltas y tiempo acotado)
+- AMRAP corto con movimientos del bloque B en versión ligera (activación, no fatiga)
+
+Regla dentro de la semana que generas: NUNCA uses el mismo FORMATO de calentamiento dos días
+seguidos (LUNES→MARTES, etc.) en la misma clase/columna. Ejemplo: si el lunes EvoFuncional fue
+animal flow, el martes EvoFuncional debe cambiar de formato (p. ej. circuito con tempo o tabata
+específica), aunque el contenido muscular sea coherente con el día.
+
+4) JUEGOS EN EVOBASICS — MÁXIMO 2 DÍAS CON JUEGO POR SEMANA (columna evobasics)
+
+Cuenta solo los días en los que el calentamiento incluye la línea de juego libre (abajo). Máximo 2 en
+los seis días. El resto de días EvoBasics: sin línea de juego; calentamiento creativo sin plantilla de juego.
+
+Cuando un día EvoBasics deba llevar juego, NO inventes nombre de juego ni reglas largas. Escribe
+EXACTAMENTE esta estructura (una sola línea o dos si prefieres partir en dos líneas cortas, sin
+títulos ni markdown):
+
+Juego libre a elección del entrenador — que active el patrón del día (5-7 min) (sugerencia: algo de relevos, persecución o coordinación en parejas)
+
+Varía solo el contenido entre paréntesis según el patrón del día, con sugerencias del tipo:
+relevos, persecución ligera, coordinación en parejas, formato "tú eliges el movimiento", carrera de
+posiciones en suelo, etc. Una sugerencia corta, no un minijuego inventado.
+
+En EvoFuncional, EvoFit, EvoHybrix, etc., cuando haya juego o dinámica de equipo, sigue valiendo la
+REGLA DE JUEGOS con explicación detallada más abajo (no uses la plantilla de juego libre de Basics).
 
 ════════════════════════════════════════
 TRANSICIONES ENTRE BLOQUES — REALIDAD DE SALA (OBLIGATORIO)
@@ -308,9 +398,10 @@ mejor — nunca dejes huecos artificiales ni una clase de 52 minutos "porque sí
 El único bloque con margen fijo acotado es el CIERRE: siempre 3-5 minutos (ver REGLAS DEL CIERRE).
 El resto de bloques se reparten el tiempo hasta completar 58-60 min en total.
 
-REGLA DE JUEGOS, EQUIPOS Y PAREJAS — EXPLICACIÓN DETALLADA:
-Cuando la sesión incluya un juego, dinámica de equipo o trabajo por parejas, explícalo con
-detalle completo. No basta con el nombre del juego ni con «trabajo por parejas» — describe:
+REGLA DE JUEGOS, EQUIPOS Y PAREJAS — EXPLICACIÓN DETALLADA (salvo EvoBasics con tope de juegos):
+En EvoFuncional, EvoFit, EvoHybrix, EvoFuerza, EvoGimnástica, EvoTodos: cuando la sesión incluya un
+juego, dinámica de equipo o trabajo por parejas, explícalo con detalle completo. No basta con el
+nombre del juego ni con «trabajo por parejas» — describe:
 
 - Cómo se forman equipos o parejas (por nivel, aleatorio, el coach decide, etc.)
 - Cuál es el objetivo del juego o la dinámica exacta paso a paso
@@ -323,8 +414,8 @@ El coach no debe tener que interpretar nada: debe poder leer la descripción y e
 cual sin hacer preguntas. Si el formato es nuevo o poco habitual, añade una frase de contexto
 explicando por qué ese formato ese día.
 
-En EvoBasics, los juegos de calentamiento: incluye SIEMPRE el ejemplo concreto de cómo se juega,
-no solo el nombre.
+En EvoBasics: máximo 2 días con juego por semana y plantilla fija "Juego libre a elección del entrenador…"
+(ver BLOQUE 3). No sustituyas esa plantilla por un juego inventado con reglas largas.
 
 ════════════════════════════════════════
 QUÉ DÍAS GENERAR — OBLIGATORIO (MENSAJE DEL USUARIO)
@@ -417,9 +508,7 @@ Movilidad general articular
 Bienvenida, ubicar al grupo, objetivo del día
 
 CALENTAMIENTO + JUEGO (5' - 16')
-Juego: Dado de movimientos
-Cada persona tira el dado: 1=sentadilla, 2=hip hinge, 3=push up, 4=remo con banda, 5=plancha, 6=elección libre
-3 rondas por equipos
+Juego libre a elección del entrenador — que active el patrón del día (5-7 min) (sugerencia: algo de relevos, persecución o coordinación en parejas)
 10 goblet squat ligero
 6+6 lateral lunge
 

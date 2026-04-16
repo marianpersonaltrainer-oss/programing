@@ -31,11 +31,6 @@ function classBadge(key) {
   return { label, cls }
 }
 
-function openVideoUrl(url) {
-  if (!url) return
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
-
 function normSearch(s) {
   return String(s || '')
     .toLowerCase()
@@ -194,10 +189,6 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={(ev) => {
-                          ev.preventDefault()
-                          openVideoUrl(url)
-                        }}
                         className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#A729AD] hover:underline"
                       >
                         {isSearch ? '▶ Buscar en YouTube' : '▶ Ver vídeo'}

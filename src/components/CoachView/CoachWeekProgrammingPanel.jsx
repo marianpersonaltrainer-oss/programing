@@ -34,11 +34,6 @@ import CoachSessionBlockView from './CoachSessionBlockView.jsx'
 const TAB_ACTIVE = 'bg-[#A729AD] text-white shadow-md border border-[#A729AD]'
 const TAB_IDLE = `bg-white/10 text-white/90 border border-white/20 hover:bg-white/15`
 
-function openVideoTab(url) {
-  if (!url) return
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
-
 function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   if (!videos?.length) {
     return (
@@ -61,10 +56,6 @@ function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(ev) => {
-              ev.preventDefault()
-              openVideoTab(url)
-            }}
             className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide px-3 py-2.5 rounded-xl bg-[#A729AD] text-white hover:bg-[#6A1F6D] border border-[#6A1F6D]/40 shadow-sm active:scale-[0.98] transition-all"
           >
             <span className="text-sm leading-none opacity-95" aria-hidden>
@@ -100,10 +91,6 @@ function ClassVideoCollapse({ sessionKey, videos, open, onToggle }) {
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={(ev) => {
-                    ev.preventDefault()
-                    openVideoTab(url)
-                  }}
                   className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide px-3 py-2.5 rounded-xl bg-[#A729AD] text-white hover:bg-[#6A1F6D] border border-[#6A1F6D]/40 shadow-sm active:scale-[0.98] transition-all"
                 >
                   <span className="text-sm leading-none opacity-95" aria-hidden>

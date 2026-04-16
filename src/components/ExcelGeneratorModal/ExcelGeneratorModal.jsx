@@ -16,6 +16,7 @@ import {
   getCoachExerciseLibrary,
   updatePublishedWeekData,
   getPublishedWeekByMesocycleAndWeek,
+  listCoachSessionFeedbackForWeek,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import {
@@ -35,6 +36,7 @@ import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
+import { formatPreviousWeekCoachFeedbackForPrompt } from '../../utils/formatPreviousWeekCoachFeedbackForPrompt.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
@@ -215,6 +217,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   )
   /** Pestaña «Editar»: día visible (el resto de la semana en tabs, sin scroll infinito). */
   const [editFocusDayIdx, setEditFocusDayIdx] = useState(0)
+  /** Bloque opcional inyectado en la petición a la IA (máx. 1000 chars; ver util). */
+  const [previousCoachFeedbackBlock, setPreviousCoachFeedbackBlock] = useState('')
+  const [previousCoachFeedbackLoadState, setPreviousCoachFeedbackLoadState] = useState('idle')
 
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
@@ -222,6 +227,48 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setHistory(getHistoryForMesocycle(weekState.mesocycle))
     }
   }, [weekState.mesocycle])
+
+  // Feedback de coaches de la semana publicada inmediatamente anterior (mismo mesociclo, S-1). Opcional para la IA.
+  useEffect(() => {
+    let cancelled = false
+    async function loadPreviousWeekCoachFeedback() {
+      setPreviousCoachFeedbackBlock('')
+      if (!weekState.mesocycle || weekState.week == null) {
+        setPreviousCoachFeedbackLoadState('idle')
+        return
+      }
+      if (Number(weekState.week) <= 1) {
+        setPreviousCoachFeedbackLoadState('skip_s1')
+        return
+      }
+      setPreviousCoachFeedbackLoadState('loading')
+      try {
+        const prevRow = await getPublishedWeekByMesocycleAndWeek(
+          weekState.mesocycle,
+          Number(weekState.week) - 1,
+        )
+        if (cancelled) return
+        if (!prevRow?.id) {
+          setPreviousCoachFeedbackLoadState('ready')
+          return
+        }
+        const rows = await listCoachSessionFeedbackForWeek(prevRow.id)
+        if (cancelled) return
+        const block = formatPreviousWeekCoachFeedbackForPrompt(rows || [])
+        setPreviousCoachFeedbackBlock(block)
+        setPreviousCoachFeedbackLoadState('ready')
+      } catch {
+        if (!cancelled) {
+          setPreviousCoachFeedbackBlock('')
+          setPreviousCoachFeedbackLoadState('error')
+        }
+      }
+    }
+    loadPreviousWeekCoachFeedback()
+    return () => {
+      cancelled = true
+    }
+  }, [weekState.mesocycle, weekState.week])
 
   useEffect(() => {
     const n = weekData?.dias?.length ?? 0
@@ -462,8 +509,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const instructionsClean = sanitizePromptTextForLLM(instructions).trim()
     const historyClean = historyContext ? sanitizePromptTextForLLM(historyContext).trim() : ''
 
+    const coachFeedbackClean = sanitizePromptTextForLLM(previousCoachFeedbackBlock || '')
+      .trim()
+      .slice(0, 1000)
+
     const baseContext = [
       mesoInfo,
+      coachFeedbackClean ? coachFeedbackClean : '',
       historyClean ? `HISTORIAL DE SEMANAS ANTERIORES (mismo mesociclo):\n${historyClean}` : '',
       contextClean ? `CONTEXTO ADICIONAL SUBIDO:\n${contextClean}` : '',
       instructionsClean ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA:\n${instructionsClean}` : '',
@@ -1000,6 +1052,48 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   className="w-full bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all font-mono leading-relaxed shadow-inner"
                 />
               </div>
+
+              <details className="rounded-2xl border border-black/10 bg-gray-50/50 px-4 py-3">
+                <summary className="flex flex-wrap items-center justify-between gap-2 cursor-pointer text-[11px] font-bold text-evo-text uppercase tracking-wider list-none [&::-webkit-details-marker]:hidden">
+                  <span className="select-none">Feedback coaches semana anterior</span>
+                  <span className="text-[9px] font-semibold normal-case text-evo-muted">
+                    {previousCoachFeedbackLoadState === 'idle' && '—'}
+                    {previousCoachFeedbackLoadState === 'loading' && 'Cargando…'}
+                    {previousCoachFeedbackLoadState === 'skip_s1' && 'No aplica (S1)'}
+                    {previousCoachFeedbackLoadState === 'error' && 'No disponible'}
+                    {previousCoachFeedbackLoadState === 'ready' &&
+                      (previousCoachFeedbackBlock.trim()
+                        ? `${Math.max(0, previousCoachFeedbackBlock.split('\n').length - 1)} ítems`
+                        : 'Sin feedback')}
+                  </span>
+                </summary>
+                <div className="mt-3 pt-3 border-t border-black/8">
+                  {previousCoachFeedbackLoadState === 'idle' ? (
+                    <p className="text-[10px] text-evo-muted">
+                      Elige mesociclo y semana en el panel izquierdo para intentar cargar feedback de la semana
+                      publicada anterior (S-1).
+                    </p>
+                  ) : previousCoachFeedbackLoadState === 'loading' ? (
+                    <p className="text-[10px] text-evo-muted">Cargando feedback desde Supabase…</p>
+                  ) : previousCoachFeedbackLoadState === 'error' ? (
+                    <p className="text-[10px] text-evo-muted">
+                      No se pudo cargar. La generación sigue disponible; el bloque se omite.
+                    </p>
+                  ) : previousCoachFeedbackLoadState === 'skip_s1' ? (
+                    <p className="text-[10px] text-evo-muted">
+                      Es la primera semana del mesociclo: no hay semana publicada S-1 en el mismo mesociclo.
+                    </p>
+                  ) : previousCoachFeedbackBlock.trim() ? (
+                    <pre className="text-[10px] text-[#1A0A1A] whitespace-pre-wrap font-mono leading-relaxed max-h-52 overflow-y-auto">
+                      {previousCoachFeedbackBlock}
+                    </pre>
+                  ) : (
+                    <p className="text-[10px] text-evo-muted">
+                      No hay entradas en coach_session_feedback para la semana anterior publicada.
+                    </p>
+                  )}
+                </div>
+              </details>
 
               {/* Instrucciones específicas */}
               <div className="space-y-3">

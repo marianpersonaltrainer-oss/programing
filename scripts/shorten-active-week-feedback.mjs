@@ -1,7 +1,7 @@
 /**
- * Acorta feedback_* de la semana activa para que sea concreto:
- * - máximo 4 frases
- * - máximo 100 palabras
+ * Acorta feedback_* de la semana activa para alinearlo con el briefing Marian (SYSTEM_PROMPT_EXCEL):
+ * - texto multilínea con foco + org + ⚠️ + (opcional) ⏱ + ✅: recorta por párrafos y techo ~110 palabras
+ * - texto corrido antiguo: máximo 4 frases / ~110 palabras
  *
  * Uso:
  *   node --env-file=.env scripts/shorten-active-week-feedback.mjs
@@ -31,11 +31,39 @@ const FEEDBACK_KEYS = [
   'feedback_evotodos',
 ]
 
+const FEEDBACK_WORD_CAP = 110
+
 function compressFeedback(raw) {
   const text = String(raw || '').trim()
   if (!text) return ''
   if (/^\(no programada esta semana\)\s*$/i.test(text)) return text
   if (/^FESTIVO\b/i.test(text)) return text
+
+  const hasStructuredMarkers = text.includes('⚠️') || text.includes('✅')
+  const hasParagraphBreaks = /\n\s*\n/.test(text)
+
+  if (hasStructuredMarkers && hasParagraphBreaks) {
+    const paras = text
+      .split(/\n\s*\n/)
+      .map((p) => p.replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+    const wordsAll = paras.join(' ').split(/\s+/).filter(Boolean)
+    if (wordsAll.length <= FEEDBACK_WORD_CAP) return paras.join('\n\n')
+    const out = []
+    let wcount = 0
+    for (const p of paras) {
+      const pw = p.split(/\s+/).filter(Boolean)
+      if (wcount + pw.length <= FEEDBACK_WORD_CAP) {
+        out.push(p)
+        wcount += pw.length
+        continue
+      }
+      const remaining = FEEDBACK_WORD_CAP - wcount
+      if (remaining > 8) out.push(pw.slice(0, remaining).join(' '))
+      break
+    }
+    return out.join('\n\n')
+  }
 
   const norm = text.replace(/\s+/g, ' ').trim()
   const sentenceParts = norm
@@ -44,8 +72,8 @@ function compressFeedback(raw) {
     .filter(Boolean)
   const first4 = sentenceParts.slice(0, 4).join(' ')
   const words = first4.split(/\s+/).filter(Boolean)
-  if (words.length <= 100) return first4
-  return `${words.slice(0, 100).join(' ')}.`
+  if (words.length <= FEEDBACK_WORD_CAP) return first4
+  return `${words.slice(0, FEEDBACK_WORD_CAP).join(' ')}.`
 }
 
 async function main() {

@@ -1514,7 +1514,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="Briefing pre-sala: máx. 4 frases, máx. 100 palabras (riesgo, grupo, peso si hace falta, una acción)…"
+                                    placeholder="Briefing Marian (~80–110 palabras): líneas con foco, org (-…), ⚠️ riesgo, ⏱ solo si crítico, ✅ tarea…"
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

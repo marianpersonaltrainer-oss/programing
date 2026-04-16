@@ -13,8 +13,8 @@ const HOW_LABEL = {
 export default function CoachFeedbackWeekSummary({ weekRow, refreshKey = 0, peerCount = 0 }) {
   const summary = useMemo(() => {
     if (!weekRow) return null
-    return summarizeFeedbackForWeek(weekRow.id ?? null, weekRow.mesociclo ?? null, weekRow.semana ?? null)
-  }, [weekRow?.id, weekRow?.mesociclo, weekRow?.semana, refreshKey, peerCount])
+    return summarizeFeedbackForWeek(weekRow.id ?? null)
+  }, [weekRow?.id, refreshKey, peerCount])
 
   if (!summary || summary.count === 0) return null
 

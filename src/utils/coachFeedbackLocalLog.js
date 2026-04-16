@@ -65,14 +65,25 @@ export function mergeServerFeedbackIntoLog(rows, weekId, mesociclo, semana) {
 
 const HOW_KEYS = ['muy_bien', 'bien', 'regular', 'mal']
 
-export function summarizeFeedbackForWeek(weekId, mesociclo, semana) {
+/**
+ * Resumen de feedback en log local solo para la publicación concreta (`week_id`).
+ * Entradas sin `week_id` se ignoran (no mezclar semanas por mesociclo+semana).
+ */
+export function summarizeFeedbackForWeek(weekId) {
   const { entries } = readFeedbackLog()
-  const filtered = entries.filter((e) => {
-    if (weekId != null && e.week_id != null && String(e.week_id) === String(weekId)) return true
-    if (mesociclo != null && semana != null && e.mesociclo === mesociclo && Number(e.semana) === Number(semana))
-      return true
-    return false
-  })
+  if (weekId == null) {
+    return {
+      count: 0,
+      how: { muy_bien: 0, bien: 0, regular: 0, mal: 0 },
+      timeSi: 0,
+      timeNo: 0,
+      timeJusto: 0,
+      recentNotes: [],
+      recentChanges: [],
+    }
+  }
+  const wid = String(weekId)
+  const filtered = entries.filter((e) => e.week_id != null && String(e.week_id) === wid)
 
   const how = { muy_bien: 0, bien: 0, regular: 0, mal: 0 }
   let timeSi = 0

@@ -67,7 +67,8 @@ const HOW_KEYS = ['muy_bien', 'bien', 'regular', 'mal']
 
 /**
  * Resumen de feedback en log local solo para la publicación concreta (`week_id`).
- * Entradas sin `week_id` se ignoran (no mezclar semanas por mesociclo+semana).
+ * Solo coincidencia exacta `week_id`; no se usa mesociclo+semana para incluir filas.
+ * Entradas sin `week_id` se ignoran.
  */
 export function summarizeFeedbackForWeek(weekId) {
   const { entries } = readFeedbackLog()

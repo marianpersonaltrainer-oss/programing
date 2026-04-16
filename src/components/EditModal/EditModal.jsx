@@ -10,7 +10,7 @@ import {
   EDIT_REASON_OTHER_MAX,
   EDIT_REASON_MAX_CHIPS,
   buildLearnedLinesFromEditReasons,
-  buildContextualLearnedLinesFromEditReasons,
+  buildLearnedLinesWithDetectedChange,
 } from '../../utils/methodLearnedFromEdit.js'
 
 export default function EditModal({ day, session, onSave, onClose }) {
@@ -36,10 +36,12 @@ export default function EditModal({ day, session, onSave, onClose }) {
   }, [day, session])
 
   useLayoutEffect(() => {
+    const initialClasses = [...(session?.classes || [])]
     initialRef.current = {
       day: day || '',
       content: session?.content || '',
-      classesStr: JSON.stringify([...(session?.classes || [])].sort()),
+      classes: initialClasses,
+      classesStr: JSON.stringify([...initialClasses].sort()),
     }
   }, [day, session])
 
@@ -104,12 +106,17 @@ export default function EditModal({ day, session, onSave, onClose }) {
       selectedPresetIds: learnSelected,
       otherText,
     })
-    const contextualLines = buildContextualLearnedLinesFromEditReasons({
+    const contextualLines = buildLearnedLinesWithDetectedChange({
       dayLabel: DAYS_ES[pendingSave.day] || pendingSave.day,
       classLabels: pendingSave.classes || [],
       selectedPresetIds: learnSelected,
       otherText,
-      sessionContent: pendingSave.content || '',
+      beforeContent: initialRef.current?.content || '',
+      afterContent: pendingSave.content || '',
+      dayBefore: DAYS_ES[initialRef.current?.day] || initialRef.current?.day || '',
+      dayAfter: DAYS_ES[pendingSave.day] || pendingSave.day,
+      classLabelsBefore: initialRef.current?.classes || [],
+      classLabelsAfter: pendingSave.classes || [],
     })
     const lines = [...new Set([...genericLines, ...contextualLines])]
     if (lines.length) appendAutoLearnedLines(lines)

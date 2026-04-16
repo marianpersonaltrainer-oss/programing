@@ -151,3 +151,87 @@ export function buildContextualLearnedLinesFromEditReasons({
   }
   return out
 }
+
+function parseMinutes(raw) {
+  const n = Number(String(raw || '').replace(',', '.'))
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.round(n)
+}
+
+function extractWodDuration(sessionText) {
+  const src = String(sessionText || '')
+  if (!src.trim()) return null
+
+  const lineMatch = src.match(/(?:^|\n)\s*WOD\b[^\n]*/i)
+  if (!lineMatch) return null
+  const line = lineMatch[0]
+
+  const minMatch = line.match(/\b(\d+(?:[.,]\d+)?)\s*(?:min|mins|')\b/i)
+  if (minMatch) return parseMinutes(minMatch[1])
+
+  const rangeMatch = line.match(/\((\d+(?:[.,]\d+)?)\s*'\s*-\s*(\d+(?:[.,]\d+)?)\s*'\)/i)
+  if (rangeMatch) {
+    const start = parseMinutes(rangeMatch[1])
+    const end = parseMinutes(rangeMatch[2])
+    if (start != null && end != null && end > start) return end - start
+  }
+
+  return null
+}
+
+function summarizeEditChange({ beforeContent, afterContent, dayBefore, dayAfter, classLabelsBefore, classLabelsAfter }) {
+  const out = []
+  const beforeWod = extractWodDuration(beforeContent)
+  const afterWod = extractWodDuration(afterContent)
+  if (beforeWod != null && afterWod != null && beforeWod !== afterWod) {
+    const action = afterWod < beforeWod ? 'acortado' : 'ampliado'
+    out.push(`WOD ${action} de ${beforeWod}' a ${afterWod}'`)
+  }
+
+  const bDay = String(dayBefore || '').trim()
+  const aDay = String(dayAfter || '').trim()
+  if (bDay && aDay && bDay !== aDay) out.push(`día cambiado de ${bDay} a ${aDay}`)
+
+  const bClasses = (classLabelsBefore || []).filter(Boolean).sort().join(', ')
+  const aClasses = (classLabelsAfter || []).filter(Boolean).sort().join(', ')
+  if (bClasses && aClasses && bClasses !== aClasses) out.push(`clases ajustadas (${bClasses} → ${aClasses})`)
+
+  if (!out.length) {
+    const beforeText = String(beforeContent || '').trim().replace(/\s+/g, ' ')
+    const afterText = String(afterContent || '').trim().replace(/\s+/g, ' ')
+    if (beforeText && afterText && beforeText !== afterText) out.push('contenido ajustado')
+  }
+
+  return out.length ? out.join('; ') : 'cambios menores de formato'
+}
+
+export function buildLearnedLinesWithDetectedChange({
+  dayLabel,
+  classLabels,
+  selectedPresetIds,
+  otherText,
+  beforeContent,
+  afterContent,
+  dayBefore,
+  dayAfter,
+  classLabelsBefore,
+  classLabelsAfter,
+}) {
+  const baseLines = buildContextualLearnedLinesFromEditReasons({
+    dayLabel,
+    classLabels,
+    selectedPresetIds,
+    otherText,
+    sessionContent: afterContent,
+  })
+  if (!baseLines.length) return []
+  const summary = summarizeEditChange({
+    beforeContent,
+    afterContent,
+    dayBefore,
+    dayAfter,
+    classLabelsBefore,
+    classLabelsAfter,
+  })
+  return baseLines.map((line) => `${line} · cambio detectado: ${summary}`)
+}

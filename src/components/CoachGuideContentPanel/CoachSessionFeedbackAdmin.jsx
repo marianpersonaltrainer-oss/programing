@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { DAYS_ES } from '../../constants/evoColors.js'
 import { listCoachSessionFeedback } from '../../lib/supabase.js'
+import { appendAutoLearnedLines } from '../../utils/methodLearnedStorage.js'
+import { feedbackRowIsConvertible, buildLearnedDraftFromFeedback } from '../../utils/methodLearnedFromFeedback.js'
 import { coachAdminUi, coachField, coachText } from '../CoachView/coachTheme.js'
 
 function weekKey(r) {
@@ -48,6 +50,9 @@ export default function CoachSessionFeedbackAdmin() {
   const [coachFilter, setCoachFilter] = useState('')
   const [weekFilter, setWeekFilter] = useState('')
   const [exportMsg, setExportMsg] = useState('')
+  const [convertRowId, setConvertRowId] = useState(null)
+  const [convertDraft, setConvertDraft] = useState('')
+  const [convertOk, setConvertOk] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -115,6 +120,26 @@ export default function CoachSessionFeedbackAdmin() {
     }
   }
 
+  function openConvert(row) {
+    setConvertRowId(row.id)
+    setConvertDraft(buildLearnedDraftFromFeedback(row))
+    setConvertOk('')
+  }
+
+  function closeConvert() {
+    setConvertRowId(null)
+    setConvertDraft('')
+  }
+
+  function confirmConvert() {
+    const line = String(convertDraft || '').trim()
+    if (!line) return
+    appendAutoLearnedLines([line])
+    setConvertOk('Regla aprendida añadida.')
+    setTimeout(() => setConvertOk(''), 2500)
+    closeConvert()
+  }
+
   return (
     <div className={`${coachAdminUi.form} max-h-[min(70vh,520px)] overflow-y-auto`}>
       <p className={`text-sm ${coachText.muted} mb-4`}>
@@ -168,6 +193,7 @@ export default function CoachSessionFeedbackAdmin() {
               Exportar resumen para programar
             </button>
             {exportMsg && <span className={`text-sm self-center ${coachText.muted}`}>{exportMsg}</span>}
+            {convertOk && <span className="text-sm self-center text-emerald-700">{convertOk}</span>}
           </div>
 
           <ul className="space-y-3">
@@ -201,6 +227,17 @@ export default function CoachSessionFeedbackAdmin() {
                 {r.changed_details && <p className="mt-1 text-[#5C4D5C]">Detalle cambio: {r.changed_details}</p>}
                 {r.group_feelings && <p className="mt-1">Grupo: {r.group_feelings}</p>}
                 {r.notes_next_week && <p className="mt-1 text-[#6A1F6D] font-medium">Próx. semana: {r.notes_next_week}</p>}
+                {feedbackRowIsConvertible(r) ? (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => openConvert(r)}
+                      className="px-3 py-2 rounded-lg bg-[#6A1F6D] hover:bg-[#4E1250] text-white text-[11px] font-bold uppercase tracking-wide"
+                    >
+                      Convertir en regla aprendida
+                    </button>
+                  </div>
+                ) : null}
                 <p className="mt-2 text-[10px] text-[#5C4D5C]">
                   {r.created_at ? new Date(r.created_at).toLocaleString('es-ES') : ''}
                 </p>
@@ -209,6 +246,47 @@ export default function CoachSessionFeedbackAdmin() {
           </ul>
         </>
       )}
+
+      {convertRowId != null ? (
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-[#6A1F6D]/25 bg-white shadow-2xl">
+            <div className="px-5 py-4 border-b border-[#6A1F6D]/20">
+              <p className="text-sm font-black uppercase tracking-wide text-[#1A0A1A]">
+                Convertir en regla aprendida
+              </p>
+              <p className={`text-xs mt-1 ${coachText.muted}`}>
+                Revisa o edita el texto antes de guardarlo en tu método.
+              </p>
+            </div>
+            <div className="px-5 py-4 space-y-2">
+              <label className={coachAdminUi.label}>Texto de la regla</label>
+              <textarea
+                value={convertDraft}
+                onChange={(e) => setConvertDraft(e.target.value)}
+                rows={5}
+                className={coachField}
+              />
+            </div>
+            <div className="px-5 py-4 border-t border-[#6A1F6D]/20 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeConvert}
+                className="px-4 py-2 rounded-lg border border-[#6A1F6D]/30 text-[#5C4D5C] text-xs font-bold uppercase tracking-wide"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmConvert}
+                disabled={!String(convertDraft || '').trim()}
+                className="px-4 py-2 rounded-lg bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wide"
+              >
+                Guardar regla
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

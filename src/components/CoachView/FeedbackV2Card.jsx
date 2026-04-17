@@ -17,8 +17,8 @@ export default function FeedbackV2Card({ feedback }) {
 
   if (plainText) {
     return (
-      <div className="rounded-xl bg-gray-50/90 px-4 py-3">
-        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{plainText}</p>
+      <div className="rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] border-l-[#FFFF4C] px-4 py-3">
+        <p className="text-sm text-[#F6E8F9] whitespace-pre-wrap leading-relaxed">{plainText}</p>
       </div>
     )
   }
@@ -32,23 +32,29 @@ export default function FeedbackV2Card({ feedback }) {
   if (!objetivo && !sensaciones && !anticipacion) return null
 
   return (
-    <div className="rounded-xl bg-gray-50/90 px-4 py-3 space-y-3">
+    <div className="rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] border-l-[#FFFF4C] px-4 py-3 space-y-3">
       {objetivo ? (
         <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-600">OBJETIVO</p>
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{objetivo}</p>
+          <p className="inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#0C0B0C]">
+            OBJETIVO
+          </p>
+          <p className="mt-1 text-sm text-[#F6E8F9] leading-relaxed whitespace-pre-wrap">{objetivo}</p>
         </section>
       ) : null}
       {sensaciones ? (
         <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-600">SENSACIONES</p>
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{sensaciones}</p>
+          <p className="inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#0C0B0C]">
+            SENSACIONES
+          </p>
+          <p className="mt-1 text-sm text-[#F6E8F9] leading-relaxed whitespace-pre-wrap">{sensaciones}</p>
         </section>
       ) : null}
       {anticipacion ? (
         <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-600">ANTICIPACIÓN</p>
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{anticipacion}</p>
+          <p className="inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#0C0B0C]">
+            ANTICIPACIÓN
+          </p>
+          <p className="mt-1 text-sm text-[#F6E8F9] leading-relaxed whitespace-pre-wrap">{anticipacion}</p>
         </section>
       ) : null}
     </div>

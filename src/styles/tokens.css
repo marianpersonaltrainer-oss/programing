@@ -1,0 +1,19 @@
+:root {
+  /* Colores base */
+  --evo-black: #0c0b0c;
+  --evo-purple-dark: #6a1f6d;
+  --evo-purple: #a729ad;
+  --evo-yellow: #ffff4c;
+  --evo-lilac: #f6e8f9;
+  --evo-yellow-soft: #ffffe2;
+
+  /* Superficies */
+  --surface-base: #0c0b0c;
+  --surface-card: #1a0f1b;
+  --surface-raised: #221427;
+
+  /* Texto */
+  --text-primary: #f6e8f9;
+  --text-secondary: #f6e8f9cc;
+  --text-muted: #f6e8f966;
+}

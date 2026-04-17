@@ -124,8 +124,8 @@ export default function CoachSessionBlockView({
           onClick={timerRunning ? stopTimer : startTimer}
           className={`text-[10px] font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl border ${
             timerRunning
-              ? 'bg-rose-900 text-white border-rose-950'
-              : 'bg-[#1a5f1a] text-white border-green-950'
+              ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
+              : 'bg-[#A729AD] text-white border-[#6A1F6D]'
           }`}
         >
           {timerRunning ? '■ Detener' : '▶ Iniciar clase'}
@@ -141,14 +141,14 @@ export default function CoachSessionBlockView({
         <button
           type="button"
           onClick={() => setScreenOpen(true)}
-          className="text-[10px] font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl bg-[#1e1e24] text-white border border-white/10 hover:bg-black/80"
+          className="text-[10px] font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl bg-[#1a0f1b] text-[#F6E8F9] border border-[#6A1F6D]/40 hover:bg-[#6A1F6D]/20"
         >
           Modo pantalla
         </button>
       </div>
 
       {hasTimings && timerRunning ? (
-        <ul className={`rounded-xl border ${coachBorder} ${coachBg.cardMuted} divide-y divide-black/5 overflow-hidden`}>
+        <ul className={`rounded-xl border ${coachBorder} ${coachBg.cardMuted} divide-y divide-[#6A1F6D]/20 overflow-hidden`}>
           {blocks.map((b, i) => (
             <li
               key={`${b.startMin}-${b.endMin}-${i}`}

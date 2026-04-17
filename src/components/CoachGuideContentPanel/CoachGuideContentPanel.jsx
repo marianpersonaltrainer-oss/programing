@@ -4,6 +4,8 @@ import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/c
 import CoachSessionFeedbackAdmin from './CoachSessionFeedbackAdmin.jsx'
 import CoachExerciseLibraryAdmin from './CoachExerciseLibraryAdmin.jsx'
 import CoachWeekExportAdmin from './CoachWeekExportAdmin.jsx'
+import AdminHandoffHistory from './AdminHandoffHistory.jsx'
+import AdminTeamPulse from './AdminTeamPulse.jsx'
 
 function normalizeRows(raw) {
   if (!Array.isArray(raw)) return []
@@ -180,11 +182,43 @@ export default function CoachGuideContentPanel({ onClose }) {
           >
             Exportar semana
           </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('handoffs')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'handoffs' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Historial de pases
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('pulse')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'pulse' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Pulso del equipo
+          </button>
         </div>
 
         {adminTab === 'export' ? (
           <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
             <CoachWeekExportAdmin />
+            <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
+              Cerrar
+            </button>
+          </div>
+        ) : adminTab === 'handoffs' ? (
+          <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
+            <AdminHandoffHistory />
+            <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
+              Cerrar
+            </button>
+          </div>
+        ) : adminTab === 'pulse' ? (
+          <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
+            <AdminTeamPulse />
             <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
               Cerrar
             </button>

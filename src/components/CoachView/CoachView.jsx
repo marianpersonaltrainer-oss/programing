@@ -9,6 +9,10 @@ import {
   listCoachSessionFeedbackForWeek,
   coachHasReadHandoverForWeek,
   recordCoachHandoverRead,
+  listTodayHandoffs,
+  createDailyHandoff,
+  getCurrentCoachWeeklyCheckin,
+  createWeeklyCheckin,
 } from '../../lib/supabase.js'
 import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
@@ -37,6 +41,9 @@ import { DAYS_ES } from '../../constants/evoColors.js'
 import { buildCoachNewWeekToastBody } from '../../utils/coachSessionPrep.js'
 import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
 import FeedbackV2Card from './FeedbackV2Card.jsx'
+import HandoffTimeline from './HandoffTimeline.jsx'
+import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
+import { isoWeekString, madridDateParts } from '../../utils/coachTime.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -182,16 +189,17 @@ function IconMas(props) {
 }
 
 const NAV_DEFS = {
-  semana: { id: 'semana', label: 'Semana', Icon: IconSemana },
-  soporte: { id: 'soporte', label: 'Asistente', Icon: IconSoporte },
+  semana: { id: 'semana', label: 'Programación', Icon: IconSemana },
+  soporte: { id: 'soporte', label: 'Hoy', Icon: IconSoporte },
   feedback: { id: 'feedback', label: 'Pase turno', Icon: IconFeedback },
   ejercicios: { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
   mesociclos: { id: 'mesociclos', label: 'Mesociclos', Icon: IconCiclos },
-  material: { id: 'material', label: 'Material', Icon: IconMaterial },
+  material: { id: 'material', label: 'Perfil', Icon: IconMaterial },
   centro: { id: 'centro', label: 'Centro', Icon: IconCentro },
   clases: { id: 'clases', label: 'Clases', Icon: IconClases },
   uso: { id: 'uso', label: 'Uso app', Icon: IconUso },
 }
+const SECTION_TITLE_BY_TAB = Object.fromEntries(Object.values(NAV_DEFS).map((d) => [d.id, d.label]))
 
 /** Orden lateral desktop y sección principal del menú «Más» móvil */
 const PRIMARY_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios', 'mesociclos', 'material']
@@ -305,6 +313,14 @@ export default function CoachView() {
   const [feedbackPrefill, setFeedbackPrefill] = useState(null)
   /** Evita flash de datos antiguos mientras cambia la semana activa. */
   const [isWeekSwitching, setIsWeekSwitching] = useState(false)
+  const [todayHandoffs, setTodayHandoffs] = useState([])
+  const [showWeeklyCheckin, setShowWeeklyCheckin] = useState(false)
+  const [weeklyCheckinForm, setWeeklyCheckinForm] = useState({
+    moodScore: 0,
+    highlights: '',
+    improvements: '',
+    feedbackText: '',
+  })
 
   const { items: coachToasts, push: pushCoachToast, dismiss: dismissCoachToast } = useCoachToastQueue()
   const centroToastKeyRef = useRef('')
@@ -432,6 +448,65 @@ export default function CoachView() {
     if (step !== 'chat') return
     setSupportUsedToday(getSupportMessagesUsedToday())
   }, [step, mainTab])
+
+  useEffect(() => {
+    if (step !== 'chat') return
+    let cancelled = false
+    listTodayHandoffs()
+      .then((rows) => {
+        if (!cancelled) setTodayHandoffs(Array.isArray(rows) ? rows : [])
+      })
+      .catch(() => {
+        if (!cancelled) setTodayHandoffs([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [step, mainTab])
+
+  useEffect(() => {
+    if (step !== 'chat') return
+    let cancelled = false
+    ;(async () => {
+      const weekIso = isoWeekString(new Date())
+      const now = madridDateParts(new Date())
+      const checkin = await getCurrentCoachWeeklyCheckin(weekIso).catch(() => null)
+      if (cancelled) return
+      const checkinCompletedThisWeek = !!checkin
+      const isPendingFromLastWeek = now.dayOfWeek <= 2 && !checkinCompletedThisWeek
+      const isFridayAfternoon = now.dayOfWeek === 5 && now.hour >= 16
+      setShowWeeklyCheckin((isFridayAfternoon || isPendingFromLastWeek) && !checkinCompletedThisWeek)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [step])
+
+  async function handleCreateHandoff(row) {
+    try {
+      const saved = await createDailyHandoff(row)
+      setTodayHandoffs((prev) => [saved, ...prev])
+    } catch (e) {
+      setError(e?.message || 'No se pudo guardar el pase de turno')
+    }
+  }
+
+  async function handleSubmitWeeklyCheckin() {
+    const weekIso = isoWeekString(new Date())
+    try {
+      await createWeeklyCheckin({
+        coach_name: coachName || 'Coach',
+        week_iso: weekIso,
+        mood_score: Number(weeklyCheckinForm.moodScore || 0),
+        feedback_text: weeklyCheckinForm.feedbackText || null,
+        highlights: weeklyCheckinForm.highlights || null,
+        improvements: weeklyCheckinForm.improvements || null,
+      })
+      setShowWeeklyCheckin(false)
+    } catch (e) {
+      setError(e?.message || 'No se pudo guardar el check-in semanal')
+    }
+  }
 
   useEffect(() => {
     if (step !== 'chat' || !activeWeekRow?.id) {
@@ -865,6 +940,7 @@ export default function CoachView() {
 
   const supportRemaining = Math.max(0, SUPPORT_DAILY_LIMIT - supportUsedToday)
   const supportAtLimit = supportUsedToday >= SUPPORT_DAILY_LIMIT
+  const activeSectionTitle = SECTION_TITLE_BY_TAB[mainTab] || 'Semana'
 
   if (step === 'loading') {
     return (
@@ -906,8 +982,8 @@ export default function CoachView() {
             <div className={`w-20 h-20 rounded-3xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto`}>
               <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
             </div>
-            <h1 className={`text-2xl font-bold uppercase tracking-tight ${coachText.primary}`}>EVO · Coaches</h1>
-            <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>Introduce el código de acceso del centro</p>
+            <h1 className="text-2xl font-evo-display font-bold uppercase tracking-tight text-[#FFFF4C]">EVO · Coaches</h1>
+            <p className={`text-xs font-semibold uppercase tracking-widest ${coachText.muted}`}>Introduce el código de acceso del centro</p>
           </div>
           <form onSubmit={handleCodeSubmit} className="space-y-4">
             <input
@@ -1047,7 +1123,8 @@ export default function CoachView() {
               <EvoLogo imgClassName="h-9 w-auto max-w-[120px] object-contain object-left" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className={`text-sm font-bold ${coachText.primary} truncate`}>Coach · {coachName}</p>
+              <p className="text-base font-evo-display font-bold uppercase tracking-wide text-white truncate">{activeSectionTitle}</p>
+              <p className={`text-xs font-bold ${coachText.primary} truncate`}>Coach · {coachName}</p>
               <p className={`text-xs font-bold uppercase tracking-widest truncate ${coachText.muted}`}>
                 {weekData?.titulo || 'Semana activa'}
               </p>
@@ -1065,16 +1142,16 @@ export default function CoachView() {
                 </div>
               </div>
             ) : mainTab === 'soporte' ? (
-              <div className="flex-1 flex flex-col min-h-0 bg-[#e8ded2]">
-                <div className="px-4 py-2.5 border-b border-black/10 bg-white/90 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex-1 flex flex-col min-h-0 bg-[#0C0B0C]">
+                <div className="px-4 py-2.5 border-b border-[#6A1F6D]/40 bg-[#0C0B0C] backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm">
                   <div className="min-w-0">
                     <p className={`text-xs font-bold uppercase tracking-widest ${coachText.primary} truncate`}>
-                      Soporte
+                      Asistente
                     </p>
                     {supportRemaining <= 3 ? (
                       <p
                         className={`text-[10px] font-bold uppercase tracking-wide truncate ${
-                          supportRemaining === 0 ? 'text-red-800' : 'text-amber-900'
+                          supportRemaining === 0 ? 'text-[#FFFF4C]' : 'text-[#FFFF4C]'
                         }`}
                       >
                         {supportRemaining === 0
@@ -1085,24 +1162,18 @@ export default function CoachView() {
                   </div>
                   {supportRemaining <= 3 ? (
                     <span
-                      className={`shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full border ${
-                        supportRemaining === 0
-                          ? 'bg-red-100 text-red-900 border-red-300'
-                          : supportRemaining === 1
-                            ? 'bg-red-50 text-red-800 border-red-200'
-                            : 'bg-amber-100 text-amber-950 border-amber-300'
-                      }`}
+                      className="shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full border bg-[#FFFF4C] text-[#0C0B0C] border-[#FFFF4C]"
                     >
                       {supportRemaining}/{SUPPORT_DAILY_LIMIT}
                     </span>
                   ) : null}
                 </div>
-                <details className="mx-3 mt-2 rounded-2xl border border-black/8 bg-white/70 shadow-sm overflow-hidden">
-                  <summary className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest cursor-pointer text-[#6B5A6B] list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                <details className="mx-3 mt-2 rounded-2xl border border-[#6A1F6D]/40 bg-[#1a0f1b] shadow-sm overflow-hidden">
+                  <summary className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest cursor-pointer text-[#F6E8F9]/75 list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
                     <span>Protocolo y cómo preguntar</span>
                     <span className="text-[9px] opacity-70">▼</span>
                   </summary>
-                  <div className="max-h-[min(26vh,240px)] overflow-y-auto overscroll-contain border-t border-black/6 bg-white/90">
+                  <div className="max-h-[min(26vh,240px)] overflow-y-auto overscroll-contain border-t border-[#6A1F6D]/35 bg-[#1a0f1b]">
                     <CoachGuideSoporteProtocol guideSettings={guideSettings} variant="embedded" />
                   </div>
                 </details>
@@ -1111,12 +1182,12 @@ export default function CoachView() {
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                   {messages.length === 0 && (
-                    <div className="rounded-2xl border border-black/8 bg-white/95 shadow-sm p-4 space-y-3 mx-auto max-w-lg">
-                      <p className="text-sm font-bold text-[#1A0A1A]">Chatea con el asistente</p>
-                      <p className="text-xs font-medium text-[#6B5A6B] leading-relaxed">
+                    <div className="rounded-2xl border border-[#6A1F6D]/40 bg-[#1a0f1b] shadow-sm p-4 space-y-3 mx-auto max-w-lg">
+                      <p className="text-sm font-bold text-[#FFFFFF]">Chatea con el asistente</p>
+                      <p className="text-xs font-medium text-[#F6E8F9]/85 leading-relaxed">
                         Respuestas cortas y concretas. Si vienes desde un día y clase, el contexto ya va incluido.
                       </p>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B5A6B]">Sugerencias</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#F6E8F9]/75">Sugerencias</p>
                       <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {[
                           '¿Cómo escalo el ejercicio de hoy?',
@@ -1131,7 +1202,7 @@ export default function CoachView() {
                             onClick={() => {
                               if (!supportAtLimit) setInput(q)
                             }}
-                            className="snap-start shrink-0 text-[11px] px-3.5 py-2 rounded-2xl border border-black/10 bg-white font-semibold text-[#1A0A1A]/90 shadow-sm hover:border-[#A729AD]/40 hover:bg-[#A729AD]/5 disabled:opacity-40 disabled:pointer-events-none active:scale-[0.98]"
+                            className="snap-start shrink-0 text-[11px] px-3.5 py-2 rounded-2xl border border-[#6A1F6D]/40 bg-[#1a0f1b] font-semibold text-[#F6E8F9] shadow-sm hover:border-[#A729AD]/60 hover:bg-[#A729AD]/10 disabled:opacity-40 disabled:pointer-events-none active:scale-[0.98]"
                           >
                             {q}
                           </button>
@@ -1145,8 +1216,8 @@ export default function CoachView() {
                       <div
                         className={`max-w-[88%] px-3.5 py-2.5 rounded-[18px] text-[15px] leading-snug whitespace-pre-wrap shadow-[0_1px_2px_rgba(0,0,0,0.06)] ${
                           msg.role === 'user'
-                            ? 'bg-[#d9fdd3] text-[#111b21] rounded-br-[4px]'
-                            : 'bg-white text-[#111b21] rounded-bl-[4px] border border-black/[0.06]'
+                            ? 'bg-[#6A1F6D] text-white rounded-br-[4px]'
+                            : 'bg-[#1a0f1b] text-[#F6E8F9] rounded-bl-[4px] border border-[#6A1F6D]/40'
                         }`}
                       >
                         {msg.content}
@@ -1156,11 +1227,11 @@ export default function CoachView() {
 
                   {isTyping && (
                     <div className="flex justify-start px-0.5">
-                      <div className="bg-white border border-black/[0.06] px-3.5 py-2.5 rounded-[18px] rounded-bl-[4px] flex gap-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+                      <div className="bg-[#1a0f1b] border border-[#6A1F6D]/40 px-3.5 py-2.5 rounded-[18px] rounded-bl-[4px] flex gap-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
                         {[0, 150, 300].map((d) => (
                           <div
                             key={d}
-                            className="w-2 h-2 rounded-full bg-[#A729AD]/45 animate-pulse"
+                            className="w-2 h-2 rounded-full bg-[#FFFF4C] animate-pulse"
                             style={{ animationDelay: `${d}ms` }}
                           />
                         ))}
@@ -1176,7 +1247,7 @@ export default function CoachView() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="px-3 pt-2 pb-3 border-t border-black/10 bg-[#f0ebe3] flex-shrink-0 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+                <div className="px-3 pt-2 pb-3 border-t border-[#6A1F6D]/40 bg-[#0C0B0C] flex-shrink-0 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
                   {supportAtLimit && (
                     <p className="text-xs text-amber-950 font-semibold text-center leading-snug px-3 py-2 mb-2 bg-amber-100 border border-amber-300/80 rounded-2xl">
                       {SUPPORT_LIMIT_MESSAGE}
@@ -1192,7 +1263,7 @@ export default function CoachView() {
                         supportAtLimit ? 'Límite alcanzado hoy' : 'Escribe aquí (varias líneas). Envía con el botón.'
                       }
                       disabled={isTyping || supportAtLimit}
-                      className="flex-1 rounded-2xl px-4 py-3 text-[15px] min-h-[5.5rem] max-h-[240px] min-w-0 w-full bg-white border border-black/15 !text-[#111b21] placeholder:text-[#667781] shadow-inner resize-none overflow-y-auto break-words whitespace-pre-wrap [overflow-wrap:anywhere] focus:outline-none focus:ring-2 focus:ring-[#A729AD]/25 focus:border-[#A729AD]/40 disabled:opacity-50"
+                      className="flex-1 rounded-2xl px-4 py-3 text-[15px] min-h-[5.5rem] max-h-[240px] min-w-0 w-full bg-[#1a0f1b] border border-[#6A1F6D] !text-[#FFFFFF] placeholder:text-[#F6E8F9]/50 shadow-inner resize-none overflow-y-auto break-words whitespace-pre-wrap [overflow-wrap:anywhere] focus:outline-none focus:ring-2 focus:ring-[#A729AD]/25 focus:border-[#A729AD]/70 disabled:opacity-50"
                     />
                     <button
                       type="submit"
@@ -1241,15 +1312,18 @@ export default function CoachView() {
                 {mainTab === 'uso' && <CoachGuideUsoApp />}
                 {mainTab === 'material' && <CoachGuideMaterial guideSettings={guideSettings} />}
                 {mainTab === 'feedback' && (
-                  <CoachSessionFeedbackForm
-                    coachName={coachName}
-                    sessionId={sessionId}
-                    weekRow={activeWeekRow}
-                    weekData={weekData}
-                    peerEntries={peerFeedbackWeek}
-                    onAfterSave={refreshPeerFeedbackWeek}
-                    prefill={feedbackPrefill}
-                  />
+                  <div className="space-y-4 p-4">
+                    <HandoffTimeline entries={todayHandoffs} coachName={coachName} onCreate={handleCreateHandoff} />
+                    <CoachSessionFeedbackForm
+                      coachName={coachName}
+                      sessionId={sessionId}
+                      weekRow={activeWeekRow}
+                      weekData={weekData}
+                      peerEntries={peerFeedbackWeek}
+                      onAfterSave={refreshPeerFeedbackWeek}
+                      prefill={feedbackPrefill}
+                    />
+                  </div>
                 )}
               </main>
             )}
@@ -1258,7 +1332,7 @@ export default function CoachView() {
       </div>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-[110] md:hidden flex items-stretch justify-around bg-[#1A0D1A] border-t border-white/10 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] px-0.5 shadow-[0_-6px_28px_rgba(0,0,0,0.18)]"
+        className="fixed bottom-0 left-0 right-0 z-[110] md:hidden flex items-stretch justify-around bg-[#0C0B0C] border-t border-[#6A1F6D] pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] px-0.5 shadow-[0_-6px_28px_rgba(0,0,0,0.18)]"
         aria-label="Navegación inferior"
       >
         {BOTTOM_NAV_IDS.map((navId) => {
@@ -1271,7 +1345,7 @@ export default function CoachView() {
               type="button"
               onClick={() => selectNav(id)}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-xl transition-colors ${
-                active ? 'text-white bg-white/10' : 'text-[#C4A8C4] hover:text-white/90'
+                active ? 'text-[#FFFF4C] bg-[#6A1F6D]/20' : 'text-[#F6E8F9]/50 hover:text-[#F6E8F9]'
               }`}
             >
               <span className="relative">
@@ -1290,7 +1364,7 @@ export default function CoachView() {
           type="button"
           onClick={() => setMoreDrawerOpen(true)}
           className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-xl transition-colors ${
-            MORE_DRAWER_IDS.includes(mainTab) ? 'text-white bg-white/10' : 'text-[#C4A8C4] hover:text-white/90'
+            MORE_DRAWER_IDS.includes(mainTab) ? 'text-[#FFFF4C] bg-[#6A1F6D]/20' : 'text-[#F6E8F9]/50 hover:text-[#F6E8F9]'
           }`}
         >
           <IconMas className="w-6 h-6" />
@@ -1370,6 +1444,17 @@ export default function CoachView() {
             </details>
           </div>
         </div>
+      ) : null}
+      {showWeeklyCheckin ? (
+        <WeeklyCheckinModal
+          weekLabel={isoWeekString(new Date())}
+          moodScore={weeklyCheckinForm.moodScore}
+          highlights={weeklyCheckinForm.highlights}
+          improvements={weeklyCheckinForm.improvements}
+          feedbackText={weeklyCheckinForm.feedbackText}
+          onChange={(field, value) => setWeeklyCheckinForm((prev) => ({ ...prev, [field]: value }))}
+          onSubmit={handleSubmitWeeklyCheckin}
+        />
       ) : null}
     </div>
   )

@@ -1,37 +1,37 @@
 /**
- * Tema shell claro EVO — compartido entre ?coach y programador principal.
- * Sidebar oscuro + contenido liláceo; campos con texto #1A0A1A explícito.
+ * Tema oscuro oficial EVO para la vista coach.
  */
 
 export const coachBg = {
-  app: 'bg-[#F6E8F9]',
-  sidebar: 'bg-[#1A0D1A]',
+  app: 'bg-[#0C0B0C]',
+  sidebar: 'bg-[#0C0B0C]',
   sidebarHover: 'hover:bg-white/10',
-  card: 'bg-white',
-  cardAlt: 'bg-[#F3EAF8]',
-  rowA: 'bg-white',
-  rowB: 'bg-[#F3EAF8]',
-  overlay: 'bg-black/40',
+  card: 'bg-[#1a0f1b]',
+  cardAlt: 'bg-[#1a0f1b]',
+  cardMuted: 'bg-[#1a0f1b]',
+  rowA: 'bg-[#1a0f1b]',
+  rowB: 'bg-[#151015]',
+  overlay: 'bg-black/60',
 }
 
-export const coachBorder = 'border-[#6A1F6D]/35'
+export const coachBorder = 'border-[#6A1F6D]/40'
 
 export const coachText = {
-  primary: 'text-[#1A0A1A]',
-  muted: 'text-[#5C4D5C]',
+  primary: 'text-[#FFFFFF]',
+  muted: 'text-[#F6E8F9]/85',
   accent: 'text-[#A729AD]',
-  title: 'text-[#6A1F6D]',
+  title: 'text-[#FFFFFF]',
   onSidebar: 'text-[#F6E8F9]',
-  mutedOnSidebar: 'text-[#C4A8C4]',
+  mutedOnSidebar: 'text-[#F6E8F9]/60',
 }
 
 export const coachNav = {
-  active: 'bg-[#A729AD] text-white shadow-md',
-  idle: `${coachText.onSidebar} ${coachBg.sidebarHover} hover:text-white`,
+  active: 'bg-[#A729AD] text-white shadow-md border border-[#6A1F6D]/50',
+  idle: `${coachText.onSidebar} ${coachBg.sidebarHover} hover:text-[#FFFF4C]`,
 }
 
 const coachInputBase =
-  'w-full text-base bg-white border border-[#6A1F6D]/40 !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-[#A729AD] focus:ring-1 focus:ring-[#A729AD]/20'
+  'w-full text-base bg-[#1a0f1b] border border-[#6A1F6D] !text-[#FFFFFF] caret-[#FFFFFF] placeholder:!text-[#F6E8F9]/50 placeholder:opacity-100 focus:outline-none focus:border-[#A729AD] focus:ring-1 focus:ring-[#A729AD]/25'
 
 export const coachField = `${coachInputBase} rounded-xl px-4 py-3`
 
@@ -51,7 +51,7 @@ export const coachUi = {
   tableHead: 'bg-[#6A1F6D] text-white font-evo-display',
   chip: 'text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border',
   btnPrimary: 'rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] text-white font-evo-body font-semibold transition-colors',
-  supportHighlight: 'text-[#A729AD] font-bold',
+  supportHighlight: 'text-[#FFFF4C] font-bold',
 }
 
 export const coachAdminUi = {
@@ -67,20 +67,20 @@ export const coachAdminUi = {
   hint: `text-sm ${coachText.muted} mt-2 leading-relaxed`,
   rowCard: `grid grid-cols-1 sm:grid-cols-12 gap-2 items-start p-3 rounded-xl border ${coachBorder} ${coachBg.cardAlt}`,
   closeBtn: `p-2 rounded-lg ${coachText.mutedOnSidebar} hover:bg-white/10 hover:text-white`,
-  secondaryBtn: `px-6 py-3 rounded-xl border ${coachBorder} ${coachText.primary} hover:bg-[#EDE3F2] text-sm font-semibold`,
+  secondaryBtn: `px-6 py-3 rounded-xl border ${coachBorder} ${coachText.primary} hover:bg-[#6A1F6D]/20 text-sm font-semibold`,
 }
 
 /** Badges de clase — fondos claros */
 export const CLASS_BADGE_CLASS = {
-  EvoFuncional: 'bg-[#6A1F6D]/14 text-[#3d0f40] border-[#6A1F6D]/45',
-  EvoBasics: 'bg-[#E69138]/12 text-[#8b4513] border-[#E69138]/45',
-  EvoFit: 'bg-[#6AA84F]/12 text-[#2d5016] border-[#6AA84F]/45',
-  EvoHybrix: 'bg-[#2563EB]/12 text-[#1e3a8a] border-[#2563EB]/45',
-  EvoFuerza: 'bg-[#CC0000]/10 text-[#7f1d1d] border-[#CC0000]/45',
-  'EvoGimnástica': 'bg-[#C9A227]/22 text-[#4a3b08] border-[#C9A227]/55',
-  EvoTodos: 'bg-[#A729AD]/12 text-[#5a0d5c] border-[#A729AD]/45',
+  EvoFuncional: 'bg-[#6A1F6D]/25 text-[#F6E8F9] border-[#6A1F6D]/45',
+  EvoBasics: 'bg-[#A729AD]/20 text-[#F6E8F9] border-[#A729AD]/45',
+  EvoFit: 'bg-[#6A1F6D]/20 text-[#F6E8F9] border-[#6A1F6D]/45',
+  EvoHybrix: 'bg-[#A729AD]/20 text-[#F6E8F9] border-[#A729AD]/45',
+  EvoFuerza: 'bg-[#6A1F6D]/20 text-[#F6E8F9] border-[#6A1F6D]/45',
+  'EvoGimnástica': 'bg-[#6A1F6D]/20 text-[#F6E8F9] border-[#6A1F6D]/45',
+  EvoTodos: 'bg-[#A729AD]/20 text-[#F6E8F9] border-[#A729AD]/45',
 }
 
 export function classBadgeClass(label) {
-  return CLASS_BADGE_CLASS[label] || 'bg-gray-100 text-gray-800 border-gray-300'
+  return CLASS_BADGE_CLASS[label] || 'bg-[#1a0f1b] text-[#F6E8F9] border-[#6A1F6D]/40'
 }

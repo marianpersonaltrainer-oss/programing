@@ -1,18 +1,16 @@
 /**
- * Vista de sesión en texto plano con jerarquía visual (sin markdown):
- * - Encabezados de bloque en color
- * - Líneas de ejercicio con sangría
- * - Rangos (X' - Y') en negrita
+ * Render EVO para WOD/sesiones:
+ * - Bloques detectados por cabeceras
+ * - Badge de formato (AMRAP/EMOM/FOR TIME/LADDER/CHIPPER/EVERY)
+ * - Resaltado inline de %RM y tiempos
  */
-
-const PAREN_TIMING = /(\(\s*\d+\s*['′']?\s*[-–]\s*\d+\s*['′']?\s*\))/g
 
 function isLikelyBlockHeader(trimmed) {
   if (!trimmed) return false
   if (/^FESTIVO\b/i.test(trimmed)) return false
   if (/^\(no programada esta semana\)/i.test(trimmed)) return false
   if (/^[ABC]\)\s+\S/i.test(trimmed)) return true
-  if (/^(BIENVENIDA|CIERRE|CALENTAMIENTO|TÉCNICA|TECNICA|WOD|FUERZA|PARTE|BLOQUE|ACCESORIOS|CASH|CHIPPER|HYBRIX|FOR TIME|AMRAP|EMOM|E2MOM|E3MOM)\b/i.test(trimmed))
+  if (/^(BIENVENIDA|CIERRE|CALENTAMIENTO|TÉCNICA|TECNICA|SKILL|WOD|FUERZA|PARTE|BLOQUE|ACCESORIOS|CASH|CHIPPER|HYBRIX|FOR TIME|AMRAP|EMOM|E2MOM|E3MOM|EVERY|LADDER)\b/i.test(trimmed))
     return true
   if (/WOD\s*[—–-]/i.test(trimmed)) return true
   const letters = trimmed.replace(/[^a-záéíóúñA-ZÁÉÍÓÚÑ]/g, '')
@@ -22,73 +20,120 @@ function isLikelyBlockHeader(trimmed) {
   return false
 }
 
-function partsWithBoldTimings(line) {
-  const out = []
+function detectWodFormat(text) {
+  const t = String(text || '').toUpperCase()
+  if (/\bFOR\s+TIME\b/.test(t)) return 'FOR TIME'
+  if (/\bAMRAP\b/.test(t)) return 'AMRAP'
+  if (/\bEMOM\b/.test(t) || /\bE\d+MOM\b/.test(t)) return 'EMOM'
+  if (/\bLADDER\b/.test(t)) return 'LADDER'
+  if (/\bCHIPPER\b/.test(t)) return 'CHIPPER'
+  if (/\bEVERY\b/.test(t)) return 'EVERY'
+  return ''
+}
+
+function tokenizeInline(text) {
+  const regex = /(\b\d{1,3}%\s*(?:RM|1RM|2RM|3RM|4RM|5RM)?\b|\b\d+\s*(?:min|minutos?|seg|segundos?)\b|\(\s*\d+\s*['′"]?\s*[-–]\s*\d+\s*['′"]?\s*\))/gi
+  const tokens = []
   let last = 0
   let m
-  const re = new RegExp(PAREN_TIMING.source, 'gi')
-  while ((m = re.exec(line)) !== null) {
-    if (m.index > last) out.push({ type: 'text', text: line.slice(last, m.index) })
-    out.push({ type: 'time', text: m[1] })
-    last = m.index + m[1].length
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) tokens.push({ type: 'text', text: text.slice(last, m.index) })
+    const raw = m[0]
+    if (/%/.test(raw)) {
+      tokens.push({ type: 'percent', text: raw })
+    } else {
+      tokens.push({ type: 'time', text: raw })
+    }
+    last = m.index + raw.length
   }
-  if (last < line.length) out.push({ type: 'text', text: line.slice(last) })
-  if (out.length === 0) out.push({ type: 'text', text: line })
-  return out
+  if (last < text.length) tokens.push({ type: 'text', text: text.slice(last) })
+  if (!tokens.length) tokens.push({ type: 'text', text })
+  return tokens
+}
+
+function renderInline(text) {
+  return tokenizeInline(text).map((part, idx) => {
+    if (part.type === 'percent') {
+      return (
+        <strong key={idx} className="text-[#FFFF4C] font-bold">
+          {part.text}
+        </strong>
+      )
+    }
+    if (part.type === 'time') {
+      return (
+        <strong key={idx} className="text-[#A729AD] font-bold">
+          {part.text}
+        </strong>
+      )
+    }
+    return <span key={idx}>{part.text}</span>
+  })
+}
+
+function toBlocks(lines) {
+  const blocks = []
+  let current = null
+  lines.forEach((line) => {
+    const raw = line.trimEnd()
+    const t = raw.trim()
+    if (!t) return
+    if (isLikelyBlockHeader(t)) {
+      if (current) blocks.push(current)
+      current = { header: t, lines: [] }
+      return
+    }
+    if (!current) current = { header: 'BLOQUE', lines: [] }
+    current.lines.push(raw)
+  })
+  if (current) blocks.push(current)
+  return blocks
 }
 
 export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', renderAfterLine }) {
   const raw = String(text ?? '')
   const lines = raw.split('\n')
+  const blocks = toBlocks(lines)
 
   return (
-    <div className="coach-formatted-session text-sm font-medium leading-relaxed font-sans">
-      {lines.map((line, i) => {
-        const trimmed = line.trimEnd()
-        const t = trimmed.trim()
-        const suffix = renderAfterLine && t ? renderAfterLine(line, i, t) : null
-
-        if (!t) {
-          return <div key={i} className="h-2" aria-hidden />
-        }
-
-        if (isLikelyBlockHeader(t)) {
-          return (
-            <div key={i}>
-              <p
-                className="font-extrabold uppercase tracking-wide text-[13px] mt-3 first:mt-0 mb-1"
-                style={{ color: accentColor }}
-              >
-                {partsWithBoldTimings(t).map((p, j) =>
-                  p.type === 'time' ? (
-                    <strong key={j} className="text-[#1A0A1A] font-black">
-                      {p.text}
-                    </strong>
-                  ) : (
-                    <span key={j}>{p.text}</span>
-                  ),
-                )}
-              </p>
-              {suffix}
-            </div>
-          )
-        }
-
+    <div className="coach-formatted-session space-y-3 text-sm font-evo-body">
+      {blocks.map((block, blockIdx) => {
+        const format = detectWodFormat(`${block.header}\n${block.lines.join('\n')}`)
         return (
-          <div key={i}>
-            <p className="pl-4 sm:pl-6 text-[#1A0A1A]/95 mb-0.5">
-              {partsWithBoldTimings(trimmed).map((p, j) =>
-                p.type === 'time' ? (
-                  <strong key={j} className="font-bold text-[#1A0A1A]">
-                    {p.text}
-                  </strong>
-                ) : (
-                  <span key={j}>{p.text}</span>
-                ),
-              )}
-            </p>
-            {suffix}
-          </div>
+          <section
+            key={`${block.header}-${blockIdx}`}
+            className="rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] px-4 py-4"
+          >
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span
+                className="inline-flex items-center rounded-md bg-[#6A1F6D] px-2.5 py-1 text-white text-xs uppercase tracking-wider font-evo-display"
+                style={{ color: '#FFFFFF', borderColor: accentColor }}
+              >
+                {block.header}
+              </span>
+              {format ? (
+                <span className="inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0C0B0C]">
+                  {format}
+                </span>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              {block.lines.map((line, lineIdx) => {
+                const t = line.trim()
+                const suffix = renderAfterLine && t ? renderAfterLine(line, lineIdx, t) : null
+                return (
+                  <div key={`${blockIdx}-${lineIdx}`}>
+                    <p className="text-[#F6E8F9] leading-relaxed">
+                      <span className="mr-2 text-[#A729AD]">•</span>
+                      {renderInline(t)}
+                    </p>
+                    {suffix}
+                  </div>
+                )
+              })}
+            </div>
+            {blockIdx < blocks.length - 1 ? <div className="mt-4 border-t border-[#6A1F6D]/30" /> : null}
+          </section>
         )
       })}
     </div>

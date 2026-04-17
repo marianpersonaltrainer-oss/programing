@@ -41,6 +41,16 @@ function coachClassNavShortLabel(label) {
   return String(label || '').replace(/^Evo/i, '').trim() || label
 }
 
+function shortDayLabel(dayName) {
+  const n = String(dayName || '').toLowerCase()
+  if (n.startsWith('lunes')) return 'Lun'
+  if (n.startsWith('martes')) return 'Mar'
+  if (n.startsWith('miércoles') || n.startsWith('miercoles')) return 'Mié'
+  if (n.startsWith('jueves')) return 'Jue'
+  if (n.startsWith('viernes')) return 'Vie'
+  return String(dayName || '')
+}
+
 function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   if (!videos?.length) {
     return (
@@ -156,6 +166,7 @@ export default function CoachWeekProgrammingPanel({
   const [openClassVideos, setOpenClassVideos] = useState({})
   const [copiedKey, setCopiedKey] = useState(null)
   const [prepDayName, setPrepDayName] = useState(null)
+  const todayWeekday = new Date().getDay()
 
   const ask = (text, context = null) => {
     onOpenSupport(text, context)
@@ -225,6 +236,29 @@ export default function CoachWeekProgrammingPanel({
               <p className={`text-sm ${coachText.muted} font-bold uppercase tracking-widest`}>
                 Toca un día para el detalle. Soporte para preguntas al asistente.
               </p>
+              <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {dias.slice(0, 5).map((dia, idx) => {
+                  const isToday = todayWeekday >= 1 && todayWeekday <= 5 && idx === todayWeekday - 1
+                  const isActive = activeDay === dia.nombre
+                  return (
+                    <button
+                      key={`chip-${dia.nombre}`}
+                      type="button"
+                      onClick={() => setActiveDay(dia.nombre)}
+                      className={`relative shrink-0 px-4 py-2 rounded-xl border text-sm tracking-wide transition-colors ${
+                        isActive
+                          ? 'bg-[#A729AD] text-white border-[#A729AD] font-evo-display font-bold'
+                          : 'bg-[#1a0f1b] text-[#F6E8F9] border-[#6A1F6D]/40 font-evo-body font-semibold'
+                      }`}
+                    >
+                      {shortDayLabel(dia.nombre)}
+                      {isToday ? (
+                        <span className="absolute left-1/2 -bottom-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[#FFFF4C]" />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
               <div className="grid gap-5 sm:grid-cols-2">
                 {dias.map((dia) => {
                   const festivo = isFestivoDay(dia)

@@ -331,3 +331,73 @@ export async function getCoachExerciseLibrary() {
   }
   return data || []
 }
+
+// ── Pase diario y check-in semanal ───────────────────────────────────────────
+
+export async function listTodayHandoffs() {
+  const madridNow = new Date().toLocaleString('en-CA', { timeZone: 'Europe/Madrid' }).slice(0, 10)
+  const { data, error } = await supabase
+    .from('daily_handoffs')
+    .select('*')
+    .gte('created_at', `${madridNow}T00:00:00+01:00`)
+    .lt('created_at', `${madridNow}T23:59:59+01:00`)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function createDailyHandoff(payload) {
+  const { data: authData } = await supabase.auth.getUser()
+  const coachId = authData?.user?.id || null
+  const row = { ...payload, coach_id: coachId }
+  const { data, error } = await supabase.from('daily_handoffs').insert(row).select('*').single()
+  if (error) throw error
+  return data
+}
+
+export async function listDailyHandoffsHistory(filters = {}) {
+  let q = supabase.from('daily_handoffs').select('*').order('created_at', { ascending: false }).limit(filters.limit || 25)
+  if (filters.fromDate) q = q.gte('created_at', `${filters.fromDate}T00:00:00`)
+  if (filters.toDate) q = q.lte('created_at', `${filters.toDate}T23:59:59`)
+  if (filters.coachName) q = q.eq('coach_name', filters.coachName)
+  if (filters.classType) q = q.eq('class_type', filters.classType)
+  if (filters.onlyIncident) q = q.eq('had_incident', true)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+export async function getCurrentCoachWeeklyCheckin(weekIso) {
+  const { data: authData } = await supabase.auth.getUser()
+  const coachId = authData?.user?.id || null
+  if (!coachId || !weekIso) return null
+  const { data, error } = await supabase
+    .from('weekly_checkins')
+    .select('*')
+    .eq('coach_id', coachId)
+    .eq('week_iso', weekIso)
+    .maybeSingle()
+  if (error) throw error
+  return data || null
+}
+
+export async function createWeeklyCheckin(payload) {
+  const { data: authData } = await supabase.auth.getUser()
+  const coachId = authData?.user?.id || null
+  const row = { ...payload, coach_id: coachId }
+  const { data, error } = await supabase
+    .from('weekly_checkins')
+    .upsert(row, { onConflict: 'coach_id,week_iso' })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function listWeeklyCheckinsByWeek(weekIso) {
+  let q = supabase.from('weekly_checkins').select('*').order('created_at', { ascending: false })
+  if (weekIso) q = q.eq('week_iso', weekIso)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}

@@ -174,14 +174,6 @@ export default function CoachWeekProgrammingPanel({
     setWeekTab('dias')
   }
 
-  const askClassSupport = (dayName, label, sessionValue, prefill) => {
-    ask(prefill, {
-      dayName,
-      classLabel: label,
-      sessionText: sessionValue || '',
-    })
-  }
-
   const toggleClassVideos = (key) => {
     setOpenClassVideos((prev) => ({ ...prev, [key]: !prev[key] }))
   }
@@ -672,82 +664,26 @@ export default function CoachWeekProgrammingPanel({
                         onToggle={() => toggleClassVideos(key)}
                       />
 
-                      <div className={`space-y-5 pt-4 border-t ${coachBorder}`}>
-                        <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
-                          Soporte — elige el tipo de consulta
-                        </p>
-
-                        <div className="space-y-2">
-                          <p className={`text-[11px] font-bold uppercase tracking-tight ${coachText.accent}`}>Lesión</p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              askClassSupport(
-                                dayName,
-                                label,
-                                dia[key],
-                                `En ${dayName} · ${label}: necesito adaptar por lesión (indica zona o diagnóstico si lo tienes). ¿Qué sustituciones y cargas concretas propones? `,
-                              )
-                            }
-                            className="w-full text-left text-xs px-4 py-3.5 rounded-xl font-bold uppercase tracking-wide text-amber-50 bg-amber-900 border-2 border-amber-950 shadow-sm hover:bg-amber-950 active:scale-[0.99]"
-                          >
-                            Lesión — sustituciones y escalado
-                          </button>
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className={`text-[11px] font-bold uppercase tracking-tight ${coachText.accent}`}>Embarazo</p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              askClassSupport(
-                                dayName,
-                                label,
-                                dia[key],
-                                `En ${dayName} · ${label}: necesito adaptar para embarazada (indica trimestre o semanas si lo sabes). ¿Qué cambios concretos en la sesión? `,
-                              )
-                            }
-                            className="w-full text-left text-xs px-4 py-3.5 rounded-xl font-bold uppercase tracking-wide text-rose-50 bg-rose-900 border-2 border-rose-950 shadow-sm hover:bg-rose-950 active:scale-[0.99]"
-                          >
-                            Embarazo — adaptar esta sesión
-                          </button>
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className={`text-[11px] font-bold uppercase tracking-tight ${coachText.accent}`}>
-                            Otras adaptaciones
+                      <div className={`space-y-3 pt-4 border-t ${coachBorder}`}>
+                        <div className={`rounded-xl p-4 border ${coachBorder} ${coachBg.cardMuted}`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent}`}>
+                            Asistente EVO
+                          </p>
+                          <p className={`text-sm ${coachText.muted} mt-1.5 leading-relaxed`}>
+                            Tengo una duda sobre esta sesión. El asistente ya ve el día, la clase y el texto programado.
                           </p>
                           <button
                             type="button"
                             onClick={() =>
-                              askClassSupport(
+                              ask('', {
                                 dayName,
-                                label,
-                                dia[key],
-                                `En ${dayName} · ${label}: necesito adaptar la sesión (poco tiempo, poco material, nivel heterogéneo del grupo u otro). ¿Plan B concreto ejercicio a ejercicio? `,
-                              )
+                                classLabel: label,
+                                sessionText: dia[key] || '',
+                              })
                             }
-                            className="w-full text-left text-xs px-4 py-3.5 rounded-xl font-bold uppercase tracking-wide text-white bg-[#4a154d] border-2 border-[#2f0d32] shadow-sm hover:bg-[#3d1240] active:scale-[0.99]"
+                            className="mt-4 w-full text-center text-sm px-4 py-3.5 rounded-xl bg-[#6A1F6D] text-[#FFFF4C] font-evo-display font-bold uppercase tracking-wide border border-[#A729AD]/60 shadow-sm hover:bg-[#A729AD] active:scale-[0.99] transition-colors"
                           >
-                            Adaptaciones — tiempo, material o grupo
-                          </button>
-                        </div>
-
-                        <div className={`space-y-2 pt-1 border-t ${coachBorder}`}>
-                          <p className={`text-[11px] font-bold uppercase tracking-tight ${coachText.muted}`}>General</p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              askClassSupport(
-                                dayName,
-                                label,
-                                dia[key],
-                                `Sobre ${dayName} · ${label}: tengo una duda: `,
-                              )
-                            }
-                            className="w-full text-left text-xs px-4 py-3 rounded-xl bg-[#3f0f42] text-white font-bold uppercase tracking-widest border border-[#2a0a2c] shadow-sm hover:bg-[#4d1850] active:scale-[0.98]"
-                          >
-                            Otra duda sobre {label}
+                            Consultar al asistente
                           </button>
                         </div>
                       </div>

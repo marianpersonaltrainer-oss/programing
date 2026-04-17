@@ -11,7 +11,6 @@ import {
   recordCoachHandoverRead,
   listTodayHandoffs,
   createDailyHandoff,
-  getCurrentCoachWeeklyCheckin,
   createWeeklyCheckin,
 } from '../../lib/supabase.js'
 import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
@@ -43,7 +42,7 @@ import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
 import FeedbackV2Card from './FeedbackV2Card.jsx'
 import HandoffTimeline from './HandoffTimeline.jsx'
 import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
-import { isoWeekString, madridDateParts } from '../../utils/coachTime.js'
+import { isoWeekString, madridCheckinGateParts, madridDateParts } from '../../utils/coachTime.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -376,18 +375,66 @@ export default function CoachView() {
     }
   }, [step, resetWeekDerivedState])
 
+  /**
+   * Check-in semanal: doble condición (todo en Europe/Madrid vía coachTime.madridCheckinGateParts):
+   * 1) viernes y hora >= 16 en Madrid
+   * 2) localStorage evo_checkin_week !== semana ISO actual (si coincide, ya completado → no mostrar)
+   */
+  const refreshWeeklyCheckinModal = useCallback(() => {
+    if (step !== 'chat') {
+      setShowWeeklyCheckin(false)
+      return
+    }
+
+    const { dayOfWeekIso, hour, weekIso, weekdayLabel } = madridCheckinGateParts(new Date())
+    let evoCheckinWeekStored = ''
+    try {
+      evoCheckinWeekStored = localStorage.getItem('evo_checkin_week') ?? ''
+    } catch {
+      evoCheckinWeekStored = '(error lectura localStorage)'
+    }
+
+    const viernesTardeOk = dayOfWeekIso === 5 && hour >= 16
+    const yaCompletadoEstaSemana = String(evoCheckinWeekStored).trim() === weekIso
+    const mostrar = viernesTardeOk && !yaCompletadoEstaSemana
+
+    console.log('[weekly-checkin gate]', {
+      step,
+      weekdayLabelMadrid: weekdayLabel,
+      madridDayOfWeekIso: dayOfWeekIso,
+      madridHour: hour,
+      weekIsoActual: weekIso,
+      evo_checkin_week: evoCheckinWeekStored,
+      viernesTardeOk,
+      yaCompletadoEstaSemana,
+      mostrarModal: mostrar,
+    })
+
+    setShowWeeklyCheckin(mostrar)
+  }, [step])
+
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void refreshActiveWeekOnFocus()
+      if (document.visibilityState === 'visible') {
+        void refreshActiveWeekOnFocus()
+        refreshWeeklyCheckinModal()
+      }
     }
-    const onWinFocus = () => void refreshActiveWeekOnFocus()
+    const onWinFocus = () => {
+      void refreshActiveWeekOnFocus()
+      refreshWeeklyCheckinModal()
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onWinFocus)
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onWinFocus)
     }
-  }, [refreshActiveWeekOnFocus])
+  }, [refreshActiveWeekOnFocus, refreshWeeklyCheckinModal])
+
+  useEffect(() => {
+    refreshWeeklyCheckinModal()
+  }, [refreshWeeklyCheckinModal])
 
   useEffect(() => {
     handoverToastFiredRef.current = false
@@ -466,24 +513,6 @@ export default function CoachView() {
   }, [step, mainTab])
 
   useEffect(() => {
-    if (step !== 'chat') return
-    let cancelled = false
-    ;(async () => {
-      const weekIso = isoWeekString(new Date())
-      const now = madridDateParts(new Date())
-      const checkin = await getCurrentCoachWeeklyCheckin(weekIso, coachName).catch(() => null)
-      if (cancelled) return
-      const checkinCompletedThisWeek = !!checkin
-      const isPendingFromLastWeek = now.dayOfWeek <= 2 && !checkinCompletedThisWeek
-      const isFridayAfternoon = now.dayOfWeek === 5 && now.hour >= 16
-      setShowWeeklyCheckin((isFridayAfternoon || isPendingFromLastWeek) && !checkinCompletedThisWeek)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [step, coachName])
-
-  useEffect(() => {
     if (showWeeklyCheckin) setWeeklyCheckinSubmitError('')
   }, [showWeeklyCheckin])
 
@@ -528,6 +557,11 @@ export default function CoachView() {
         { accessCode: coachAccessCode },
       )
       console.log('[WeeklyCheckinModal] envío correcto', saved)
+      try {
+        localStorage.setItem('evo_checkin_week', weekIso)
+      } catch {
+        /* noop */
+      }
       setShowWeeklyCheckin(false)
     } catch (e) {
       const msg = e?.message || 'No se pudo guardar el check-in semanal'

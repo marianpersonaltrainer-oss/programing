@@ -8,7 +8,7 @@ import { SYSTEM_PROMPT } from '../constants/systemPrompt.js'
 import { buildWeekContext } from '../utils/buildWeekContext.js'
 import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG, PROGRAMMING_MODEL } from '../constants/config.js'
-import { getCoachExerciseLibrary } from '../lib/supabase.js'
+import { getCoachExerciseLibrary, supabase } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
 import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../utils/parseAnthropicProxyBody.js'
@@ -46,6 +46,32 @@ export function useAgent(weekState) {
     }
     if (weekCtx) {
       systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`
+    }
+    try {
+      const { data: activeRules, error: activeRulesError } = await supabase
+        .from('method_rules')
+        .select('rule_type, trigger_context, rule_text, confidence')
+        .eq('active', true)
+        .order('confidence', { ascending: false })
+        .limit(10)
+
+      if (!activeRulesError && Array.isArray(activeRules) && activeRules.length > 0) {
+        const rulesBlock = activeRules
+          .map((rule) => {
+            const confidence = Number.isFinite(rule?.confidence) ? rule.confidence : 50
+            const triggerContext = String(rule?.trigger_context || '').trim() || 'general'
+            const ruleType = String(rule?.rule_type || '').trim() || 'rule'
+            const ruleText = String(rule?.rule_text || '').trim()
+            return `- [${ruleType}] (${triggerContext}): ${ruleText} (confianza: ${confidence}%)`
+          })
+          .join('\n')
+
+        if (rulesBlock) {
+          systemWithContext += `\n\n--- SEÑALES DEL CENTRO (aprendizaje acumulado) ---\n${rulesBlock}\n--- FIN SEÑALES ---`
+        }
+      }
+    } catch {
+      // El aprendizaje acumulado no debe bloquear la generación.
     }
     if (libraryAppend) {
       systemWithContext += `\n\n${libraryAppend}`

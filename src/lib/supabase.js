@@ -367,31 +367,190 @@ export async function listDailyHandoffsHistory(filters = {}) {
   return data || []
 }
 
-export async function getCurrentCoachWeeklyCheckin(weekIso) {
+export async function getCurrentCoachWeeklyCheckin(weekIso, coachName) {
+  if (!weekIso) return null
   const { data: authData } = await supabase.auth.getUser()
   const coachId = authData?.user?.id || null
-  if (!coachId || !weekIso) return null
+  if (coachId) {
+    const { data, error } = await supabase
+      .from('weekly_checkins')
+      .select('*')
+      .eq('coach_id', coachId)
+      .eq('week_iso', weekIso)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  }
+  const nameNorm = String(coachName ?? '')
+    .trim()
+    .toLowerCase()
+  if (!nameNorm) return null
   const { data, error } = await supabase
     .from('weekly_checkins')
     .select('*')
-    .eq('coach_id', coachId)
     .eq('week_iso', weekIso)
+    .eq('coach_name_norm', nameNorm)
     .maybeSingle()
   if (error) throw error
   return data || null
 }
 
-export async function createWeeklyCheckin(payload) {
-  const { data: authData } = await supabase.auth.getUser()
-  const coachId = authData?.user?.id || null
-  const row = { ...payload, coach_id: coachId }
-  const { data, error } = await supabase
-    .from('weekly_checkins')
-    .upsert(row, { onConflict: 'coach_id,week_iso' })
-    .select('*')
-    .single()
-  if (error) throw error
-  return data
+function formatWeeklyCheckinWriteError(error) {
+  if (!error) return 'Error desconocido (sin detalle de Supabase)'
+  const bits = [
+    error.message,
+    error.code != null && `code=${error.code}`,
+    error.details,
+    error.hint,
+  ].filter(Boolean)
+  return bits.join(' | ') || String(error)
+}
+
+const SESSION_EXPIRED_MSG = 'Sesión expirada. Recarga la página e inicia sesión de nuevo.'
+
+const COACH_AUTH_STORAGE_KEY = 'evo_coach_auth'
+
+async function createWeeklyCheckinViaServer(payload, accessCode) {
+  const trimmed = String(accessCode ?? '').trim()
+  let desdeLocalStorage = '(sin window)'
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = window.localStorage.getItem(COACH_AUTH_STORAGE_KEY)
+      desdeLocalStorage = raw == null || raw === '' ? '(vacío en localStorage)' : raw
+    }
+  } catch {
+    desdeLocalStorage = '(error leyendo localStorage)'
+  }
+
+  console.log('[weekly_checkins] accessCode antes de fetch API', {
+    accessCodeDesdeOptions: accessCode,
+    accessCodeTrimmed: trimmed,
+    longitudTrimmed: trimmed.length,
+    evo_coach_auth_en_localStorage: desdeLocalStorage,
+    coincideConLS: trimmed !== '' && trimmed === String(desdeLocalStorage).trim(),
+  })
+
+  if (!trimmed) {
+    throw new Error(SESSION_EXPIRED_MSG)
+  }
+
+  const apiPath = '/api/coach-weekly-checkin'
+  const origin = typeof window !== 'undefined' ? window.location.origin : null
+  const urlResuelta = origin ? `${origin}${apiPath}` : apiPath
+
+  console.log('[weekly_checkins] fetch URL (path relativo; origen = página actual)', {
+    fetchArgumento: apiPath,
+    windowLocationOrigin: origin,
+    urlResueltaPorElNavegador: urlResuelta,
+    nota: 'fetch("/api/...") nunca fuerza localhost salvo que la página esté en localhost',
+  })
+
+  const res = await fetch(apiPath, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      accessCode: trimmed,
+      coach_name: payload.coach_name,
+      week_iso: payload.week_iso,
+      mood_score: Number(payload.mood_score),
+      feedback_text: payload.feedback_text ?? null,
+      highlights: payload.highlights ?? null,
+      improvements: payload.improvements ?? null,
+    }),
+  })
+
+  let json = {}
+  try {
+    json = await res.json()
+  } catch {
+    /* noop */
+  }
+
+  console.log('[weekly_checkins] after server /api/coach-weekly-checkin', {
+    status: res.status,
+    ok: res.ok,
+    body: json,
+  })
+
+  if (!res.ok) {
+    const msg = json?.error || res.statusText || `HTTP ${res.status}`
+    throw new Error(typeof msg === 'string' ? msg : SESSION_EXPIRED_MSG)
+  }
+  return json.data
+}
+
+/**
+ * @param {object} payload — coach_name, week_iso, mood_score, feedback_text?, highlights?, improvements?
+ * @param {{ accessCode?: string }} [options] — código coach (localStorage evo_coach_auth) si no hay sesión Supabase
+ */
+export async function createWeeklyCheckin(payload, options = {}) {
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  console.log('[weekly_checkins] supabase.auth.getSession()', {
+    hasSession: !!session?.access_token,
+    userId: session?.user?.id ?? null,
+    expires_at: session?.expires_at ?? null,
+    sessionError: sessionError?.message ?? null,
+  })
+
+  const row = {
+    coach_name: payload.coach_name,
+    week_iso: payload.week_iso,
+    mood_score: Number(payload.mood_score),
+    feedback_text: payload.feedback_text ?? null,
+    highlights: payload.highlights ?? null,
+    improvements: payload.improvements ?? null,
+  }
+
+  if (session?.user) {
+    const coachId = session.user.id
+    row.coach_id = coachId
+
+    console.log('[weekly_checkins] before insert (cliente, sesión Supabase activa)', {
+      row,
+      coach_id: row.coach_id,
+      mood_score: row.mood_score,
+      mood_type: typeof row.mood_score,
+    })
+
+    const { data, error } = await supabase.from('weekly_checkins').insert(row).select('*').single()
+
+    console.log('[weekly_checkins] after insert (cliente)', {
+      data,
+      error: error
+        ? {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+          }
+        : null,
+    })
+
+    if (error) {
+      console.error('[weekly_checkins] Supabase error (exacto)', error)
+      throw new Error(formatWeeklyCheckinWriteError(error))
+    }
+    return data
+  }
+
+  const accessCode = options.accessCode ?? options.coachAccessCode
+  console.log('[weekly_checkins] accessCode recibido en createWeeklyCheckin (desde CoachView / localStorage)', {
+    accessCode,
+    longitud: String(accessCode ?? '').trim().length,
+    vacio: !String(accessCode ?? '').trim(),
+  })
+
+  if (!String(accessCode ?? '').trim()) {
+    console.warn('[weekly_checkins] sin sesión Supabase y sin accessCode — no se llama al insert del cliente')
+    throw new Error(SESSION_EXPIRED_MSG)
+  }
+
+  console.log('[weekly_checkins] sin sesión Supabase: envío vía /api/coach-weekly-checkin (service role)')
+  return createWeeklyCheckinViaServer(payload, accessCode)
 }
 
 export async function listWeeklyCheckinsByWeek(weekIso) {

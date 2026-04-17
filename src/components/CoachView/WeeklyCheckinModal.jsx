@@ -12,6 +12,7 @@ export default function WeeklyCheckinModal({
   highlights,
   improvements,
   feedbackText,
+  submitError,
   onChange,
   onSubmit,
 }) {
@@ -28,7 +29,7 @@ export default function WeeklyCheckinModal({
               type="button"
               onClick={() => onChange('moodScore', s.score)}
               className={`min-h-11 rounded-lg border px-2 py-2 transition-colors ${
-                moodScore === s.score ? 'bg-[#A729AD] border-[#FFFF4C]' : 'bg-[#221427] border-[#6A1F6D]/40'
+                Number(moodScore) === s.score ? 'bg-[#A729AD] border-[#FFFF4C]' : 'bg-[#221427] border-[#6A1F6D]/40'
               }`}
             >
               <div className="text-3xl leading-none">{s.emoji}</div>
@@ -66,6 +67,11 @@ export default function WeeklyCheckinModal({
         >
           Enviar check-in
         </button>
+        {submitError ? (
+          <p className="text-sm text-red-300 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2" role="alert">
+            {submitError}
+          </p>
+        ) : null}
         <p className="text-xs text-[#F6E8F966]">Solo lo ve Marian. Gracias.</p>
       </div>
     </div>

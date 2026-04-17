@@ -321,6 +321,7 @@ export default function CoachView() {
     improvements: '',
     feedbackText: '',
   })
+  const [weeklyCheckinSubmitError, setWeeklyCheckinSubmitError] = useState('')
 
   const { items: coachToasts, push: pushCoachToast, dismiss: dismissCoachToast } = useCoachToastQueue()
   const centroToastKeyRef = useRef('')
@@ -470,7 +471,7 @@ export default function CoachView() {
     ;(async () => {
       const weekIso = isoWeekString(new Date())
       const now = madridDateParts(new Date())
-      const checkin = await getCurrentCoachWeeklyCheckin(weekIso).catch(() => null)
+      const checkin = await getCurrentCoachWeeklyCheckin(weekIso, coachName).catch(() => null)
       if (cancelled) return
       const checkinCompletedThisWeek = !!checkin
       const isPendingFromLastWeek = now.dayOfWeek <= 2 && !checkinCompletedThisWeek
@@ -480,7 +481,11 @@ export default function CoachView() {
     return () => {
       cancelled = true
     }
-  }, [step])
+  }, [step, coachName])
+
+  useEffect(() => {
+    if (showWeeklyCheckin) setWeeklyCheckinSubmitError('')
+  }, [showWeeklyCheckin])
 
   async function handleCreateHandoff(row) {
     try {
@@ -493,18 +498,42 @@ export default function CoachView() {
 
   async function handleSubmitWeeklyCheckin() {
     const weekIso = isoWeekString(new Date())
+    const mood = Number(weeklyCheckinForm.moodScore || 0)
+    console.log('[WeeklyCheckinModal] submit click', {
+      moodScoreRaw: weeklyCheckinForm.moodScore,
+      moodScoreType: typeof weeklyCheckinForm.moodScore,
+      moodParsed: mood,
+    })
+    if (mood < 1 || mood > 5) {
+      setWeeklyCheckinSubmitError('Elige cómo ha ido la semana (1–5) antes de enviar.')
+      return
+    }
+    setWeeklyCheckinSubmitError('')
+    let coachAccessCode = ''
     try {
-      await createWeeklyCheckin({
-        coach_name: coachName || 'Coach',
-        week_iso: weekIso,
-        mood_score: Number(weeklyCheckinForm.moodScore || 0),
-        feedback_text: weeklyCheckinForm.feedbackText || null,
-        highlights: weeklyCheckinForm.highlights || null,
-        improvements: weeklyCheckinForm.improvements || null,
-      })
+      coachAccessCode = localStorage.getItem(COACH_AUTH_KEY) || ''
+    } catch {
+      /* noop */
+    }
+    try {
+      const saved = await createWeeklyCheckin(
+        {
+          coach_name: coachName || 'Coach',
+          week_iso: weekIso,
+          mood_score: mood,
+          feedback_text: weeklyCheckinForm.feedbackText || null,
+          highlights: weeklyCheckinForm.highlights || null,
+          improvements: weeklyCheckinForm.improvements || null,
+        },
+        { accessCode: coachAccessCode },
+      )
+      console.log('[WeeklyCheckinModal] envío correcto', saved)
       setShowWeeklyCheckin(false)
     } catch (e) {
-      setError(e?.message || 'No se pudo guardar el check-in semanal')
+      const msg = e?.message || 'No se pudo guardar el check-in semanal'
+      console.error('[WeeklyCheckinModal] error al enviar (mensaje mostrado)', msg, e)
+      setWeeklyCheckinSubmitError(msg)
+      setError(msg)
     }
   }
 
@@ -1452,6 +1481,7 @@ export default function CoachView() {
           highlights={weeklyCheckinForm.highlights}
           improvements={weeklyCheckinForm.improvements}
           feedbackText={weeklyCheckinForm.feedbackText}
+          submitError={weeklyCheckinSubmitError}
           onChange={(field, value) => setWeeklyCheckinForm((prev) => ({ ...prev, [field]: value }))}
           onSubmit={handleSubmitWeeklyCheckin}
         />

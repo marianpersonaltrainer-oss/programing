@@ -150,6 +150,7 @@ export default function CoachWeekProgrammingPanel({
   exerciseLibrary = [],
   coachName = '',
   weekRow = null,
+  FeedbackCardComponent = null,
 }) {
   const dias = weekData?.dias || []
   const [openClassVideos, setOpenClassVideos] = useState({})
@@ -620,7 +621,13 @@ export default function CoachWeekProgrammingPanel({
                       {fbText ? (
                         <div className="space-y-2">
                           <p className={`text-xs font-bold uppercase tracking-widest ${coachText.title}`}>Feedback del día</p>
-                          <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>{fbText}</pre>
+                          {FeedbackCardComponent ? (
+                            <FeedbackCardComponent feedback={fbText} />
+                          ) : (
+                            <pre className={`text-sm ${coachText.muted} font-medium whitespace-pre-wrap leading-relaxed font-sans`}>
+                              {fbText}
+                            </pre>
+                          )}
                         </div>
                       ) : null}
 
@@ -836,9 +843,13 @@ export default function CoachWeekProgrammingPanel({
                                   <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
                                     Publicado (programación)
                                   </p>
-                                  <p className={`text-sm leading-snug ${coachText.primary} whitespace-pre-wrap`}>
-                                    {publishedRaw}
-                                  </p>
+                                  {FeedbackCardComponent ? (
+                                    <FeedbackCardComponent feedback={publishedRaw} />
+                                  ) : (
+                                    <p className={`text-sm leading-snug ${coachText.primary} whitespace-pre-wrap`}>
+                                      {publishedRaw}
+                                    </p>
+                                  )}
                                 </div>
                               ) : null}
                               {complement ? (

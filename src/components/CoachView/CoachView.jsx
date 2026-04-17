@@ -36,6 +36,7 @@ import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { DAYS_ES } from '../../constants/evoColors.js'
 import { buildCoachNewWeekToastBody } from '../../utils/coachSessionPrep.js'
 import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
+import FeedbackV2Card from './FeedbackV2Card.jsx'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -1212,6 +1213,7 @@ export default function CoachView() {
                     exerciseLibrary={exerciseLibrary}
                     coachName={coachName}
                     weekRow={activeWeekRow}
+                    FeedbackCardComponent={FeedbackV2Card}
                   />
                 )}
                 {mainTab === 'ejercicios' && (

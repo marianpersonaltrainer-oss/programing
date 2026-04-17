@@ -1,4 +1,4 @@
-/** Caché local de respuestas del chat Soporte (misma semana + día + clase + pregunta). */
+/** Caché local de respuestas del chat Soporte (misma semana + día + clase + pregunta). v2 = prompt soporte Sprint 3. */
 
 export function supportSlug(value) {
   const s = String(value || '')
@@ -25,7 +25,7 @@ export function buildSupportCacheKey(weekId, daySlug, classSlug, questionNormali
   const d = String(daySlug || 'general').slice(0, 48)
   const c = String(classSlug || 'general').slice(0, 48)
   const h = hashQuestion(questionNormalized)
-  return `coach_support_v1_${w}_${d}_${c}_${h}`
+  return `coach_support_v2_${w}_${d}_${c}_${h}`
 }
 
 export function getSupportCachedReply(storageKey) {

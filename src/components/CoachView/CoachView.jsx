@@ -183,10 +183,10 @@ function IconMas(props) {
 
 const NAV_DEFS = {
   semana: { id: 'semana', label: 'Semana', Icon: IconSemana },
-  soporte: { id: 'soporte', label: 'Soporte', Icon: IconSoporte },
-  feedback: { id: 'feedback', label: 'Feedback', Icon: IconFeedback },
+  soporte: { id: 'soporte', label: 'Asistente', Icon: IconSoporte },
+  feedback: { id: 'feedback', label: 'Pase turno', Icon: IconFeedback },
   ejercicios: { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
-  mesociclos: { id: 'mesociclos', label: 'Ciclos', Icon: IconCiclos },
+  mesociclos: { id: 'mesociclos', label: 'Mesociclos', Icon: IconCiclos },
   material: { id: 'material', label: 'Material', Icon: IconMaterial },
   centro: { id: 'centro', label: 'Centro', Icon: IconCentro },
   clases: { id: 'clases', label: 'Clases', Icon: IconClases },
@@ -196,8 +196,8 @@ const NAV_DEFS = {
 /** Orden lateral desktop y sección principal del menú «Más» móvil */
 const PRIMARY_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios', 'mesociclos', 'material']
 const GUIDE_CENTRE_IDS = ['centro', 'clases', 'uso']
-const BOTTOM_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios']
-const MORE_DRAWER_IDS = ['mesociclos', 'material', ...GUIDE_CENTRE_IDS]
+const BOTTOM_NAV_IDS = ['semana', 'soporte', 'feedback', 'material']
+const MORE_DRAWER_IDS = ['ejercicios', 'mesociclos', ...GUIDE_CENTRE_IDS]
 
 const SUPPORT_DAILY_LIMIT = 10
 const SUPPORT_LIMIT_MESSAGE =
@@ -648,6 +648,16 @@ export default function CoachView() {
   const handoverBadgeCount =
     handoverReadForWeek === false && handoverAlerts.length > 0 ? handoverAlerts.length : 0
 
+  function getInitialActiveDayForToday(week) {
+    const dayNum = new Date().getDay()
+    if (dayNum < 1 || dayNum > 5) return 'show'
+    const dias = week?.data?.dias
+    if (!Array.isArray(dias) || !dias.length) return 'show'
+    const todayDia = dias[dayNum - 1]
+    const todayName = String(todayDia?.nombre || '').trim()
+    return todayName || 'show'
+  }
+
   async function handleCodeSubmit(e) {
     e.preventDefault()
     if (coachCodesMatch(codeInput)) {
@@ -680,7 +690,7 @@ export default function CoachView() {
         if (date === today) {
           setSessionId(id)
           setStep('chat')
-          setActiveDay('show')
+          setActiveDay(getInitialActiveDayForToday(week))
           return
         }
       }
@@ -688,7 +698,7 @@ export default function CoachView() {
       localStorage.setItem(COACH_SESSION_KEY, JSON.stringify({ id: session.id, date: new Date().toDateString() }))
       setSessionId(session.id)
       setStep('chat')
-      setActiveDay('show')
+      setActiveDay(getInitialActiveDayForToday(week))
     } catch (e) {
       console.error('CoachView: StartSession error:', e)
       setError('Error iniciando sesión')
@@ -896,8 +906,8 @@ export default function CoachView() {
             <div className={`w-20 h-20 rounded-3xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto`}>
               <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
             </div>
-            <h1 className={`text-2xl font-bold uppercase tracking-tight ${coachText.primary}`}>Soporte EVO</h1>
-            <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>Introduce tu contraseña de acceso</p>
+            <h1 className={`text-2xl font-bold uppercase tracking-tight ${coachText.primary}`}>EVO · Coaches</h1>
+            <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted}`}>Introduce el código de acceso del centro</p>
           </div>
           <form onSubmit={handleCodeSubmit} className="space-y-4">
             <input
@@ -1061,29 +1071,31 @@ export default function CoachView() {
                     <p className={`text-xs font-bold uppercase tracking-widest ${coachText.primary} truncate`}>
                       Soporte
                     </p>
-                    <p
-                      className={`text-[10px] font-bold uppercase tracking-wide truncate ${
-                        supportRemaining === 0 ? 'text-red-800' : supportRemaining <= 3 ? 'text-amber-900' : coachText.muted
+                    {supportRemaining <= 3 ? (
+                      <p
+                        className={`text-[10px] font-bold uppercase tracking-wide truncate ${
+                          supportRemaining === 0 ? 'text-red-800' : 'text-amber-900'
+                        }`}
+                      >
+                        {supportRemaining === 0
+                          ? 'Límite diario. Se renueva mañana.'
+                          : `${supportRemaining} consultas hoy`}
+                      </p>
+                    ) : null}
+                  </div>
+                  {supportRemaining <= 3 ? (
+                    <span
+                      className={`shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full border ${
+                        supportRemaining === 0
+                          ? 'bg-red-100 text-red-900 border-red-300'
+                          : supportRemaining === 1
+                            ? 'bg-red-50 text-red-800 border-red-200'
+                            : 'bg-amber-100 text-amber-950 border-amber-300'
                       }`}
                     >
-                      {supportRemaining === 0
-                        ? 'Límite diario. Se renueva mañana.'
-                        : `${supportRemaining} consultas hoy`}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 text-[11px] font-black tabular-nums px-2.5 py-1 rounded-full border ${
-                      supportRemaining === 0
-                        ? 'bg-red-100 text-red-900 border-red-300'
-                        : supportRemaining === 1
-                          ? 'bg-red-50 text-red-800 border-red-200'
-                          : supportRemaining <= 3
-                            ? 'bg-amber-100 text-amber-950 border-amber-300'
-                            : 'bg-[#A729AD]/15 text-[#6A1F6D] border border-[#A729AD]/20'
-                    }`}
-                  >
-                    {supportRemaining}/{SUPPORT_DAILY_LIMIT}
-                  </span>
+                      {supportRemaining}/{SUPPORT_DAILY_LIMIT}
+                    </span>
+                  ) : null}
                 </div>
                 <details className="mx-3 mt-2 rounded-2xl border border-black/8 bg-white/70 shadow-sm overflow-hidden">
                   <summary className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest cursor-pointer text-[#6B5A6B] list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">

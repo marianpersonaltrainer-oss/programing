@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import ExcelJS from 'exceljs'
 import mammoth from 'mammoth'
 import { SYSTEM_PROMPT_EXCEL, SYSTEM_PROMPT_REGENERATE_FEEDBACK } from '../../constants/systemPromptExcel.js'
+import { SYSTEM_PROMPT_DAY_EDIT } from '../../constants/systemPromptDayEdit.js'
 import { generateWeekExcel } from '../../utils/generateExcel.js'
 import {
   saveWeekToHistory,
@@ -33,6 +34,8 @@ import { AI_CONFIG, PROGRAMMING_MODEL, SUPPORT_MODEL } from '../../constants/con
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../../utils/parseAnthropicProxyBody.js'
 import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
+import { parseAssistantDayJson } from '../../utils/parseAssistantDayJson.js'
+import { mergeDayFromAiPatch, listSessionFieldsChanged } from '../../utils/mergeDayFromAiPatch.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
@@ -198,6 +201,37 @@ function buildSessionFingerprintMap(weekData) {
   return m
 }
 
+/** Contexto breve del resto de la semana + resumen, para coherencia al editar un solo día con IA. */
+function buildCompactWeekContextForDayEdit(weekData, diaIdx) {
+  const parts = []
+  const r = weekData?.resumen
+  if (r && typeof r === 'object') {
+    parts.push('RESUMEN SEMANAL (JSON):')
+    parts.push(
+      JSON.stringify({
+        estimulo: r.estimulo || '',
+        intensidad: r.intensidad || '',
+        foco: r.foco || '',
+        nota: r.nota || '',
+      }),
+    )
+  }
+  const dias = weekData?.dias || []
+  parts.push('\nOTROS DÍAS (extracto; no debes modificarlos):')
+  dias.forEach((d, i) => {
+    if (i === diaIdx) return
+    const bits = []
+    for (const { key, label } of EVO_SESSION_CLASS_DEFS) {
+      const t = String(d[key] || '').trim()
+      if (!t) continue
+      const one = t.replace(/\s+/g, ' ').slice(0, 100)
+      bits.push(`${label}: ${one}${t.length > 100 ? '…' : ''}`)
+    }
+    parts.push(`- ${d.nombre || `Día ${i + 1}`}: ${bits.join(' | ') || '(sin texto de sesión)'}`)
+  })
+  return parts.join('\n')
+}
+
 function stripCodeFences(text) {
   let t = text.trim()
   if (t.startsWith('```')) {
@@ -258,6 +292,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   )
   /** Pestaña «Editar»: día visible (el resto de la semana en tabs, sin scroll infinito). */
   const [editFocusDayIdx, setEditFocusDayIdx] = useState(0)
+  /** Borradores de instrucciones para «IA · este día» (por índice de día). */
+  const [dayAiDraftByIdx, setDayAiDraftByIdx] = useState({})
+  const [dayEditAiBusy, setDayEditAiBusy] = useState(false)
+  const [regenDayFeedbacksAfterAi, setRegenDayFeedbacksAfterAi] = useState(false)
   /** Bloque opcional inyectado en la petición a la IA (máx. 1000 chars; ver util). */
   const [previousCoachFeedbackBlock, setPreviousCoachFeedbackBlock] = useState('')
   const [previousCoachFeedbackLoadState, setPreviousCoachFeedbackLoadState] = useState('idle')
@@ -884,6 +922,115 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setErrorMsg(err?.message || 'No se pudo regenerar el feedback.')
     } finally {
       setRegeneratingFeedbackKey(null)
+    }
+  }
+
+  async function handleApplyDayAiEdit(diaIdx, dia) {
+    const instr = sanitizePromptTextForLLM(dayAiDraftByIdx[diaIdx] || '').trim()
+    if (!instr) {
+      setErrorMsg('Escribe qué quieres cambiar o revisar en este día antes de usar la IA.')
+      return
+    }
+    if (!weekData?.dias?.[diaIdx]) return
+
+    setDayEditAiBusy(true)
+    setErrorMsg('')
+    try {
+      let systemFull = SYSTEM_PROMPT_DAY_EDIT
+      try {
+        const libRows = await getCoachExerciseLibrary()
+        const block = buildGeneratorLibraryBlock(libRows)
+        if (block) systemFull += `\n\n${block}`
+      } catch {
+        /* sin biblioteca */
+      }
+      const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
+      if (methodText) {
+        systemFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
+      }
+
+      const weekCtx = buildCompactWeekContextForDayEdit(weekData, diaIdx)
+      const userMsg = [
+        weekCtx,
+        '',
+        `DÍA A EDITAR: ${dia.nombre || `Día ${diaIdx + 1}`} (posición ${diaIdx} en el array "dias").`,
+        '',
+        'INSTRUCCIONES DEL PROGRAMADOR:',
+        instr,
+        '',
+        'CONTENIDO ACTUAL DEL DÍA (JSON — conserva claves y tipos; respuesta solo en "dia"):',
+        JSON.stringify(dia),
+      ].join('\n')
+
+      let response
+      try {
+        response = await fetch('/api/anthropic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: PROGRAMMING_MODEL,
+            max_tokens: Math.max(AI_CONFIG.maxTokens, 8192),
+            system: systemFull,
+            messages: [{ role: 'user', content: userMsg }],
+          }),
+        })
+      } catch (e) {
+        throw new Error(explainAnthropicFetchFailure(e))
+      }
+
+      const responseText = await response.text()
+      let data
+      try {
+        data = parseAnthropicProxyBody(responseText)
+      } catch {
+        throw new Error('La respuesta del servidor no es JSON válido.')
+      }
+      if (!response.ok || isAnthropicProxyFailure(data)) {
+        throw new Error(data?.error?.message || `Error ${response.status}`)
+      }
+
+      const raw = data.content?.[0]?.text || ''
+      if (!raw.trim()) throw new Error('La API no devolvió texto.')
+
+      const parsedDia = parseAssistantDayJson(raw)
+      const prevDia = { ...(weekData.dias[diaIdx] || {}) }
+      const merged = mergeDayFromAiPatch(prevDia, parsedDia)
+      const changedSessions = listSessionFieldsChanged(prevDia, merged)
+
+      updateWeekData((prev) => {
+        const dias = [...(prev.dias || [])]
+        dias[diaIdx] = merged
+        return { ...prev, dias }
+      })
+
+      setStaleFeedbackKeys((prev) => {
+        const next = new Set(prev)
+        for (const { feedbackKey } of changedSessions) {
+          next.add(feedbackStaleKey(diaIdx, feedbackKey))
+        }
+        return next
+      })
+
+      if (regenDayFeedbacksAfterAi) {
+        for (const { key, feedbackKey, label } of EVO_SESSION_CLASS_DEFS) {
+          if (!String(merged[key] || '').trim()) continue
+          await regenerateFeedbackForClass(
+            diaIdx,
+            key,
+            feedbackKey,
+            merged.nombre || dia.nombre,
+            label,
+            merged[key] || '',
+          )
+        }
+      }
+
+      setDayAiDraftByIdx((prev) => ({ ...prev, [diaIdx]: '' }))
+    } catch (err) {
+      console.error(err)
+      setErrorMsg(err?.message || 'No se pudo aplicar la edición con IA.')
+    } finally {
+      setDayEditAiBusy(false)
     }
   }
 
@@ -1544,6 +1691,54 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         <p className="text-sm font-bold text-evo-text uppercase tracking-wide border-b border-black/5 pb-2">
                           {dia.nombre || `Día ${diaIdx + 1}`}
                         </p>
+
+                        <div className="rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50/90 to-white p-4 space-y-3 shadow-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[11px] font-bold text-violet-950 uppercase tracking-widest">
+                                Asistente IA · este día
+                              </p>
+                              <p className="text-[11px] text-violet-900/80 leading-relaxed mt-1 max-w-[62ch]">
+                                Describe cambios concretos (ej.: «suaviza el WOD de Funcional», «cambia el bloque B de
+                                Fit», «revisa cargas en Basics»). Se actualiza solo{' '}
+                                <span className="font-semibold">{dia.nombre || `día ${diaIdx + 1}`}</span>; el resto
+                                de la semana se envía como contexto breve para coherencia.
+                              </p>
+                            </div>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={dayAiDraftByIdx[diaIdx] ?? ''}
+                            onChange={(e) =>
+                              setDayAiDraftByIdx((prev) => ({ ...prev, [diaIdx]: e.target.value }))
+                            }
+                            disabled={dayEditAiBusy}
+                            placeholder="Ej.: En EvoFuncional baja el volumen del WOD y deja el bloque A igual. En EvoFit quita técnica olímpica si hay…"
+                            spellCheck
+                            className="w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border border-violet-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-300/40 leading-relaxed resize-y min-h-[4.5rem] disabled:opacity-50"
+                          />
+                          <label className="flex items-start gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={regenDayFeedbacksAfterAi}
+                              onChange={(e) => setRegenDayFeedbacksAfterAi(e.target.checked)}
+                              disabled={dayEditAiBusy}
+                              className="mt-0.5 rounded border-violet-300 text-violet-700 focus:ring-violet-400"
+                            />
+                            <span className="text-[11px] text-violet-950/90 leading-snug">
+                              Tras aplicar, regenerar automáticamente los feedbacks de coaching de las clases que
+                              tengan sesión (varias llamadas; puede tardar un minuto).
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={dayEditAiBusy}
+                            onClick={() => handleApplyDayAiEdit(diaIdx, dia)}
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide bg-violet-700 text-white hover:bg-violet-800 disabled:opacity-50 disabled:pointer-events-none shadow-sm border border-violet-800/20"
+                          >
+                            {dayEditAiBusy ? 'Aplicando IA…' : 'Aplicar instrucciones con IA'}
+                          </button>
+                        </div>
 
                         {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => {
                           const resumenFoco = (weekData.resumen && weekData.resumen.foco) || ''

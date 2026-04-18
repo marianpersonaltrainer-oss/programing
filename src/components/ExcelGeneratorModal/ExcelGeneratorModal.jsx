@@ -167,7 +167,7 @@ function WeekSessionClassReviewAside({ dias, sessionKey, label, highlightDayIdx,
                   )}
                 </div>
                 {row.placeholder ? (
-                  <p className="text-[10px] text-evo-muted mt-0.5">Sin programa</p>
+                  <p className="text-[10px] text-neutral-600 mt-0.5">Sin programa</p>
                 ) : (
                   <>
                     <p className="text-[10px] text-[#1A0A1A]/90 mt-0.5 font-mono break-words">{row.mainLine}</p>
@@ -1140,15 +1140,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         {/* Header */}
         <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between flex-shrink-0 bg-white shadow-sm">
           <div>
-            <h2 className="text-display text-base font-bold text-evo-text uppercase tracking-tight">Generar Programación Semanal</h2>
-            <p className="text-[10px] text-evo-muted font-bold mt-1 uppercase tracking-widest">
+            <h2 className="text-display text-base font-bold text-[#1A0A1A] uppercase tracking-tight">Generar Programación Semanal</h2>
+            <p className="text-[10px] text-neutral-600 font-bold mt-1 uppercase tracking-widest">
               {weekState.mesocycle
                 ? `${weekState.mesocycle} · S${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` · ${weekState.phase}` : ''}`
                 : 'Configuración pendiente'
               }
             </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-evo-muted hover:text-red-500 transition-all shadow-sm border border-black/5">
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-neutral-600 hover:text-red-500 transition-all shadow-sm border border-black/5">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -1161,9 +1161,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               {/* Contexto histórico */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-evo-text uppercase tracking-wider">
+                  <label className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider">
                     Contexto de Programación Anterior
-                    <span className="ml-1 text-[9px] text-evo-muted">
+                    <span className="ml-1 text-[9px] text-neutral-600">
                       {contextOptionalUi
                         ? '(opcional: semana en edición / ya cargada)'
                         : '(obligatorio en semana nueva)'}
@@ -1216,7 +1216,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-evo-muted mb-1 font-medium leading-relaxed">
+                <p className="text-[10px] text-neutral-600 mb-1 font-medium leading-relaxed">
                   Sube archivos (.docx, .xlsx, .txt) o pega la programación previa en texto plano.
                   {contextOptionalUi ? (
                     <span className="block mt-1 text-[9px] opacity-90">
@@ -1242,9 +1242,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               </div>
 
               <details className="rounded-2xl border border-black/10 bg-gray-50/50 px-4 py-3">
-                <summary className="flex flex-wrap items-center justify-between gap-2 cursor-pointer text-[11px] font-bold text-evo-text uppercase tracking-wider list-none [&::-webkit-details-marker]:hidden">
+                <summary className="flex flex-wrap items-center justify-between gap-2 cursor-pointer text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider list-none [&::-webkit-details-marker]:hidden">
                   <span className="select-none">Feedback coaches semana anterior</span>
-                  <span className="text-[9px] font-semibold normal-case text-evo-muted">
+                  <span className="text-[9px] font-semibold normal-case text-neutral-600">
                     {previousCoachFeedbackLoadState === 'idle' && '—'}
                     {previousCoachFeedbackLoadState === 'loading' && 'Cargando…'}
                     {previousCoachFeedbackLoadState === 'skip_s1' && 'No aplica (S1)'}
@@ -1257,18 +1257,18 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </summary>
                 <div className="mt-3 pt-3 border-t border-black/8">
                   {previousCoachFeedbackLoadState === 'idle' ? (
-                    <p className="text-[10px] text-evo-muted">
+                    <p className="text-[10px] text-neutral-600">
                       Elige mesociclo y semana en el panel izquierdo para intentar cargar feedback de la semana
                       publicada anterior (S-1).
                     </p>
                   ) : previousCoachFeedbackLoadState === 'loading' ? (
-                    <p className="text-[10px] text-evo-muted">Cargando feedback desde Supabase…</p>
+                    <p className="text-[10px] text-neutral-600">Cargando feedback desde Supabase…</p>
                   ) : previousCoachFeedbackLoadState === 'error' ? (
-                    <p className="text-[10px] text-evo-muted">
+                    <p className="text-[10px] text-neutral-600">
                       No se pudo cargar. La generación sigue disponible; el bloque se omite.
                     </p>
                   ) : previousCoachFeedbackLoadState === 'skip_s1' ? (
-                    <p className="text-[10px] text-evo-muted">
+                    <p className="text-[10px] text-neutral-600">
                       Es la primera semana del mesociclo: no hay semana publicada S-1 en el mismo mesociclo.
                     </p>
                   ) : previousCoachFeedbackBlock.trim() ? (
@@ -1276,7 +1276,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                       {previousCoachFeedbackBlock}
                     </pre>
                   ) : (
-                    <p className="text-[10px] text-evo-muted">
+                    <p className="text-[10px] text-neutral-600">
                       No hay entradas en coach_session_feedback para la semana anterior publicada.
                     </p>
                   )}
@@ -1285,10 +1285,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
               {/* Instrucciones específicas */}
               <div className="space-y-3">
-                <label className="block text-[11px] font-bold text-evo-text uppercase tracking-wider">
+                <label className="block text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider">
                   Instrucciones para esta Semana
                 </label>
-                <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
+                <p className="text-[9px] text-neutral-600 font-medium leading-relaxed">
                   Elige los días con los controles de abajo (obligatorio). Aquí solo: «lunes ya está hecho» (preserva y
                   fusiona desde Supabase si coincide mesociclo y semana). Para omitir un día, desmárcalo en el selector.
                 </p>
@@ -1301,7 +1301,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 />
                 <div className="rounded-2xl border border-evo-accent/15 bg-evo-accent/[0.04] px-4 py-3 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-[11px] font-bold text-evo-text uppercase tracking-wider">
+                    <label className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider">
                       Días a generar
                     </label>
                     <div className="flex gap-2">
@@ -1319,13 +1319,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         onClick={() =>
                           setDayPicker(Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, false])))
                         }
-                        className="text-[9px] font-bold uppercase text-evo-muted px-2 py-1 rounded-lg border border-black/10 hover:bg-gray-100"
+                        className="text-[9px] font-bold uppercase text-neutral-600 px-2 py-1 rounded-lg border border-black/10 hover:bg-gray-100"
                       >
                         Ninguno
                       </button>
                     </div>
                   </div>
-                  <p className="text-[9px] text-evo-muted font-medium leading-relaxed">
+                  <p className="text-[9px] text-neutral-600 font-medium leading-relaxed">
                     Marca exactamente qué días debe rellenar la IA. «Lunes ya hecho» en el texto preserva ese día (no lo
                     regenera) aunque siga marcado.
                   </p>
@@ -1335,8 +1335,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         key={d}
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
                           dayPicker[d]
-                            ? 'border-evo-accent/40 bg-white text-evo-text shadow-sm'
-                            : 'border-black/10 bg-gray-50/80 text-evo-muted'
+                            ? 'border-evo-accent/40 bg-white text-[#1A0A1A] shadow-sm'
+                            : 'border-black/10 bg-gray-50/80 text-neutral-600'
                         }`}
                       >
                         <input
@@ -1389,10 +1389,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50/50 hover:bg-gray-100/50 transition-colors text-left"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-evo-text uppercase tracking-widest">Historial del Mesociclo</span>
+                      <span className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-widest">Historial del Mesociclo</span>
                       <span className="text-[9px] bg-evo-accent/10 text-evo-accent px-2 py-0.5 rounded-full font-bold">{history.length} SEMANAS</span>
                     </div>
-                    <span className="text-evo-muted text-xs">{showHistory ? '▲' : '▼'}</span>
+                    <span className="text-neutral-600 text-xs">{showHistory ? '▲' : '▼'}</span>
                   </button>
                   {showHistory && (
                     <div className="animate-fade-in">
@@ -1400,13 +1400,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         {history.map((entry) => (
                           <div key={entry.semana} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50/30 transition-all">
                             <div className="min-w-0 flex-1">
-                              <p className="text-[10px] font-bold text-evo-text uppercase tracking-tight">Semana {entry.semana} — {entry.titulo || 'Sin título'}</p>
+                              <p className="text-[10px] font-bold text-[#1A0A1A] uppercase tracking-tight">Semana {entry.semana} — {entry.titulo || 'Sin título'}</p>
                               {entry.resumen && (
-                                <p className="text-[9px] text-evo-muted font-medium mt-1">
+                                <p className="text-[9px] text-neutral-600 font-medium mt-1">
                                   {entry.resumen.estimulo} · {entry.resumen.foco}
                                 </p>
                               )}
-                              <p className="text-[9px] text-gray-400 mt-1">
+                              <p className="text-[9px] text-neutral-500 mt-1">
                                 {new Date(entry.savedAt).toLocaleDateString()}
                                 {!entry.weekDataFull && (
                                   <span className="block text-amber-700 font-bold mt-0.5">
@@ -1459,10 +1459,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 <span className="text-display text-4xl font-black text-evo-accent">E</span>
               </div>
               <div className="space-y-2">
-                <p className="text-base font-bold text-evo-text text-center uppercase tracking-tight">
+                <p className="text-base font-bold text-[#1A0A1A] text-center uppercase tracking-tight">
                   {genStep || 'Iniciando generación...'}
                 </p>
-                <p className="text-[11px] text-evo-muted text-center font-bold uppercase tracking-widest">Memoria AI activa · Coherencia EVO</p>
+                <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">Memoria AI activa · Coherencia EVO</p>
               </div>
               <div className="flex gap-2.5">
                 {[0, 150, 300].map((delay) => (
@@ -1490,7 +1490,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                       className={`text-[10px] px-3 py-1.5 rounded-lg transition-all font-bold uppercase tracking-tight ${
                         previewTab === tab.id
                           ? 'bg-white shadow-sm text-evo-accent'
-                          : 'text-evo-muted hover:text-evo-text'
+                          : 'text-neutral-600 hover:text-[#1A0A1A]'
                       }`}
                     >
                       {tab.label}
@@ -1526,7 +1526,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     {history.map((entry) => (
                       <div key={`pv-${entry.semana}`} className="px-4 py-2.5 flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-[10px] font-bold text-evo-text uppercase">S{entry.semana} — {entry.titulo || 'Sin título'}</p>
+                          <p className="text-[10px] font-bold text-[#1A0A1A] uppercase">S{entry.semana} — {entry.titulo || 'Sin título'}</p>
                           {!entry.weekDataFull && (
                             <p className="text-[9px] text-amber-800 font-medium mt-0.5">Sin JSON local (se intenta Supabase)</p>
                           )}
@@ -1559,7 +1559,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               {/* Campos editables: título y pestaña */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="text-[10px] text-evo-muted font-bold uppercase tracking-widest mb-1.5 block ml-1">Título del Documento</label>
+                  <label className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest mb-1.5 block ml-1">Título del Documento</label>
                   <input
                     type="text"
                     value={editTitle}
@@ -1569,7 +1569,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-evo-muted font-bold uppercase tracking-widest mb-1.5 block ml-1">Pestaña</label>
+                  <label className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest mb-1.5 block ml-1">Pestaña</label>
                   <input
                     type="text"
                     value={editSheetName}
@@ -1595,16 +1595,16 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">Resumen de Orientación Semanal</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
-                      <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Estímulo</p>
-                      <p className="text-[11px] text-evo-text font-semibold">{weekData.resumen.estimulo}</p>
+                      <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest">Estímulo</p>
+                      <p className="text-[11px] text-[#1A0A1A] font-semibold">{weekData.resumen.estimulo}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Intensidad · Foco</p>
-                      <p className="text-[11px] text-evo-text font-semibold">{weekData.resumen.intensidad} · {weekData.resumen.foco}</p>
+                      <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest">Intensidad · Foco</p>
+                      <p className="text-[11px] text-[#1A0A1A] font-semibold">{weekData.resumen.intensidad} · {weekData.resumen.foco}</p>
                     </div>
                     <div className="space-y-1 sm:col-span-1">
-                      <p className="text-[9px] text-evo-muted font-bold uppercase tracking-widest">Nota Metodológica</p>
-                      <p className="text-[11px] text-evo-text font-semibold leading-relaxed">{weekData.resumen.nota}</p>
+                      <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest">Nota Metodológica</p>
+                      <p className="text-[11px] text-[#1A0A1A] font-semibold leading-relaxed">{weekData.resumen.nota}</p>
                     </div>
                   </div>
                 </div>
@@ -1612,7 +1612,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
               {previewTab === 'editar' && weekData && (
                 <div className="space-y-5 border border-black/5 rounded-2xl p-4 sm:p-5 bg-gray-50/30">
-                  <p className="text-xs text-evo-muted font-bold uppercase tracking-widest leading-relaxed">
+                  <p className="text-xs text-neutral-600 font-bold uppercase tracking-widest leading-relaxed">
                     Cambia textos aquí; al publicar o descargar se usa esta versión. Usa las pestañas de día para
                     enfocar un día — el editor de sesión gana altura en pantalla.
                   </p>
@@ -1626,7 +1626,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         { k: 'foco', label: 'Foco' },
                       ].map(({ k, label }) => (
                         <label key={k} className="block space-y-1">
-                          <span className="text-[10px] font-bold text-evo-muted uppercase tracking-widest">{label}</span>
+                          <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">{label}</span>
                           <input
                             type="text"
                             value={(weekData.resumen && weekData.resumen[k]) || ''}
@@ -1642,7 +1642,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                       ))}
                     </div>
                     <label className="block space-y-1">
-                      <span className="text-[10px] font-bold text-evo-muted uppercase tracking-widest">Nota metodológica</span>
+                      <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">Nota metodológica</span>
                       <textarea
                         rows={3}
                         value={(weekData.resumen && weekData.resumen.nota) || ''}
@@ -1658,7 +1658,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   </div>
 
                   <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="text-[10px] font-bold text-evo-muted uppercase tracking-widest w-full sm:w-auto sm:mr-2">
+                    <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest w-full sm:w-auto sm:mr-2">
                       Día
                     </span>
                     {(weekData.dias || []).map((d, i) => (
@@ -1669,7 +1669,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         className={`px-3 py-2 rounded-xl text-sm font-bold uppercase tracking-wide border transition-colors ${
                           editFocusDayIdx === i
                             ? 'bg-evo-accent text-white border-evo-accent shadow-sm'
-                            : 'bg-white text-evo-text border-black/10 hover:border-evo-accent/40 hover:bg-evo-accent/5'
+                            : 'bg-white text-[#1A0A1A] border-black/10 hover:border-evo-accent/40 hover:bg-evo-accent/5'
                         }`}
                       >
                         {d.nombre || `Día ${i + 1}`}
@@ -1688,7 +1688,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                       'w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border rounded-xl px-4 py-3 focus:outline-none leading-relaxed resize-y'
                     return (
                       <div key={dia.nombre || diaIdx} className="rounded-2xl border border-black/8 bg-white p-4 sm:p-5 space-y-4 shadow-sm">
-                        <p className="text-sm font-bold text-evo-text uppercase tracking-wide border-b border-black/5 pb-2">
+                        <p className="text-sm font-bold text-[#1A0A1A] uppercase tracking-wide border-b border-black/5 pb-2">
                           {dia.nombre || `Día ${diaIdx + 1}`}
                         </p>
 
@@ -1696,9 +1696,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           <p className="text-xs font-bold text-evo-accent uppercase tracking-widest">
                             Ajustes con IA (solo este día)
                           </p>
-                          <p className="text-[11px] text-evo-muted leading-relaxed">
+                          <p className="text-[11px] text-neutral-600 leading-relaxed">
                             Indica qué quieres cambiar en{' '}
-                            <span className="font-semibold text-evo-text">{dia.nombre || `día ${diaIdx + 1}`}</span>.
+                            <span className="font-semibold text-[#1A0A1A]">{dia.nombre || `día ${diaIdx + 1}`}</span>.
                             El resto de la semana solo se usa como contexto; no se modifica.
                           </p>
                           <textarea
@@ -1720,7 +1720,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                               disabled={dayEditAiBusy}
                               className="mt-0.5 rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
                             />
-                            <span className="text-[11px] text-evo-muted leading-snug">
+                            <span className="text-[11px] text-neutral-600 leading-snug">
                               Después, regenerar los feedbacks de coaching de las clases con sesión (varias llamadas).
                             </span>
                           </label>
@@ -1728,7 +1728,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                             type="button"
                             disabled={dayEditAiBusy}
                             onClick={() => handleApplyDayAiEdit(diaIdx, dia)}
-                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide border border-black/10 bg-white text-evo-text hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide border border-black/10 bg-white text-[#1A0A1A] hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
                           >
                             {dayEditAiBusy ? 'Aplicando…' : 'Aplicar con IA'}
                           </button>
@@ -1812,7 +1812,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                             return (
                               <div key={feedbackKey} className="block space-y-2">
                                 <div className="flex flex-wrap items-start justify-between gap-2">
-                                  <span className="text-xs font-bold text-evo-muted uppercase tracking-widest">
+                                  <span className="text-xs font-bold text-neutral-600 uppercase tracking-widest">
                                     {shortLabel}
                                   </span>
                                   <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -1897,7 +1897,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between px-1">
-                      <p className="text-[10px] text-evo-muted font-bold uppercase tracking-widest">
+                      <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">
                         Pegar en WodBuster (sin timings ni feedback)
                       </p>
                       <button
@@ -1909,13 +1909,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         className={`text-[10px] px-4 py-1.5 rounded-xl transition-all shadow-sm font-bold uppercase ${
                           wbCopied
                             ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                            : 'bg-white border border-black/10 text-evo-text hover:bg-gray-50'
+                            : 'bg-white border border-black/10 text-[#1A0A1A] hover:bg-gray-50'
                         }`}
                       >
                         {wbCopied ? '✓ Copiado' : 'Copiar Todo'}
                       </button>
                     </div>
-                    <pre className="w-full bg-gray-50 border border-black/5 rounded-2xl px-5 py-5 text-[11px] text-evo-text font-medium leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto font-sans shadow-inner">
+                    <pre className="w-full bg-gray-50 border border-black/5 rounded-2xl px-5 py-5 text-[11px] text-[#1A0A1A] font-medium leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto font-sans shadow-inner">
                       {wbText || 'Sin datos WodBuster — regenera la semana para obtener esta versión'}
                     </pre>
                   </div>
@@ -1952,7 +1952,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     const active = ALL.filter((c) => dia[c.key])
                     return (
                       <div key={dia.nombre} className="bg-white rounded-2xl p-4 border border-black/5 shadow-soft">
-                        <p className="text-[11px] font-bold text-evo-text uppercase tracking-widest mb-3 ml-1">{dia.nombre}</p>
+                        <p className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-widest mb-3 ml-1">{dia.nombre}</p>
                         <div className={`grid gap-2 ${active.length <= 3 ? 'grid-cols-3' : 'grid-cols-3'}`}>
                           {active.map(({ key, label, color }) => (
                             <div key={key} className="relative rounded-lg p-2 group/class" style={{ backgroundColor: `${color}11`, border: `1px solid ${color}33` }}>
@@ -1967,13 +1967,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                     btn.innerHTML = '✓'
                                     setTimeout(() => btn.innerHTML = oldHtml, 2000)
                                   }}
-                                  className="opacity-0 group-hover/class:opacity-100 transition-opacity text-[8px] bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded border border-white/10 text-evo-muted hover:text-white"
+                                  className="opacity-0 group-hover/class:opacity-100 transition-opacity text-[8px] bg-white px-1.5 py-0.5 rounded border border-black/15 text-neutral-600 hover:text-[#1A0A1A] hover:bg-gray-50"
                                   title={`Copiar sesión de ${label}`}
                                 >
                                   Copiar
                                 </button>
                               </div>
-                              <p className="text-[9px] text-evo-muted leading-relaxed line-clamp-4" style={{ whiteSpace: 'pre-line' }}>
+                              <p className="text-[9px] text-neutral-600 leading-relaxed line-clamp-4" style={{ whiteSpace: 'pre-line' }}>
                                 {dia[key]?.slice(0, 200) || '—'}
                               </p>
                             </div>
@@ -1996,7 +1996,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           {/* DOWNLOADING */}
           {status === 'downloading' && (
             <div className="flex flex-col items-center justify-center py-12 space-y-3">
-              <p className="text-sm text-evo-text font-medium">Generando archivo Excel...</p>
+              <p className="text-sm text-[#1A0A1A] font-medium">Generando archivo Excel...</p>
               <div className="flex gap-1.5">
                 {[0, 150, 300].map((delay) => (
                   <div key={delay} className="w-2 h-2 rounded-full bg-[#2FBE7B] animate-bounce" style={{ animationDelay: `${delay}ms` }} />
@@ -2008,14 +2008,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
         {/* Footer */}
         <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50 backdrop-blur-md">
-          <button onClick={onClose} className="text-[10px] text-evo-muted font-bold uppercase tracking-widest hover:text-evo-text transition-all">
+          <button onClick={onClose} className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest hover:text-[#1A0A1A] transition-all">
             Cancelar
           </button>
           <div className="flex gap-3">
             {status === 'previewing' && (
               <button
                 onClick={handleGenerate}
-                className="px-5 py-2.5 rounded-xl border border-black/10 bg-white text-evo-muted hover:text-evo-text hover:bg-gray-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                className="px-5 py-2.5 rounded-xl border border-black/10 bg-white text-neutral-600 hover:text-[#1A0A1A] hover:bg-gray-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
               >
                 Regenerar
               </button>

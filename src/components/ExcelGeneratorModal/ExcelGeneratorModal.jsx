@@ -1692,20 +1692,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           {dia.nombre || `Día ${diaIdx + 1}`}
                         </p>
 
-                        <div className="rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50/90 to-white p-4 space-y-3 shadow-sm">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <p className="text-[11px] font-bold text-violet-950 uppercase tracking-widest">
-                                Asistente IA · este día
-                              </p>
-                              <p className="text-[11px] text-violet-900/80 leading-relaxed mt-1 max-w-[62ch]">
-                                Describe cambios concretos (ej.: «suaviza el WOD de Funcional», «cambia el bloque B de
-                                Fit», «revisa cargas en Basics»). Se actualiza solo{' '}
-                                <span className="font-semibold">{dia.nombre || `día ${diaIdx + 1}`}</span>; el resto
-                                de la semana se envía como contexto breve para coherencia.
-                              </p>
-                            </div>
-                          </div>
+                        <div className="rounded-2xl border border-black/10 bg-white p-4 space-y-3 shadow-sm">
+                          <p className="text-xs font-bold text-evo-accent uppercase tracking-widest">
+                            Ajustes con IA (solo este día)
+                          </p>
+                          <p className="text-[11px] text-evo-muted leading-relaxed">
+                            Indica qué quieres cambiar en{' '}
+                            <span className="font-semibold text-evo-text">{dia.nombre || `día ${diaIdx + 1}`}</span>.
+                            El resto de la semana solo se usa como contexto; no se modifica.
+                          </p>
                           <textarea
                             rows={3}
                             value={dayAiDraftByIdx[diaIdx] ?? ''}
@@ -1713,9 +1708,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                               setDayAiDraftByIdx((prev) => ({ ...prev, [diaIdx]: e.target.value }))
                             }
                             disabled={dayEditAiBusy}
-                            placeholder="Ej.: En EvoFuncional baja el volumen del WOD y deja el bloque A igual. En EvoFit quita técnica olímpica si hay…"
+                            placeholder="Ej.: Suaviza el WOD de Funcional; deja el bloque A igual…"
                             spellCheck
-                            className="w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border border-violet-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-300/40 leading-relaxed resize-y min-h-[4.5rem] disabled:opacity-50"
+                            className="w-full text-sm !text-[#1A0A1A] caret-[#1A0A1A] border border-black/10 rounded-xl px-3 py-2.5 focus:outline-none focus:border-evo-accent/40 leading-relaxed resize-y min-h-[4.5rem] disabled:opacity-50"
                           />
                           <label className="flex items-start gap-2 cursor-pointer select-none">
                             <input
@@ -1723,20 +1718,19 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                               checked={regenDayFeedbacksAfterAi}
                               onChange={(e) => setRegenDayFeedbacksAfterAi(e.target.checked)}
                               disabled={dayEditAiBusy}
-                              className="mt-0.5 rounded border-violet-300 text-violet-700 focus:ring-violet-400"
+                              className="mt-0.5 rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
                             />
-                            <span className="text-[11px] text-violet-950/90 leading-snug">
-                              Tras aplicar, regenerar automáticamente los feedbacks de coaching de las clases que
-                              tengan sesión (varias llamadas; puede tardar un minuto).
+                            <span className="text-[11px] text-evo-muted leading-snug">
+                              Después, regenerar los feedbacks de coaching de las clases con sesión (varias llamadas).
                             </span>
                           </label>
                           <button
                             type="button"
                             disabled={dayEditAiBusy}
                             onClick={() => handleApplyDayAiEdit(diaIdx, dia)}
-                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide bg-violet-700 text-white hover:bg-violet-800 disabled:opacity-50 disabled:pointer-events-none shadow-sm border border-violet-800/20"
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide border border-black/10 bg-white text-evo-text hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
                           >
-                            {dayEditAiBusy ? 'Aplicando IA…' : 'Aplicar instrucciones con IA'}
+                            {dayEditAiBusy ? 'Aplicando…' : 'Aplicar con IA'}
                           </button>
                         </div>
 

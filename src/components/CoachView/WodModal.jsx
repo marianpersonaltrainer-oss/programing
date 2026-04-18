@@ -95,7 +95,7 @@ export default function WodModal({
 
         {String(sessionFeedback || '').trim() ? (
           <>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">Briefing programación</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Briefing programación</p>
             <CoachSessionBriefingModalBody text={sessionFeedback} accentColor={accentColor} />
           </>
         ) : null}

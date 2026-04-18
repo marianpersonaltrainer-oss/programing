@@ -48,6 +48,18 @@ const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
 /** Techo por POST: 2 días + feedbacks + JSON superan 3600 y JUEVES (2.º del par MIÉ–JUE) quedaba truncado. */
 const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 6500
 
+/** Texto fijo opcional al inicio del modal: se guarda en localStorage y se antepone a cada generación. */
+const EXCEL_QUICK_SEED_STORAGE_KEY = 'programingevo_excel_quick_seed'
+const EXCEL_QUICK_SEED_MAX_CHARS = 8000
+
+function readStoredQuickSeed() {
+  try {
+    return String(localStorage.getItem(EXCEL_QUICK_SEED_STORAGE_KEY) || '')
+  } catch {
+    return ''
+  }
+}
+
 /** Hasta 2 días consecutivos (orden LUN→SÁ) por llamada para acotar tiempo de respuesta de la IA. */
 function buildConsecutiveDayChunks(daysToGenerateSet) {
   const ordered = EXCEL_DAY_ORDER.filter((d) => daysToGenerateSet.has(d))
@@ -256,6 +268,9 @@ async function loadRealProgrammingContextForGenerator() {
 export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFromHistory }) {
   const [context, setContext]           = useState('')
   const [instructions, setInstructions]       = useState('')
+  /** Prioridades / contexto breve reutilizable; persiste en este navegador (localStorage). */
+  const [quickSeedPrompt, setQuickSeedPrompt] = useState(readStoredQuickSeed)
+  const quickSeedSaveTimerRef = useRef(null)
   const [fileLoading, setFileLoading]         = useState(false)
   const [fileName, setFileName]               = useState('')
   const [existingBuffer, setExistingBuffer]   = useState(null) // buffer del .xlsx subido
@@ -306,6 +321,21 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setHistory(getHistoryForMesocycle(weekState.mesocycle))
     }
   }, [weekState.mesocycle])
+
+  useEffect(() => {
+    if (quickSeedSaveTimerRef.current) clearTimeout(quickSeedSaveTimerRef.current)
+    quickSeedSaveTimerRef.current = setTimeout(() => {
+      try {
+        const t = String(quickSeedPrompt || '').slice(0, EXCEL_QUICK_SEED_MAX_CHARS)
+        localStorage.setItem(EXCEL_QUICK_SEED_STORAGE_KEY, t)
+      } catch {
+        /* quota u otro */
+      }
+    }, 500)
+    return () => {
+      if (quickSeedSaveTimerRef.current) clearTimeout(quickSeedSaveTimerRef.current)
+    }
+  }, [quickSeedPrompt])
 
   // Feedback de coaches de la semana publicada inmediatamente anterior (mismo mesociclo, S-1). Opcional para la IA.
   useEffect(() => {
@@ -592,8 +622,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       .trim()
       .slice(0, 1000)
 
+    const quickSeedClean = sanitizePromptTextForLLM(quickSeedPrompt || '')
+      .trim()
+      .slice(0, EXCEL_QUICK_SEED_MAX_CHARS)
+
     const baseContext = [
       mesoInfo,
+      quickSeedClean
+        ? `CONTEXTO RÁPIDO FIJO (panel superior del modal; prioridad sobre detalles genéricos si encaja con el método EVO):\n${quickSeedClean}`
+        : '',
       coachFeedbackClean ? coachFeedbackClean : '',
       historyClean ? `HISTORIAL DE SEMANAS ANTERIORES (mismo mesociclo):\n${historyClean}` : '',
       contextClean ? `CONTEXTO ADICIONAL SUBIDO:\n${contextClean}` : '',
@@ -950,7 +987,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       }
 
       const weekCtx = buildCompactWeekContextForDayEdit(weekData, diaIdx)
+      const quickForDay = sanitizePromptTextForLLM(quickSeedPrompt || '')
+        .trim()
+        .slice(0, EXCEL_QUICK_SEED_MAX_CHARS)
       const userMsg = [
+        quickForDay ? `CONTEXTO RÁPIDO FIJO (mismo bloque que en generación semanal):\n${quickForDay}` : '',
         weekCtx,
         '',
         `DÍA A EDITAR: ${dia.nombre || `Día ${diaIdx + 1}`} (posición ${diaIdx} en el array "dias").`,
@@ -960,7 +1001,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         '',
         'CONTENIDO ACTUAL DEL DÍA (JSON — conserva claves y tipos; respuesta solo en "dia"):',
         JSON.stringify(dia),
-      ].join('\n')
+      ]
+        .filter(Boolean)
+        .join('\n\n')
 
       let response
       try {
@@ -1158,6 +1201,29 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           {/* IDLE / INPUT */}
           {(status === 'idle' || status === 'error') && (
             <>
+              <div className="rounded-2xl border border-black/10 bg-white p-4 space-y-2 shadow-sm">
+                <label className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider block">
+                  Contexto rápido para la IA
+                  <span className="ml-1.5 text-[9px] font-semibold text-neutral-600 normal-case">
+                    (opcional · se guarda solo en este navegador, máx. {EXCEL_QUICK_SEED_MAX_CHARS} caracteres)
+                  </span>
+                </label>
+                <p className="text-[10px] text-neutral-600 leading-relaxed">
+                  Deja aquí prioridades que repites cada semana (lesionados, material, tono del centro, énfasis del
+                  mesociclo…). Se envía al modelo al inicio del mensaje, antes del historial y del contexto largo, en
+                  cada generación y regeneración.
+                </p>
+                <textarea
+                  value={quickSeedPrompt}
+                  onChange={(e) => setQuickSeedPrompt(e.target.value.slice(0, EXCEL_QUICK_SEED_MAX_CHARS))}
+                  rows={4}
+                  maxLength={EXCEL_QUICK_SEED_MAX_CHARS}
+                  spellCheck
+                  placeholder="Ej.: Cuidado rodilla en sentadilla varias semanas · poco espacio en rack el martes · priorizar técnica en OLY…"
+                  className="w-full bg-gray-50/50 border border-black/5 rounded-xl px-4 py-3 text-xs !text-[#1A0A1A] caret-[#1A0A1A] placeholder:!text-[#6B5A6B] placeholder:opacity-100 focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all leading-relaxed resize-y min-h-[5.5rem]"
+                />
+              </div>
+
               {/* Contexto histórico */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

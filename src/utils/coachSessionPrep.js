@@ -125,6 +125,26 @@ export function findLastCoachHandoffNote(classLabel, currentWeekId) {
   return formatHandoffNote(withNote[0])
 }
 
+/** Igual que `findLastCoachHandoffNote` pero solo entradas del día (`day_key` = lunes…). */
+export function findLastCoachHandoffNoteForDay(classLabel, currentWeekId, dayKey) {
+  if (!classLabel || !dayKey) return null
+  const { entries } = readFeedbackLog()
+  let withNote = entries.filter(
+    (e) =>
+      (e.class_label || '') === classLabel &&
+      e.day_key === dayKey &&
+      String(e.notes_next_week || '').trim(),
+  )
+  if (!withNote.length) return null
+  const wid = currentWeekId != null ? String(currentWeekId) : null
+  if (wid) {
+    withNote = withNote.filter((e) => e.week_id != null && String(e.week_id) === wid)
+    if (!withNote.length) return null
+  }
+  withNote.sort((a, b) => entryTime(b) - entryTime(a))
+  return formatHandoffNote(withNote[0])
+}
+
 function formatHandoffNote(e) {
   return {
     note: String(e.notes_next_week || '').trim(),

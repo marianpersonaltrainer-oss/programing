@@ -2,6 +2,31 @@
  * Tema oscuro oficial EVO para la vista coach.
  */
 
+/** Identificadores visuales Hoy v3 (tarjetas + modal claro). */
+export const CLASS_COLORS = {
+  EVOFUNCIONAL: '#4A90D9',
+  EVOBASICS: '#E8823A',
+  EVOFIT: '#4CAF50',
+}
+
+const SESSION_KEY_TO_CLASS_COLOR_KEY = {
+  evofuncional: 'EVOFUNCIONAL',
+  evobasics: 'EVOBASICS',
+  evofit: 'EVOFIT',
+}
+
+/** Hex de acento para una sesión publicada (`evofuncional` / `evobasics` / `evofit`). */
+export function classAccentBySessionKey(sessionKey) {
+  const k = SESSION_KEY_TO_CLASS_COLOR_KEY[sessionKey]
+  return (k && CLASS_COLORS[k]) || '#6A1F6D'
+}
+
+/** Título en mayúsculas tipo EVOFUNCIONAL para UI. */
+export function classDisplayTitle(sessionKey) {
+  const k = SESSION_KEY_TO_CLASS_COLOR_KEY[sessionKey]
+  return k || String(sessionKey || '').toUpperCase()
+}
+
 export const coachBg = {
   app: 'bg-[#0C0B0C]',
   sidebar: 'bg-[#0C0B0C]',

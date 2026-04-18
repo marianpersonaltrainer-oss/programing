@@ -290,7 +290,6 @@ export default function CoachView() {
   const [isTyping, setIsTyping] = useState(false)
   const [error, setError] = useState('')
   const [activeDay, setActiveDay] = useState(null)
-  const [hoyClassTabKey, setHoyClassTabKey] = useState('evofuncional')
   const [mainTab, setMainTab] = useState('hoy')
   const [guideSettings, setGuideSettings] = useState(null)
   const [exerciseLibrary, setExerciseLibrary] = useState([])
@@ -1316,11 +1315,10 @@ export default function CoachView() {
                     <CoachTodayScreen
                       weekData={weekData}
                       activeWeekRow={activeWeekRow}
-                      coachName={coachName}
                       activeDay={activeDay}
                       setActiveDay={setActiveDay}
-                      classTabKey={hoyClassTabKey}
-                      setClassTabKey={setHoyClassTabKey}
+                      exerciseLibrary={exerciseLibrary}
+                      todayHandoffs={todayHandoffs}
                       onConsultAssistant={(ctx) => openSupport('', ctx)}
                     />
                   ) : (

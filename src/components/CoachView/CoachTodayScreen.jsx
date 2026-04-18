@@ -1,16 +1,13 @@
-import { useState, useMemo } from 'react'
-import { madridWeekdayChipIndex } from '../../utils/coachTime.js'
+import { useMemo, useState } from 'react'
+import { madridWeekdayChipIndex, madridDateParts } from '../../utils/coachTime.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { MESOCYCLES } from '../../constants/evoColors.js'
-import { findLastCoachHandoffNote, handoffNoteMetaLine } from '../../utils/coachSessionPrep.js'
-import { findDia, sessionText, hasProgrammedSessionText } from './coachViewUtils.js'
-import CoachFormattedSession from './CoachFormattedSession.jsx'
+import { findLastCoachHandoffNoteForDay } from '../../utils/coachSessionPrep.js'
+import { findDia, sessionText, hasProgrammedSessionText, dayNombreToFeedbackKey } from './coachViewUtils.js'
+import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
+import WodModal from './WodModal.jsx'
 
-const MAIN_CLASS_TABS = [
-  { key: 'evofuncional', tabLabel: 'FUNCIONAL' },
-  { key: 'evobasics', tabLabel: 'BASICS' },
-  { key: 'evofit', tabLabel: 'FIT' },
-]
+const TODAY_CLASS_DEFS = EVO_SESSION_CLASS_DEFS.slice(0, 3)
 
 function shortDayLabel(dayName) {
   const n = String(dayName || '').toLowerCase()
@@ -22,45 +19,150 @@ function shortDayLabel(dayName) {
   return String(dayName || '')
 }
 
-function truncate(s, n) {
-  const t = String(s || '').trim()
-  if (t.length <= n) return t
-  return `${t.slice(0, n - 1)}…`
+function normClassLabel(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[\s_-]/g, '')
 }
 
-function HandoffCompactLine({ handoff }) {
-  const [open, setOpen] = useState(false)
-  if (!handoff?.note) return null
-  const meta = handoffNoteMetaLine(handoff)
-  const oneLine = `${meta ? `${meta} · ` : ''}${truncate(handoff.note, 60)}`
+function normDayName(s) {
+  return String(s || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+}
+
+/** `listTodayHandoffs` es del calendario hoy (Madrid); solo mezclamos si el chip coincide con ese día. */
+function selectedDayIsMadridCalendarToday(diaNombre, workWeek) {
+  if (!diaNombre || !workWeek?.length) return false
+  const { dayOfWeek } = madridDateParts(new Date())
+  if (dayOfWeek < 1 || dayOfWeek > 5) return false
+  const todayDia = workWeek[dayOfWeek - 1]?.nombre
+  return normDayName(todayDia) === normDayName(diaNombre)
+}
+
+/** Último `daily_handoffs` de hoy para esa clase (coincidencia flexible de etiqueta). */
+function latestDailyHandoffForClass(handoffs, classLabel) {
+  const target = normClassLabel(classLabel)
+  const rows = (handoffs || []).filter((h) => {
+    const note = String(h?.note || '').trim()
+    if (!note) return false
+    return normClassLabel(h.class_type) === target
+  })
+  if (!rows.length) return null
+  rows.sort((a, b) => {
+    const ta = new Date(a.created_at || 0).getTime()
+    const tb = new Date(b.created_at || 0).getTime()
+    return tb - ta
+  })
+  return rows[0]
+}
+
+function formatShortTime(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return ''
+  }
+}
+
+function ClassDayCard({
+  classDef,
+  accent,
+  dia,
+  weekId,
+  dayKey,
+  todayHandoffs,
+  useDailyHandoffs,
+  onOpenWod,
+}) {
+  const sessionRaw = dia ? sessionText(dia[classDef.key]) : ''
+  const hasSession = dia ? hasProgrammedSessionText(dia[classDef.key]) : false
+  const daily =
+    dia && useDailyHandoffs ? latestDailyHandoffForClass(todayHandoffs, classDef.label) : null
+  const feedbackHandoff =
+    dia && dayKey ? findLastCoachHandoffNoteForDay(classDef.label, weekId ?? null, dayKey) : null
+
+  const handoff = daily
+    ? {
+        meta: [daily.coach_name, formatShortTime(daily.created_at)].filter(Boolean).join(' · '),
+        note: String(daily.note || '').trim(),
+      }
+    : feedbackHandoff?.note
+      ? {
+          meta: [feedbackHandoff.coach_name, formatShortTime(feedbackHandoff.at)].filter(Boolean).join(' · '),
+          note: String(feedbackHandoff.note || '').trim(),
+        }
+      : null
+
+  const title = classDisplayTitle(classDef.key)
+
   return (
-    <button
-      type="button"
-      onClick={() => setOpen((v) => !v)}
-      className="w-full text-left rounded-none border-l-[3px] border-[#FFFF4C] bg-[#1a0f1b] px-[14px] py-2.5 text-[13px] text-[#F6E8F9] hover:bg-[#221427] transition-colors"
+    <article
+      className="rounded-[12px] bg-[#1a0f1b] p-4 flex flex-col min-h-[200px] border-t-4"
+      style={{ borderTopColor: accent }}
     >
-      {open ? (
-        <span className="block whitespace-pre-wrap leading-snug">{handoff.note}</span>
-      ) : (
-        <span className="block line-clamp-2">{oneLine}</span>
-      )}
-    </button>
+      <h3 className="font-evo-display font-bold text-[16px] uppercase tracking-wide" style={{ color: accent }}>
+        {title}
+      </h3>
+
+      <div className="mt-3 flex-1 min-h-[4.5rem]">
+        {handoff ? (
+          <>
+            <p className="text-[12px] leading-snug text-[#F6E8F9CC]" style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}>
+              {handoff.meta}
+            </p>
+            <p className="mt-1 text-[13px] text-[#F6E8F9] line-clamp-2 leading-snug whitespace-pre-wrap">{handoff.note}</p>
+          </>
+        ) : (
+          <p
+            className="text-[12px] italic text-[#F6E8F966]"
+            style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
+          >
+            Sin pase hoy
+          </p>
+        )}
+      </div>
+
+      <button
+        type="button"
+        disabled={!dia || !hasSession}
+        onClick={() => {
+          if (!dia || !hasSession) return
+          onOpenWod({
+            sessionKey: classDef.key,
+            classLabel: classDef.label,
+            sessionText: sessionRaw,
+            accentColor: accent,
+            dayName: dia.nombre,
+          })
+        }}
+        className="mt-4 w-full py-2.5 rounded-lg bg-[#0C0B0C] font-evo-display font-semibold text-[13px] uppercase tracking-wide transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{ color: accent, borderWidth: 1, borderStyle: 'solid', borderColor: accent }}
+      >
+        WOD →
+      </button>
+    </article>
   )
 }
 
 /**
- * Pantalla principal «Hoy»: contexto, chips día, tabs clase, nota pase, WOD, CTA asistente.
+ * Pantalla «Hoy» v3: tres tarjetas por clase; WOD en modal claro.
  */
 export default function CoachTodayScreen({
   weekData,
   activeWeekRow,
-  coachName,
   activeDay,
   setActiveDay,
-  classTabKey,
-  setClassTabKey,
   onConsultAssistant,
+  exerciseLibrary = [],
+  todayHandoffs = [],
 }) {
+  const [wodModal, setWodModal] = useState(null)
   const dias = weekData?.dias || []
   const workWeek = useMemo(() => dias.slice(0, 5), [dias])
 
@@ -77,16 +179,13 @@ export default function CoachTodayScreen({
   }, [activeWeekRow, weekData])
 
   const dia = findDia(dias, activeDay)
-  const classDef = EVO_SESSION_CLASS_DEFS.find((d) => d.key === classTabKey) || EVO_SESSION_CLASS_DEFS[0]
-  const sessionRaw = dia ? sessionText(dia[classTabKey]) : ''
-  const hasSession = dia ? hasProgrammedSessionText(dia[classTabKey]) : false
-  const lastHandoff = dia && classDef?.label ? findLastCoachHandoffNote(classDef.label, activeWeekRow?.id ?? null) : null
-
+  const dayKey = dia ? dayNombreToFeedbackKey(dia.nombre) : null
   const madridChipIndex = useMemo(() => madridWeekdayChipIndex(), [])
+  const useDailyHandoffs = dia ? selectedDayIsMadridCalendarToday(dia.nombre, workWeek) : false
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-[#0C0B0C]">
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-0 pb-6">
         <p
           className="px-4 pt-3 pb-2 font-evo-body text-[12px] leading-tight text-[#F6E8F966]"
           style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
@@ -94,7 +193,7 @@ export default function CoachTodayScreen({
           {contextLine}
         </p>
 
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-2 px-4 pb-4 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {workWeek.map((d, idx) => {
             const active = activeDay === d.nombre
             const isTodayChip = idx === madridChipIndex
@@ -117,58 +216,46 @@ export default function CoachTodayScreen({
           })}
         </div>
 
-        <div className="flex border-b border-[#6A1F6D]/35 px-2">
-          {MAIN_CLASS_TABS.map(({ key, tabLabel }) => {
-            const active = classTabKey === key
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setClassTabKey(key)}
-                className={`flex-1 py-3 text-center font-evo-display text-[13px] font-bold uppercase tracking-widest transition-colors border-b-2 ${
-                  active ? 'text-[#FFFF4C] border-[#FFFF4C]' : 'text-[#F6E8F966] border-transparent'
-                }`}
-              >
-                {tabLabel}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="px-4 pt-3">
-          {lastHandoff ? <HandoffCompactLine handoff={lastHandoff} /> : null}
-        </div>
-
-        <div className="px-4 pt-5 pb-4">
+        <div className="px-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           {!dia ? (
-            <p className="text-sm text-[#F6E8F966]">No hay datos para este día.</p>
-          ) : !hasSession ? (
-            <p className="text-sm text-[#F6E8F966]">Sin programación para {classDef.label} este día.</p>
+            <p className="text-sm text-[#F6E8F966] md:col-span-3">No hay datos para este día.</p>
           ) : (
-            <CoachFormattedSession text={sessionRaw} accentColor={classDef.color} variant="bare" />
+            TODAY_CLASS_DEFS.map((classDef) => {
+              const accent = classAccentBySessionKey(classDef.key)
+              return (
+                <ClassDayCard
+                  key={classDef.key}
+                  classDef={classDef}
+                  accent={accent}
+                  dia={dia}
+                  weekId={activeWeekRow?.id ?? null}
+                  dayKey={dayKey}
+                  todayHandoffs={todayHandoffs}
+                  useDailyHandoffs={useDailyHandoffs}
+                  onOpenWod={setWodModal}
+                />
+              )
+            })
           )}
         </div>
       </div>
 
-      <div className="fixed left-0 right-0 z-[105] bottom-[max(4.25rem,calc(3.5rem+env(safe-area-inset-bottom,0px)))] px-4 pointer-events-none">
-        <button
-          type="button"
-          onClick={() => {
-            if (!dia || !classDef) {
-              onConsultAssistant(null)
-              return
-            }
-            onConsultAssistant({
-              dayName: dia.nombre,
-              classLabel: classDef.label,
-              sessionText: sessionRaw || '',
-            })
+      {wodModal ? (
+        <WodModal
+          open
+          onClose={() => setWodModal(null)}
+          sessionKey={wodModal.sessionKey}
+          classLabel={wodModal.classLabel}
+          dayName={wodModal.dayName}
+          sessionText={wodModal.sessionText}
+          accentColor={wodModal.accentColor}
+          exerciseLibrary={exerciseLibrary}
+          onConsultAssistant={(ctx) => {
+            setWodModal(null)
+            onConsultAssistant(ctx)
           }}
-          className="pointer-events-auto w-full py-3.5 rounded-xl bg-[#6A1F6D] text-[#FFFF4C] font-evo-display font-semibold text-[14px] uppercase tracking-wide shadow-lg border border-[#A729AD]/40 active:scale-[0.99] transition-transform"
-        >
-          Consultar al asistente
-        </button>
-      </div>
+        />
+      ) : null}
     </div>
   )
 }

@@ -5,7 +5,8 @@
  * Importante: en Vercel `req.body` a veces llega como string JSON o vacío; hay que parsearlo
  * igual que en coach-exercise-library.js. Desestructurar `undefined` lanza TypeError → 500.
  *
- * Duración: `vercel.json` → functions maxDuration (300 s). Plan Pro + redeploy.
+ * Duración: `vercel.json` → functions maxDuration (300 s). El abort a Anthropic sigue
+ * `ANTHROPIC_UPSTREAM_TIMEOUT_MS` (por defecto ~270 s, configurable por env).
  *
  * Keep-alive: mientras se espera a Anthropic se envían espacios en chunked encoding para que
  * la conexión navegador→Vercel no quede totalmente inactiva (evita «Failed to fetch» en redes
@@ -190,7 +191,17 @@ ${ctx}
   return `${baseSystem}\n\n${replacement}`
 }
 
-const ANTHROPIC_UPSTREAM_TIMEOUT_MS = 110000
+/**
+ * Tiempo máximo de espera a api.anthropic.com por petición.
+ * Debe ser algo menor que `vercel.json` → functions.maxDuration (300s) para dejar margen
+ * a rate-limit, logs y serialización. Antes 110s cortaba generaciones válidas con
+ * prompt largo (briefing + método + ejemplos) + max_tokens altos.
+ */
+const ANTHROPIC_UPSTREAM_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.ANTHROPIC_UPSTREAM_TIMEOUT_MS)
+  if (Number.isFinite(raw) && raw >= 60_000 && raw <= 295_000) return Math.floor(raw)
+  return 270_000
+})()
 const CLIENT_HEARTBEAT_MS = 10000
 
 export default async function handler(req, res) {

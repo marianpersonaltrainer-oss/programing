@@ -281,6 +281,30 @@ export function applyFestivoToNonGeneratedDays(accumulator, daysToGenerate, days
   return accumulator
 }
 
+/**
+ * Tras generar, deja «no programada» + feedback vacío en columnas no elegidas por el usuario
+ * (solo días en `daysToGenerate`).
+ */
+export function maskUnselectedSessionColumns(accumulator, daysToGenerate, selectedSessionKeys) {
+  const sel = selectedSessionKeys instanceof Set ? selectedSessionKeys : new Set(selectedSessionKeys)
+  const gen = daysToGenerate instanceof Set ? daysToGenerate : new Set(daysToGenerate)
+  if (!accumulator?.dias?.length || !sel.size) return accumulator
+
+  for (let i = 0; i < EXCEL_DAY_ORDER.length; i += 1) {
+    const name = EXCEL_DAY_ORDER[i]
+    if (!gen.has(name)) continue
+    const row = accumulator.dias[i]
+    if (!row || typeof row !== 'object') continue
+    for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+      if (!sel.has(key)) {
+        row[key] = NO_PROGRAMADA_SESSION_LINE
+        row[feedbackKey] = ''
+      }
+    }
+  }
+  return accumulator
+}
+
 export function dayChunkForHalfWeek(dayCanon) {
   const i = EXCEL_DAY_ORDER.indexOf(dayCanon)
   if (i < 0) return null

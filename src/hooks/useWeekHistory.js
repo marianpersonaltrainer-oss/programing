@@ -14,6 +14,17 @@ export function listMesocyclesInHistory() {
   return Object.keys(loadHistory()).sort()
 }
 
+/** Resumen para UI: mesociclo + nº de semanas en localStorage (cada mesociclo es una clave aparte). */
+export function getAllMesocycleSummaries() {
+  const history = loadHistory()
+  return Object.keys(history)
+    .map((mesociclo) => ({
+      mesociclo,
+      count: (history[mesociclo] || []).length,
+    }))
+    .sort((a, b) => a.mesociclo.localeCompare(b.mesociclo))
+}
+
 function saveHistory(history) {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history))

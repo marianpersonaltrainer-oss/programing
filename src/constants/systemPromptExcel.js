@@ -786,3 +786,34 @@ añade en la línea de organización o en la de riesgo una frase sobre pasillo l
 
 SALIDA: solo el texto del briefing con los saltos de línea indicados. Sin JSON, sin comillas envolventes del
 mensaje completo, sin bloques de código.`
+
+/**
+ * Se inyecta en el mensaje de usuario de cada POST de generación semanal (no solo en el panel de revisión).
+ * Obliga a la IA a comprobar duplicados de lift, formatos de fuerza/WOD y patrón muscular **mientras escribe**
+ * cada día, usando el JSON ya generado o el bloque «CONTEXTO YA GENERADO» si viene en la petición.
+ */
+export const EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK = `
+════════════════════════════════════════
+OBLIGATORIO MIENTRAS ESCRIBES (NO DESPUÉS)
+════════════════════════════════════════
+Antes de cerrar cada día que generes en ESTA petición, revisa en el acto (no «para después»):
+
+1) Por CADA columna (evofuncional, evobasics, evofit, …) por separado: el ejercicio / patrón DOMINANTE del
+   bloque fuerte del día (bloque B o equivalente) NO puede ser el mismo lift principal que en OTRO día
+   ya escrito en esta misma respuesta o en «CONTEXTO YA GENERADO». Si ya hubo Back Squat como eje en
+   EvoFuncional un día, otro día elige otra base (front, RDL, tirón distinto, press distinto, etc.).
+
+2) Días consecutivos (Lun→Mar, Mar→Mié, …) en la MISMA columna: NO repitas el mismo formato dominante de
+   FUERZA (p. ej. dos días seguidos con Wave/ondas como núcleo; dos EMOM de carga pesada como eje; dos
+   cluster o dos rest-pause como protagonistas). Alterna formatos del banco del system.
+
+3) Días consecutivos en la MISMA columna: NO repitas el mismo formato dominante de WOD (dos AMRAP seguidos,
+   dos FOR TIME, dos chipper largo, etc.). Alterna.
+
+4) Días consecutivos en la MISMA columna (EvoFuncional): evita que el patrón muscular dominante del día
+   (bisagra / tirón / empuje / rodilla) sea el mismo dos días seguidos salvo que la propuesta aprobada o el
+   usuario lo exijan de forma explícita.
+
+Si al planear un día ves conflicto con lo ya escrito, CAMBIA ese día antes de devolver el JSON; no entregues
+texto pensando en «corregirlo luego en revisión».
+`.trim()

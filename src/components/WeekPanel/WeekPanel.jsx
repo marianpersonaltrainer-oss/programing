@@ -51,7 +51,7 @@ export default function WeekPanel({
           >
             <div className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/10 border border-white/15 group-hover:border-[#A729AD]/50 transition-all`}>
               <div>
-                <span className="text-[10px] text-amber-200/95 font-bold uppercase tracking-wider">
+                <span className="text-xs text-white font-semibold uppercase tracking-wide drop-shadow-sm">
                   {weekState.mesocycle} · S{weekState.week}/{weekState.totalWeeks}
                   {weekState.phase ? ` · ${weekState.phase}` : ''}
                 </span>

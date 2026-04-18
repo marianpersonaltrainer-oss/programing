@@ -70,9 +70,6 @@ function buildConsecutiveDayChunks(daysToGenerateSet, chunkSize = 2) {
   return chunks
 }
 
-/** Por encima de esto el user prompt incluye mucho texto del briefing → trozos de 1 día. */
-const EXCEL_HEAVY_CONTEXT_PACK_CHARS = 22_000
-
 const EDIT_SESSION_FIELDS = EVO_SESSION_CLASS_DEFS.map(({ key, label, color, feedbackKey }) => ({
   key,
   label,
@@ -490,8 +487,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }
 
   /**
-   * Una llamada API = un POST. La semana se parte en tramos de hasta 2 días consecutivos
-   * (varias llamadas si marcas muchos días) para reducir timeouts en serverless.
+   * Una llamada API = un POST. La semana se parte en tramos de 1 día (varias llamadas)
+   * para evitar timeouts con briefing + system largos en serverless.
    * Modelo: PROGRAMMING_MODEL (Sonnet u homólogo), max_tokens: `AI_CONFIG.maxTokens`.
    */
   async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, weekContext = '', retries = 3) {
@@ -680,11 +677,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       selectedCanon,
       planSourceText,
     )
-    const heavyPack = pack.length >= EXCEL_HEAVY_CONTEXT_PACK_CHARS
-    const dayChunks = buildConsecutiveDayChunks(daysToGenerate, heavyPack ? 1 : 2)
-    console.log('[ProgramingEvo][Excel UI] trozos consecutivos enviados a la IA (orden)', {
+    // Siempre 1 día por POST: con briefing + método + ejemplos el prompt es muy grande; 2 días
+    // en la misma llamada provocaba timeouts (504/502) frecuentes en Vercel.
+    const dayChunks = buildConsecutiveDayChunks(daysToGenerate, 1)
+    console.log('[ProgramingEvo][Excel UI] trozos (1 día/post) enviados a la IA', {
       numChunks: dayChunks.length,
-      chunkSize: heavyPack ? 1 : 2,
       packChars: pack.length,
       chunks: dayChunks.map((c) => [...c]),
       juevesEnAlgunChunk: dayChunks.some((c) => c.has('JUEVES')),

@@ -199,8 +199,9 @@ ${ctx}
  */
 const ANTHROPIC_UPSTREAM_TIMEOUT_MS = (() => {
   const raw = Number(process.env.ANTHROPIC_UPSTREAM_TIMEOUT_MS)
-  if (Number.isFinite(raw) && raw >= 60_000 && raw <= 295_000) return Math.floor(raw)
-  return 270_000
+  // Máx. ~298s: debe quedar por debajo de vercel.json → maxDuration (300s) con margen para rate-limit y logs.
+  if (Number.isFinite(raw) && raw >= 60_000 && raw <= 298_000) return Math.floor(raw)
+  return 293_000
 })()
 const CLIENT_HEARTBEAT_MS = 10000
 

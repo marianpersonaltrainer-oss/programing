@@ -1,6 +1,13 @@
 import { formatInTimeZone } from 'date-fns-tz'
+import { es } from 'date-fns/locale'
 
 const MADRID_TZ = 'Europe/Madrid'
+
+/** Nombre del día en español (Madrid), p. ej. «miércoles» — para alinear con `dia.nombre` publicado. */
+export function madridWeekdayLabelEs(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date)
+  return formatInTimeZone(d, MADRID_TZ, 'EEEE', { locale: es })
+}
 
 export function madridDateParts(date = new Date()) {
   const d = date instanceof Date ? date : new Date(date)

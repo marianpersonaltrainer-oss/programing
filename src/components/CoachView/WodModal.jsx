@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { findVideosInProgramTextResolved } from '../../utils/coachLibraryVideoMatch.js'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
+import { CoachSessionBriefingModalBody } from './CoachSessionBriefing.jsx'
 import { classDisplayTitle } from './coachTheme.js'
 
 function youtubeVideoId(url) {
@@ -94,18 +95,13 @@ export default function WodModal({
 
         {String(sessionFeedback || '').trim() ? (
           <>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Feedback de sesión</p>
-            <div
-              className="text-[14px] leading-relaxed text-[#1a1a1a] whitespace-pre-wrap border-b border-neutral-200 pb-3 mb-3"
-              style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
-            >
-              {String(sessionFeedback).trim()}
-            </div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Briefing programación</p>
+            <CoachSessionBriefingModalBody text={sessionFeedback} accentColor={accentColor} />
           </>
         ) : null}
 
         <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Entrenamiento</p>
-        <CoachFormattedSession text={sessionText} accentColor={accentColor} variant="modalLight" />
+        <CoachFormattedSession text={sessionText} accentColor={accentColor} variant="modalProse" />
 
         <button
           type="button"

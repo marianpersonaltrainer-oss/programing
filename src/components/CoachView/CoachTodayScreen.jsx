@@ -1,13 +1,22 @@
 import { useMemo, useState } from 'react'
-import { madridWeekdayChipIndex, madridDateParts } from '../../utils/coachTime.js'
+import { madridWeekdayChipIndex, madridWeekdayLabelEs } from '../../utils/coachTime.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { MESOCYCLES } from '../../constants/evoColors.js'
 import { findLastCoachHandoffNoteForDay, hasNonTrivialPublishedFeedback } from '../../utils/coachSessionPrep.js'
 import { findDia, sessionText, hasProgrammedSessionText, dayNombreToFeedbackKey } from './coachViewUtils.js'
 import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
+import { CoachSessionBriefingPreview } from './CoachSessionBriefing.jsx'
 import WodModal from './WodModal.jsx'
 
-const TODAY_CLASS_DEFS = EVO_SESSION_CLASS_DEFS.slice(0, 3)
+/** Clases con WOD programado o con briefing publicado (p. ej. Gimnástica solo algunos días). */
+function classDefsWithContentForDay(dia) {
+  if (!dia) return []
+  return EVO_SESSION_CLASS_DEFS.filter((def) => {
+    const programmed = hasProgrammedSessionText(dia[def.key])
+    const fb = hasNonTrivialPublishedFeedback(sessionText(dia[def.feedbackKey]))
+    return programmed || fb
+  })
+}
 
 function shortDayLabel(dayName) {
   const n = String(dayName || '').toLowerCase()
@@ -16,7 +25,9 @@ function shortDayLabel(dayName) {
   if (n.startsWith('miércoles') || n.startsWith('miercoles')) return 'Mié'
   if (n.startsWith('jueves')) return 'Jue'
   if (n.startsWith('viernes')) return 'Vie'
-  return String(dayName || '')
+  if (n.startsWith('sábado') || n.startsWith('sabado')) return 'Sáb'
+  if (n.startsWith('domingo')) return 'Dom'
+  return String(dayName || '').slice(0, 3)
 }
 
 function normClassLabel(s) {
@@ -35,13 +46,11 @@ function normDayName(s) {
     .replace(/\p{M}/gu, '')
 }
 
-/** `listTodayHandoffs` es del calendario hoy (Madrid); solo mezclamos si el chip coincide con ese día. */
-function selectedDayIsMadridCalendarToday(diaNombre, workWeek) {
-  if (!diaNombre || !workWeek?.length) return false
-  const { dayOfWeek } = madridDateParts(new Date())
-  if (dayOfWeek < 1 || dayOfWeek > 5) return false
-  const todayDia = workWeek[dayOfWeek - 1]?.nombre
-  return normDayName(todayDia) === normDayName(diaNombre)
+/** `listTodayHandoffs` es del día calendario en Madrid; solo si el chip coincide con ese día (por nombre, no por índice del array). */
+function selectedDayIsMadridCalendarToday(diaNombre) {
+  if (!diaNombre) return false
+  const todayLabel = madridWeekdayLabelEs()
+  return normDayName(todayLabel) === normDayName(diaNombre)
 }
 
 /** Último `daily_handoffs` de hoy para esa clase (coincidencia flexible de etiqueta). */
@@ -139,12 +148,8 @@ function ClassDayCard({
       {hasSessionFeedback ? (
         <>
           <CardDivider />
-          <p
-            className="text-[13px] text-[#F6E8F9]/95 line-clamp-3 leading-snug whitespace-pre-line"
-            style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
-          >
-            {String(sessionFeedbackRaw).trim()}
-          </p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#F6E8F966] mb-1">Briefing programación</p>
+          <CoachSessionBriefingPreview text={sessionFeedbackRaw} accent={accent} lineClamp={4} />
         </>
       ) : null}
 
@@ -174,7 +179,7 @@ function ClassDayCard({
 }
 
 /**
- * Pantalla «Hoy» v3: tres tarjetas por clase; WOD en modal claro.
+ * Pantalla «Hoy» v3: tarjetas dinámicas por clase con sesión o briefing publicado; WOD en modal estilo documento.
  */
 export default function CoachTodayScreen({
   weekData,
@@ -187,7 +192,7 @@ export default function CoachTodayScreen({
 }) {
   const [wodModal, setWodModal] = useState(null)
   const dias = weekData?.dias || []
-  const workWeek = useMemo(() => dias.slice(0, 5), [dias])
+  const workWeek = useMemo(() => dias, [dias])
 
   const contextLine = useMemo(() => {
     const s = activeWeekRow?.semana
@@ -204,7 +209,8 @@ export default function CoachTodayScreen({
   const dia = findDia(dias, activeDay)
   const dayKey = dia ? dayNombreToFeedbackKey(dia.nombre) : null
   const madridChipIndex = useMemo(() => madridWeekdayChipIndex(), [])
-  const useDailyHandoffs = dia ? selectedDayIsMadridCalendarToday(dia.nombre, workWeek) : false
+  const useDailyHandoffs = dia ? selectedDayIsMadridCalendarToday(dia.nombre) : false
+  const classDefsForDay = useMemo(() => classDefsWithContentForDay(dia), [dia])
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-[#0C0B0C]">
@@ -239,11 +245,13 @@ export default function CoachTodayScreen({
           })}
         </div>
 
-        <div className="px-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="px-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {!dia ? (
-            <p className="text-sm text-[#F6E8F966] md:col-span-3">No hay datos para este día.</p>
+            <p className="text-sm text-[#F6E8F966] xl:col-span-3">No hay datos para este día.</p>
+          ) : classDefsForDay.length === 0 ? (
+            <p className="text-sm text-[#F6E8F966] xl:col-span-3">Sin sesiones ni briefing publicado para este día.</p>
           ) : (
-            TODAY_CLASS_DEFS.map((classDef) => {
+            classDefsForDay.map((classDef) => {
               const accent = classAccentBySessionKey(classDef.key)
               return (
                 <ClassDayCard

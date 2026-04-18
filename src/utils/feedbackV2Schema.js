@@ -33,3 +33,23 @@ export function feedbackV2FromText(text) {
   if (antMatch) obj.anticipacion = antMatch[1].trim()
   return feedbackV2IsComplete(obj) ? obj : null
 }
+
+/**
+ * Parsea briefing aunque falten campos (texto publicado desde admin / Excel).
+ * @returns {{ type: 'v2', objetivo, sensaciones, anticipacion } | { type: 'partial', fields: {label, text}[] } | { type: 'plain', text: string }}
+ */
+export function parseBriefingForDisplay(text) {
+  const raw = String(text || '').trim()
+  if (!raw) return { type: 'empty' }
+  const v2 = feedbackV2FromText(raw)
+  if (v2) return { type: 'v2', ...v2 }
+  const fields = []
+  const objM = raw.match(/OBJETIVO:\s*([\s\S]+?)(?=\n\s*SENSACIONES:|\n\s*ANTICIPACIÓN:|\n\s*ANTICIPACION:|$)/i)
+  const senM = raw.match(/SENSACIONES:\s*([\s\S]+?)(?=\n\s*ANTICIPACIÓN:|\n\s*ANTICIPACION:|$)/i)
+  const antM = raw.match(/ANTICIPACIÓN:\s*([\s\S]+)/i) || raw.match(/ANTICIPACION:\s*([\s\S]+)/i)
+  if (objM) fields.push({ label: 'Objetivo', text: objM[1].trim() })
+  if (senM) fields.push({ label: 'Sensaciones', text: senM[1].trim() })
+  if (antM) fields.push({ label: 'Anticipación', text: antM[1].trim() })
+  if (fields.length) return { type: 'partial', fields }
+  return { type: 'plain', text: raw }
+}

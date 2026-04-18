@@ -899,6 +899,7 @@ export default function CoachView() {
 
     setIsTyping(true)
 
+    const briefing = String(activeSupportContext?.sessionFeedbackText || '').trim()
     const supportContextBlock = activeSupportContext
       ? [
           'CONTEXTO DE SESION (AUTOMATICO, NO PEDIR AL COACH QUE LO COPIE):',
@@ -906,6 +907,9 @@ export default function CoachView() {
           `Clase: ${activeSupportContext.classLabel || '—'}`,
           `Sesion completa:`,
           `${activeSupportContext.sessionText || '(sin texto)'}`,
+          ...(briefing
+            ? ['', 'Feedback de sesion (publicado, voz Marian / IA programacion):', briefing]
+            : []),
           '',
           'REGLA: usa este contexto como verdad de la sesion y no pidas al coach que pegue la sesion.',
         ].join('\n')

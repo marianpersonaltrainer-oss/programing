@@ -12,7 +12,7 @@ function youtubeVideoId(url) {
 
 /**
  * Modal a pantalla completa, fondo blanco (WodBuster-style).
- * `onConsultAssistant` recibe { dayName, classLabel, sessionText }; el padre cierra el modal si aplica.
+ * `onConsultAssistant` recibe { dayName, classLabel, sessionText } (solo WOD); el padre cierra el modal si aplica.
  */
 export default function WodModal({
   open,
@@ -21,6 +21,7 @@ export default function WodModal({
   classLabel,
   dayName,
   sessionText,
+  sessionFeedback = '',
   accentColor,
   exerciseLibrary,
   onConsultAssistant,
@@ -53,8 +54,12 @@ export default function WodModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  const videoSourceText =
+    videosOpen && sessionText
+      ? [sessionText, sessionFeedback].map((s) => String(s || '').trim()).filter(Boolean).join('\n')
+      : ''
   const videos =
-    videosOpen && sessionText ? findVideosInProgramTextResolved(sessionText, exerciseLibrary || []) : []
+    videoSourceText ? findVideosInProgramTextResolved(videoSourceText, exerciseLibrary || []) : []
 
   if (!mounted || !open) return null
 
@@ -79,22 +84,51 @@ export default function WodModal({
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <h2
-          className="font-evo-display font-bold text-[20px] uppercase tracking-tight mb-6"
+          className="font-evo-display font-bold text-[18px] uppercase tracking-tight mb-2"
           style={{ color: accentColor }}
         >
           {titleUpper} · {dayUpper}
         </h2>
 
+        {String(sessionFeedback || '').trim() ? (
+          <>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Feedback de sesión</p>
+            <div
+              className="text-[14px] leading-relaxed text-[#1a1a1a] whitespace-pre-wrap border-b border-neutral-200 pb-3 mb-3"
+              style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
+            >
+              {String(sessionFeedback).trim()}
+            </div>
+          </>
+        ) : null}
+
+        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Entrenamiento</p>
         <CoachFormattedSession text={sessionText} accentColor={accentColor} variant="modalLight" />
 
-        <details className="mt-8 border-t border-neutral-200 pt-4" onToggle={(e) => setVideosOpen(e.currentTarget.open)}>
-          <summary className="cursor-pointer list-none font-evo-display font-semibold text-[15px] text-[#1a1a1a] flex items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <button
+          type="button"
+          onClick={() => {
+            onConsultAssistant({
+              dayName,
+              classLabel,
+              sessionText: String(sessionText || ''),
+              sessionFeedbackText: String(sessionFeedback || '').trim() || undefined,
+            })
+          }}
+          className="mt-4 mb-1 w-full max-w-xs mx-auto block py-2 px-3 rounded-lg text-[12px] font-semibold border bg-white transition-colors hover:bg-neutral-50"
+          style={{ borderColor: accentColor, color: accentColor }}
+        >
+          Consultar al asistente
+        </button>
+
+        <details className="mt-5 border-t border-neutral-200 pt-3" onToggle={(e) => setVideosOpen(e.currentTarget.open)}>
+          <summary className="cursor-pointer list-none text-[13px] font-semibold text-[#444444] flex items-center gap-2 [&::-webkit-details-marker]:hidden">
             <span aria-hidden>▸</span>
             <span>Vídeos de referencia</span>
           </summary>
-          <div className="mt-4 space-y-4 pl-2">
+          <div className="mt-3 space-y-3 pl-1">
             {!videos.length ? (
               <p className="text-sm text-[#666666]">No hay vídeos enlazados para esta sesión.</p>
             ) : (
@@ -127,23 +161,6 @@ export default function WodModal({
             )}
           </div>
         </details>
-      </div>
-
-      <div className="flex-shrink-0 border-t border-neutral-200 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white">
-        <button
-          type="button"
-          onClick={() => {
-            onConsultAssistant({
-              dayName,
-              classLabel,
-              sessionText: String(sessionText || ''),
-            })
-          }}
-          className="w-full py-3.5 font-evo-display font-semibold text-[13px] uppercase tracking-wide text-white rounded-xl active:scale-[0.99] transition-transform"
-          style={{ backgroundColor: accentColor }}
-        >
-          Consultar al asistente sobre esta clase
-        </button>
       </div>
     </div>
   )

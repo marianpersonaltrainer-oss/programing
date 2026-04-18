@@ -149,19 +149,33 @@ function renderBlockLines(block, blockIdx, variant, accentColor, bare, modalLigh
   return lineGroups.map((group, gIdx) => {
     if (group.type === 'collapse') {
       return (
-        <details key={`c-${blockIdx}-${gIdx}`} className="mt-1 mb-2 rounded-lg border border-neutral-200 bg-neutral-50/80 px-3 py-2">
+        <details
+          key={`c-${blockIdx}-${gIdx}`}
+          className={
+            modalLight
+              ? 'mt-0.5 mb-1 rounded border border-neutral-200 bg-neutral-50/60 px-2 py-1.5'
+              : 'mt-1 mb-2 rounded-lg border border-neutral-200 bg-neutral-50/80 px-3 py-2'
+          }
+        >
           <summary
-            className="cursor-pointer list-none font-semibold text-[13px] [&::-webkit-details-marker]:hidden"
+            className={`cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden ${
+              modalLight ? 'text-[12px]' : 'text-[13px]'
+            }`}
             style={{ color: accentColor }}
           >
             ▸ {group.title}
           </summary>
-          <div className="mt-2 space-y-1.5 pl-1">
+          <div className={modalLight ? 'mt-1 space-y-0.5 pl-0.5' : 'mt-2 space-y-1.5 pl-1'}>
             {group.body.map((line, lineIdx) => {
               const t = line.trim()
               return (
-                <p key={lineIdx} className={modalLight ? 'text-[#1a1a1a] text-[14px] leading-[1.7]' : 'text-[#F6E8F9] leading-[1.6]'}>
-                  <span className={`mr-2 ${modalLight ? 'text-[#888888]' : 'text-[#A729AD]'}`}>•</span>
+                <p
+                  key={lineIdx}
+                  className={
+                    modalLight ? 'text-[#1a1a1a] text-[13px] leading-snug' : 'text-[#F6E8F9] leading-[1.6]'
+                  }
+                >
+                  <span className={`mr-1.5 ${modalLight ? 'text-[#888888]' : 'text-[#A729AD]'}`}>•</span>
                   {renderInline(t, variant, accentColor)}
                 </p>
               )
@@ -177,10 +191,10 @@ function renderBlockLines(block, blockIdx, variant, accentColor, bare, modalLigh
       <div key={`${blockIdx}-${gIdx}`}>
         <p
           className={
-            modalLight ? 'text-[#1a1a1a] text-[14px] leading-[1.7]' : bare ? 'text-[#F6E8F9] leading-[1.6]' : 'text-[#F6E8F9] leading-relaxed'
+            modalLight ? 'text-[#1a1a1a] text-[13px] leading-snug' : bare ? 'text-[#F6E8F9] leading-[1.6]' : 'text-[#F6E8F9] leading-relaxed'
           }
         >
-          <span className={`mr-2 ${modalLight ? 'text-[#888888]' : 'text-[#A729AD]'}`}>•</span>
+          <span className={`mr-1.5 ${modalLight ? 'text-[#888888]' : 'text-[#A729AD]'}`}>•</span>
           {renderInline(t, variant, accentColor)}
         </p>
         {suffix}
@@ -197,7 +211,7 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', r
   const blocks = toBlocks(lines)
 
   const rootClass = modalLight
-    ? 'coach-formatted-session space-y-6 text-[14px] leading-[1.7] font-evo-body text-[#1a1a1a]'
+    ? 'coach-formatted-session space-y-2 text-[13px] leading-snug font-evo-body text-[#1a1a1a]'
     : bare
       ? 'coach-formatted-session space-y-5 text-[14px] leading-[1.6] font-evo-body text-[#F6E8F9]'
       : 'coach-formatted-session space-y-3 text-sm font-evo-body'
@@ -212,17 +226,17 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', r
             key={`${block.header}-${blockIdx}`}
             className={
               modalLight
-                ? 'pb-6 border-b border-neutral-200 last:border-0 last:pb-0'
+                ? 'pb-2 mb-2 border-b border-neutral-200 last:border-0 last:pb-0 last:mb-0'
                 : bare
                   ? 'pb-5 border-b border-[#6A1F6D]/25 last:border-0 last:pb-0'
                   : 'rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] px-4 py-4'
             }
           >
-            <div className={`flex flex-wrap items-center gap-2 ${bare || modalLight ? 'mb-2.5' : 'mb-3'}`}>
+            <div className={`flex flex-wrap items-center gap-1 ${bare || modalLight ? 'mb-1' : 'mb-3'}`}>
               <span
                 className={
                   modalLight
-                    ? 'inline-flex items-center bg-[#EEEEEE] text-[#111111] px-2.5 py-1 text-[11px] uppercase tracking-wide font-evo-display'
+                    ? 'inline-flex items-center bg-[#EEEEEE] text-[#111111] px-1.5 py-0.5 text-[9px] uppercase tracking-wide font-evo-display leading-tight'
                     : bare
                       ? 'inline-flex items-center bg-[#6A1F6D] px-2.5 py-1 text-white text-[11px] uppercase tracking-wide font-evo-display'
                       : 'inline-flex items-center rounded-md bg-[#6A1F6D] px-2.5 py-1 text-white text-xs uppercase tracking-wider font-evo-display'
@@ -235,7 +249,7 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', r
                 <span
                   className={
                     modalLight
-                      ? 'inline-flex items-center bg-transparent px-2 py-0.5 text-[10px] font-evo-display uppercase tracking-wide border'
+                      ? 'inline-flex items-center bg-transparent px-1.5 py-0 text-[9px] font-evo-display uppercase tracking-wide border leading-none'
                       : bare
                         ? 'inline-flex items-center border border-[#FFFF4C] text-[#FFFF4C] bg-transparent px-2 py-0.5 text-[10px] font-evo-display uppercase tracking-wide'
                         : 'inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0C0B0C]'
@@ -246,7 +260,7 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', r
                 </span>
               ) : null}
             </div>
-            <div className="space-y-1.5">
+            <div className={modalLight ? 'space-y-0.5' : 'space-y-1.5'}>
               {renderBlockLines(block, blockIdx, variantKey, accentColor, bare, modalLight, renderAfterLine)}
             </div>
             {!bare && !modalLight && blockIdx < blocks.length - 1 ? <div className="mt-4 border-t border-[#6A1F6D]/30" /> : null}

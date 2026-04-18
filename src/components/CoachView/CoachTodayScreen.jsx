@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { madridWeekdayChipIndex, madridDateParts } from '../../utils/coachTime.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { MESOCYCLES } from '../../constants/evoColors.js'
-import { findLastCoachHandoffNoteForDay } from '../../utils/coachSessionPrep.js'
+import { findLastCoachHandoffNoteForDay, hasNonTrivialPublishedFeedback } from '../../utils/coachSessionPrep.js'
 import { findDia, sessionText, hasProgrammedSessionText, dayNombreToFeedbackKey } from './coachViewUtils.js'
 import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
 import WodModal from './WodModal.jsx'
@@ -70,6 +70,10 @@ function formatShortTime(iso) {
   }
 }
 
+function CardDivider() {
+  return <div className="my-2 border-t border-[#F6E8F9]/12" aria-hidden />
+}
+
 function ClassDayCard({
   classDef,
   accent,
@@ -82,6 +86,8 @@ function ClassDayCard({
 }) {
   const sessionRaw = dia ? sessionText(dia[classDef.key]) : ''
   const hasSession = dia ? hasProgrammedSessionText(dia[classDef.key]) : false
+  const sessionFeedbackRaw = dia ? sessionText(dia[classDef.feedbackKey]) : ''
+  const hasSessionFeedback = hasNonTrivialPublishedFeedback(sessionFeedbackRaw)
   const daily =
     dia && useDailyHandoffs ? latestDailyHandoffForClass(todayHandoffs, classDef.label) : null
   const feedbackHandoff =
@@ -103,14 +109,16 @@ function ClassDayCard({
 
   return (
     <article
-      className="rounded-[12px] bg-[#1a0f1b] p-4 flex flex-col min-h-[200px] border-t-4"
+      className="rounded-[12px] bg-[#1a0f1b] p-4 flex flex-col border-t-4"
       style={{ borderTopColor: accent }}
     >
       <h3 className="font-evo-display font-bold text-[16px] uppercase tracking-wide" style={{ color: accent }}>
         {title}
       </h3>
 
-      <div className="mt-3 flex-1 min-h-[4.5rem]">
+      <CardDivider />
+
+      <div className="flex-1 min-h-0">
         {handoff ? (
           <>
             <p className="text-[12px] leading-snug text-[#F6E8F9CC]" style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}>
@@ -128,6 +136,20 @@ function ClassDayCard({
         )}
       </div>
 
+      {hasSessionFeedback ? (
+        <>
+          <CardDivider />
+          <p
+            className="text-[13px] text-[#F6E8F9]/95 line-clamp-3 leading-snug whitespace-pre-line"
+            style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
+          >
+            {String(sessionFeedbackRaw).trim()}
+          </p>
+        </>
+      ) : null}
+
+      <CardDivider />
+
       <button
         type="button"
         disabled={!dia || !hasSession}
@@ -137,11 +159,12 @@ function ClassDayCard({
             sessionKey: classDef.key,
             classLabel: classDef.label,
             sessionText: sessionRaw,
+            sessionFeedback: hasSessionFeedback ? String(sessionFeedbackRaw).trim() : '',
             accentColor: accent,
             dayName: dia.nombre,
           })
         }}
-        className="mt-4 w-full py-2.5 rounded-lg bg-[#0C0B0C] font-evo-display font-semibold text-[13px] uppercase tracking-wide transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+        className="mt-0 w-full py-2.5 rounded-lg bg-[#0C0B0C] font-evo-display font-semibold text-[13px] uppercase tracking-wide transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ color: accent, borderWidth: 1, borderStyle: 'solid', borderColor: accent }}
       >
         WOD →
@@ -248,6 +271,7 @@ export default function CoachTodayScreen({
           classLabel={wodModal.classLabel}
           dayName={wodModal.dayName}
           sessionText={wodModal.sessionText}
+          sessionFeedback={wodModal.sessionFeedback}
           accentColor={wodModal.accentColor}
           exerciseLibrary={exerciseLibrary}
           onConsultAssistant={(ctx) => {

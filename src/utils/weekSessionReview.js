@@ -1,4 +1,5 @@
 import { extractMainExerciseFromBlockB } from './sessionBlockB'
+import { EVO_SESSION_CLASS_DEFS } from '../constants/evoClasses.js'
 
 const SEVERITY_RANK = { ok: 0, yellow: 1, orange: 2, red: 3 }
 
@@ -194,4 +195,43 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
   )
 
   return { rows: publicRows, hasAnyIssue, allClear, hasAnyProgram }
+}
+
+/**
+ * Mismo criterio que el panel lateral (rojo/naranja/amarillo), en texto breve para el prompt de generación.
+ * `sessionKeys`: slugs de columna (p. ej. evofuncional). Si viene vacío, usa las tres columnas principales.
+ */
+export function formatReviewHintsForGenerationPrompt(dias, sessionKeys, resumenFoco = '') {
+  const keys =
+    Array.isArray(sessionKeys) && sessionKeys.length > 0
+      ? sessionKeys
+      : ['evofuncional', 'evobasics', 'evofit']
+  const lines = []
+  const foco = String(resumenFoco || '').trim()
+
+  for (const sk of keys) {
+    const { rows } = buildWeekSessionClassReview(dias, sk, { resumenFoco: foco })
+    const label = EVO_SESSION_CLASS_DEFS.find((d) => d.key === sk)?.label || sk
+    const flagged = rows.filter((r) => !r.placeholder && r.hints.length > 0)
+    if (!flagged.length) continue
+    lines.push(`### ${label}`)
+    for (const r of flagged) {
+      const tag = r.severity === 'ok' ? '' : `[${r.severity}] `
+      const hintText = r.hints.join(' · ')
+      lines.push(`- ${r.dayLabel}: ${tag}${hintText}`.trim())
+    }
+  }
+
+  let out = lines.join('\n').trim()
+  if (!out) {
+    return (
+      '(Auditoría heurística: en el acumulado actual no se detectan duplicados de lift principal ni ' +
+      'formatos de fuerza/WOD consecutivos en las columnas revisadas.)'
+    )
+  }
+  const max = 4500
+  if (out.length > max) {
+    out = `${out.slice(0, max).trim()}…\n[…auditoría truncada por tamaño]`
+  }
+  return out
 }

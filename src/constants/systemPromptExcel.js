@@ -814,6 +814,16 @@ Antes de cerrar cada día que generes en ESTA petición, revisa en el acto (no �
    (bisagra / tirón / empuje / rodilla) sea el mismo dos días seguidos salvo que la propuesta aprobada o el
    usuario lo exijan de forma explícita.
 
+5) CONTINUIDAD CON EL PAQUETE BRIEFING (semanas ya publicadas del mismo mesociclo, feedback, check-ins):
+   úsalo como memoria real, no como decoración. Si una semana previa ya cargó mucho tirón o un lift concreto,
+   NO repitas el mismo microciclo ni el mismo «copia y pega» de bloques; progresa o descarga de forma explícita
+   en el texto. Si coaches o check-ins señalan fatiga o incidente en un patrón, la semana nueva debe reflejarlo
+   (menos volumen, otro ángulo, otro implemento), no ignorarlo.
+
+6) Si en el mismo POST aparece un bloque «CHEQUEO HEURÍSTICO» con avisos (equivalente al panel naranja/rojo
+   del programador), trátalo como lista de errores a EVITAR en los días que aún generas: no asumas que
+   Marian lo corregirá después en edición.
+
 Si al planear un día ves conflicto con lo ya escrito, CAMBIA ese día antes de devolver el JSON; no entregues
 texto pensando en «corregirlo luego en revisión».
 `.trim()

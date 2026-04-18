@@ -41,7 +41,10 @@ import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.j
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
-import { buildWeekSessionClassReview } from '../../utils/weekSessionReview.js'
+import {
+  buildWeekSessionClassReview,
+  formatReviewHintsForGenerationPrompt,
+} from '../../utils/weekSessionReview.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
@@ -784,7 +787,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       }
 
       function buildCoherenceBlockFromAccumulator() {
-        return `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
+        const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
+        const resumenFoco = (acc.resumen && acc.resumen.foco) || ''
+        const heuristic = formatReviewHintsForGenerationPrompt(
+          acc.dias,
+          [...selectedClassKeys],
+          resumenFoco,
+        )
+        return `${jsonBlock}\n\nCHEQUEO HEURÍSTICO (misma lógica que el panel del programador: rojo/naranja/amarillo; corrige en los días que generas EN ESTA petición, no asumas revisión manual después):\n${heuristic}`
       }
 
       async function generateChunkWithFallback(chunk, ci, total) {

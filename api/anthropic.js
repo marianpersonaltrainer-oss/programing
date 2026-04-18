@@ -203,7 +203,8 @@ const ANTHROPIC_UPSTREAM_TIMEOUT_MS = (() => {
   if (Number.isFinite(raw) && raw >= 60_000 && raw <= 298_000) return Math.floor(raw)
   return 293_000
 })()
-const CLIENT_HEARTBEAT_MS = 10000
+/** Bytes periódicos en el cuerpo de respuesta para que proxies no corten por inactividad (p. ej. Vercel). */
+const CLIENT_HEARTBEAT_MS = 5000
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

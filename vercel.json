@@ -1,5 +1,13 @@
 {
   "functions": {
+    "api/anthropic.js": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "api/programming-week-briefing.js": {
+      "maxDuration": 180,
+      "memory": 1024
+    },
     "api/**/*.js": {
       "maxDuration": 300,
       "memory": 1024

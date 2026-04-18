@@ -45,8 +45,10 @@ import { buildWeekSessionClassReview } from '../../utils/weekSessionReview.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
-/** Techo por POST: 2 días + feedbacks + JSON superan 3600 y JUEVES (2.º del par MIÉ–JUE) quedaba truncado. */
+/** Techo por POST (1 día por llamada; JSON de 6 columnas puede ser largo). */
 const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 6500
+/** Límite de caracteres del pack de briefing por petición (el mismo bloque va en weekContext → system). */
+const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
 
 const ADDENDUM_MAX_CHARS = 300
 
@@ -661,10 +663,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
             .filter(Boolean)
             .join('\n')
 
+    const packForGeneration =
+      pack.length > EXCEL_GENERATION_PACK_MAX_CHARS
+        ? `${pack.slice(0, EXCEL_GENERATION_PACK_MAX_CHARS).trimEnd()}\n\n[…Paquete truncado por límite técnico (${pack.length} caracteres en origen). Prioriza coherencia con el texto visible.]`
+        : pack
+
     const baseContext = [
       mesoInfo,
       pack
-        ? `DATOS CONSOLIDADOS (Supabase, mesociclo actual: semanas publicadas de este mesociclo, cambios guardados en Hub, check-ins, pases de turno, reglas del método y feedback por sesión — briefing automático):\n${pack}`
+        ? 'DATOS CONSOLIDADOS (Supabase, briefing del mesociclo): están en la sección «CONTEXTO DE LA SEMANA» del system de esta petición (no se repiten aquí para aligerar la petición). Léelos antes de generar.'
         : '',
       approvedBlock,
     ]
@@ -708,7 +715,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
 
     try {
-      const weekContextText = pack ? '' : await buildWeekContext(weekState)
+      const weekContextText = pack
+        ? `PAQUETE BRIEFING (Supabase — mesociclo actual, check-ins, handoffs, reglas, feedback, historial de ediciones)\n\n${packForGeneration}`
+        : await buildWeekContext(weekState)
       let overlay = null
       if (weekData && Array.isArray(weekData.dias)) {
         overlay = weekData

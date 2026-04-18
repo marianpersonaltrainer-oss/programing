@@ -27,6 +27,7 @@ function detectWodFormat(text) {
   if (/\bEMOM\b/.test(t) || /\bE\d+MOM\b/.test(t)) return 'EMOM'
   if (/\bLADDER\b/.test(t)) return 'LADDER'
   if (/\bCHIPPER\b/.test(t)) return 'CHIPPER'
+  if (/\bTABATA\b/.test(t)) return 'TABATA'
   if (/\bEVERY\b/.test(t)) return 'EVERY'
   return ''
 }
@@ -51,7 +52,7 @@ function tokenizeInline(text) {
   return tokens
 }
 
-function renderInline(text) {
+function renderInline(text, bare) {
   return tokenizeInline(text).map((part, idx) => {
     if (part.type === 'percent') {
       return (
@@ -62,7 +63,7 @@ function renderInline(text) {
     }
     if (part.type === 'time') {
       return (
-        <strong key={idx} className="text-[#A729AD] font-bold">
+        <strong key={idx} className={bare ? 'text-[#A729AD] font-semibold' : 'text-[#A729AD] font-bold'}>
           {part.text}
         </strong>
       )
@@ -90,29 +91,50 @@ function toBlocks(lines) {
   return blocks
 }
 
-export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', renderAfterLine }) {
+export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', renderAfterLine, variant = 'card' }) {
+  const bare = variant === 'bare'
   const raw = String(text ?? '')
   const lines = raw.split('\n')
   const blocks = toBlocks(lines)
 
   return (
-    <div className="coach-formatted-session space-y-3 text-sm font-evo-body">
+    <div
+      className={
+        bare
+          ? 'coach-formatted-session space-y-5 text-[14px] leading-[1.6] font-evo-body text-[#F6E8F9]'
+          : 'coach-formatted-session space-y-3 text-sm font-evo-body'
+      }
+    >
       {blocks.map((block, blockIdx) => {
         const format = detectWodFormat(`${block.header}\n${block.lines.join('\n')}`)
         return (
           <section
             key={`${block.header}-${blockIdx}`}
-            className="rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] px-4 py-4"
+            className={
+              bare
+                ? 'pb-5 border-b border-[#6A1F6D]/25 last:border-0 last:pb-0'
+                : 'rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] px-4 py-4'
+            }
           >
-            <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className={`flex flex-wrap items-center gap-2 ${bare ? 'mb-2.5' : 'mb-3'}`}>
               <span
-                className="inline-flex items-center rounded-md bg-[#6A1F6D] px-2.5 py-1 text-white text-xs uppercase tracking-wider font-evo-display"
-                style={{ color: '#FFFFFF', borderColor: accentColor }}
+                className={
+                  bare
+                    ? 'inline-flex items-center bg-[#6A1F6D] px-2.5 py-1 text-white text-[11px] uppercase tracking-wide font-evo-display'
+                    : 'inline-flex items-center rounded-md bg-[#6A1F6D] px-2.5 py-1 text-white text-xs uppercase tracking-wider font-evo-display'
+                }
+                style={bare ? undefined : { color: '#FFFFFF', borderColor: accentColor }}
               >
                 {block.header}
               </span>
               {format ? (
-                <span className="inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0C0B0C]">
+                <span
+                  className={
+                    bare
+                      ? 'inline-flex items-center border border-[#FFFF4C] text-[#FFFF4C] bg-transparent px-2 py-0.5 text-[10px] font-evo-display uppercase tracking-wide'
+                      : 'inline-flex items-center rounded-md bg-[#FFFF4C] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0C0B0C]'
+                  }
+                >
                   {format}
                 </span>
               ) : null}
@@ -123,16 +145,16 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', r
                 const suffix = renderAfterLine && t ? renderAfterLine(line, lineIdx, t) : null
                 return (
                   <div key={`${blockIdx}-${lineIdx}`}>
-                    <p className="text-[#F6E8F9] leading-relaxed">
+                    <p className={bare ? 'text-[#F6E8F9] leading-[1.6]' : 'text-[#F6E8F9] leading-relaxed'}>
                       <span className="mr-2 text-[#A729AD]">•</span>
-                      {renderInline(t)}
+                      {renderInline(t, bare)}
                     </p>
                     {suffix}
                   </div>
                 )
               })}
             </div>
-            {blockIdx < blocks.length - 1 ? <div className="mt-4 border-t border-[#6A1F6D]/30" /> : null}
+            {!bare && blockIdx < blocks.length - 1 ? <div className="mt-4 border-t border-[#6A1F6D]/30" /> : null}
           </section>
         )
       })}

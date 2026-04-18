@@ -17,7 +17,9 @@ import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
 import { buildSupportCacheKey, getSupportCachedReply, setSupportCachedReply, supportSlug } from '../../utils/coachSupportCache.js'
 import { matchCoachSupportFaq } from '../../utils/matchCoachSupportFaq.js'
-import CoachWeekProgrammingPanel from './CoachWeekProgrammingPanel.jsx'
+import CoachTodayScreen from './CoachTodayScreen.jsx'
+import CoachWeekOverviewPanel from './CoachWeekOverviewPanel.jsx'
+import CoachProfilePanel from './CoachProfilePanel.jsx'
 import CoachExerciseLibraryPanel from './CoachExerciseLibraryPanel.jsx'
 import CoachSessionFeedbackForm from './CoachSessionFeedbackForm.jsx'
 import {
@@ -39,10 +41,9 @@ import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { DAYS_ES } from '../../constants/evoColors.js'
 import { buildCoachNewWeekToastBody } from '../../utils/coachSessionPrep.js'
 import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
-import FeedbackV2Card from './FeedbackV2Card.jsx'
 import HandoffTimeline from './HandoffTimeline.jsx'
 import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
-import { isoWeekString, madridCheckinGateParts, madridDateParts } from '../../utils/coachTime.js'
+import { isoWeekString, madridCheckinGateParts, madridDateParts, defaultActiveDayNameFromWeek } from '../../utils/coachTime.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -177,34 +178,34 @@ function IconEjercicios(props) {
     </svg>
   )
 }
-function IconMas(props) {
+function IconHoy(props) {
   return (
-    <svg className={props.className} fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
+    <svg className={props.className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
     </svg>
   )
 }
 
 const NAV_DEFS = {
-  semana: { id: 'semana', label: 'Programación', Icon: IconSemana },
-  soporte: { id: 'soporte', label: 'Hoy', Icon: IconSoporte },
-  feedback: { id: 'feedback', label: 'Pase turno', Icon: IconFeedback },
+  hoy: { id: 'hoy', label: 'Hoy', Icon: IconHoy },
+  semana: { id: 'semana', label: 'Semana', Icon: IconSemana },
+  pase: { id: 'pase', label: 'Pase', Icon: IconFeedback },
+  perfil: { id: 'perfil', label: 'Perfil', Icon: IconMaterial },
+  soporte: { id: 'soporte', label: 'Asistente', Icon: IconSoporte },
   ejercicios: { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
   mesociclos: { id: 'mesociclos', label: 'Mesociclos', Icon: IconCiclos },
-  material: { id: 'material', label: 'Perfil', Icon: IconMaterial },
+  material: { id: 'material', label: 'Material', Icon: IconMaterial },
   centro: { id: 'centro', label: 'Centro', Icon: IconCentro },
   clases: { id: 'clases', label: 'Clases', Icon: IconClases },
   uso: { id: 'uso', label: 'Uso app', Icon: IconUso },
 }
 const SECTION_TITLE_BY_TAB = Object.fromEntries(Object.values(NAV_DEFS).map((d) => [d.id, d.label]))
 
-/** Orden lateral desktop y sección principal del menú «Más» móvil */
-const PRIMARY_NAV_IDS = ['semana', 'soporte', 'feedback', 'ejercicios', 'mesociclos', 'material']
+/** Desktop: 4 pestañas principales + guía en acordeón */
+const PRIMARY_NAV_IDS = ['hoy', 'semana', 'pase', 'perfil']
 const GUIDE_CENTRE_IDS = ['centro', 'clases', 'uso']
-const BOTTOM_NAV_IDS = ['semana', 'soporte', 'feedback', 'material']
-const MORE_DRAWER_IDS = ['ejercicios', 'mesociclos', ...GUIDE_CENTRE_IDS]
+const BOTTOM_NAV_IDS = ['hoy', 'semana', 'pase', 'perfil']
 
 const SUPPORT_DAILY_LIMIT = 10
 const SUPPORT_LIMIT_MESSAGE =
@@ -289,18 +290,16 @@ export default function CoachView() {
   const [isTyping, setIsTyping] = useState(false)
   const [error, setError] = useState('')
   const [activeDay, setActiveDay] = useState(null)
-  const [weekTab, setWeekTab] = useState('dias')
-  const [mainTab, setMainTab] = useState('semana')
+  const [hoyClassTabKey, setHoyClassTabKey] = useState('evofuncional')
+  const [mainTab, setMainTab] = useState('hoy')
   const [guideSettings, setGuideSettings] = useState(null)
   const [exerciseLibrary, setExerciseLibrary] = useState([])
   const [exerciseLibraryLoading, setExerciseLibraryLoading] = useState(true)
   const [exerciseLibraryError, setExerciseLibraryError] = useState('')
   const [supportUsedToday, setSupportUsedToday] = useState(0)
-  const [moreDrawerOpen, setMoreDrawerOpen] = useState(false)
   const [guideCentreOpen, setGuideCentreOpen] = useState(false)
   /** null = comprobando en Supabase; false = pendiente de «Leído»; true = ya registrado para esta semana */
   const [handoverReadForWeek, setHandoverReadForWeek] = useState(null)
-  const [moreGuideOpen, setMoreGuideOpen] = useState(false)
   const [supportSessionContext, setSupportSessionContext] = useState(null)
   const supportSessionContextRef = useRef(null)
   const supportInFlightAbortRef = useRef(null)
@@ -337,8 +336,6 @@ export default function CoachView() {
     setPeerFeedbackWeek([])
     setFeedbackPrefill(null)
     setHandoverReadForWeek(null)
-    setActiveDay('show')
-    setWeekTab('dias')
     setSupportSessionContext(null)
     supportSessionContextRef.current = null
     setMessages([])
@@ -368,6 +365,7 @@ export default function CoachView() {
       resetWeekDerivedState()
       setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
       setWeekData(week.data)
+      setActiveDay(defaultActiveDayNameFromWeek(week.data))
       setIsWeekSwitching(false)
     } catch (e) {
       console.warn('CoachView: refreshActiveWeekOnFocus', e)
@@ -456,10 +454,10 @@ export default function CoachView() {
   }, [input, mainTab])
 
   useEffect(() => {
-    if (step === 'chat' && mainTab === 'semana' && activeDay == null) {
-      setActiveDay('show')
+    if (step === 'chat' && mainTab === 'hoy' && activeDay == null && weekData?.dias?.length) {
+      setActiveDay(defaultActiveDayNameFromWeek(weekData))
     }
-  }, [step, mainTab, activeDay])
+  }, [step, mainTab, activeDay, weekData])
 
   useEffect(() => {
     if (step !== 'chat') return
@@ -694,9 +692,8 @@ export default function CoachView() {
       body,
       actionLabel: 'Ver',
       onAction: () => {
-        setMainTab('semana')
-        setActiveDay('show')
-        setWeekTab('dias')
+        setMainTab('hoy')
+        if (weekData?.dias?.length) setActiveDay(defaultActiveDayNameFromWeek(weekData))
       },
       onDismiss: () => {
         try {
@@ -763,15 +760,6 @@ export default function CoachView() {
     }
   }, [])
 
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)')
-    const onChange = () => {
-      if (mq.matches) setMoreDrawerOpen(false)
-    }
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-
   async function refreshPeerFeedbackWeek() {
     if (!activeWeekRow?.id) return
     try {
@@ -785,16 +773,6 @@ export default function CoachView() {
   const handoverAlerts = peerFeedbackWeek.filter((r) => coachFeedbackRowIndicatesChange(r))
   const handoverBadgeCount =
     handoverReadForWeek === false && handoverAlerts.length > 0 ? handoverAlerts.length : 0
-
-  function getInitialActiveDayForToday(week) {
-    const dayNum = new Date().getDay()
-    if (dayNum < 1 || dayNum > 5) return 'show'
-    const dias = week?.data?.dias
-    if (!Array.isArray(dias) || !dias.length) return 'show'
-    const todayDia = dias[dayNum - 1]
-    const todayName = String(todayDia?.nombre || '').trim()
-    return todayName || 'show'
-  }
 
   async function handleCodeSubmit(e) {
     e.preventDefault()
@@ -828,7 +806,7 @@ export default function CoachView() {
         if (date === today) {
           setSessionId(id)
           setStep('chat')
-          setActiveDay(getInitialActiveDayForToday(week))
+          setActiveDay(defaultActiveDayNameFromWeek(week.data))
           return
         }
       }
@@ -836,7 +814,7 @@ export default function CoachView() {
       localStorage.setItem(COACH_SESSION_KEY, JSON.stringify({ id: session.id, date: new Date().toDateString() }))
       setSessionId(session.id)
       setStep('chat')
-      setActiveDay(getInitialActiveDayForToday(week))
+      setActiveDay(defaultActiveDayNameFromWeek(week.data))
     } catch (e) {
       console.error('CoachView: StartSession error:', e)
       setError('Error iniciando sesión')
@@ -856,23 +834,14 @@ export default function CoachView() {
 
   function openSupport(prefill, context = null) {
     setMainTab('soporte')
-    setMoreDrawerOpen(false)
     if (typeof prefill === 'string') setInput(prefill)
     const normalized = context || null
     supportSessionContextRef.current = normalized
     setSupportSessionContext(normalized)
   }
 
-  function openFeedbackFromClass(dayKey, classLabel) {
-    if (!dayKey || !classLabel) return
-    setFeedbackPrefill({ token: Date.now(), dayKey, classLabel })
-    setMainTab('feedback')
-    setMoreDrawerOpen(false)
-  }
-
   function selectNav(id) {
     setMainTab(id)
-    setMoreDrawerOpen(false)
   }
 
   async function handleSend(e) {
@@ -1003,7 +972,9 @@ export default function CoachView() {
 
   const supportRemaining = Math.max(0, SUPPORT_DAILY_LIMIT - supportUsedToday)
   const supportAtLimit = supportUsedToday >= SUPPORT_DAILY_LIMIT
-  const activeSectionTitle = SECTION_TITLE_BY_TAB[mainTab] || 'Semana'
+  const activeSectionTitle = SECTION_TITLE_BY_TAB[mainTab] || 'Hoy'
+  /** En móvil el asistente no tiene tab propio: el indicador queda en «Hoy». */
+  const bottomNavActiveId = mainTab === 'soporte' ? 'hoy' : mainTab
 
   if (step === 'loading') {
     return (
@@ -1102,15 +1073,6 @@ export default function CoachView() {
     <div className={coachUi.shell}>
       <CoachToastStack items={coachToasts} onDismissItem={dismissCoachToast} />
 
-      {moreDrawerOpen ? (
-        <button
-          type="button"
-          className={`fixed inset-0 z-[115] ${coachBg.overlay} md:hidden`}
-          aria-label="Cerrar menú Más"
-          onClick={() => setMoreDrawerOpen(false)}
-        />
-      ) : null}
-
       <div className="flex flex-1 min-h-0 overflow-hidden pb-[max(4.25rem,calc(3.5rem+env(safe-area-inset-bottom,0px)))] md:pb-0">
         <aside
           className={`hidden md:flex w-[200px] flex-col shrink-0 ${coachBg.sidebar} border-r ${coachBorder}`}
@@ -1119,8 +1081,8 @@ export default function CoachView() {
           <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
             {PRIMARY_NAV_IDS.map((navId) => {
               const { id, label, Icon } = NAV_DEFS[navId]
-              const active = mainTab === id
-              const showFbBadge = id === 'feedback' && handoverBadgeCount > 0
+              const active = mainTab === id || (id === 'hoy' && mainTab === 'soporte')
+              const showFbBadge = id === 'pase' && handoverBadgeCount > 0
               return (
                 <button
                   key={id}
@@ -1344,22 +1306,59 @@ export default function CoachView() {
               </div>
             ) : (
               <main
-                className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-y-contain ${coachBg.app}`}
+                className={`flex-1 min-h-0 min-w-0 overscroll-y-contain ${coachBg.app} ${
+                  mainTab === 'hoy' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-hidden'
+                }`}
                 style={{ WebkitOverflowScrolling: 'touch' }}
               >
+                {mainTab === 'hoy' &&
+                  (weekData?.dias?.length ? (
+                    <CoachTodayScreen
+                      weekData={weekData}
+                      activeWeekRow={activeWeekRow}
+                      coachName={coachName}
+                      activeDay={activeDay}
+                      setActiveDay={setActiveDay}
+                      classTabKey={hoyClassTabKey}
+                      setClassTabKey={setHoyClassTabKey}
+                      onConsultAssistant={(ctx) => openSupport('', ctx)}
+                    />
+                  ) : (
+                    <div className="p-6 text-center text-sm text-[#F6E8F966]">Sin programación para mostrar.</div>
+                  ))}
                 {mainTab === 'semana' && (
-                  <CoachWeekProgrammingPanel
+                  <CoachWeekOverviewPanel
                     weekData={weekData}
-                    activeDay={activeDay}
-                    setActiveDay={setActiveDay}
-                    weekTab={weekTab}
-                    setWeekTab={setWeekTab}
-                    onOpenSupport={openSupport}
-                    onOpenFeedbackFromClass={openFeedbackFromClass}
-                    exerciseLibrary={exerciseLibrary}
-                    coachName={coachName}
                     weekRow={activeWeekRow}
-                    FeedbackCardComponent={FeedbackV2Card}
+                    coachName={coachName}
+                    onSelectDay={(dayName) => {
+                      setActiveDay(dayName)
+                      setMainTab('hoy')
+                    }}
+                  />
+                )}
+                {mainTab === 'pase' && (
+                  <div className="space-y-4 p-4">
+                    <HandoffTimeline entries={todayHandoffs} coachName={coachName} onCreate={handleCreateHandoff} />
+                    <CoachSessionFeedbackForm
+                      coachName={coachName}
+                      sessionId={sessionId}
+                      weekRow={activeWeekRow}
+                      weekData={weekData}
+                      peerEntries={peerFeedbackWeek}
+                      onAfterSave={refreshPeerFeedbackWeek}
+                      prefill={feedbackPrefill}
+                    />
+                  </div>
+                )}
+                {mainTab === 'perfil' && (
+                  <CoachProfilePanel
+                    coachName={coachName}
+                    onOpenWeeklyCheckin={() => setShowWeeklyCheckin(true)}
+                    onNavigateLibrary={() => selectNav('ejercicios')}
+                    onNavigateMesociclos={() => selectNav('mesociclos')}
+                    onNavigateMaterial={() => selectNav('material')}
+                    onNavigateCentro={() => selectNav('centro')}
                   />
                 )}
                 {mainTab === 'ejercicios' && (
@@ -1374,20 +1373,6 @@ export default function CoachView() {
                 {mainTab === 'mesociclos' && <CoachGuideMesociclos />}
                 {mainTab === 'uso' && <CoachGuideUsoApp />}
                 {mainTab === 'material' && <CoachGuideMaterial guideSettings={guideSettings} />}
-                {mainTab === 'feedback' && (
-                  <div className="space-y-4 p-4">
-                    <HandoffTimeline entries={todayHandoffs} coachName={coachName} onCreate={handleCreateHandoff} />
-                    <CoachSessionFeedbackForm
-                      coachName={coachName}
-                      sessionId={sessionId}
-                      weekRow={activeWeekRow}
-                      weekData={weekData}
-                      peerEntries={peerFeedbackWeek}
-                      onAfterSave={refreshPeerFeedbackWeek}
-                      prefill={feedbackPrefill}
-                    />
-                  </div>
-                )}
               </main>
             )}
           </div>
@@ -1400,8 +1385,8 @@ export default function CoachView() {
       >
         {BOTTOM_NAV_IDS.map((navId) => {
           const { id, label, Icon } = NAV_DEFS[navId]
-          const active = mainTab === id
-          const showFbBadge = id === 'feedback' && handoverBadgeCount > 0
+          const active = bottomNavActiveId === id
+          const showFbBadge = id === 'pase' && handoverBadgeCount > 0
           return (
             <button
               key={id}
@@ -1423,91 +1408,8 @@ export default function CoachView() {
             </button>
           )
         })}
-        <button
-          type="button"
-          onClick={() => setMoreDrawerOpen(true)}
-          className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-xl transition-colors ${
-            MORE_DRAWER_IDS.includes(mainTab) ? 'text-[#FFFF4C] bg-[#6A1F6D]/20' : 'text-[#F6E8F9]/50 hover:text-[#F6E8F9]'
-          }`}
-        >
-          <IconMas className="w-6 h-6" />
-          <span className="text-[9px] font-bold uppercase tracking-wide">Más</span>
-        </button>
       </nav>
 
-      {moreDrawerOpen ? (
-        <div
-          className={`fixed bottom-0 left-0 right-0 z-[116] md:hidden max-h-[min(78dvh,560px)] flex flex-col rounded-t-2xl border-t border-x ${coachBorder} ${coachBg.card} shadow-2xl pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
-          role="dialog"
-          aria-label="Más opciones"
-        >
-          <div className={`flex items-center justify-between gap-3 px-4 py-3 border-b ${coachBorder} shrink-0`}>
-            <p className={`text-sm font-black uppercase tracking-wide ${coachText.title}`}>Más</p>
-            <button
-              type="button"
-              onClick={() => setMoreDrawerOpen(false)}
-              className={`p-2 rounded-xl ${coachText.muted} hover:bg-black/5`}
-              aria-label="Cerrar"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="overflow-y-auto py-2 px-3 space-y-1 flex-1 min-h-0">
-            {['mesociclos', 'material'].map((navId) => {
-              const { id, label, Icon } = NAV_DEFS[navId]
-              const active = mainTab === id
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => selectNav(id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left text-[14px] font-semibold border ${coachBorder} ${
-                    active ? 'bg-[#A729AD]/12 border-[#A729AD]/35 text-[#6A1F6D]' : `${coachBg.cardAlt} ${coachText.primary}`
-                  }`}
-                >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  <span>{label}</span>
-                </button>
-              )
-            })}
-            <details
-              className="rounded-xl border border-[#6A1F6D]/25 overflow-hidden"
-              open={moreGuideOpen}
-              onToggle={(e) => setMoreGuideOpen(e.currentTarget.open)}
-            >
-              <summary
-                className={`list-none cursor-pointer px-4 py-3.5 text-[12px] font-bold uppercase tracking-widest ${coachText.muted} flex items-center justify-between gap-2 bg-[#F3EAF8] [&::-webkit-details-marker]:hidden`}
-              >
-                Guía del centro
-                <span className="text-[9px] opacity-70" aria-hidden>
-                  ▼
-                </span>
-              </summary>
-              <div className="p-2 space-y-1 border-t border-[#6A1F6D]/15">
-                {GUIDE_CENTRE_IDS.map((navId) => {
-                  const { id, label, Icon } = NAV_DEFS[navId]
-                  const active = mainTab === id
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => selectNav(id)}
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left text-[14px] font-semibold ${
-                        active ? 'bg-[#A729AD]/12 text-[#6A1F6D]' : coachText.primary
-                      }`}
-                    >
-                      <Icon className="w-5 h-5 shrink-0" />
-                      <span>{label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </details>
-          </div>
-        </div>
-      ) : null}
       {showWeeklyCheckin ? (
         <WeeklyCheckinModal
           weekLabel={isoWeekString(new Date())}

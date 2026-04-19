@@ -18,6 +18,7 @@ import {
   getCoachExerciseLibrary,
   updatePublishedWeekData,
   getPublishedWeekByMesocycleAndWeek,
+  listPublishedWeeksForMesocycle,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import {
@@ -354,6 +355,32 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       cancelled = true
     }
   }, [weekState.mesocycle, weekState.week, weekState.phase, briefingRetry])
+
+  /** Tras cargar el briefing, alinear historial local con semanas ya publicadas en Supabase (p. ej. S6 en Hub pero no en localStorage). */
+  useEffect(() => {
+    if (briefingStatus !== 'ready' || !weekState.mesocycle) return undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rows = await listPublishedWeeksForMesocycle(weekState.mesocycle)
+        if (cancelled) return
+        for (const row of rows) {
+          if (!row?.data || !Array.isArray(row.data.dias)) continue
+          const data = JSON.parse(JSON.stringify(row.data))
+          data.semana = Number(row.semana)
+          data.titulo = row.titulo || data.titulo
+          data.mesociclo = weekState.mesocycle
+          saveWeekToHistory(weekState.mesocycle, Number(row.semana), data)
+        }
+        setHistory(getHistoryForMesocycle(weekState.mesocycle))
+      } catch (e) {
+        console.warn('[ExcelGeneratorModal] sync historial desde Supabase:', e?.message || e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [briefingStatus, weekState.mesocycle])
 
   useEffect(() => {
     const n = weekData?.dias?.length ?? 0

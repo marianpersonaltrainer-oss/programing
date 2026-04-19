@@ -120,6 +120,30 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
   return data || null
 }
 
+/**
+ * Todas las semanas publicadas de un mesociclo (una fila por número de semana, la más reciente por `published_at`).
+ * Útil para sincronizar el historial local del generador con el Hub.
+ */
+export async function listPublishedWeeksForMesocycle(mesociclo) {
+  if (!mesociclo) return []
+  const { data, error } = await supabase
+    .from('published_weeks')
+    .select('semana, titulo, data, published_at')
+    .eq('mesociclo', mesociclo)
+    .order('published_at', { ascending: false })
+
+  if (error) throw error
+  const bySem = new Map()
+  for (const row of data || []) {
+    const s = Number(row.semana)
+    if (!Number.isFinite(s)) continue
+    if (!bySem.has(s)) bySem.set(s, row)
+  }
+  return [...bySem.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, row]) => row)
+}
+
 /** Referencia compacta de semanas del último año (si existe tabla `weeks`). */
 export async function listWeeksLastYear(limit = 40) {
   const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()

@@ -225,6 +225,15 @@ function parseProposalJson(assistantText) {
  * Si hay `mesociclo`, solo filas de ese mesociclo (hasta 8 semanas distintas, última publicación por S#).
  * Si no, últimas 4 filas globales (compatibilidad).
  */
+/**
+ * Tablas auxiliares del pack (check-ins, handoffs, reglas, feedback por sesión).
+ * Si la migración no está aplicada en Supabase o falla RLS, el briefing sigue funcionando sin ese bloque.
+ */
+function logOptionalTableSkip(label, err) {
+  const msg = err?.message || String(err || '')
+  console.warn(`[programming-week-briefing] ${label} omitido:`, msg)
+}
+
 async function fetchContextPack(supabase, mesocicloRaw) {
   const mesociclo = String(mesocicloRaw || '').trim()
 
@@ -270,35 +279,47 @@ async function fetchContextPack(supabase, mesocicloRaw) {
       .in('week_id', weekIds)
       .order('created_at', { ascending: false })
       .limit(200)
-    if (fErr) throw new Error(`coach_session_feedback: ${fErr.message}`)
-    sessionRows = fb || []
+    if (fErr) logOptionalTableSkip('coach_session_feedback', fErr)
+    else sessionRows = fb || []
   }
 
-  const sinceCheckins = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: checkins, error: cErr } = await supabase
-    .from('weekly_checkins')
-    .select('coach_name, week_iso, mood_score, feedback_text, highlights, improvements, created_at')
-    .gte('created_at', sinceCheckins)
-    .order('created_at', { ascending: false })
-    .limit(80)
-  if (cErr) throw new Error(`weekly_checkins: ${cErr.message}`)
+  let checkins = []
+  {
+    const sinceCheckins = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error: cErr } = await supabase
+      .from('weekly_checkins')
+      .select('coach_name, week_iso, mood_score, feedback_text, highlights, improvements, created_at')
+      .gte('created_at', sinceCheckins)
+      .order('created_at', { ascending: false })
+      .limit(80)
+    if (cErr) logOptionalTableSkip('weekly_checkins', cErr)
+    else checkins = data || []
+  }
 
-  const sinceHandoffs = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: handoffs, error: hErr } = await supabase
-    .from('daily_handoffs')
-    .select('coach_name, class_type, class_time, energy_level, had_incident, note, created_at')
-    .gte('created_at', sinceHandoffs)
-    .order('created_at', { ascending: false })
-    .limit(120)
-  if (hErr) throw new Error(`daily_handoffs: ${hErr.message}`)
+  let handoffs = []
+  {
+    const sinceHandoffs = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error: hErr } = await supabase
+      .from('daily_handoffs')
+      .select('coach_name, class_type, class_time, energy_level, had_incident, note, created_at')
+      .gte('created_at', sinceHandoffs)
+      .order('created_at', { ascending: false })
+      .limit(120)
+    if (hErr) logOptionalTableSkip('daily_handoffs', hErr)
+    else handoffs = data || []
+  }
 
-  const { data: rules, error: rErr } = await supabase
-    .from('method_rules')
-    .select('rule_type, trigger_context, rule_text, confidence')
-    .eq('active', true)
-    .order('confidence', { ascending: false })
-    .limit(30)
-  if (rErr) throw new Error(`method_rules: ${rErr.message}`)
+  let rules = []
+  {
+    const { data, error: rErr } = await supabase
+      .from('method_rules')
+      .select('rule_type, trigger_context, rule_text, confidence')
+      .eq('active', true)
+      .order('confidence', { ascending: false })
+      .limit(30)
+    if (rErr) logOptionalTableSkip('method_rules', rErr)
+    else rules = data || []
+  }
 
   const mesoLabel = mesociclo ? `mesociclo «${mesociclo}»` : 'todos los mesociclos (ventana corta)'
   const blocks = [

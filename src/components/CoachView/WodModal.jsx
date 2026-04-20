@@ -23,6 +23,7 @@ export default function WodModal({
   dayName,
   sessionText,
   sessionFeedback = '',
+  dailyFeedback = null,
   accentColor,
   exerciseLibrary,
   onConsultAssistant,
@@ -92,6 +93,14 @@ export default function WodModal({
         >
           {titleUpper} · {dayUpper}
         </h2>
+
+        {dailyFeedback?.note ? (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Feedback de hoy</p>
+            {dailyFeedback?.meta ? <p className="text-[11px] text-amber-700/90 mt-0.5">{dailyFeedback.meta}</p> : null}
+            <p className="text-[13px] leading-snug text-amber-900 mt-1 whitespace-pre-wrap">{dailyFeedback.note}</p>
+          </div>
+        ) : null}
 
         {String(sessionFeedback || '').trim() ? (
           <>

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { madridWeekdayChipIndex, madridWeekdayLabelEs } from '../../utils/coachTime.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { MESOCYCLES } from '../../constants/evoColors.js'
-import { findLastCoachHandoffNoteForDay, hasNonTrivialPublishedFeedback } from '../../utils/coachSessionPrep.js'
-import { findDia, sessionText, hasProgrammedSessionText, dayNombreToFeedbackKey } from './coachViewUtils.js'
+import { hasNonTrivialPublishedFeedback } from '../../utils/coachSessionPrep.js'
+import { findDia, sessionText, hasProgrammedSessionText } from './coachViewUtils.js'
 import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
 import { CoachSessionBriefingPreview } from './CoachSessionBriefing.jsx'
 import WodModal from './WodModal.jsx'
@@ -87,8 +87,6 @@ function ClassDayCard({
   classDef,
   accent,
   dia,
-  weekId,
-  dayKey,
   todayHandoffs,
   useDailyHandoffs,
   onOpenWod,
@@ -99,19 +97,12 @@ function ClassDayCard({
   const hasSessionFeedback = hasNonTrivialPublishedFeedback(sessionFeedbackRaw)
   const daily =
     dia && useDailyHandoffs ? latestDailyHandoffForClass(todayHandoffs, classDef.label) : null
-  const feedbackHandoff =
-    dia && dayKey ? findLastCoachHandoffNoteForDay(classDef.label, weekId ?? null, dayKey) : null
 
   const handoff = daily
     ? {
         meta: [daily.coach_name, formatShortTime(daily.created_at)].filter(Boolean).join(' · '),
         note: String(daily.note || '').trim(),
       }
-    : feedbackHandoff?.note
-      ? {
-          meta: [feedbackHandoff.coach_name, formatShortTime(feedbackHandoff.at)].filter(Boolean).join(' · '),
-          note: String(feedbackHandoff.note || '').trim(),
-        }
       : null
 
   const title = classDisplayTitle(classDef.key)
@@ -140,7 +131,7 @@ function ClassDayCard({
             className="text-[12px] italic text-[#F6E8F966]"
             style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
           >
-            Sin pase hoy
+            Sin feedback hoy
           </p>
         )}
       </div>
@@ -165,6 +156,7 @@ function ClassDayCard({
             classLabel: classDef.label,
             sessionText: sessionRaw,
             sessionFeedback: hasSessionFeedback ? String(sessionFeedbackRaw).trim() : '',
+            dailyFeedback: handoff,
             accentColor: accent,
             dayName: dia.nombre,
           })
@@ -207,7 +199,6 @@ export default function CoachTodayScreen({
   }, [activeWeekRow, weekData])
 
   const dia = findDia(dias, activeDay)
-  const dayKey = dia ? dayNombreToFeedbackKey(dia.nombre) : null
   const madridChipIndex = useMemo(() => madridWeekdayChipIndex(), [])
   const useDailyHandoffs = dia ? selectedDayIsMadridCalendarToday(dia.nombre) : false
   const classDefsForDay = useMemo(() => classDefsWithContentForDay(dia), [dia])
@@ -259,8 +250,6 @@ export default function CoachTodayScreen({
                   classDef={classDef}
                   accent={accent}
                   dia={dia}
-                  weekId={activeWeekRow?.id ?? null}
-                  dayKey={dayKey}
                   todayHandoffs={todayHandoffs}
                   useDailyHandoffs={useDailyHandoffs}
                   onOpenWod={setWodModal}
@@ -280,6 +269,7 @@ export default function CoachTodayScreen({
           dayName={wodModal.dayName}
           sessionText={wodModal.sessionText}
           sessionFeedback={wodModal.sessionFeedback}
+          dailyFeedback={wodModal.dailyFeedback}
           accentColor={wodModal.accentColor}
           exerciseLibrary={exerciseLibrary}
           onConsultAssistant={(ctx) => {

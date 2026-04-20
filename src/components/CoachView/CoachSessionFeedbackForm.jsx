@@ -214,11 +214,9 @@ export default function CoachSessionFeedbackForm({
           className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-3`}
           aria-label="Feedback de coaches esta semana"
         >
-          <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
-            Esta semana (pase de turno)
-          </h3>
+          <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>Esta semana (feedback)</h3>
           <p className={`text-xs ${coachText.muted} leading-relaxed`}>
-            Incluye tus envíos y los del resto del equipo. Los cambios no leídos aparecen resaltados para pase de turno.
+            Incluye tus envíos y los del resto del equipo. Los cambios no leídos aparecen resaltados para feedback.
           </p>
           {unreadOthersWithChange.length > 0 ? (
             <div className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">

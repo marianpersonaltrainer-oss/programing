@@ -190,7 +190,7 @@ function IconHoy(props) {
 const NAV_DEFS = {
   hoy: { id: 'hoy', label: 'Hoy', Icon: IconHoy },
   semana: { id: 'semana', label: 'Semana', Icon: IconSemana },
-  pase: { id: 'pase', label: 'Pase', Icon: IconFeedback },
+  pase: { id: 'pase', label: 'Feedback', Icon: IconFeedback },
   perfil: { id: 'perfil', label: 'Perfil', Icon: IconMaterial },
   soporte: { id: 'soporte', label: 'Asistente', Icon: IconSoporte },
   ejercicios: { id: 'ejercicios', label: 'Ejercicios', Icon: IconEjercicios },
@@ -518,7 +518,7 @@ export default function CoachView() {
       const saved = await createDailyHandoff(row)
       setTodayHandoffs((prev) => [saved, ...prev])
     } catch (e) {
-      setError(e?.message || 'No se pudo guardar el pase de turno')
+      setError(e?.message || 'No se pudo guardar el feedback')
     }
   }
 
@@ -654,7 +654,7 @@ export default function CoachView() {
     pushCoachToast({
       id: 'coach-handover',
       variant: 'handover',
-      title: 'Pase de turno — acción requerida',
+      title: 'Feedback — acción requerida',
       body,
       onConfirmRead: async () => {
         if (wid == null || !name) throw new Error('Falta semana o nombre')

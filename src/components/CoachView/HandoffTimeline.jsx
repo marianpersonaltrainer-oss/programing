@@ -109,15 +109,15 @@ export default function HandoffTimeline({ entries = [], coachName = '', onCreate
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-evo-display uppercase tracking-wide text-[#FFFF4C]">Pase de turno de hoy</p>
+        <p className="text-sm font-evo-display uppercase tracking-wide text-[#FFFF4C]">Feedback de hoy</p>
         <button type="button" onClick={() => setOpenForm(true)} className="h-11 px-4 rounded-lg bg-[#6A1F6D] hover:bg-[#A729AD] text-[#FFFF4C] text-xs font-evo-display uppercase">
-          Nuevo pase
+          Nuevo feedback
         </button>
       </div>
 
       {!sorted.length ? (
         <div className="rounded-lg border border-[#6A1F6D]/30 bg-[#1a0f1b] px-4 py-5 text-sm text-[#F6E8F966]">
-          Sé el primero en dejar el pase de hoy
+          Sé el primero en dejar feedback hoy
         </div>
       ) : (
         <ul className="space-y-3">

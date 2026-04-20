@@ -102,15 +102,15 @@ export default function WodModal({
           </div>
         ) : null}
 
+        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Entrenamiento</p>
+        <CoachFormattedSession text={sessionText} accentColor={accentColor} variant="modalProse" />
+
         {String(sessionFeedback || '').trim() ? (
           <>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Briefing programación</p>
+            <p className="mt-4 text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Briefing programación</p>
             <CoachSessionBriefingModalBody text={sessionFeedback} accentColor={accentColor} />
           </>
         ) : null}
-
-        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Entrenamiento</p>
-        <CoachFormattedSession text={sessionText} accentColor={accentColor} variant="modalProse" />
 
         <button
           type="button"

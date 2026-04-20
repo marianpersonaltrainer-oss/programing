@@ -3,6 +3,8 @@ import { FEEDBACK_BLOCKS } from './coachViewConstants.js'
 
 const NO_PROGRAMADA_RE = /^\(no programada esta semana\)\s*$/i
 const FESTIVO_RE = /^FESTIVO\b/i
+const NO_REAL_SESSION_RE =
+  /\b(no\s+tengo\s+informaci[oó]n\s+sobre\s+la\s+sesi[oó]n|no\s+hay\s+evo[a-z]+\s+programad[ao]a|no\s+est[aá]\s+programad[ao]a\s+esta\s+semana|l[ií]nea\s+en\s+blanco)\b/i
 
 export function sessionText(val) {
   if (val == null) return ''
@@ -17,6 +19,7 @@ export function hasProgrammedSessionText(val) {
   const first = t.split('\n')[0].trim()
   if (NO_PROGRAMADA_RE.test(first)) return false
   if (FESTIVO_RE.test(first)) return false
+  if (NO_REAL_SESSION_RE.test(t)) return false
   return true
 }
 

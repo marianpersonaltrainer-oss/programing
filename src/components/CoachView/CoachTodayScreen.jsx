@@ -8,14 +8,10 @@ import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
 import { CoachSessionBriefingPreview } from './CoachSessionBriefing.jsx'
 import WodModal from './WodModal.jsx'
 
-/** Clases con WOD programado o con briefing publicado (p. ej. Gimnástica solo algunos días). */
+/** Solo clases que tienen programación real ese día (evita mostrar columnas vacías). */
 function classDefsWithContentForDay(dia) {
   if (!dia) return []
-  return EVO_SESSION_CLASS_DEFS.filter((def) => {
-    const programmed = hasProgrammedSessionText(dia[def.key])
-    const fb = hasNonTrivialPublishedFeedback(sessionText(dia[def.feedbackKey]))
-    return programmed || fb
-  })
+  return EVO_SESSION_CLASS_DEFS.filter((def) => hasProgrammedSessionText(dia[def.key]))
 }
 
 function shortDayLabel(dayName) {
@@ -120,12 +116,13 @@ function ClassDayCard({
 
       <div className="flex-1 min-h-0">
         {handoff ? (
-          <>
-            <p className="text-[12px] leading-snug text-[#F6E8F9CC]" style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}>
+          <div className="rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Feedback de hoy</p>
+            <p className="text-[11px] leading-snug text-amber-700/90 mt-0.5" style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}>
               {handoff.meta}
             </p>
-            <p className="mt-1 text-[13px] text-[#F6E8F9] line-clamp-2 leading-snug whitespace-pre-wrap">{handoff.note}</p>
-          </>
+            <p className="mt-1 text-[13px] text-amber-900 line-clamp-3 leading-snug whitespace-pre-wrap">{handoff.note}</p>
+          </div>
         ) : (
           <p
             className="text-[12px] italic text-[#F6E8F966]"
@@ -139,8 +136,10 @@ function ClassDayCard({
       {hasSessionFeedback ? (
         <>
           <CardDivider />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#F6E8F966] mb-1">Briefing programación</p>
-          <CoachSessionBriefingPreview text={sessionFeedbackRaw} accent={accent} lineClamp={4} />
+          <div className="rounded-lg border border-[#A729AD]/45 bg-[#2A1630] px-3 py-2.5">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-[#F6E8F9] mb-1.5">Briefing programación</p>
+            <CoachSessionBriefingPreview text={sessionFeedbackRaw} accent={accent} lineClamp={4} />
+          </div>
         </>
       ) : null}
 
@@ -240,7 +239,7 @@ export default function CoachTodayScreen({
           {!dia ? (
             <p className="text-sm text-[#F6E8F966] xl:col-span-3">No hay datos para este día.</p>
           ) : classDefsForDay.length === 0 ? (
-            <p className="text-sm text-[#F6E8F966] xl:col-span-3">Sin sesiones ni briefing publicado para este día.</p>
+            <p className="text-sm text-[#F6E8F966] xl:col-span-3">Sin clases programadas para este día.</p>
           ) : (
             classDefsForDay.map((classDef) => {
               const accent = classAccentBySessionKey(classDef.key)

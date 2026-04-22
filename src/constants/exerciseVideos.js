@@ -160,6 +160,7 @@ export const PUBLISHED_DAY_BLOCK_KEYS = [
 function normalizeExerciseMatch(s) {
   return String(s || '')
     .toLowerCase()
+    .replace(/\blm\b/g, 'landmine')
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
 }
@@ -170,7 +171,7 @@ const BROKEN_YOUTUBE_IDS = new Set([
 ])
 
 const SPECIALIZED_VIDEO_HINT_RE =
-  /\b(landmine|mobility|movilidad|stretch|scap|copenhagen|pallof|jefferson|nordic|meadows|windmill|turkish|get\s*up|dead\s*bug|hollow|thoracic|ankle|hip\s*transition|face\s*pull|carry|antirotation|accesor|t[eé]cnica|activation|activaci[oó]n)\b/i
+  /\b(landmine|lm|mobility|movilidad|stretch|scap|copenhagen|pallof|jefferson|nordic|meadows|windmill|turkish|get\s*up|dead\s*bug|hollow|thoracic|ankle|hip\s*transition|face\s*pull|carry|antirotation|accesor|t[eé]cnica|activation|activaci[oó]n)\b/i
 
 const TOO_GENERIC_MOVEMENT_RE =
   /\b(squat|deadlift|press|clean|snatch|jerk|thruster|pull[\s-]?up|push[\s-]?up|burpee|box\s*jump|lunge|run|rowing|rower|bike|wall\s*ball|toes?\s*to\s*bar|t2b|c2b)\b/i
@@ -233,7 +234,9 @@ export function findStaticVideoUrlForExerciseLabel(label) {
 
 /** Búsqueda más específica (último recurso) para ejercicios técnicos/no obvios. */
 export function buildVideoSearchFallbackUrl(label) {
-  const base = String(label || '').trim()
+  const base = String(label || '')
+    .trim()
+    .replace(/\bLM\b/gi, 'landmine')
   const q = encodeURIComponent(`${base} exercise tutorial technique`)
   return `https://www.youtube.com/results?search_query=${q}`
 }

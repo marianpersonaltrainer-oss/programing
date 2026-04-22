@@ -7,6 +7,14 @@ import {
   shouldOfferAutoVideoForExercise,
 } from '../constants/exerciseVideos.js'
 
+function shouldOfferVideoForLibraryRow(row) {
+  const name = String(row?.name || '')
+  const cat = String(row?.category || '').toLowerCase()
+  if (shouldOfferAutoVideoForExercise(name)) return true
+  // Si la biblioteca lo clasifica en estas familias, lo tratamos como menos común/técnico.
+  return /(movilidad|landmine|core|rotacion|accesor|olimpic|halter|gimnast|skill|tecnic|t[eé]cnica)/i.test(cat)
+}
+
 /**
  * Coincidencias por nombre en biblioteca Supabase (todas las filas con nombre).
  * URL: video_url válida si existe; si no, mapa EXERCISE_VIDEOS; si no, búsqueda YouTube.
@@ -24,10 +32,10 @@ export function matchLibraryVideosInLowerText(
   for (const r of sorted) {
     const name = String(r.name || '').trim()
     if (!name) continue
-    if (specializedOnly && !shouldOfferAutoVideoForExercise(name)) continue
+    if (specializedOnly && !shouldOfferVideoForLibraryRow(r)) continue
     if (out.length >= max) break
     if (!lt.includes(name.toLowerCase())) continue
-    const url = resolveVideoUrlForExerciseLabel(name, r.video_url, { allowSearchFallback: false })
+    const url = resolveVideoUrlForExerciseLabel(name, r.video_url, { allowSearchFallback: true })
     if (!url) continue
     if (dedupeByUrl && usedUrls.has(url)) continue
     if (dedupeByUrl) usedUrls.add(url)

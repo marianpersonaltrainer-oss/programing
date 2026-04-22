@@ -63,11 +63,11 @@ export default function WodModal({
   const videos =
     videoSourceText
       ? findVideosInProgramTextResolved(videoSourceText, exerciseLibrary || [], {
-          specializedOnly: true,
+          specializedOnly: false,
         })
       : []
   const inlineExerciseLinks = findVideosInProgramTextResolved(String(sessionText || ''), exerciseLibrary || [], {
-    specializedOnly: true,
+    specializedOnly: false,
   }).slice(0, 24)
 
   if (!mounted || !open) return null

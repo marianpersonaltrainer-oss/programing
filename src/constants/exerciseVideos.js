@@ -179,10 +179,13 @@ const BROKEN_YOUTUBE_IDS = new Set([
 ])
 
 const SPECIALIZED_VIDEO_HINT_RE =
-  /\b(landmine|lm|mobility|movilidad|stretch|scap|copenhagen|pallof|jefferson|nordic|meadows|windmill|turkish|get\s*up|dead\s*bug|hollow|thoracic|ankle|hip\s*transition|face\s*pull|carry|antirotation|accesor|t[eé]cnica|activation|activaci[oó]n)\b/i
+  /\b(landmine|lm|mobility|movilidad|stretch|scap|copenhagen|pallof|jefferson|nordic|meadows|windmill|turkish|get\s*up|dead\s*bug|hollow|thoracic|ankle|hip\s*transition|face\s*pull|carry|antirotation|accesor|t[eé]cnica|activation|activaci[oó]n|tempo|paused?|isometric|isom[eé]trico|deficit|single\s*leg|unilateral|elevated|ring|strict|kipping|chest\s*to\s*bar|muscle\s*up|false\s*grip|arch\s*hollow|snatch\s*balance|tall\s*snatch|tall\s*clean|clean\s*pull|snatch\s*pull|high\s*pull|overhead\s*squat|drop\s*snatch)\b/i
 
 const TOO_GENERIC_MOVEMENT_RE =
   /\b(squat|deadlift|press|clean|snatch|jerk|thruster|pull[\s-]?up|push[\s-]?up|burpee|box\s*jump|lunge|run|rowing|rower|bike|wall\s*ball|toes?\s*to\s*bar|t2b|c2b)\b/i
+
+const COMMON_PROGRAMMING_RE =
+  /\b(air\s*squat|back\s*squat|front\s*squat|goblet\s*squat|deadlift|romanian\s*deadlift|bench\s*press|push\s*press|push[\s-]?up|pull[\s-]?up|burpee|box\s*jump|run|rowing|bike|wall\s*ball|sit[\s-]?up|jump\s*rope|double[\s-]?under|kb\s*swing|kettlebell\s*swing|thruster)\b/i
 
 function extractYoutubeId(url) {
   const s = String(url || '')
@@ -204,6 +207,7 @@ export function shouldOfferAutoVideoForExercise(label) {
   if (!n) return false
   if (/\blandmine\b/.test(n)) return true
   if (SPECIALIZED_VIDEO_HINT_RE.test(n)) return true
+  if (COMMON_PROGRAMMING_RE.test(n)) return false
   if (TOO_GENERIC_MOVEMENT_RE.test(n)) return false
   return n.length >= 12
 }
@@ -246,8 +250,8 @@ export function buildVideoSearchFallbackUrl(label) {
   const base = String(label || '')
     .trim()
     .replace(/\bLM\b/gi, 'landmine')
-  const q = encodeURIComponent(`${base} exercise tutorial technique`)
-  return `https://www.youtube.com/results?search_query=${q}`
+  const q = encodeURIComponent(base)
+  return `/api/video-resolve?exercise=${q}`
 }
 
 /**
@@ -260,7 +264,6 @@ export function resolveVideoUrlForExerciseLabel(displayName, supabaseUrl, option
   const staticUrl = findStaticVideoUrlForExerciseLabel(displayName)
   if (staticUrl) return staticUrl
   if (!allowSearchFallback) return null
-  if (!shouldOfferAutoVideoForExercise(displayName)) return null
   return buildVideoSearchFallbackUrl(displayName)
 }
 

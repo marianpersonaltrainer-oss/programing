@@ -27,9 +27,7 @@ export function matchLibraryVideosInLowerText(
     if (specializedOnly && !shouldOfferAutoVideoForExercise(name)) continue
     if (out.length >= max) break
     if (!lt.includes(name.toLowerCase())) continue
-    const url = resolveVideoUrlForExerciseLabel(name, r.video_url, {
-      allowSearchFallback: !specializedOnly,
-    })
+    const url = resolveVideoUrlForExerciseLabel(name, r.video_url, { allowSearchFallback: false })
     if (!url) continue
     if (dedupeByUrl && usedUrls.has(url)) continue
     if (dedupeByUrl) usedUrls.add(url)

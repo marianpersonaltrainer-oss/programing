@@ -3,7 +3,6 @@
 // Añade o edita ejercicios aquí según necesites.
 
 const V = (id) => `https://www.youtube.com/watch?v=${id}`
-const YT = (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
 
 export const EXERCISE_VIDEOS = {
 
@@ -50,11 +49,11 @@ export const EXERCISE_VIDEOS = {
   'landmine antirotation press': V('iZKkCvNTV6Y'),
   'landmine single leg rdl':V('e_IiDLZ2AkY'),
   // Landmine frecuentes en clases, muchas veces escritas como "LM ..."
-  'landmine lunge':         YT('landmine lunge exercise tutorial'),
-  'landmine reverse lunge': YT('landmine reverse lunge tutorial'),
-  'landmine rotational':    YT('landmine rotational exercise tutorial'),
-  'landmine core rotational': YT('landmine core rotational press tutorial'),
-  'landmine rotation':      YT('landmine rotation core tutorial'),
+  'landmine lunge':         V('OiYhXnGncY8'),
+  'landmine reverse lunge': V('OiYhXnGncY8'),
+  'landmine rotational':    V('i953czRec9Q'),
+  'landmine core rotational': V('i953czRec9Q'),
+  'landmine rotation':      V('i953czRec9Q'),
 
   // ── ACCESORIOS & CORE ────────────────────────────────────────────────────
   'copenhagen plank':       V('BEXLOLvRvXE'),
@@ -253,7 +252,7 @@ export function buildVideoSearchFallbackUrl(label) {
  * Supabase tiene prioridad si hay URL http(s); si no, mapa estático; si no, búsqueda YouTube.
  */
 export function resolveVideoUrlForExerciseLabel(displayName, supabaseUrl, options = {}) {
-  const allowSearchFallback = options.allowSearchFallback !== false
+  const allowSearchFallback = options.allowSearchFallback === true
   const raw = sanitizeVideoUrl(supabaseUrl)
   if (raw) return raw
   const staticUrl = findStaticVideoUrlForExerciseLabel(displayName)

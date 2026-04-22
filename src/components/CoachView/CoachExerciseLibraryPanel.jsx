@@ -183,7 +183,10 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                   ) : null}
                   {(() => {
                     const url = resolveVideoUrlForExerciseLabel(e.name, e.video_url)
-                    const isSearch = /youtube\.com\/results/i.test(url)
+                    if (!url) {
+                      return <span className="inline-flex text-xs font-semibold text-zinc-500">Sin vídeo asignado</span>
+                    }
+                    const isSearch = /youtube\.com\/results/i.test(String(url))
                     return (
                       <a
                         href={url}

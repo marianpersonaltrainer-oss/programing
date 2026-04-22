@@ -76,12 +76,20 @@ function cleanupExerciseCandidate(line) {
   return s
 }
 
+const NON_EXERCISE_LINE_RE =
+  /^([A-C]\)\s*)?(BIENVENIDA|CIERRE|CALENTAMIENTO|TECNICA|TÉCNICA|SKILL(?:S)?|WOD|PARTE|BLOQUE|NOTA|FEEDBACK|CONTEXTO|MATERIAL|CHALLENGE|COMPLETAS?|LADDER|TABATA|RONDAS?)\b/i
+const PROGRAMMING_FORMAT_LINE_RE =
+  /^(SCORE|TC|TIME CAP|AMRAP|EMOM|E\d+MOM|FOR TIME|EVERY)\b/i
+const NON_EXERCISE_CHUNK_RE =
+  /\b(each|acumular|acumul(?:a|ar)|desc|descanso|transici[oó]n|for time|amrap|emom|ladder|challenge|score|time cap|rest)\b/i
+
 function isLikelyExerciseLine(line) {
   const t = String(line || '').trim()
   if (!t) return false
-  if (/^([A-C]\)\s*)?(BIENVENIDA|CIERRE|CALENTAMIENTO|TECNICA|TÉCNICA|SKILL|WOD|PARTE|BLOQUE|NOTA|FEEDBACK|CONTEXTO|MATERIAL)\b/i.test(t)) return false
-  if (/^(SCORE|TC|TIME CAP|AMRAP|EMOM|FOR TIME)\b/i.test(t)) return false
+  if (NON_EXERCISE_LINE_RE.test(t)) return false
+  if (PROGRAMMING_FORMAT_LINE_RE.test(t)) return false
   if (/(MESOCICLO|SEMANA|ARCHIVO DE CONTEXTO|RESUMEN PARA LA IA)/i.test(t)) return false
+  if (/^[A-ZÁÉÍÓÚÑ0-9\s\-–—:()[\]'".+/]{10,}$/.test(t)) return false
   return /[a-zA-Záéíóúñ]/.test(t)
 }
 
@@ -104,6 +112,9 @@ function extractFallbackExerciseVideos(text, { max = 18 } = {}) {
     for (const name of chunks) {
       if (out.length >= max) break
       if (name.length < 4) continue
+      if (NON_EXERCISE_CHUNK_RE.test(name)) continue
+      if (/[:]/.test(name) && !/\b(l-sit|muscle up|toes to bar|handstand)\b/i.test(name)) continue
+      if (/^\d+(\s*[-x×]\s*\d+)+$/.test(name)) continue
       const key = name.toLowerCase()
       if (used.has(key)) continue
       const url = resolveVideoUrlForExerciseLabel(name, null, { allowSearchFallback: true })

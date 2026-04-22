@@ -12,6 +12,7 @@ import { getCoachExerciseLibrary, supabase } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
 import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../utils/parseAnthropicProxyBody.js'
+import { buildMesocycleProgrammingBlock } from '../constants/mesocycleGenerationBlocks.js'
 
 export function useAgent(weekState) {
   const [messages, setMessages] = useState([])
@@ -43,6 +44,15 @@ export function useAgent(weekState) {
     let systemWithContext = SYSTEM_PROMPT
     if (methodText) {
       systemWithContext += `\n\n════════════════════════════════════════\nMÉTODO Y REGLAS PERMANENTES DE EVO (Tu método)\n════════════════════════════════════════\n\n${methodText}`
+    }
+    const mesoProgrammingBlock = buildMesocycleProgrammingBlock({
+      mesocycle: weekState?.mesocycle,
+      week: weekState?.week,
+      totalWeeks: weekState?.totalWeeks,
+      phase: weekState?.phase,
+    })
+    if (mesoProgrammingBlock) {
+      systemWithContext += `\n\n${mesoProgrammingBlock}`
     }
     if (weekCtx) {
       systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`

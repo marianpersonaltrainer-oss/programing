@@ -99,6 +99,50 @@ function renderInline(text, variant, accentColor) {
   })
 }
 
+function escapeRegExp(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function blockSupportsExerciseLinks(header) {
+  const h = String(header || '')
+  return /\b(BIENVENIDA|CALENTAMIENTO|ACTIVACION|ACTIVACIÓN|MOVILIDAD|TECNICA|TÉCNICA|SKILL|ACCESORIOS)\b/i.test(h)
+}
+
+function renderInlineWithExerciseLinks(text, variant, accentColor, options = {}) {
+  const { links = [], allowLinks = false } = options
+  if (!allowLinks || !Array.isArray(links) || links.length === 0) {
+    return renderInline(text, variant, accentColor)
+  }
+  const byName = new Map()
+  for (const item of links) {
+    const name = String(item?.name || '').trim()
+    const url = String(item?.url || '').trim()
+    if (!name || !url) continue
+    const key = name.toLowerCase()
+    if (!byName.has(key)) byName.set(key, { name, url })
+  }
+  if (!byName.size) return renderInline(text, variant, accentColor)
+  const names = [...byName.values()].map((x) => x.name).sort((a, b) => b.length - a.length)
+  const re = new RegExp(`(${names.map(escapeRegExp).join('|')})`, 'gi')
+  const parts = String(text || '').split(re)
+  if (parts.length <= 1) return renderInline(text, variant, accentColor)
+  return parts.map((part, idx) => {
+    const hit = byName.get(String(part || '').toLowerCase())
+    if (!hit) return <span key={idx}>{part}</span>
+    return (
+      <a
+        key={idx}
+        href={hit.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline decoration-2 underline-offset-2 font-semibold text-[#6A1F6D] hover:text-[#A729AD]"
+      >
+        {part}
+      </a>
+    )
+  })
+}
+
 function groupLinesForCollapse(rawLines) {
   const groups = []
   let i = 0
@@ -148,7 +192,18 @@ function toBlocks(lines) {
   return blocks
 }
 
-function renderBlockLines(block, blockIdx, variant, accentColor, bare, modalLight, modalProse, renderAfterLine) {
+function renderBlockLines(
+  block,
+  blockIdx,
+  variant,
+  accentColor,
+  bare,
+  modalLight,
+  modalProse,
+  renderAfterLine,
+  exerciseLinks,
+  linkifyExerciseNames,
+) {
   const useCollapse = modalLight || modalProse
   const lineGroups = useCollapse ? groupLinesForCollapse(block.lines) : block.lines.map((line) => ({ type: 'line', line }))
 
@@ -190,7 +245,10 @@ function renderBlockLines(block, blockIdx, variant, accentColor, bare, modalLigh
                   {!modalProse ? (
                     <span className={`mr-1.5 ${modalLight ? 'text-[#888888]' : 'text-[#A729AD]'}`}>•</span>
                   ) : null}
-                  {renderInline(t, variant, accentColor)}
+                  {renderInlineWithExerciseLinks(t, variant, accentColor, {
+                    links: exerciseLinks,
+                    allowLinks: linkifyExerciseNames && blockSupportsExerciseLinks(block.header),
+                  })}
                 </p>
               )
             })}
@@ -217,7 +275,10 @@ function renderBlockLines(block, blockIdx, variant, accentColor, bare, modalLigh
           {!modalProse ? (
             <span className={`mr-1.5 ${modalLight ? 'text-[#888888]' : 'text-[#A729AD]'}`}>•</span>
           ) : null}
-          {renderInline(t, variant, accentColor)}
+          {renderInlineWithExerciseLinks(t, variant, accentColor, {
+            links: exerciseLinks,
+            allowLinks: linkifyExerciseNames && blockSupportsExerciseLinks(block.header),
+          })}
         </p>
         {suffix}
       </div>
@@ -225,7 +286,14 @@ function renderBlockLines(block, blockIdx, variant, accentColor, bare, modalLigh
   })
 }
 
-export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', renderAfterLine, variant = 'card' }) {
+export default function CoachFormattedSession({
+  text,
+  accentColor = '#6A1F6D',
+  renderAfterLine,
+  variant = 'card',
+  exerciseLinks = [],
+  linkifyExerciseNames = false,
+}) {
   const bare = variant === 'bare'
   const modalLight = variant === 'modalLight'
   const modalProse = variant === 'modalProse'
@@ -299,7 +367,18 @@ export default function CoachFormattedSession({ text, accentColor = '#6A1F6D', r
               </div>
             )}
             <div className={modalProse ? 'space-y-0' : modalLight ? 'space-y-0.5' : 'space-y-1.5'}>
-              {renderBlockLines(block, blockIdx, variantKey, accentColor, bare, modalLight, modalProse, renderAfterLine)}
+              {renderBlockLines(
+                block,
+                blockIdx,
+                variantKey,
+                accentColor,
+                bare,
+                modalLight,
+                modalProse,
+                renderAfterLine,
+                exerciseLinks,
+                linkifyExerciseNames,
+              )}
             </div>
             {!bare && !modalLight && !modalProse && blockIdx < blocks.length - 1 ? (
               <div className="mt-4 border-t border-[#6A1F6D]/30" />

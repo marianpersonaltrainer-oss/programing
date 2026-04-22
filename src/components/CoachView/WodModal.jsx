@@ -62,6 +62,7 @@ export default function WodModal({
       : ''
   const videos =
     videoSourceText ? findVideosInProgramTextResolved(videoSourceText, exerciseLibrary || []) : []
+  const inlineExerciseLinks = findVideosInProgramTextResolved(String(sessionText || ''), exerciseLibrary || []).slice(0, 30)
 
   if (!mounted || !open) return null
 
@@ -103,7 +104,13 @@ export default function WodModal({
         ) : null}
 
         <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Entrenamiento</p>
-        <CoachFormattedSession text={sessionText} accentColor={accentColor} variant="modalProse" />
+        <CoachFormattedSession
+          text={sessionText}
+          accentColor={accentColor}
+          variant="modalProse"
+          exerciseLinks={inlineExerciseLinks}
+          linkifyExerciseNames
+        />
 
         {String(sessionFeedback || '').trim() ? (
           <div className="mt-4 rounded-lg border border-[#A729AD]/28 bg-[#F8F1FB] px-3 py-3">

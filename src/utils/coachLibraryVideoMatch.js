@@ -59,11 +59,11 @@ function mergeLibraryAndStatic(lib, stat) {
 }
 
 const NON_EXERCISE_NAME_RE =
-  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata|cambio|avisa|organiz(?:a|ar)|parejas?|minuto|rol|unidos?|apuntar|wodbuster|attempt|intento|even)\b/i
+  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata|cambio|avisa|organiz(?:a|ar)|parejas?|minuto|rol|unidos?|apuntar|wodbuster|attempt|intento|even|felicita(?:r|d|do)?|enhorabuena|bravo)\b/i
 const NON_EXERCISE_PREFIX_RE =
   /^(movilidad(?:\s+general|\s+articular)?|calentamiento|briefing|feedback|nota)\b/i
 const COACHING_CUE_RE =
-  /\b(cambio de|avisa|organiza|organizalos|en parejas|minuto|que se vean|que est[eé]n|todos juntos|descans[ao])\b/i
+  /\b(cambio de|avisa|organiza|organizalos|en parejas|minuto|que se vean|que est[eé]n|todos juntos|descans[ao]|felicita|enhorabuena|bravo)\b/i
 const EXERCISE_HINT_RE =
   /\b(squat|lunge|press|row|pull|push|deadlift|snatch|clean|jerk|thruster|burpee|sit[\s-]?up|plank|carry|swing|bridge|raise|ring|muscle[\s-]?up|l[\s-]?sit|pallof|copenhagen|nordic|hip|mobility|stretch|walk|crawl|jump|rope|under|du|d\.u)\b/i
 const MOVEMENT_TOKEN_RE =

@@ -61,7 +61,11 @@ export default function WodModal({
       ? [sessionText, sessionFeedback].map((s) => String(s || '').trim()).filter(Boolean).join('\n')
       : ''
   const videos =
-    videoSourceText ? findVideosInProgramTextResolved(videoSourceText, exerciseLibrary || []) : []
+    videoSourceText
+      ? findVideosInProgramTextResolved(videoSourceText, exerciseLibrary || [], {
+          specializedOnly: true,
+        })
+      : []
   const inlineExerciseLinks = findVideosInProgramTextResolved(String(sessionText || ''), exerciseLibrary || [], {
     specializedOnly: true,
   }).slice(0, 24)

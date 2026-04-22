@@ -57,11 +57,71 @@ function mergeLibraryAndStatic(lib, stat) {
   return out
 }
 
+function cleanupExerciseCandidate(line) {
+  const raw = String(line || '').trim()
+  if (!raw) return ''
+  let s = raw
+    .replace(/^[•·\-–—]\s*/, '')
+    .replace(/^\(?[A-Z]\)\s+/, '')
+    .replace(/^\d+\s*(x|×)\s*/i, '')
+    .replace(/^\d+\s*(reps?|rep|rondas?|rounds?)\s*/i, '')
+    .replace(/^\d+\s*(min|sec|s|')\s*/i, '')
+    .replace(/^\d+RM\s*/i, '')
+    .replace(/\b(score|objetivo|contexto|material|compi|ronda|rondas|rest)\b.*$/i, '')
+    .replace(/@\s*[\d.,]+%?.*$/i, '')
+    .replace(/\([^)]*\)\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (s.length > 72) s = s.slice(0, 72).trim()
+  return s
+}
+
+function isLikelyExerciseLine(line) {
+  const t = String(line || '').trim()
+  if (!t) return false
+  if (/^([A-C]\)\s*)?(BIENVENIDA|CIERRE|CALENTAMIENTO|TECNICA|TÉCNICA|SKILL|WOD|PARTE|BLOQUE|NOTA|FEEDBACK|CONTEXTO|MATERIAL)\b/i.test(t)) return false
+  if (/^(SCORE|TC|TIME CAP|AMRAP|EMOM|FOR TIME)\b/i.test(t)) return false
+  if (/(MESOCICLO|SEMANA|ARCHIVO DE CONTEXTO|RESUMEN PARA LA IA)/i.test(t)) return false
+  return /[a-zA-Záéíóúñ]/.test(t)
+}
+
+function extractFallbackExerciseVideos(text, { max = 18 } = {}) {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  const out = []
+  const used = new Set()
+  for (const line of lines) {
+    if (out.length >= max) break
+    if (!isLikelyExerciseLine(line)) continue
+    const cleaned = cleanupExerciseCandidate(line)
+    if (!cleaned || cleaned.length < 4) continue
+    const chunks = cleaned
+      .split(/\s*\/\s*|\s+\+\s+|,\s*(?=[A-Za-zÁÉÍÓÚÑáéíóúñ])/)
+      .map((c) => c.trim())
+      .filter(Boolean)
+    for (const name of chunks) {
+      if (out.length >= max) break
+      if (name.length < 4) continue
+      const key = name.toLowerCase()
+      if (used.has(key)) continue
+      const url = resolveVideoUrlForExerciseLabel(name, null, { allowSearchFallback: true })
+      if (!url) continue
+      used.add(key)
+      out.push({ name, url })
+    }
+  }
+  return out
+}
+
 /** Vídeos del día: prioridad biblioteca Supabase; resto desde mapa estático si no solapan por nombre. */
 export function findVideosForPublishedDayResolved(dia, libraryRows) {
   const lib = matchLibraryVideosInLowerText(publishedDayProgramText(dia).toLowerCase(), libraryRows)
   const stat = findVideosForPublishedDay(dia)
-  return mergeLibraryAndStatic(lib, stat)
+  const merged = mergeLibraryAndStatic(lib, stat)
+  const fallback = extractFallbackExerciseVideos(publishedDayProgramText(dia), { max: 16 })
+  return mergeLibraryAndStatic(merged, fallback)
 }
 
 /** Vídeos en un fragmento de texto (p. ej. una clase). */
@@ -70,8 +130,10 @@ export function findVideosInProgramTextResolved(text, libraryRows, options = {})
   const lib = matchLibraryVideosInLowerText((text || '').toLowerCase(), libraryRows, { specializedOnly })
   const stat = findVideosInProgramText(text)
   const merged = mergeLibraryAndStatic(lib, stat)
-  if (!specializedOnly) return merged
-  return merged.filter((x) => shouldOfferAutoVideoForExercise(x?.name || ''))
+  const fallback = extractFallbackExerciseVideos(text, { max: specializedOnly ? 10 : 18 })
+  const withFallback = mergeLibraryAndStatic(merged, fallback)
+  if (!specializedOnly) return withFallback
+  return withFallback.filter((x) => shouldOfferAutoVideoForExercise(x?.name || ''))
 }
 
 /** Como findExercisesWithVideos (máx. 8) pero prioriza URLs de la biblioteca Supabase. */

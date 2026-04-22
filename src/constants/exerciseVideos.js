@@ -285,9 +285,11 @@ function matchVideosInLowerText(normalizedText, { max = 40, dedupeByUrl = true }
   for (const [name, url] of sorted) {
     if (out.length >= max) break
     if (!normalizedText.includes(normalizeExerciseMatch(name))) continue
-    if (dedupeByUrl && usedUrls.has(url)) continue
-    if (dedupeByUrl) usedUrls.add(url)
-    out.push({ name, url })
+    const safeUrl = sanitizeVideoUrl(url)
+    if (!safeUrl) continue
+    if (dedupeByUrl && usedUrls.has(safeUrl)) continue
+    if (dedupeByUrl) usedUrls.add(safeUrl)
+    out.push({ name, url: safeUrl })
   }
   return out
 }

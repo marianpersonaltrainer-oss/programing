@@ -4,13 +4,18 @@ import {
   findVideosForPublishedDay,
   findExercisesWithVideos,
   resolveVideoUrlForExerciseLabel,
+  shouldOfferAutoVideoForExercise,
 } from '../constants/exerciseVideos.js'
 
 /**
  * Coincidencias por nombre en biblioteca Supabase (todas las filas con nombre).
  * URL: video_url válida si existe; si no, mapa EXERCISE_VIDEOS; si no, búsqueda YouTube.
  */
-export function matchLibraryVideosInLowerText(lowerText, libraryRows, { max = 40, dedupeByUrl = true } = {}) {
+export function matchLibraryVideosInLowerText(
+  lowerText,
+  libraryRows,
+  { max = 40, dedupeByUrl = true, specializedOnly = false } = {},
+) {
   const rows = (libraryRows || []).filter((r) => String(r?.name || '').trim())
   const sorted = [...rows].sort((a, b) => String(b.name || '').length - String(a.name || '').length)
   const out = []
@@ -19,9 +24,13 @@ export function matchLibraryVideosInLowerText(lowerText, libraryRows, { max = 40
   for (const r of sorted) {
     const name = String(r.name || '').trim()
     if (!name) continue
+    if (specializedOnly && !shouldOfferAutoVideoForExercise(name)) continue
     if (out.length >= max) break
     if (!lt.includes(name.toLowerCase())) continue
-    const url = resolveVideoUrlForExerciseLabel(name, r.video_url)
+    const url = resolveVideoUrlForExerciseLabel(name, r.video_url, {
+      allowSearchFallback: !specializedOnly,
+    })
+    if (!url) continue
     if (dedupeByUrl && usedUrls.has(url)) continue
     if (dedupeByUrl) usedUrls.add(url)
     out.push({ name, url })
@@ -50,10 +59,13 @@ export function findVideosForPublishedDayResolved(dia, libraryRows) {
 }
 
 /** Vídeos en un fragmento de texto (p. ej. una clase). */
-export function findVideosInProgramTextResolved(text, libraryRows) {
-  const lib = matchLibraryVideosInLowerText((text || '').toLowerCase(), libraryRows)
+export function findVideosInProgramTextResolved(text, libraryRows, options = {}) {
+  const specializedOnly = options.specializedOnly === true
+  const lib = matchLibraryVideosInLowerText((text || '').toLowerCase(), libraryRows, { specializedOnly })
   const stat = findVideosInProgramText(text)
-  return mergeLibraryAndStatic(lib, stat)
+  const merged = mergeLibraryAndStatic(lib, stat)
+  if (!specializedOnly) return merged
+  return merged.filter((x) => shouldOfferAutoVideoForExercise(x?.name || ''))
 }
 
 /** Como findExercisesWithVideos (máx. 8) pero prioriza URLs de la biblioteca Supabase. */

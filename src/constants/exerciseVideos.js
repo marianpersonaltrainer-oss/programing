@@ -164,6 +164,40 @@ function normalizeExerciseMatch(s) {
     .replace(/\p{M}/gu, '')
 }
 
+const BROKEN_YOUTUBE_IDS = new Set([
+  // Detectado en producción: YouTube devuelve "Este vídeo ya no está disponible".
+  '5ZT-GeYND9g',
+])
+
+const SPECIALIZED_VIDEO_HINT_RE =
+  /\b(landmine|mobility|movilidad|stretch|scap|copenhagen|pallof|jefferson|nordic|meadows|windmill|turkish|get\s*up|dead\s*bug|hollow|thoracic|ankle|hip\s*transition|face\s*pull|carry|antirotation|accesor|t[eé]cnica|activation|activaci[oó]n)\b/i
+
+const TOO_GENERIC_MOVEMENT_RE =
+  /\b(squat|deadlift|press|clean|snatch|jerk|thruster|pull[\s-]?up|push[\s-]?up|burpee|box\s*jump|lunge|run|rowing|rower|bike|wall\s*ball|toes?\s*to\s*bar|t2b|c2b)\b/i
+
+function extractYoutubeId(url) {
+  const s = String(url || '')
+  const m = s.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/)
+  return m ? m[1] : ''
+}
+
+function sanitizeVideoUrl(rawUrl) {
+  const u = String(rawUrl || '').trim()
+  if (!u || !/^https?:\/\//i.test(u)) return null
+  const id = extractYoutubeId(u)
+  if (id && BROKEN_YOUTUBE_IDS.has(id)) return null
+  return u
+}
+
+/** Solo autolink para ejercicios poco obvios/técnicos; evita enlazar todo a búsquedas genéricas. */
+export function shouldOfferAutoVideoForExercise(label) {
+  const n = normalizeExerciseMatch(label)
+  if (!n) return false
+  if (SPECIALIZED_VIDEO_HINT_RE.test(n)) return true
+  if (TOO_GENERIC_MOVEMENT_RE.test(n)) return false
+  return n.length >= 12
+}
+
 /** Mejor coincidencia por subcadena (clave más larga gana); prueba también trozos del nombre (A + B). */
 export function findStaticVideoUrlForExerciseLabel(label) {
   const lower = normalizeExerciseMatch(label)
@@ -184,7 +218,7 @@ export function findStaticVideoUrlForExerciseLabel(label) {
   }
 
   const direct = bestIn(lower)
-  if (direct) return direct
+  if (direct) return sanitizeVideoUrl(direct)
 
   const segments = lower
     .split(/[,;/|·]|\s+\+\s+|\s+y\s+|\s+vs\s+|\s+[/]\s+/i)
@@ -192,26 +226,30 @@ export function findStaticVideoUrlForExerciseLabel(label) {
     .filter(Boolean)
   for (const seg of segments) {
     const hit = bestIn(seg)
-    if (hit) return hit
+    if (hit) return sanitizeVideoUrl(hit)
   }
   return null
 }
 
-/** Búsqueda en YouTube (último recurso) — siempre URL https válida. */
-export function buildYoutubeSearchUrlForExercise(label) {
-  const q = encodeURIComponent(`${String(label || '').trim()} exercise tutorial`)
+/** Búsqueda más específica (último recurso) para ejercicios técnicos/no obvios. */
+export function buildVideoSearchFallbackUrl(label) {
+  const base = String(label || '').trim()
+  const q = encodeURIComponent(`${base} exercise tutorial technique`)
   return `https://www.youtube.com/results?search_query=${q}`
 }
 
 /**
  * Supabase tiene prioridad si hay URL http(s); si no, mapa estático; si no, búsqueda YouTube.
  */
-export function resolveVideoUrlForExerciseLabel(displayName, supabaseUrl) {
-  const raw = String(supabaseUrl || '').trim()
-  if (raw && /^https?:\/\//i.test(raw)) return raw
+export function resolveVideoUrlForExerciseLabel(displayName, supabaseUrl, options = {}) {
+  const allowSearchFallback = options.allowSearchFallback !== false
+  const raw = sanitizeVideoUrl(supabaseUrl)
+  if (raw) return raw
   const staticUrl = findStaticVideoUrlForExerciseLabel(displayName)
   if (staticUrl) return staticUrl
-  return buildYoutubeSearchUrlForExercise(displayName)
+  if (!allowSearchFallback) return null
+  if (!shouldOfferAutoVideoForExercise(displayName)) return null
+  return buildVideoSearchFallbackUrl(displayName)
 }
 
 export function publishedDayProgramText(dia) {

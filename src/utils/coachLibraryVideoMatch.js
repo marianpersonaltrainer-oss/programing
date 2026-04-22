@@ -32,6 +32,7 @@ export function matchLibraryVideosInLowerText(
   for (const r of sorted) {
     const name = String(r.name || '').trim()
     if (!name) continue
+    if (!looksLikeExerciseName(name)) continue
     if (specializedOnly && !shouldOfferVideoForLibraryRow(r)) continue
     if (out.length >= max) break
     if (!lt.includes(name.toLowerCase())) continue
@@ -58,13 +59,15 @@ function mergeLibraryAndStatic(lib, stat) {
 }
 
 const NON_EXERCISE_NAME_RE =
-  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata|cambio|avisa|organiz(?:a|ar)|parejas?|minuto|rol|unidos?)\b/i
+  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata|cambio|avisa|organiz(?:a|ar)|parejas?|minuto|rol|unidos?|apuntar|wodbuster|attempt|intento|even)\b/i
 const NON_EXERCISE_PREFIX_RE =
   /^(movilidad(?:\s+general|\s+articular)?|calentamiento|briefing|feedback|nota)\b/i
 const COACHING_CUE_RE =
   /\b(cambio de|avisa|organiza|organizalos|en parejas|minuto|que se vean|que est[eé]n|todos juntos|descans[ao])\b/i
 const EXERCISE_HINT_RE =
   /\b(squat|lunge|press|row|pull|push|deadlift|snatch|clean|jerk|thruster|burpee|sit[\s-]?up|plank|carry|swing|bridge|raise|ring|muscle[\s-]?up|l[\s-]?sit|pallof|copenhagen|nordic|hip|mobility|stretch|walk|crawl|jump|rope|under|du|d\.u)\b/i
+const MOVEMENT_TOKEN_RE =
+  /\b(squat|lunge|press|row|pull|push|deadlift|snatch|clean|jerk|thruster|burpee|sit|plank|carry|swing|bridge|raise|ring|muscle|pallof|copenhagen|nordic|hip|stretch|walk|crawl|jump|rope|under|chin|toes|shoulder|wall|handstand|hspu|t2b|c2b|v[\s-]?up|knee|elbow|hang|overhead|dip|support|hold|rotation|rotational|landmine|lm|core)\b/i
 
 function looksLikeExerciseName(name) {
   const s = String(name || '').trim()
@@ -75,6 +78,7 @@ function looksLikeExerciseName(name) {
   const words = (s.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g) || []).length
   if (words === 0 || words > 7) return false
   if (/^[\d\s\-–—'"()./+]+$/.test(s)) return false
+  if (!MOVEMENT_TOKEN_RE.test(s) && !shouldOfferAutoVideoForExercise(s)) return false
   if (!EXERCISE_HINT_RE.test(s) && words >= 4) return false
   if (/[,:;]$/.test(s)) return false
   return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(s)
@@ -89,13 +93,15 @@ function cleanupExerciseCandidate(line) {
   if (!raw) return ''
   let s = raw
     .replace(/^[•·\-–—]\s*/, '')
+    .replace(/^['’`]+\s*/, '')
     .replace(/^\(?[A-Z]\)\s+/, '')
+    .replace(/^\d+\s+/, '')
     .replace(/^\d+\s*(x|×)\s*/i, '')
     .replace(/^\d+\s*(reps?|rep|rondas?|rounds?)\s*/i, '')
     .replace(/^\d+\s*(min|sec|s|')\s*/i, '')
     .replace(/^\d+RM\s*/i, '')
     .replace(/\b(score|objetivo|contexto|material|compi|ronda|rondas|rest)\b.*$/i, '')
-    .replace(/@\s*[\d.,]+%?.*$/i, '')
+    .replace(/@\s*.*$/i, '')
     .replace(/\([^)]*\)\s*$/g, '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -147,8 +153,10 @@ function extractFallbackExerciseVideos(text, { max = 18 } = {}) {
       if (/^\d+\s*['"]?\s*(cada|x)\b/i.test(name)) continue
       const normalizedName = name
         .replace(/\s*[-–—]\s*(suelo|transici[oó]n|progresi[oó]n)\b.*$/i, '')
+        .replace(/\b(rm|1rm|2rm|3rm|attempt|intento)\b.*$/i, '')
         .trim()
       if (!normalizedName || normalizedName.length < 4) continue
+      if (!MOVEMENT_TOKEN_RE.test(normalizedName) && !shouldOfferAutoVideoForExercise(normalizedName)) continue
       const url = resolveVideoUrlForExerciseLabel(normalizedName, null, { allowSearchFallback: true })
       if (!url) continue
       const key = normalizedName.toLowerCase()

@@ -46,6 +46,7 @@ import {
   buildWeekSessionClassReview,
   formatReviewHintsForGenerationPrompt,
 } from '../../utils/weekSessionReview.js'
+import { buildMesocycleProgrammingBlock } from '../../constants/mesocycleGenerationBlocks.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
@@ -659,6 +660,16 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
     if (methodText) {
       systemExcelFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
+    }
+
+    const mesoProgrammingBlock = buildMesocycleProgrammingBlock({
+      mesocycle: weekState.mesocycle,
+      week: weekState.week,
+      totalWeeks: weekState.totalWeeks,
+      phase: weekState.phase,
+    })
+    if (mesoProgrammingBlock) {
+      systemExcelFull += `\n\n${mesoProgrammingBlock}`
     }
 
     const realProgrammingExamples = await loadRealProgrammingContextForGenerator()

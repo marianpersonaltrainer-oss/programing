@@ -58,18 +58,25 @@ function mergeLibraryAndStatic(lib, stat) {
 }
 
 const NON_EXERCISE_NAME_RE =
-  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata)\b/i
+  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata|cambio|avisa|organiz(?:a|ar)|parejas?|minuto|rol|unidos?)\b/i
 const NON_EXERCISE_PREFIX_RE =
-  /^(movilidad\s+general|movilidad\s+articular|calentamiento|briefing|feedback|nota)\b/i
+  /^(movilidad(?:\s+general|\s+articular)?|calentamiento|briefing|feedback|nota)\b/i
+const COACHING_CUE_RE =
+  /\b(cambio de|avisa|organiza|organizalos|en parejas|minuto|que se vean|que est[eé]n|todos juntos|descans[ao])\b/i
+const EXERCISE_HINT_RE =
+  /\b(squat|lunge|press|row|pull|push|deadlift|snatch|clean|jerk|thruster|burpee|sit[\s-]?up|plank|carry|swing|bridge|raise|ring|muscle[\s-]?up|l[\s-]?sit|pallof|copenhagen|nordic|hip|mobility|stretch|walk|crawl|jump|rope|under|du|d\.u)\b/i
 
 function looksLikeExerciseName(name) {
   const s = String(name || '').trim()
   if (!s || s.length < 3) return false
   if (NON_EXERCISE_PREFIX_RE.test(s)) return false
   if (NON_EXERCISE_NAME_RE.test(s)) return false
+  if (COACHING_CUE_RE.test(s) && !EXERCISE_HINT_RE.test(s)) return false
   const words = (s.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g) || []).length
   if (words === 0 || words > 7) return false
   if (/^[\d\s\-–—'"()./+]+$/.test(s)) return false
+  if (!EXERCISE_HINT_RE.test(s) && words >= 4) return false
+  if (/[,:;]$/.test(s)) return false
   return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(s)
 }
 

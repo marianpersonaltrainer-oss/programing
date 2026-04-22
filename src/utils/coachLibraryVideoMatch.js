@@ -57,6 +57,26 @@ function mergeLibraryAndStatic(lib, stat) {
   return out
 }
 
+const NON_EXERCISE_NAME_RE =
+  /\b(cuando|hoy|foco|objetivo|contexto|material|termin(?:a|e|ar)|juntos?|cada|completas?|challenge|score|time cap|for time|amrap|emom|ladder|tabata)\b/i
+const NON_EXERCISE_PREFIX_RE =
+  /^(movilidad\s+general|movilidad\s+articular|calentamiento|briefing|feedback|nota)\b/i
+
+function looksLikeExerciseName(name) {
+  const s = String(name || '').trim()
+  if (!s || s.length < 3) return false
+  if (NON_EXERCISE_PREFIX_RE.test(s)) return false
+  if (NON_EXERCISE_NAME_RE.test(s)) return false
+  const words = (s.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g) || []).length
+  if (words === 0 || words > 7) return false
+  if (/^[\d\s\-–—'"()./+]+$/.test(s)) return false
+  return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(s)
+}
+
+function filterLikelyExerciseVideos(list) {
+  return (list || []).filter((x) => looksLikeExerciseName(x?.name || ''))
+}
+
 function cleanupExerciseCandidate(line) {
   const raw = String(line || '').trim()
   if (!raw) return ''
@@ -139,7 +159,7 @@ export function findVideosForPublishedDayResolved(dia, libraryRows) {
   const stat = findVideosForPublishedDay(dia)
   const merged = mergeLibraryAndStatic(lib, stat)
   const fallback = extractFallbackExerciseVideos(publishedDayProgramText(dia), { max: 16 })
-  return mergeLibraryAndStatic(merged, fallback)
+  return filterLikelyExerciseVideos(mergeLibraryAndStatic(merged, fallback))
 }
 
 /** Vídeos en un fragmento de texto (p. ej. una clase). */
@@ -149,7 +169,7 @@ export function findVideosInProgramTextResolved(text, libraryRows, options = {})
   const stat = findVideosInProgramText(text)
   const merged = mergeLibraryAndStatic(lib, stat)
   const fallback = extractFallbackExerciseVideos(text, { max: specializedOnly ? 10 : 18 })
-  const withFallback = mergeLibraryAndStatic(merged, fallback)
+  const withFallback = filterLikelyExerciseVideos(mergeLibraryAndStatic(merged, fallback))
   if (!specializedOnly) return withFallback
   return withFallback.filter((x) => shouldOfferAutoVideoForExercise(x?.name || ''))
 }

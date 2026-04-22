@@ -78,7 +78,7 @@ function looksLikeExerciseName(name) {
   const words = (s.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g) || []).length
   if (words === 0 || words > 7) return false
   if (/^[\d\s\-–—'"()./+]+$/.test(s)) return false
-  if (!MOVEMENT_TOKEN_RE.test(s) && !shouldOfferAutoVideoForExercise(s)) return false
+  if (!MOVEMENT_TOKEN_RE.test(s)) return false
   if (!EXERCISE_HINT_RE.test(s) && words >= 4) return false
   if (/[,:;]$/.test(s)) return false
   return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(s)
@@ -156,7 +156,7 @@ function extractFallbackExerciseVideos(text, { max = 18 } = {}) {
         .replace(/\b(rm|1rm|2rm|3rm|attempt|intento)\b.*$/i, '')
         .trim()
       if (!normalizedName || normalizedName.length < 4) continue
-      if (!MOVEMENT_TOKEN_RE.test(normalizedName) && !shouldOfferAutoVideoForExercise(normalizedName)) continue
+      if (!MOVEMENT_TOKEN_RE.test(normalizedName)) continue
       const url = resolveVideoUrlForExerciseLabel(normalizedName, null, { allowSearchFallback: true })
       if (!url) continue
       const key = normalizedName.toLowerCase()

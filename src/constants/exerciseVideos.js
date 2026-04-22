@@ -224,7 +224,7 @@ export function shouldOfferAutoVideoForExercise(label) {
   if (SPECIALIZED_VIDEO_HINT_RE.test(n)) return true
   if (COMMON_PROGRAMMING_RE.test(n)) return false
   if (TOO_GENERIC_MOVEMENT_RE.test(n)) return false
-  return n.length >= 12
+  return false
 }
 
 /** Mejor coincidencia por subcadena (clave más larga gana); prueba también trozos del nombre (A + B). */

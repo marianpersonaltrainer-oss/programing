@@ -16,6 +16,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 
 const ALLOWED_ORIGIN_PREFIXES = [
   'https://programing-evo.vercel.app',
@@ -36,6 +37,29 @@ Tu tarea:
    - "suggestedFocus": una línea, p. ej. "Consolidación + descarga parcial de hombro"
 
 No incluyas la programación día a día; solo la propuesta de enfoque.`
+
+function buildBriefingSystemPrompt(body) {
+  const meso = String(body?.mesociclo || '').trim()
+  const week = Number(body?.semana)
+  const phase = String(body?.phase || '').trim()
+  const twRaw = body?.totalWeeks
+  const tw = twRaw == null || twRaw === '' ? NaN : Number(twRaw)
+  const block = buildMesocycleProgrammingBlock({
+    mesocycle: meso,
+    week: Number.isFinite(week) ? week : undefined,
+    totalWeeks: Number.isFinite(tw) ? tw : null,
+    phase: phase || null,
+  })
+  if (!block) return SYSTEM
+  return `${SYSTEM}
+
+════════════════════════════════════════
+INTENCIÓN DEL MESOCICLO (obligatoria para la propuesta)
+════════════════════════════════════════
+La semana objetivo pertenece a este mesociclo. La propuesta (title, narrative, suggestedFocus) DEBE estar alineada con estas reglas, no con un mesociclo genérico ni con plantillas de otro bloque.
+
+${block}`
+}
 
 function getRequestOrigin(req) {
   const origin = String(req.headers?.origin || '').trim()
@@ -379,6 +403,8 @@ export default async function handler(req, res) {
   const mesociclo = String(body.mesociclo || '').trim()
   const semana = Number(body.semana)
   const phase = String(body.phase || '').trim()
+  const twRaw = body.totalWeeks
+  const totalWeeks = twRaw == null || twRaw === '' ? NaN : Number(twRaw)
 
   try {
     let messages
@@ -414,6 +440,13 @@ export default async function handler(req, res) {
       ]
     }
 
+    const systemPrompt = buildBriefingSystemPrompt({
+      mesociclo,
+      semana,
+      phase,
+      totalWeeks: Number.isFinite(totalWeeks) ? totalWeeks : null,
+    })
+
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -424,7 +457,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model,
         max_tokens: 1400,
-        system: SYSTEM,
+        system: systemPrompt,
         messages,
       }),
     })

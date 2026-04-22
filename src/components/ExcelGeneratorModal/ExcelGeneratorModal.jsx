@@ -333,6 +333,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
             mesociclo: weekState.mesocycle,
             semana: Number(weekState.week),
             phase: weekState.phase || '',
+            totalWeeks: weekState.totalWeeks ?? null,
           }),
         })
         const json = await res.json().catch(() => ({}))
@@ -501,6 +502,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         body: JSON.stringify({
           messages: nextMessages,
           contextPack: briefingContextPack,
+          mesociclo: weekState.mesocycle,
+          semana: Number(weekState.week),
+          phase: weekState.phase || '',
+          totalWeeks: weekState.totalWeeks ?? null,
         }),
       })
       const json = await res.json().catch(() => ({}))

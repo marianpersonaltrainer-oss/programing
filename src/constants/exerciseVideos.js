@@ -38,22 +38,22 @@ export const EXERCISE_VIDEOS = {
   // ── LANDMINE ─────────────────────────────────────────────────────────────
   'landmine clean':         V('xa1EgqthXrw'),
   'landmine thruster':      V('BUZtVXsxApY'),
-  'landmine rotational press': V('i953czRec9Q'),
+  'landmine rotational press': V('OteAq4-0-Ck'),
   'landmine press':         V('QbY5mXdnp0k'),
   'landmine rdl':           V('P10Iw43wkww'),
   'landmine goblet squat':  V('0X_JsdGzFwk'),
-  'landmine squat':         V('OiYhXnGncY8'),
+  'landmine squat':         V('D6uyn2CHv1I'),
   'landmine meadows row':   V('koP10Ey6bAs'),
   'meadows row':            V('koP10Ey6bAs'),
   'landmine hip thrust':    V('s9YBB9gTgLw'),
   'landmine antirotation press': V('iZKkCvNTV6Y'),
   'landmine single leg rdl':V('e_IiDLZ2AkY'),
   // Landmine frecuentes en clases, muchas veces escritas como "LM ..."
-  'landmine lunge':         V('OiYhXnGncY8'),
-  'landmine reverse lunge': V('OiYhXnGncY8'),
-  'landmine rotational':    V('i953czRec9Q'),
-  'landmine core rotational': V('i953czRec9Q'),
-  'landmine rotation':      V('i953czRec9Q'),
+  'landmine lunge':         V('D6uyn2CHv1I'),
+  'landmine reverse lunge': V('TF5jEZIT0tA'),
+  'landmine rotational':    V('OteAq4-0-Ck'),
+  'landmine core rotational': V('MswsBPLGhE8'),
+  'landmine rotation':      V('MswsBPLGhE8'),
 
   // ── ACCESORIOS & CORE ────────────────────────────────────────────────────
   'copenhagen plank':       V('BEXLOLvRvXE'),
@@ -174,6 +174,8 @@ function normalizeExerciseMatch(s) {
 const BROKEN_YOUTUBE_IDS = new Set([
   // Detectado en producción: YouTube devuelve "Este vídeo ya no está disponible".
   '5ZT-GeYND9g',
+  'OiYhXnGncY8',
+  'i953czRec9Q',
 ])
 
 const SPECIALIZED_VIDEO_HINT_RE =

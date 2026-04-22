@@ -79,7 +79,8 @@ export function detectMusclePatternBucket(text, resumenFoco) {
 
 /**
  * Revisión orientativa de la semana para una clase (evoFuncional, etc.):
- * ejercicio principal duplicado, formatos de fuerza/WOD consecutivos, patrón muscular consecutivo.
+ * ejercicio principal duplicado, formatos de fuerza/WOD consecutivos, patrón muscular consecutivo,
+ * y abuso del mismo formato WOD / patrón muscular / formato de fuerza en muchos días de la misma semana.
  */
 export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
   const resumenFoco = options.resumenFoco || ''
@@ -173,6 +174,69 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
     }
   }
 
+  /** Mismo formato WOD en 3+ días de la semana (aunque no sean consecutivos). */
+  const wodCounts = new Map()
+  const wodDayIndices = new Map()
+  for (let i = 0; i < n; i += 1) {
+    if (!hasProgram[i]) continue
+    const w = wodByDay[i]
+    if (!w) continue
+    wodCounts.set(w, (wodCounts.get(w) || 0) + 1)
+    if (!wodDayIndices.has(w)) wodDayIndices.set(w, [])
+    wodDayIndices.get(w).push(i)
+  }
+  for (const [wid, count] of wodCounts) {
+    if (count < 3) continue
+    const label = wid.replace(/_/g, ' ')
+    const msg = `Formato WOD «${label}» en ${count} días esta semana; rota (EMOM, Every, chipper, parejas, sprint, etc.).`
+    for (const d of wodDayIndices.get(wid) || []) {
+      rows[d].severity = maxSeverity(rows[d].severity, 'yellow')
+      if (!rows[d].hints.includes(msg)) rows[d].hints.push(msg)
+    }
+  }
+
+  /** Mismo patrón muscular en 4+ días (carga acumulada / monotonía). */
+  const muscleCounts = new Map()
+  const muscleDayIndices = new Map()
+  for (let i = 0; i < n; i += 1) {
+    if (!hasProgram[i]) continue
+    const m = muscleByDay[i]
+    if (!m) continue
+    muscleCounts.set(m, (muscleCounts.get(m) || 0) + 1)
+    if (!muscleDayIndices.has(m)) muscleDayIndices.set(m, [])
+    muscleDayIndices.get(m).push(i)
+  }
+  for (const [mid, count] of muscleCounts) {
+    if (count < 4) continue
+    const label = mid.replace(/_/g, ' ')
+    const msg = `Patrón muscular «${label}» en ${count} días; introduce otro patrón o descarga.`
+    for (const d of muscleDayIndices.get(mid) || []) {
+      rows[d].severity = maxSeverity(rows[d].severity, 'yellow')
+      if (!rows[d].hints.includes(msg)) rows[d].hints.push(msg)
+    }
+  }
+
+  /** Mismo formato de fuerza dominante en 3+ días (no solo consecutivos). */
+  const forceCounts = new Map()
+  const forceDayIndices = new Map()
+  for (let i = 0; i < n; i += 1) {
+    if (!hasProgram[i]) continue
+    const f = forceByDay[i]
+    if (!f) continue
+    forceCounts.set(f, (forceCounts.get(f) || 0) + 1)
+    if (!forceDayIndices.has(f)) forceDayIndices.set(f, [])
+    forceDayIndices.get(f).push(i)
+  }
+  for (const [fid, count] of forceCounts) {
+    if (count < 3) continue
+    const label = fid.replace(/_/g, ' ')
+    const msg = `Formato de fuerza «${label}» en ${count} días; alterna ondas / EMOM / series clásicas / cluster, etc.`
+    for (const d of forceDayIndices.get(fid) || []) {
+      rows[d].severity = maxSeverity(rows[d].severity, 'yellow')
+      if (!rows[d].hints.includes(msg)) rows[d].hints.push(msg)
+    }
+  }
+
   let hasAnyIssue = false
   let allClear = true
   for (const r of rows) {
@@ -225,8 +289,9 @@ export function formatReviewHintsForGenerationPrompt(dias, sessionKeys, resumenF
   let out = lines.join('\n').trim()
   if (!out) {
     return (
-      '(Auditoría heurística: en el acumulado actual no se detectan duplicados de lift principal ni ' +
-      'formatos de fuerza/WOD consecutivos en las columnas revisadas.)'
+      '(Auditoría heurística: en el acumulado actual no se detectan duplicados de lift principal, ' +
+      'formatos de fuerza/WOD consecutivos, ni abuso del mismo formato WOD/patrón muscular a lo largo de la semana ' +
+      'en las columnas revisadas.)'
     )
   }
   const max = 4500

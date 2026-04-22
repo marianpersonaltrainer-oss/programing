@@ -3,6 +3,7 @@
 // Añade o edita ejercicios aquí según necesites.
 
 const V = (id) => `https://www.youtube.com/watch?v=${id}`
+const YT = (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
 
 export const EXERCISE_VIDEOS = {
 
@@ -48,6 +49,12 @@ export const EXERCISE_VIDEOS = {
   'landmine hip thrust':    V('s9YBB9gTgLw'),
   'landmine antirotation press': V('iZKkCvNTV6Y'),
   'landmine single leg rdl':V('e_IiDLZ2AkY'),
+  // Landmine frecuentes en clases, muchas veces escritas como "LM ..."
+  'landmine lunge':         YT('landmine lunge exercise tutorial'),
+  'landmine reverse lunge': YT('landmine reverse lunge tutorial'),
+  'landmine rotational':    YT('landmine rotational exercise tutorial'),
+  'landmine core rotational': YT('landmine core rotational press tutorial'),
+  'landmine rotation':      YT('landmine rotation core tutorial'),
 
   // ── ACCESORIOS & CORE ────────────────────────────────────────────────────
   'copenhagen plank':       V('BEXLOLvRvXE'),
@@ -194,6 +201,7 @@ function sanitizeVideoUrl(rawUrl) {
 export function shouldOfferAutoVideoForExercise(label) {
   const n = normalizeExerciseMatch(label)
   if (!n) return false
+  if (/\blandmine\b/.test(n)) return true
   if (SPECIALIZED_VIDEO_HINT_RE.test(n)) return true
   if (TOO_GENERIC_MOVEMENT_RE.test(n)) return false
   return n.length >= 12

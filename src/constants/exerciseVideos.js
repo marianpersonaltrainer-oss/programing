@@ -3,6 +3,7 @@
 // Añade o edita ejercicios aquí según necesites.
 
 const V = (id) => `https://www.youtube.com/watch?v=${id}`
+const R = (q) => `/api/video-resolve?exercise=${encodeURIComponent(q)}`
 
 export const EXERCISE_VIDEOS = {
 
@@ -120,6 +121,20 @@ export const EXERCISE_VIDEOS = {
   'kipping pull up':        V('lzRo-4pq_AY'),
   'chest to bar':           V('WefN0FWQ1qA'),
   'c2b':                    V('pCvSlkby03Q'),
+  // Aliases de gimnásticos menos frecuentes en programación diaria
+  'ring muscle up':         R('ring muscle up gymnastics tutorial'),
+  'ring muscle-up':         R('ring muscle up gymnastics tutorial'),
+  'rin muscle up':          R('ring muscle up gymnastics tutorial'),
+  'rmu':                    R('ring muscle up gymnastics tutorial'),
+  'ring l-sit support':     R('ring l-sit support hold tutorial'),
+  'ring l sit support':     R('ring l-sit support hold tutorial'),
+  'l-sit support':          R('ring l-sit support hold tutorial'),
+  'ring support hold':      R('ring support hold gymnastics tutorial'),
+  // Saltos / cuerda
+  'double under':           R('double under jump rope crossfit tutorial'),
+  'double unders':          R('double under jump rope crossfit tutorial'),
+  'd.u':                    R('double under jump rope crossfit tutorial'),
+  'd u':                    R('double under jump rope crossfit tutorial'),
 
   // ── OLÍMPICOS ─────────────────────────────────────────────────────────────
   'power clean':            V('EKRiW9Yt3Ps'),

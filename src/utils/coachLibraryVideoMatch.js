@@ -81,7 +81,7 @@ const NON_EXERCISE_LINE_RE =
 const PROGRAMMING_FORMAT_LINE_RE =
   /^(SCORE|TC|TIME CAP|AMRAP|EMOM|E\d+MOM|FOR TIME|EVERY)\b/i
 const NON_EXERCISE_CHUNK_RE =
-  /\b(each|acumular|acumul(?:a|ar)|desc|descanso|transici[oó]n|for time|amrap|emom|ladder|challenge|score|time cap|rest)\b/i
+  /\b(each|cada|acumular|acumul(?:a|ar)|desc|descanso|for time|amrap|emom|ladder|challenge|score|time cap|rest|objetivo|contexto|material|hoy|foco|dominar|termin(?:e|ar)|antes|chicos?|chicas?)\b/i
 
 function isLikelyExerciseLine(line) {
   const t = String(line || '').trim()
@@ -112,15 +112,22 @@ function extractFallbackExerciseVideos(text, { max = 18 } = {}) {
     for (const name of chunks) {
       if (out.length >= max) break
       if (name.length < 4) continue
+      const wordCount = (name.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g) || []).length
+      if (wordCount > 7) continue
       if (NON_EXERCISE_CHUNK_RE.test(name)) continue
       if (/[:]/.test(name) && !/\b(l-sit|muscle up|toes to bar|handstand)\b/i.test(name)) continue
       if (/^\d+(\s*[-x×]\s*\d+)+$/.test(name)) continue
-      const key = name.toLowerCase()
-      if (used.has(key)) continue
-      const url = resolveVideoUrlForExerciseLabel(name, null, { allowSearchFallback: true })
+      if (/^\d+\s*['"]?\s*(cada|x)\b/i.test(name)) continue
+      const normalizedName = name
+        .replace(/\s*[-–—]\s*(suelo|transici[oó]n|progresi[oó]n)\b.*$/i, '')
+        .trim()
+      if (!normalizedName || normalizedName.length < 4) continue
+      const url = resolveVideoUrlForExerciseLabel(normalizedName, null, { allowSearchFallback: true })
       if (!url) continue
+      const key = normalizedName.toLowerCase()
+      if (used.has(key)) continue
       used.add(key)
-      out.push({ name, url })
+      out.push({ name: normalizedName, url })
     }
   }
   return out

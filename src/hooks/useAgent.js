@@ -13,6 +13,10 @@ import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContex
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
 import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../utils/parseAnthropicProxyBody.js'
 import { buildMesocycleProgrammingBlock } from '../constants/mesocycleGenerationBlocks.js'
+import {
+  getReferenceMesocycleContextForLLM,
+  buildReferenceMesocycleSystemAppendix,
+} from '../utils/referenceMesocycleContextStorage.js'
 
 export function useAgent(weekState) {
   const [messages, setMessages] = useState([])
@@ -53,6 +57,10 @@ export function useAgent(weekState) {
     })
     if (mesoProgrammingBlock) {
       systemWithContext += `\n\n${mesoProgrammingBlock}`
+    }
+    const referenceAppendix = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
+    if (referenceAppendix) {
+      systemWithContext += referenceAppendix
     }
     if (weekCtx) {
       systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`

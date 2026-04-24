@@ -18,6 +18,7 @@
     "date-fns-tz": "^3.2.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
+    "google-auth-library": "^9.15.1",
     "jsonrepair": "^3.13.3",
     "mammoth": "^1.8.0",
     "papaparse": "^5.5.3",

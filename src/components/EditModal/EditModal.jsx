@@ -119,7 +119,7 @@ export default function EditModal({ day, session, onSave, onClose }) {
       classLabelsAfter: pendingSave.classes || [],
     })
     const lines = [...new Set([...genericLines, ...contextualLines])]
-    if (lines.length) appendAutoLearnedLines(lines)
+    if (lines.length) appendAutoLearnedLines(lines, { highImpactOnly: true })
     const p = pendingSave
     setPhase('edit')
     setPendingSave(null)

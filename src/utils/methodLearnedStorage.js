@@ -1,4 +1,5 @@
 /** Persistencia de «Reglas aprendidas»: manual (textarea) + entradas automáticas (desde ediciones). */
+import { filterHighImpactLearnedLines } from './highImpactLearnedRules.js'
 
 export const METHOD_LEARNED_KEY = 'programingevo_method_learned'
 
@@ -87,13 +88,28 @@ export function getLearnedRulesConcatenated() {
 }
 
 /** Añade una o varias frases con la misma marca temporal (un guardado de edición). */
-export function appendAutoLearnedLines(lines) {
-  const list = (Array.isArray(lines) ? lines : []).map((s) => String(s || '').trim()).filter(Boolean)
+export function appendAutoLearnedLines(lines, options = {}) {
+  const { highImpactOnly = false } = options || {}
+  let list = (Array.isArray(lines) ? lines : []).map((s) => String(s || '').trim()).filter(Boolean)
+  if (highImpactOnly) {
+    list = filterHighImpactLearnedLines(list)
+  }
   if (!list.length) return
   const state = loadLearnedState()
+  const existingNorm = new Set(
+    (Array.isArray(state.auto) ? state.auto : []).map((e) =>
+      String(e?.text || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim(),
+    ),
+  )
   const at = new Date().toISOString()
   const t0 = Date.now()
   list.forEach((text, i) => {
+    const norm = text.toLowerCase().replace(/\s+/g, ' ').trim()
+    if (!norm || existingNorm.has(norm)) return
+    existingNorm.add(norm)
     state.auto.push({
       id: `auto_${t0}_${i}_${Math.random().toString(36).slice(2, 10)}`,
       at,

@@ -170,7 +170,7 @@ export default function CoachSessionFeedbackForm({
         timeExplain,
         sessionText: classKey ? dia?.[classKey] || '' : '',
       })
-      if (learnedLines.length) appendAutoLearnedLines(learnedLines)
+      if (learnedLines.length) appendAutoLearnedLines(learnedLines, { highImpactOnly: true })
       setSummaryRefreshKey((k) => k + 1)
       setMessage('Guardado correctamente.')
       setChangedDetails('')

@@ -39,6 +39,10 @@ import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { parseAssistantDayJson } from '../../utils/parseAssistantDayJson.js'
 import { mergeDayFromAiPatch, listSessionFieldsChanged } from '../../utils/mergeDayFromAiPatch.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
+import {
+  getReferenceMesocycleContextForLLM,
+  buildReferenceMesocycleSystemAppendix,
+} from '../../utils/referenceMesocycleContextStorage.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
@@ -276,6 +280,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [savingPublishedEdit, setSavingPublishedEdit] = useState(false)
   const [savedPublishedEdit, setSavedPublishedEdit] = useState(false)
   const [activePublishedWeek, setActivePublishedWeek] = useState(null)
+  const [openingActiveEdit, setOpeningActiveEdit] = useState(false)
   /** Texto de sesión alineado con el feedback (solo memoria del modal). */
   const sessionFingerprintsRef = useRef(new Map())
   const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
@@ -430,21 +435,37 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
   }, [status, weekData, rawJson, editingJson, editTitle, weekState.mesocycle, weekState.week, persistDraftToLocalHistory])
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadActivePublishedWeek() {
-      try {
-        const row = await getActiveWeek()
-        if (!cancelled) setActivePublishedWeek(row || null)
-      } catch {
-        if (!cancelled) setActivePublishedWeek(null)
-      }
-    }
-    loadActivePublishedWeek()
-    return () => {
-      cancelled = true
+  const refreshActivePublishedWeek = useCallback(async () => {
+    try {
+      const row = await getActiveWeek()
+      setActivePublishedWeek(row || null)
+      return row || null
+    } catch {
+      setActivePublishedWeek(null)
+      return null
     }
   }, [])
+
+  useEffect(() => {
+    refreshActivePublishedWeek()
+  }, [refreshActivePublishedWeek])
+
+  async function handleOpenActivePublishedWeekForEdit() {
+    setOpeningActiveEdit(true)
+    setErrorMsg('')
+    try {
+      const row = (await refreshActivePublishedWeek()) || activePublishedWeek
+      if (!row?.data || !Array.isArray(row.data.dias)) {
+        setErrorMsg(
+          'No hay semana activa editable en el Hub ahora mismo. Si acabas de publicar, cierra y abre el modal para refrescar o revisa permisos de lectura.',
+        )
+        return
+      }
+      openPublishedRowForEdit(row)
+    } finally {
+      setOpeningActiveEdit(false)
+    }
+  }
 
   // Si la semana ya existe (publicada activa o guardada en historial local), se considera edición.
   useEffect(() => {
@@ -688,6 +709,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       systemExcelFull += `\n\nEJEMPLOS REALES DE ESTILO EVO — leer antes de programar:\n${block}`
     }
 
+    const referenceBody = getReferenceMesocycleContextForLLM()
+    const referenceAppendix = buildReferenceMesocycleSystemAppendix(referenceBody)
+    if (referenceAppendix) {
+      systemExcelFull += referenceAppendix
+    }
+
     const mesoInfo = weekState.mesocycle
       ? `Mesociclo: ${weekState.mesocycle} | Semana: ${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` | Fase: ${weekState.phase}` : ''}`
       : 'Mesociclo no configurado'
@@ -761,9 +788,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
 
     try {
-      const weekContextText = pack
-        ? `PAQUETE BRIEFING (Supabase — mesociclo actual, check-ins, handoffs, reglas, feedback, historial de ediciones)\n\n${packForGeneration}`
-        : await buildWeekContext(weekState)
+      let weekContextText = ''
+      if (pack) {
+        weekContextText = `PAQUETE BRIEFING (Supabase — mesociclo actual, check-ins, handoffs, reglas, feedback, historial de ediciones)\n\n${packForGeneration}`
+      } else {
+        try {
+          weekContextText = await buildWeekContext(weekState)
+        } catch (ctxErr) {
+          console.warn('[ExcelGeneratorModal] buildWeekContext falló; se continúa sin ese bloque:', ctxErr?.message || ctxErr)
+          weekContextText =
+            'CONTEXTO DE LA SEMANA\n' +
+            'No se pudo cargar contexto histórico remoto en este intento (fallo de red o Supabase). ' +
+            'Genera con método + briefing actual y coherencia interna de la semana.'
+        }
+      }
       let overlay = null
       if (weekData && Array.isArray(weekData.dias)) {
         overlay = weekData
@@ -1141,6 +1179,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       if (methodText) {
         systemFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
       }
+      const refDay = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
+      if (refDay) {
+        systemFull += refDay
+      }
 
       const weekCtx = buildCompactWeekContextForDayEdit(weekData, diaIdx)
       const briefingHint =
@@ -1347,6 +1389,16 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 : 'Configuración pendiente'
               }
             </p>
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={handleOpenActivePublishedWeekForEdit}
+                disabled={openingActiveEdit}
+                className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 transition-all disabled:opacity-50"
+              >
+                {openingActiveEdit ? 'Abriendo semana activa…' : 'Editar semana activa del Hub'}
+              </button>
+            </div>
             {status === 'previewing' && weekData && (
               <p className="text-[9px] text-neutral-500 font-medium mt-2 max-w-xl leading-relaxed">
                 Borrador: se guarda en este navegador (historial del mesociclo) al pulsar «Guardar borrador», al bajar el
@@ -1643,7 +1695,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </div>
               )}
 
-              {!weekState.mesocycle && activePublishedWeek?.data && (
+              {activePublishedWeek?.data && (
                 <div className="border border-indigo-200 rounded-2xl bg-indigo-50/60 px-5 py-4 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-800">
@@ -1653,8 +1705,17 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                       {activePublishedWeek.mesociclo || '—'} · S{activePublishedWeek.semana || '—'} · {activePublishedWeek.titulo || 'Sin título'}
                     </p>
                     <p className="text-[9px] text-indigo-700/90 mt-1">
-                      Puedes abrirla y editarla sin configurar mesociclo en el panel izquierdo.
+                      {weekState.mesocycle
+                        ? 'Puedes abrirla y editarla aunque ahora tengas otro mesociclo seleccionado en el panel.'
+                        : 'Puedes abrirla y editarla sin configurar mesociclo en el panel izquierdo.'}
                     </p>
+                    {weekState.mesocycle &&
+                    activePublishedWeek.mesociclo &&
+                    activePublishedWeek.mesociclo !== weekState.mesocycle ? (
+                      <p className="text-[9px] text-indigo-700/90 mt-1">
+                        Al abrirla, el modal sincronizará automáticamente semana y mesociclo para que puedas guardar cambios en esa publicada.
+                      </p>
+                    ) : null}
                   </div>
                   <button
                     type="button"

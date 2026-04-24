@@ -77,10 +77,59 @@ export function detectMusclePatternBucket(text, resumenFoco) {
   return firstMatchId(combined, MUSCLE_PATTERNS)
 }
 
+const LINE_SKIP_PREFIX_RE =
+  /^(A\)|B\)|C\)|BIENVENIDA|CIERRE|CALENTAMIENTO|MOVILIDAD|SKILL|WOD|PARTE|BLOQUE|NOTA|FEEDBACK|FORMATO|AMRAP|EMOM|FOR\s+TIME|CHIPPER|TABATA|LADDER|TC\b|E\d+MOM|GESTI[OÓ]N)/i
+
+const BORING_TOKEN_RE = /^(reps?|rep|rondas?|rounds?|min|mins?|seg|s|series|x|rm|tc|each|cada|desc|rest|score|objetivo)$/i
+
+/** Fragmentos que parecen movimiento/accesorio (evita ruido de frases largas de coaching). */
+const MOVEMENT_LIKE_RE =
+  /\b(squat|sentadilla|press|row|remo|pull|push|deadlift|lunge|zancada|step|burpee|thruster|wall\s*ball|jump|swing|snatch|clean|jerk|dip|ring|muscle|toes|sit[\s-]?up|plank|carry|rdl|hinge|cluster|pike|handstand|box|copenhagen|pallof|kb|db|goblet|landmine|dominada|strict|kipping|c2b|lunges?|raises?|curls?|wall|shoulder|hip|bridge|raise|walk|rope|under|v[\s-]?up|negative|tempo|iso|isometric)\b/i
+
+function tokenWorthTracking(norm) {
+  if (!norm || norm.length < 6) return false
+  if (norm.length >= 14) return true
+  return MOVEMENT_LIKE_RE.test(norm)
+}
+
+/**
+ * Trozos de texto que probablemente son movimientos o accesorios (misma columna, misma semana).
+ * No sustituye al lift principal del bloque B; sirve para detectar step-ups, push-ups, etc. repetidos entre días.
+ */
+export function extractMovementTokensFromSessionText(raw) {
+  const text = String(raw || '').trim()
+  if (!text || isSessionPlaceholder(text)) return []
+  const out = new Set()
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
+  for (const line of lines) {
+    if (line.length > 110) continue
+    if (LINE_SKIP_PREFIX_RE.test(line)) continue
+    if (/OBJETIVO|FEEDBACK|PUNTOS DE ATENCI|C[OÓ]MO SE VA A SENTIR/i.test(line) && line.length > 35) continue
+    if (/^[A-ZÁÉÍÓÚÑ0-9\s\-–—:.'"/]{6,}$/.test(line) && line.length < 56) continue
+    const chunks = line.split(/\s*[/+|]\s*|\s*,\s+(?=[A-Za-zÁÉÍÓÚÑáéíóúñ])/)
+    for (let chunk of chunks) {
+      chunk = chunk
+        .replace(/^\d+\s*([x×]|\b)?\s*/i, '')
+        .replace(/@\s*[\d.%+-]+\s*/gi, '')
+        .replace(/^\d+\s*['′"]\s*/i, '')
+        .replace(/\(\s*\d+[^)]*\)/g, '')
+        .trim()
+      const n = normalizeMainExercise(chunk)
+      if (!tokenWorthTracking(n)) continue
+      const words = n.split(/\s+/).filter((w) => w && !BORING_TOKEN_RE.test(w))
+      if (words.length === 0) continue
+      if (words.length === 1 && n.length < 9) continue
+      out.add(n)
+    }
+  }
+  return [...out]
+}
+
 /**
  * Revisión orientativa de la semana para una clase (evoFuncional, etc.):
  * ejercicio principal duplicado, formatos de fuerza/WOD consecutivos, patrón muscular consecutivo,
- * y abuso del mismo formato WOD / patrón muscular / formato de fuerza en muchos días de la misma semana.
+ * abuso del mismo formato WOD / patrón muscular / formato de fuerza en muchos días de la misma semana,
+ * y el mismo movimiento o accesorio repetido en varios días de la misma columna.
  */
 export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
   const resumenFoco = options.resumenFoco || ''
@@ -92,6 +141,7 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
   const forceByDay = []
   const wodByDay = []
   const muscleByDay = []
+  const motionTokensByDay = []
   const hasProgram = []
 
   for (let i = 0; i < n; i += 1) {
@@ -111,6 +161,7 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
     forceByDay[i] = force
     wodByDay[i] = wod
     muscleByDay[i] = muscle
+    motionTokensByDay[i] = placeholder ? [] : extractMovementTokensFromSessionText(text)
 
     rows.push({
       dayIdx: i,
@@ -237,6 +288,40 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
     }
   }
 
+  /** Mismo movimiento/accesorio en 2+ días (texto de sesión; misma columna). Más grave si son días seguidos. */
+  const tokenToDays = new Map()
+  for (let i = 0; i < n; i += 1) {
+    if (!hasProgram[i]) continue
+    const mainN = mainNormByDay[i]
+    for (const tok of motionTokensByDay[i] || []) {
+      if (mainN && tok === mainN) continue
+      if (!tokenToDays.has(tok)) tokenToDays.set(tok, [])
+      tokenToDays.get(tok).push(i)
+    }
+  }
+  for (const [tok, idxList] of tokenToDays) {
+    const unique = [...new Set(idxList)].sort((a, b) => a - b)
+    if (unique.length < 2) continue
+    let hasConsecutive = false
+    for (let k = 0; k < unique.length - 1; k += 1) {
+      if (unique[k + 1] - unique[k] === 1) {
+        hasConsecutive = true
+        break
+      }
+    }
+    const display = tok.length > 52 ? `${tok.slice(0, 49)}…` : tok
+    const sev = hasConsecutive ? 'orange' : 'yellow'
+    for (const d of unique) {
+      const others = unique
+        .filter((x) => x !== d)
+        .map((x) => dayLabels[x] || `Día ${x + 1}`)
+        .join(', ')
+      const msg = `Movimiento o accesorio repetido en la semana («${display}»): también ${others}.`
+      rows[d].severity = maxSeverity(rows[d].severity, sev)
+      if (!rows[d].hints.includes(msg)) rows[d].hints.push(msg)
+    }
+  }
+
   let hasAnyIssue = false
   let allClear = true
   for (const r of rows) {
@@ -290,8 +375,8 @@ export function formatReviewHintsForGenerationPrompt(dias, sessionKeys, resumenF
   if (!out) {
     return (
       '(Auditoría heurística: en el acumulado actual no se detectan duplicados de lift principal, ' +
-      'formatos de fuerza/WOD consecutivos, ni abuso del mismo formato WOD/patrón muscular a lo largo de la semana ' +
-      'en las columnas revisadas.)'
+      'formatos de fuerza/WOD consecutivos, abuso de formatos en la semana, ni el mismo movimiento/accesorio ' +
+      'repetido entre días en las columnas revisadas.)'
     )
   }
   const max = 4500

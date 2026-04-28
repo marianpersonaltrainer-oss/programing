@@ -189,6 +189,20 @@ function buildWeeklyClassBSummary(dias, currentDiaIdx, sessionKey) {
   return out
 }
 
+function buildSessionGridQuickSummary(rawSessionText) {
+  const text = String(rawSessionText || '').trim()
+  if (!text || /^\(no programada esta semana\)\s*$/i.test(text) || /^FESTIVO\b/i.test(text)) return ''
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
+  const mainB = extractMainExerciseFromBlockB(text)
+  const blockA = lines.find((l) => /^A\)\s+/i.test(l)) || ''
+  const blockC = lines.find((l) => /^C\)\s+/i.test(l)) || ''
+  const parts = []
+  if (blockA) parts.push(blockA.replace(/^A\)\s*/i, 'A: '))
+  if (mainB) parts.push(`B: ${mainB}`)
+  if (blockC) parts.push(blockC.replace(/^C\)\s*/i, 'C: '))
+  return parts.slice(0, 3).join('\n')
+}
+
 function weekReviewSeverityShell(row, highlightDayIdx) {
   const ring = row.dayIdx === highlightDayIdx ? ' ring-2 ring-evo-accent/35 ring-offset-1' : ''
   if (row.placeholder) {
@@ -441,6 +455,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const lastPersistedDraftRef = useRef('')
   /** Aviso breve: borrador / guardado manual en localStorage. */
   const [draftNotice, setDraftNotice] = useState('')
+  const [weekGridSummaryMode, setWeekGridSummaryMode] = useState(true)
+  const [weekGridColWidth, setWeekGridColWidth] = useState(190)
 
   const selectedClassKeysForReview = useMemo(
     () => EVO_SESSION_CLASS_DEFS.filter(({ key }) => classPicker[key]).map(({ key }) => key),
@@ -1481,55 +1497,71 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         briefingContextPack && proposalNarrative
           ? `CONTEXTO DE LA PROPUESTA SEMANAL APROBADA (resumen):\n${sliceText(proposalNarrative, 900)}\nEnfoque: ${sliceText(proposalSuggestedFocus, 200)}`
           : ''
-      const userMsg = [
-        briefingHint,
-        weekCtx,
-        '',
-        `DÍA A EDITAR: ${dia.nombre || `Día ${diaIdx + 1}`} (posición ${diaIdx} en el array "dias").`,
-        '',
-        'INSTRUCCIONES DEL PROGRAMADOR:',
-        instr,
-        '',
-        'CONTENIDO ACTUAL DEL DÍA (JSON — conserva claves y tipos; respuesta solo en "dia"):',
-        JSON.stringify(dia),
-      ]
-        .filter(Boolean)
-        .join('\n\n')
+      const focusedClassLabel =
+        EVO_SESSION_CLASS_DEFS.find((c) => c.key === editFocusClassKey)?.label || editFocusClassKey
 
-      let response
-      try {
-        response = await fetch('/api/anthropic', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: PROGRAMMING_MODEL,
-            max_tokens: Math.max(AI_CONFIG.maxTokens, 8192),
-            system: systemFull,
-            messages: [{ role: 'user', content: userMsg }],
-          }),
-        })
-      } catch (e) {
-        throw new Error(explainAnthropicFetchFailure(e))
+      async function requestEditedDay(extraInstruction = '') {
+        const userMsg = [
+          briefingHint,
+          weekCtx,
+          '',
+          `DÍA A EDITAR: ${dia.nombre || `Día ${diaIdx + 1}`} (posición ${diaIdx} en el array "dias").`,
+          `CLASE EN FOCO (prioridad alta): ${focusedClassLabel} (${editFocusClassKey}).`,
+          '',
+          'INSTRUCCIONES DEL PROGRAMADOR:',
+          instr,
+          extraInstruction,
+          '',
+          'CONTENIDO ACTUAL DEL DÍA (JSON — conserva claves y tipos; respuesta solo en "dia"):',
+          JSON.stringify(dia),
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+
+        let response
+        try {
+          response = await fetch('/api/anthropic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: PROGRAMMING_MODEL,
+              max_tokens: Math.max(AI_CONFIG.maxTokens, 8192),
+              system: systemFull,
+              messages: [{ role: 'user', content: userMsg }],
+            }),
+          })
+        } catch (e) {
+          throw new Error(explainAnthropicFetchFailure(e))
+        }
+
+        const responseText = await response.text()
+        let data
+        try {
+          data = parseAnthropicProxyBody(responseText)
+        } catch {
+          throw new Error('La respuesta del servidor no es JSON válido.')
+        }
+        if (!response.ok || isAnthropicProxyFailure(data)) {
+          throw new Error(data?.error?.message || `Error ${response.status}`)
+        }
+        const raw = extractAnthropicTextBlocks(data)
+        if (!raw.trim()) throw new Error('La API no devolvió texto.')
+        return parseAssistantDayJson(raw)
       }
 
-      const responseText = await response.text()
-      let data
-      try {
-        data = parseAnthropicProxyBody(responseText)
-      } catch {
-        throw new Error('La respuesta del servidor no es JSON válido.')
-      }
-      if (!response.ok || isAnthropicProxyFailure(data)) {
-        throw new Error(data?.error?.message || `Error ${response.status}`)
-      }
-
-      const raw = extractAnthropicTextBlocks(data)
-      if (!raw.trim()) throw new Error('La API no devolvió texto.')
-
-      const parsedDia = parseAssistantDayJson(raw)
+      let parsedDia = await requestEditedDay()
       const prevDia = { ...(weekData.dias[diaIdx] || {}) }
-      const merged = mergeDayFromAiPatch(prevDia, parsedDia)
-      const changedSessions = listSessionFieldsChanged(prevDia, merged)
+      let merged = mergeDayFromAiPatch(prevDia, parsedDia)
+      let changedSessions = listSessionFieldsChanged(prevDia, merged)
+
+      const wantsChange = /\b(cambia|modifica|sustituye|reescribe|corrige|arregla|ajusta)\b/i.test(instr)
+      if (wantsChange && changedSessions.length === 0) {
+        parsedDia = await requestEditedDay(
+          `REINTENTO OBLIGATORIO: en la respuesta anterior no hubo cambios aplicables. Debes cambiar como mínimo la clase en foco (${editFocusClassKey}) o su feedback asociado según la instrucción del programador. No devuelvas el día idéntico.`,
+        )
+        merged = mergeDayFromAiPatch(prevDia, parsedDia)
+        changedSessions = listSessionFieldsChanged(prevDia, merged)
+      }
 
       updateWeekData((prev) => {
         const dias = [...(prev.dias || [])]
@@ -1557,6 +1589,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             merged[key] || '',
           )
         }
+      }
+
+      if (wantsChange && changedSessions.length === 0) {
+        throw new Error(
+          `La IA devolvió el día sin cambios aplicables. Prueba con instrucción más concreta (ej.: "cambia SOLO ${editFocusClassKey} y deja el resto igual").`,
+        )
       }
 
       setDayAiDraftByIdx((prev) => ({ ...prev, [diaIdx]: '' }))
@@ -2442,9 +2480,36 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                         {EDIT_SESSION_FIELDS.find((f) => f.key === editFocusClassKey)?.label || editFocusClassKey}
                       </span>
                     </div>
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-black/10 bg-white px-3 py-2">
+                      <label className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                        <input
+                          type="checkbox"
+                          checked={weekGridSummaryMode}
+                          onChange={(e) => setWeekGridSummaryMode(e.target.checked)}
+                          className="rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
+                        />
+                        Resumen principal (A/B/C)
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                        Ancho columnas
+                        <input
+                          type="range"
+                          min={150}
+                          max={320}
+                          step={10}
+                          value={weekGridColWidth}
+                          onChange={(e) => setWeekGridColWidth(Number(e.target.value) || 190)}
+                          className="accent-[#A729AD]"
+                        />
+                        <span className="tabular-nums text-[10px] text-[#1A0A1A]">{weekGridColWidth}px</span>
+                      </label>
+                    </div>
                     <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
                       <div className="min-w-[980px]">
-                        <div className="grid grid-cols-[120px_repeat(7,minmax(0,1fr))] border-b border-black/10 bg-gray-50">
+                        <div
+                          className="grid border-b border-black/10 bg-gray-50"
+                          style={{ gridTemplateColumns: `120px repeat(${EDIT_SESSION_FIELDS.length}, minmax(${weekGridColWidth}px, 1fr))` }}
+                        >
                           <div className="px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                             Día
                           </div>
@@ -2455,7 +2520,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           ))}
                         </div>
                         {(weekData.dias || []).map((d, dayIdx) => (
-                          <div key={`row-${d.nombre || dayIdx}`} className="grid grid-cols-[120px_repeat(7,minmax(0,1fr))] border-b border-black/5 last:border-b-0">
+                          <div
+                            key={`row-${d.nombre || dayIdx}`}
+                            className="grid border-b border-black/5 last:border-b-0"
+                            style={{ gridTemplateColumns: `120px repeat(${EDIT_SESSION_FIELDS.length}, minmax(${weekGridColWidth}px, 1fr))` }}
+                          >
                             <div className="px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-[#1A0A1A] bg-gray-50/60">
                               {d.nombre || `Día ${dayIdx + 1}`}
                             </div>
@@ -2476,7 +2545,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                   }`}
                                 >
                                   <p className={`text-[10px] leading-snug ${isEmpty ? 'text-neutral-400 italic' : 'text-[#1A0A1A]'}`}>
-                                    {isEmpty ? 'Sin sesión' : text.slice(0, 78)}
+                                    {isEmpty
+                                      ? 'Sin sesión'
+                                      : weekGridSummaryMode
+                                        ? buildSessionGridQuickSummary(text) || text.slice(0, 78)
+                                        : text.slice(0, 180)}
                                   </p>
                                   {active ? (
                                     <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color }}>

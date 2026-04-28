@@ -210,7 +210,10 @@ function extractYoutubeId(url) {
 
 function sanitizeVideoUrl(rawUrl) {
   const u = String(rawUrl || '').trim()
-  if (!u || !/^https?:\/\//i.test(u)) return null
+  if (!u) return null
+  // Permitimos el resolver interno (redirige a YouTube). Útil para búsquedas de último recurso.
+  if (/^\/api\/video-resolve\?/i.test(u)) return u
+  if (!/^https?:\/\//i.test(u)) return null
   const id = extractYoutubeId(u)
   if (id && BROKEN_YOUTUBE_IDS.has(id)) return null
   return u

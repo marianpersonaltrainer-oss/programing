@@ -31,12 +31,15 @@ export default async function handler(req, res) {
     const ids = [...html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)].map((m) => m[1])
     const blocked = new Set(['5ZT-GeYND9g', 'OiYhXnGncY8', 'i953czRec9Q'])
     const picked = ids.find((id) => !blocked.has(id))
-    if (!picked) return res.status(404).json({ ok: false, error: 'No se encontró vídeo válido' })
+    // Si no conseguimos vídeo directo (cambios de YouTube / rate-limit), mandamos al buscador
+    // para que el coach no se quede sin recurso durante la clase.
+    if (!picked) return res.redirect(302, searchUrl)
 
     const target = `https://www.youtube.com/watch?v=${picked}`
     return res.redirect(302, target)
   } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) })
+    // Fallback seguro: siempre redirigir al buscador aunque falle el scraping.
+    return res.redirect(302, searchUrl)
   }
 }
 

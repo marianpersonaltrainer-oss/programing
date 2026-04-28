@@ -41,6 +41,9 @@ import { mergeDayFromAiPatch, listSessionFieldsChanged } from '../../utils/merge
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
 import {
   getReferenceMesocycleContextForLLM,
+  getReferenceMesocycleContextForLLMFromRaw,
+  mergeReferenceMesocycleContexts,
+  loadReferenceMesocycleContextRaw,
   buildReferenceMesocycleSystemAppendix,
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
@@ -49,8 +52,10 @@ import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
 import {
   buildWeekSessionClassReview,
   formatReviewHintsForGenerationPrompt,
+  summarizeWeekQuality,
 } from '../../utils/weekSessionReview.js'
 import { buildMesocycleProgrammingBlock } from '../../constants/mesocycleGenerationBlocks.js'
+import { buildInferredMethodFromReference } from '../../utils/buildInferredMethodFromReference.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
@@ -58,8 +63,82 @@ const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
 const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 6500
 /** Límite de caracteres del pack de briefing por petición (el mismo bloque va en weekContext → system). */
 const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
+/** Tope del JSON «días ya generados» en el user (POST muy grande → timeouts / conexión cortada). */
+const EXCEL_COHERENCE_JSON_MAX_CHARS = 45_000
 
 const ADDENDUM_MAX_CHARS = 300
+
+/**
+ * Anthropic puede devolver varios bloques de contenido (thinking + text).
+ * Tomamos y unimos SOLO los bloques de texto para parsear JSON/feedback.
+ */
+function extractAnthropicTextBlocks(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : []
+  const text = blocks
+    .map((b) => (b && b.type === 'text' ? String(b.text || '') : ''))
+    .join('\n')
+    .trim()
+  return text
+}
+
+/**
+ * Serializa el acumulador para el bloque de coherencia: compacta y recorta textos largos si hace falta.
+ * @param {{ titulo?: string, resumen?: unknown, dias?: unknown[] }} acc
+ */
+function stringifyAccumulatorForCoherence(acc) {
+  const MAX = EXCEL_COHERENCE_JSON_MAX_CHARS
+  const trimDay = (day, cap) => {
+    const d = { ...(day && typeof day === 'object' ? day : {}) }
+    for (const k of Object.keys(d)) {
+      if (typeof d[k] === 'string' && d[k].length > cap) {
+        d[k] = `${d[k].slice(0, Math.max(12, cap - 14))} …[recortado]`
+      }
+    }
+    return d
+  }
+  const diasSrc = Array.isArray(acc?.dias) ? acc.dias : []
+  const caps = [1200, 800, 550, 380, 240]
+  for (const dayCap of caps) {
+    for (const includeResumen of [true, false]) {
+      const o = {
+        titulo: acc?.titulo,
+        ...(includeResumen ? { resumen: acc?.resumen } : {}),
+        dias: diasSrc.map((d) => trimDay(d, dayCap)),
+      }
+      let s = JSON.stringify(o, null, 2)
+      if (s.length > MAX) s = JSON.stringify(o)
+      if (s.length <= MAX) return s
+    }
+  }
+  return JSON.stringify({
+    titulo: acc?.titulo,
+    nota: 'JSON de días omitido por tamaño; prioriza el bloque heurístico siguiente.',
+  })
+}
+
+/** En reintentos tardíos, quita apéndices largos del system para acortar la petición. */
+function trimExcelSystemForAnthropicRetry(systemFull, attempt) {
+  if (attempt < 2) return String(systemFull || '')
+  let s = String(systemFull || '')
+  const cutAt = (marker) => {
+    const i = s.indexOf(marker)
+    if (i >= 0) s = s.slice(0, i)
+  }
+  cutAt('\n\nEJEMPLOS REALES DE ESTILO EVO')
+  cutAt('\n\n════════════════════════════════════════\nCONTEXTO DE REFERENCIA (OTROS MESOCICLOS')
+  const full = String(systemFull || '')
+  if (s.length + 120 < full.length) {
+    s +=
+      '\n\n[Reintento: se omitieron temporalmente ejemplos Drive y/o contexto de referencia para acortar la petición.]'
+  }
+  return s
+}
+
+function trimWeekContextForAnthropicRetry(weekContext, attempt) {
+  const t = String(weekContext || '')
+  if (attempt < 2 || t.length <= 24_000) return t
+  return `${t.slice(0, 21_000).trimEnd()}\n\n[…contexto recortado en reintento por tamaño]`
+}
 
 function sliceText(s, max) {
   const t = String(s || '').trim()
@@ -241,6 +320,62 @@ async function loadRealProgrammingContextForGenerator() {
   }
 }
 
+function humanizeNetworkLikeError(err, fallback = 'Error de red') {
+  const raw = String(err?.message || '').trim()
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+    return explainAnthropicFetchFailure(err)
+  }
+  if (/specified api usage limits|credit balance is too low|insufficient credits|rate limit/i.test(raw)) {
+    const until =
+      raw.match(/regain access on ([^.]+)/i)?.[1]?.trim() ||
+      raw.match(/retry after[:\s]+([^.]+)/i)?.[1]?.trim() ||
+      ''
+    return until
+      ? `Límite de uso de la API alcanzado. Debes recargar saldo o esperar hasta ${until}.`
+      : 'Límite de uso de la API alcanzado. Recarga saldo de Anthropic o espera al próximo ciclo de facturación.'
+  }
+  return raw || fallback
+}
+
+async function postJsonWithRetry(url, payload, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json().catch(() => ({}))
+      const retriable = [429, 502, 503, 504, 529].includes(Number(res.status))
+      if (!res.ok && retriable && attempt < retries) {
+        const waitMs = (attempt + 1) * 2500
+        await new Promise((r) => setTimeout(r, waitMs))
+        continue
+      }
+      return { res, json }
+    } catch (e) {
+      if (attempt < retries) {
+        const waitMs = (attempt + 1) * 2500
+        await new Promise((r) => setTimeout(r, waitMs))
+        continue
+      }
+      throw e
+    }
+  }
+  throw new Error('No se pudo completar la petición tras varios intentos.')
+}
+
+async function fetchServerReferenceContext() {
+  try {
+    const res = await fetch('/api/programming-reference-context', { method: 'GET' })
+    if (!res.ok) return ''
+    const json = await res.json().catch(() => ({}))
+    return String(json?.contextText || '').trim()
+  } catch {
+    return ''
+  }
+}
+
 export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFromHistory }) {
   const [existingBuffer, setExistingBuffer] = useState(null)
   const [isExcelFile, setIsExcelFile] = useState(false)
@@ -295,6 +430,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   )
   /** Pestaña «Editar»: día visible (el resto de la semana en tabs, sin scroll infinito). */
   const [editFocusDayIdx, setEditFocusDayIdx] = useState(0)
+  /** Clase enfocada en pestaña Editar (bloque activo de la parrilla semanal). */
+  const [editFocusClassKey, setEditFocusClassKey] = useState(EDIT_SESSION_FIELDS[0]?.key || 'evofuncional')
   /** Borradores de instrucciones para «IA · este día» (por índice de día). */
   const [dayAiDraftByIdx, setDayAiDraftByIdx] = useState({})
   const [dayEditAiBusy, setDayEditAiBusy] = useState(false)
@@ -304,6 +441,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const lastPersistedDraftRef = useRef('')
   /** Aviso breve: borrador / guardado manual en localStorage. */
   const [draftNotice, setDraftNotice] = useState('')
+
+  const selectedClassKeysForReview = useMemo(
+    () => EVO_SESSION_CLASS_DEFS.filter(({ key }) => classPicker[key]).map(({ key }) => key),
+    [classPicker],
+  )
+
+  const weekQuality = useMemo(() => {
+    if (!weekData?.dias) return null
+    return summarizeWeekQuality(
+      weekData.dias,
+      selectedClassKeysForReview,
+      String(weekData?.resumen?.foco || ''),
+    )
+  }, [weekData, selectedClassKeysForReview])
 
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
@@ -330,18 +481,16 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setProposalStep('review')
       setAddendum('')
       setRefineDraft('')
+      setProposalTitle('')
+      setProposalNarrative('')
+      setProposalSuggestedFocus('')
       try {
-        const res = await fetch('/api/programming-week-briefing', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mesociclo: weekState.mesocycle,
-            semana: Number(weekState.week),
-            phase: weekState.phase || '',
-            totalWeeks: weekState.totalWeeks ?? null,
-          }),
+        const { res, json } = await postJsonWithRetry('/api/programming-week-briefing', {
+          mesociclo: weekState.mesocycle,
+          semana: Number(weekState.week),
+          phase: weekState.phase || '',
+          totalWeeks: weekState.totalWeeks ?? null,
         })
-        const json = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
         if (cancelled) return
         setBriefingContextPack(String(json.contextPack || ''))
@@ -353,7 +502,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       } catch (e) {
         if (!cancelled) {
           setBriefingStatus('error')
-          setBriefingErrorMsg(e?.message || 'No se pudo generar la propuesta.')
+          setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
         }
       }
     }
@@ -371,8 +520,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       try {
         const rows = await listPublishedWeeksForMesocycle(weekState.mesocycle)
         if (cancelled) return
+        const existingHistory = getHistoryForMesocycle(weekState.mesocycle)
+        const existingBySemana = new Set(existingHistory.map((e) => Number(e?.semana || 0)))
         for (const row of rows) {
           if (!row?.data || !Array.isArray(row.data.dias)) continue
+          // No pisar borradores locales ya guardados en este dispositivo.
+          if (existingBySemana.has(Number(row.semana))) continue
           const data = JSON.parse(JSON.stringify(row.data))
           data.semana = Number(row.semana)
           data.titulo = row.titulo || data.titulo
@@ -394,6 +547,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     if (n <= 0) return
     setEditFocusDayIdx((i) => Math.min(Math.max(0, i), n - 1))
   }, [weekData?.dias?.length])
+
+  useEffect(() => {
+    const keys = new Set(EDIT_SESSION_FIELDS.map((f) => f.key))
+    if (!keys.has(editFocusClassKey)) {
+      setEditFocusClassKey(EDIT_SESSION_FIELDS[0]?.key || 'evofuncional')
+    }
+  }, [editFocusClassKey])
 
   /**
    * Guarda la semana actual en el historial del navegador (localStorage) sin publicar en el Hub.
@@ -454,6 +614,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setOpeningActiveEdit(true)
     setErrorMsg('')
     try {
+      if (status === 'previewing' && weekData) {
+        persistDraftToLocalHistory()
+        const go = window.confirm(
+          'Antes de abrir la semana activa del Hub, se guardó un borrador local. ¿Quieres continuar?',
+        )
+        if (!go) return
+      }
       const row = (await refreshActivePublishedWeek()) || activePublishedWeek
       if (!row?.data || !Array.isArray(row.data.dias)) {
         setErrorMsg(
@@ -517,19 +684,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setErrorMsg('')
     try {
       const nextMessages = [...briefingApiMessages, { role: 'user', content: line }]
-      const res = await fetch('/api/programming-week-briefing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: nextMessages,
-          contextPack: briefingContextPack,
-          mesociclo: weekState.mesocycle,
-          semana: Number(weekState.week),
-          phase: weekState.phase || '',
-          totalWeeks: weekState.totalWeeks ?? null,
-        }),
+      const { res, json } = await postJsonWithRetry('/api/programming-week-briefing', {
+        messages: nextMessages,
+        contextPack: briefingContextPack,
+        mesociclo: weekState.mesocycle,
+        semana: Number(weekState.week),
+        phase: weekState.phase || '',
+        totalWeeks: weekState.totalWeeks ?? null,
       })
-      const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
       const assistantText = JSON.stringify(json.proposal || {})
       setProposalTitle(String(json.proposal?.title || '').trim())
@@ -539,7 +701,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setRefineDraft('')
       setProposalStep('review')
     } catch (e) {
-      setErrorMsg(e?.message || 'No se pudo actualizar la propuesta.')
+      setErrorMsg(humanizeNetworkLikeError(e, 'No se pudo actualizar la propuesta.'))
     } finally {
       setRefineBusy(false)
     }
@@ -550,13 +712,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
    * para evitar timeouts con briefing + system largos en serverless.
    * Modelo: PROGRAMMING_MODEL (Sonnet u homólogo), max_tokens: `AI_CONFIG.maxTokens`.
    */
-  async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, weekContext = '', retries = 3) {
+  async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, weekContext = '', retries = 5) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
         model: PROGRAMMING_MODEL,
         max_tokens: Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL),
-        system: systemFull,
-        weekContext,
+        system: trimExcelSystemForAnthropicRetry(systemFull, attempt),
+        weekContext: trimWeekContextForAnthropicRetry(weekContext, attempt),
         messages: [{ role: 'user', content: userMessage }],
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
@@ -572,7 +734,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           body: JSON.stringify(body),
         })
       } catch (e) {
-        throw new Error(explainAnthropicFetchFailure(e))
+        const networkMsg = explainAnthropicFetchFailure(e)
+        if (attempt < retries) {
+          const wait = Math.min(12, 4 + attempt * 3)
+          setGenStep(`Conexión inestable con la IA — reintentando en ${wait}s…`)
+          await new Promise((r) => setTimeout(r, wait * 1000))
+          continue
+        }
+        throw new Error(networkMsg)
       }
 
       const responseText = await response.text()
@@ -618,6 +787,16 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           }
         }
         console.error('API Error Response:', err)
+        if (
+          response.status === 403 &&
+          (err?.error === 'origin_not_allowed' || data?.error === 'origin_not_allowed')
+        ) {
+          throw new Error(
+            'El dominio desde el que abres la app no está autorizado para la API de generación. ' +
+              'Si usas un dominio propio, en Vercel define EVO_ALLOWED_ORIGIN_PREFIXES con la URL exacta (https://…) y redeploy. ' +
+              'Las URLs de preview tipo https://programing-evo*.vercel.app ya deberían funcionar sin configuración extra.',
+          )
+        }
         if (response.status === 504 || response.status === 502 || errType === 'upstream_timeout') {
           throw new Error(
             'Tiempo de espera agotado: la IA tardó más de lo permitido en esta petición (límite del servidor / Anthropic). ' +
@@ -631,7 +810,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           err?.message
         throw new Error(apiMsg || `Error ${response.status}`)
       }
-      const text = data.content?.[0]?.text || ''
+      const text = extractAnthropicTextBlocks(data)
       try {
         return parseAssistantWeekJson(text)
       } catch (e) {
@@ -656,17 +835,28 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const regenerating = !!weekData
 
     if (!regenerating) {
-      if (briefingStatus !== 'ready' || !pack) {
-        setErrorMsg(
-          briefingStatus === 'error'
-            ? 'Corrige el error del briefing o recarga el modal.'
-            : 'Espera a que termine el análisis automático de la IA.',
-        )
+      const acceptedManualProposal =
+        proposalAccepted && String(proposalTitle || '').trim() && String(proposalNarrative || '').trim()
+      if (briefingStatus === 'loading') {
+        setErrorMsg('Espera a que termine el análisis automático de la IA.')
         setStatus('error')
         return
       }
-      if (!proposalAccepted) {
-        setErrorMsg('Pulsa «Me parece bien» y luego «Generar semana» (o ajusta el enfoque con la IA).')
+      if (briefingStatus === 'ready') {
+        if (!pack) {
+          setErrorMsg('No se pudo cargar el contexto del briefing. Reintenta o usa propuesta manual.')
+          setStatus('error')
+          return
+        }
+        if (!proposalAccepted) {
+          setErrorMsg('Pulsa «Me parece bien» y luego «Generar semana» (o ajusta el enfoque con la IA).')
+          setStatus('error')
+          return
+        }
+      } else if (!acceptedManualProposal) {
+        setErrorMsg(
+          'El briefing automático falló. Completa y acepta una propuesta manual (título + narrativa) para continuar.',
+        )
         setStatus('error')
         return
       }
@@ -709,10 +899,23 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       systemExcelFull += `\n\nEJEMPLOS REALES DE ESTILO EVO — leer antes de programar:\n${block}`
     }
 
-    const referenceBody = getReferenceMesocycleContextForLLM()
+    let referenceBody = getReferenceMesocycleContextForLLM()
+    try {
+      const remoteReferenceRaw = await fetchServerReferenceContext()
+      if (remoteReferenceRaw) {
+        const mergedRaw = mergeReferenceMesocycleContexts(loadReferenceMesocycleContextRaw(), remoteReferenceRaw)
+        referenceBody = getReferenceMesocycleContextForLLMFromRaw(mergedRaw)
+      }
+    } catch {
+      /* fallback a referencia local */
+    }
     const referenceAppendix = buildReferenceMesocycleSystemAppendix(referenceBody)
     if (referenceAppendix) {
       systemExcelFull += referenceAppendix
+      const inferredRules = buildInferredMethodFromReference(referenceBody)
+      if (inferredRules) {
+        systemExcelFull += `\n\n${inferredRules}`
+      }
     }
 
     const mesoInfo = weekState.mesocycle
@@ -848,6 +1051,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
 Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
 
+Antes de redactar, haz internamente una mini-matriz de semana (no la imprimas) con: patrón dominante del día, formato de fuerza, formato WOD, complejidad logística/material. Úsala para evitar repetición entre días consecutivos.
+
 Solo rellena contenido completo (sesiones y feedbacks) para: ${list}, y SOLO en las columnas de clase listadas en PLAN DE DÍAS Y COLUMNAS; en otras columnas de esos mismos días deja «(no programada esta semana)» y feedback vacío. En esos días wodbuster = "".
 Para el resto de días: cada sesión = exactamente (no programada esta semana); feedbacks ""; wodbuster "". Festivo real solo si el usuario lo pide (FESTIVO). No inventes sesiones para días fuera de la lista.
 
@@ -868,7 +1073,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       }
 
       function buildCoherenceBlockFromAccumulator() {
-        const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${JSON.stringify({ titulo: acc.titulo, resumen: acc.resumen, dias: acc.dias }, null, 2)}`
+        const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${stringifyAccumulatorForCoherence(acc)}`
         const resumenFoco = (acc.resumen && acc.resumen.foco) || ''
         const heuristic = formatReviewHintsForGenerationPrompt(
           acc.dias,
@@ -917,6 +1122,93 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         await generateChunkWithFallback(chunk, ci, dayChunks.length)
       }
 
+      /**
+       * Guardia de robustez:
+       * si un día marcado para generar quedó vacío o en "(no programada esta semana)"
+       * en TODAS las columnas seleccionadas, reintenta ese día una vez con instrucción explícita.
+       */
+      function isNoProgramadaLike(text) {
+        const t = String(text || '').trim()
+        if (!t) return true
+        return /no programada esta semana/i.test(t)
+      }
+      function dayMissingSelectedProgramming(dayCanon) {
+        const idx = EXCEL_DAY_ORDER.indexOf(dayCanon)
+        if (idx < 0) return false
+        const dia = acc?.dias?.[idx]
+        if (!dia || typeof dia !== 'object') return true
+        const keys = [...selectedClassKeys]
+        if (!keys.length) return false
+        return keys.every((k) => isNoProgramadaLike(dia[k]))
+      }
+
+      const missingDays = [...daysToGenerate].filter((d) => dayMissingSelectedProgramming(d))
+      if (missingDays.length) {
+        console.warn('[ProgramingEvo][Excel] días marcados sin contenido real tras primera pasada; reintento forzado:', missingDays)
+        for (const d of missingDays) {
+          const forceCoherence = buildCoherenceBlockFromAccumulator()
+          const forceMsg =
+            buildChunkMessage(new Set([d]), forceCoherence) +
+            `\n\nREINTENTO FORZADO (${d}): este día estaba marcado para generar por el selector del cliente. ` +
+            `Devuelve contenido REAL para ${d} en las columnas seleccionadas; no uses «(no programada esta semana)» en esas columnas.`
+          setGenStep(`Reintentando ${d} (faltaba contenido)…`)
+          const part = await callApi(forceMsg, systemExcelFull, weekContextText)
+          mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+        }
+      }
+
+      /**
+       * Semáforo bloqueante (fase QA):
+       * Si detectamos días conflictivos (rojo o acumulado alto), reintenta SOLO esos días una vez
+       * con instrucciones de corrección, en vez de llevar toda la semana a edición manual.
+       */
+      function buildCriticalHintsByDay() {
+        const out = new Map()
+        const foco = String(acc?.resumen?.foco || '')
+        for (const sk of [...selectedClassKeys]) {
+          const label = EVO_SESSION_CLASS_DEFS.find((d) => d.key === sk)?.label || sk
+          const r = buildWeekSessionClassReview(acc.dias || [], sk, { resumenFoco: foco })
+          for (const row of r.rows || []) {
+            if (row.placeholder) continue
+            if (!(row.severity === 'red' || row.severity === 'orange')) continue
+            if (!daysToGenerate.has(EXCEL_DAY_ORDER[row.dayIdx])) continue
+            const prev = out.get(row.dayIdx) || []
+            prev.push(`${label}: ${row.hints.join(' · ')}`)
+            out.set(row.dayIdx, prev)
+          }
+        }
+        return out
+      }
+
+      const qualityBefore = summarizeWeekQuality(
+        acc.dias || [],
+        [...selectedClassKeys],
+        String(acc?.resumen?.foco || ''),
+      )
+      const criticalHintsByDay = buildCriticalHintsByDay()
+      const blockingIdxSet = new Set([
+        ...(qualityBefore.blockingDayIdx || []),
+        ...[...criticalHintsByDay.keys()],
+      ])
+      const blockingCanonDays = [...blockingIdxSet]
+        .map((idx) => EXCEL_DAY_ORDER[idx])
+        .filter((d) => d && daysToGenerate.has(d))
+
+      if (blockingCanonDays.length) {
+        setGenStep(`Auto-corrección QA (${blockingCanonDays.join(' · ')})…`)
+        for (const d of blockingCanonDays) {
+          const dayIdx = EXCEL_DAY_ORDER.indexOf(d)
+          const dayHints = (criticalHintsByDay.get(dayIdx) || []).slice(0, 4).join('\n- ')
+          const forceCoherence = buildCoherenceBlockFromAccumulator()
+          const forceMsg =
+            buildChunkMessage(new Set([d]), forceCoherence) +
+            `\n\nAUTO-CORRECCIÓN DE CALIDAD (${d}): revisa y corrige avisos rojos/naranjas sin tocar días fuera de ${d}.` +
+            `\nPrioridad: variar lift/formato y mantener logística viable.\n- ${dayHints || 'Evitar repetición dominante y mejorar coherencia de ese día.'}`
+          const part = await callApi(forceMsg, systemExcelFull, weekContextText)
+          mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+        }
+      }
+
       applyFestivoToNonGeneratedDays(acc, daysToGenerate, daysPreserved)
       maskUnselectedSessionColumns(acc, daysToGenerate, selectedClassKeys)
 
@@ -941,7 +1233,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setGenStep('')
       setStatus('previewing')
     } catch (err) {
-      setErrorMsg(err.message)
+      setErrorMsg(humanizeNetworkLikeError(err, 'No se pudo generar la semana.'))
       setGenStep('')
       setStatus('error')
     }
@@ -1133,7 +1425,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       if (!response.ok || isAnthropicProxyFailure(data)) {
         throw new Error(data?.error?.message || `Error ${response.status}`)
       }
-      const raw = data.content?.[0]?.text || ''
+      const raw = extractAnthropicTextBlocks(data)
       const feedback = stripCodeFences(raw)
       if (!feedback.trim()) throw new Error('La API no devolvió texto de feedback.')
 
@@ -1231,7 +1523,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         throw new Error(data?.error?.message || `Error ${response.status}`)
       }
 
-      const raw = data.content?.[0]?.text || ''
+      const raw = extractAnthropicTextBlocks(data)
       if (!raw.trim()) throw new Error('La API no devolvió texto.')
 
       const parsedDia = parseAssistantDayJson(raw)
@@ -1345,6 +1637,26 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     onSyncWeekFromHistory?.(entry.semana, sourceData.mesociclo || mesociclo, sourceData.phase || null)
   }
 
+  async function recoverLatestLocalDraft() {
+    setErrorMsg('')
+    const entries = getHistoryForMesocycle(weekState.mesocycle)
+      .filter((e) => Number(e?.semana) === Number(weekState.week))
+      .sort((a, b) => new Date(b?.savedAt || 0).getTime() - new Date(a?.savedAt || 0).getTime())
+    const latest = entries[0]
+    if (!latest) {
+      setErrorMsg('No hay borrador local para esta semana en este dispositivo.')
+      return
+    }
+    await openHistoryEntryForEdit(latest)
+    setDraftNotice(
+      `Borrador local recuperado (${new Date(latest.savedAt).toLocaleString('es-ES', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      })})`,
+    )
+    setTimeout(() => setDraftNotice(''), 4200)
+  }
+
   async function handleDownload() {
     try {
       setStatus('downloading')
@@ -1390,14 +1702,23 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               }
             </p>
             <div className="mt-2">
-              <button
-                type="button"
-                onClick={handleOpenActivePublishedWeekForEdit}
-                disabled={openingActiveEdit}
-                className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 transition-all disabled:opacity-50"
-              >
-                {openingActiveEdit ? 'Abriendo semana activa…' : 'Editar semana activa del Hub'}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={recoverLatestLocalDraft}
+                  className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all"
+                >
+                  Recuperar ultimo borrador local
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenActivePublishedWeekForEdit}
+                  disabled={openingActiveEdit}
+                  className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 transition-all disabled:opacity-50"
+                >
+                  {openingActiveEdit ? 'Abriendo semana activa…' : 'Editar semana activa del Hub'}
+                </button>
+              </div>
             </div>
             {status === 'previewing' && weekData && (
               <p className="text-[9px] text-neutral-500 font-medium mt-2 max-w-xl leading-relaxed">
@@ -1450,6 +1771,97 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   >
                     Reintentar
                   </button>
+                </div>
+              )}
+
+              {briefingStatus === 'error' && (
+                <div className="rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 space-y-3">
+                  <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Modo manual (sin briefing IA)</p>
+                  <p className="text-[10px] text-amber-900/85 leading-relaxed">
+                    Puedes seguir aunque falle la API: escribe una propuesta mínima y marca los días/clases para generar.
+                  </p>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-[#1A0A1A] uppercase tracking-wider">
+                      Título de la propuesta
+                    </label>
+                    <input
+                      type="text"
+                      value={proposalTitle}
+                      onChange={(e) => setProposalTitle(e.target.value.slice(0, 120))}
+                      placeholder="Ej.: PROPUESTA PARA SEMANA 5"
+                      className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-[#1A0A1A] uppercase tracking-wider">
+                      Enfoque sugerido (1 línea)
+                    </label>
+                    <input
+                      type="text"
+                      value={proposalSuggestedFocus}
+                      onChange={(e) => setProposalSuggestedFocus(e.target.value.slice(0, 160))}
+                      placeholder="Ej.: Consolidación técnica + carga controlada de tren inferior"
+                      className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-[#1A0A1A] uppercase tracking-wider">
+                      Narrativa (2-5 frases)
+                    </label>
+                    <textarea
+                      value={proposalNarrative}
+                      onChange={(e) => setProposalNarrative(e.target.value.slice(0, 900))}
+                      rows={4}
+                      placeholder="Explica objetivo semanal, control de carga y dónde poner el foco técnico."
+                      className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!String(proposalTitle || '').trim() || !String(proposalNarrative || '').trim()) {
+                          setErrorMsg('En modo manual, completa al menos título y narrativa.')
+                          setStatus('error')
+                          return
+                        }
+                        setErrorMsg('')
+                        setProposalAccepted(true)
+                        setProposalStep('addons')
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold uppercase shadow-sm hover:bg-amber-700"
+                    >
+                      Usar propuesta manual
+                    </button>
+                    {proposalAccepted ? (
+                      <span className="text-[10px] font-semibold text-emerald-700">Propuesta manual lista ✓</span>
+                    ) : null}
+                  </div>
+                  {proposalAccepted && proposalStep === 'addons' ? (
+                    <div className="space-y-3 pt-2 border-t border-black/10">
+                      <label className="block text-[11px] font-bold text-[#1A0A1A]">
+                        Solo para esta semana (opcional){' '}
+                        <span className="text-neutral-500 font-normal">
+                          — lesiones, material, énfasis… máx. {ADDENDUM_MAX_CHARS} caracteres
+                        </span>
+                      </label>
+                      <textarea
+                        value={addendum}
+                        onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
+                        rows={2}
+                        maxLength={ADDENDUM_MAX_CHARS}
+                        placeholder="Lesiones, material, restricción especial…"
+                        className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGenerate}
+                        className="w-full sm:w-auto px-6 py-3 rounded-xl bg-evo-accent text-white text-[12px] font-bold uppercase tracking-wide shadow-md hover:bg-evo-accent-hover"
+                      >
+                        Generar semana
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
@@ -1552,7 +1964,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </div>
               )}
 
-              {briefingStatus === 'ready' && (
+              {(briefingStatus === 'ready' || briefingStatus === 'error') && (
                 <div className="rounded-2xl border border-evo-accent/15 bg-evo-accent/[0.04] px-4 py-3 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider">
@@ -1606,7 +2018,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                 </div>
               )}
 
-              {briefingStatus === 'ready' && (
+              {(briefingStatus === 'ready' || briefingStatus === 'error') && (
                 <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 space-y-2 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider">
@@ -1736,7 +2148,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-widest">Historial del Mesociclo</span>
-                      <span className="text-[9px] bg-evo-accent/10 text-evo-accent px-2 py-0.5 rounded-full font-bold">{history.length} SEMANAS</span>
+                      <span className="text-[9px] bg-evo-accent/10 text-evo-accent px-2 py-0.5 rounded-full font-bold">{history.length} VERSIONES</span>
                     </div>
                     <span className="text-neutral-600 text-xs">{showHistory ? '▲' : '▼'}</span>
                   </button>
@@ -1744,7 +2156,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     <div className="animate-fade-in">
                       <div className="divide-y divide-black/5">
                         {history.map((entry) => (
-                          <div key={entry.semana} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50/30 transition-all">
+                          <div key={entry.entryId || `${entry.semana}-${entry.savedAt}`} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50/30 transition-all">
                             <div className="min-w-0 flex-1">
                               <p className="text-[10px] font-bold text-[#1A0A1A] uppercase tracking-tight">Semana {entry.semana} — {entry.titulo || 'Sin título'}</p>
                               {entry.resumen && (
@@ -1753,7 +2165,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                 </p>
                               )}
                               <p className="text-[9px] text-neutral-500 mt-1">
-                                {new Date(entry.savedAt).toLocaleDateString()}
+                                {new Date(entry.savedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
                                 {!entry.weekDataFull && (
                                   <span className="block text-amber-700 font-bold mt-0.5">
                                     Sin JSON local — intenta «Editar» (carga Supabase si existe)
@@ -1772,7 +2184,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                               <button
                                 type="button"
                                 onClick={() => {
-                                  deleteWeekFromHistory(weekState.mesocycle, entry.semana)
+                                  deleteWeekFromHistory(weekState.mesocycle, entry.semana, entry.entryId || null)
                                   setHistory(getHistoryForMesocycle(weekState.mesocycle))
                                 }}
                                 className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
@@ -1848,6 +2260,21 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Listo para Exportar</p>
                 </div>
               </div>
+              {weekQuality && (
+                <div className={`rounded-xl border px-3 py-2 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
+                  weekQuality.hasBlocking
+                    ? 'bg-red-50 border-red-200 text-red-800'
+                    : weekQuality.score < 7.5
+                      ? 'bg-amber-50 border-amber-200 text-amber-800'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                }`}>
+                  <span>Score calidad: {weekQuality.score}/10</span>
+                  <span>· rojos: {weekQuality.redCount}</span>
+                  <span>· naranjas: {weekQuality.orangeCount}</span>
+                  <span>· amarillos: {weekQuality.yellowCount}</span>
+                  {weekQuality.hasBlocking ? <span>· requiere edición focalizada</span> : null}
+                </div>
+              )}
               {editingPublishedRowId && (
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
                   editingPublishedIsActive
@@ -1870,9 +2297,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                   </summary>
                   <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-black/5 bg-white divide-y divide-black/5">
                     {history.map((entry) => (
-                      <div key={`pv-${entry.semana}`} className="px-4 py-2.5 flex items-start justify-between gap-2">
+                      <div key={`pv-${entry.entryId || `${entry.semana}-${entry.savedAt}`}`} className="px-4 py-2.5 flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[10px] font-bold text-[#1A0A1A] uppercase">S{entry.semana} — {entry.titulo || 'Sin título'}</p>
+                          <p className="text-[9px] text-neutral-500 mt-0.5">
+                            {new Date(entry.savedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
+                          </p>
                           {!entry.weekDataFull && (
                             <p className="text-[9px] text-amber-800 font-medium mt-0.5">Sin JSON local (se intenta Supabase)</p>
                           )}
@@ -1888,7 +2318,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           <button
                             type="button"
                             onClick={() => {
-                              deleteWeekFromHistory(weekState.mesocycle, entry.semana)
+                              deleteWeekFromHistory(weekState.mesocycle, entry.semana, entry.entryId || null)
                               setHistory(getHistoryForMesocycle(weekState.mesocycle))
                             }}
                             className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded"
@@ -1959,8 +2389,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
               {previewTab === 'editar' && weekData && (
                 <div className="space-y-5 border border-black/5 rounded-2xl p-4 sm:p-5 bg-gray-50/30">
                   <p className="text-xs text-neutral-600 font-bold uppercase tracking-widest leading-relaxed">
-                    Cambia textos aquí; al publicar o descargar se usa esta versión. Usa las pestañas de día para
-                    enfocar un día — el editor de sesión gana altura en pantalla.
+                    Vista semanal completa: pincha cualquier bloque (día + clase) para editarlo en grande abajo.
                   </p>
 
                   <div className="rounded-2xl border border-evo-accent/20 bg-white p-4 sm:p-5 space-y-3 shadow-sm">
@@ -2003,24 +2432,64 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                     </label>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest w-full sm:w-auto sm:mr-2">
-                      Día
-                    </span>
-                    {(weekData.dias || []).map((d, i) => (
-                      <button
-                        key={d.nombre || i}
-                        type="button"
-                        onClick={() => setEditFocusDayIdx(i)}
-                        className={`px-3 py-2 rounded-xl text-sm font-bold uppercase tracking-wide border transition-colors ${
-                          editFocusDayIdx === i
-                            ? 'bg-evo-accent text-white border-evo-accent shadow-sm'
-                            : 'bg-white text-[#1A0A1A] border-black/10 hover:border-evo-accent/40 hover:bg-evo-accent/5'
-                        }`}
-                      >
-                        {d.nombre || `Día ${i + 1}`}
-                      </button>
-                    ))}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">
+                        Semana completa (clic para editar bloque)
+                      </span>
+                      <span className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">
+                        {weekData?.dias?.[editFocusDayIdx]?.nombre || `Día ${editFocusDayIdx + 1}`} ·{' '}
+                        {EDIT_SESSION_FIELDS.find((f) => f.key === editFocusClassKey)?.label || editFocusClassKey}
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
+                      <div className="min-w-[980px]">
+                        <div className="grid grid-cols-[120px_repeat(7,minmax(0,1fr))] border-b border-black/10 bg-gray-50">
+                          <div className="px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                            Día
+                          </div>
+                          {EDIT_SESSION_FIELDS.map(({ key, label, color }) => (
+                            <div key={`hdr-${key}`} className="px-2 py-2 text-[10px] font-bold uppercase tracking-widest" style={{ color }}>
+                              {label}
+                            </div>
+                          ))}
+                        </div>
+                        {(weekData.dias || []).map((d, dayIdx) => (
+                          <div key={`row-${d.nombre || dayIdx}`} className="grid grid-cols-[120px_repeat(7,minmax(0,1fr))] border-b border-black/5 last:border-b-0">
+                            <div className="px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-[#1A0A1A] bg-gray-50/60">
+                              {d.nombre || `Día ${dayIdx + 1}`}
+                            </div>
+                            {EDIT_SESSION_FIELDS.map(({ key, color }) => {
+                              const active = editFocusDayIdx === dayIdx && editFocusClassKey === key
+                              const text = String(d?.[key] || '').trim()
+                              const isEmpty = !text || /^\(no programada esta semana\)$/i.test(text)
+                              return (
+                                <button
+                                  key={`cell-${dayIdx}-${key}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setEditFocusDayIdx(dayIdx)
+                                    setEditFocusClassKey(key)
+                                  }}
+                                  className={`text-left px-2 py-2 min-h-[58px] border-l border-black/5 transition-colors ${
+                                    active ? 'bg-evo-accent/10 ring-1 ring-inset ring-evo-accent/40' : 'bg-white hover:bg-evo-accent/5'
+                                  }`}
+                                >
+                                  <p className={`text-[10px] leading-snug ${isEmpty ? 'text-neutral-400 italic' : 'text-[#1A0A1A]'}`}>
+                                    {isEmpty ? 'Sin sesión' : text.slice(0, 78)}
+                                  </p>
+                                  {active ? (
+                                    <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color }}>
+                                      Editando
+                                    </p>
+                                  ) : null}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   {(() => {
@@ -2080,7 +2549,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           </button>
                         </div>
 
-                        {EDIT_SESSION_FIELDS.map(({ key, label, color, feedbackKey }) => {
+                        {EDIT_SESSION_FIELDS
+                          .filter(({ key }) => key === editFocusClassKey)
+                          .map(({ key, label, color, feedbackKey }) => {
                           const resumenFoco = (weekData.resumen && weekData.resumen.foco) || ''
                           return (
                             <div
@@ -2150,7 +2621,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                           <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">
                             Feedbacks (coaching)
                           </p>
-                          {EVO_SESSION_CLASS_DEFS.map(({ key: sessionKey, feedbackKey, label }) => {
+                          {EVO_SESSION_CLASS_DEFS
+                            .filter(({ key }) => key === editFocusClassKey)
+                            .map(({ key: sessionKey, feedbackKey, label }) => {
                             const shortLabel = `Feedback · ${label.replace(/^Evo/, '')}`
                             const sk = feedbackStaleKey(diaIdx, feedbackKey)
                             const isStale = staleFeedbackKeys.has(sk)
@@ -2203,7 +2676,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="Briefing Marian (~80–110 palabras): líneas con foco, org (-…), ⚠️ riesgo, ⏱ solo si crítico, ✅ tarea…"
+                                    placeholder="Briefing Marian (~40–70 palabras): foco; línea - con org | pista calent/explicación corta; ⚠️; ⏱ solo si crítico; ✅ tarea…"
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

@@ -17,11 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
-
-const ALLOWED_ORIGIN_PREFIXES = [
-  'https://programing-evo.vercel.app',
-  'http://localhost:5173',
-]
+import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
@@ -59,19 +55,6 @@ INTENCIÓN DEL MESOCICLO (obligatoria para la propuesta)
 La semana objetivo pertenece a este mesociclo. La propuesta (title, narrative, suggestedFocus) DEBE estar alineada con estas reglas, no con un mesociclo genérico ni con plantillas de otro bloque.
 
 ${block}`
-}
-
-function getRequestOrigin(req) {
-  const origin = String(req.headers?.origin || '').trim()
-  if (origin) return origin
-  const referer = String(req.headers?.referer || '').trim()
-  return referer
-}
-
-function isOriginAllowed(originValue) {
-  const v = String(originValue || '').trim()
-  if (!v) return false
-  return ALLOWED_ORIGIN_PREFIXES.some((p) => v.startsWith(p))
 }
 
 function parseBody(req) {
@@ -376,7 +359,7 @@ export default async function handler(req, res) {
 
   const originValue = getRequestOrigin(req)
   const isDev = process.env.NODE_ENV === 'development'
-  if (!(isDev && !originValue) && !isOriginAllowed(originValue)) {
+  if (!(isDev && !originValue) && !isEvoOriginAllowed(originValue)) {
     return res.status(403).json({ error: 'origin_not_allowed' })
   }
 

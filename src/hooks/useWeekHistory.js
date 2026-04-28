@@ -18,10 +18,11 @@ export function listMesocyclesInHistory() {
 export function getAllMesocycleSummaries() {
   const history = loadHistory()
   return Object.keys(history)
-    .map((mesociclo) => ({
-      mesociclo,
-      count: (history[mesociclo] || []).length,
-    }))
+    .map((mesociclo) => {
+      const weeks = history[mesociclo] || []
+      const uniq = new Set(weeks.map((e) => Number(e?.semana || 0)).filter((n) => Number.isFinite(n) && n > 0))
+      return { mesociclo, count: uniq.size }
+    })
     .sort((a, b) => a.mesociclo.localeCompare(b.mesociclo))
 }
 
@@ -41,6 +42,12 @@ export function saveWeekToHistory(mesociclo, semana, weekData) {
 
   // Guardar resumen compacto: titulo + resumen + nombre de días con sus WODs (no texto completo)
   const entry = {
+    entryId:
+      Date.now().toString(36) +
+      '-' +
+      Math.random()
+        .toString(36)
+        .slice(2, 8),
     semana,
     titulo: weekData.titulo,
     resumen: weekData.resumen || null,
@@ -56,16 +63,26 @@ export function saveWeekToHistory(mesociclo, semana, weekData) {
     savedAt: new Date().toISOString(),
   }
 
-  // Reemplazar si ya existe esa semana, si no, añadir
-  const idx = history[mesociclo].findIndex((e) => e.semana === semana)
-  if (idx >= 0) {
-    history[mesociclo][idx] = entry
-  } else {
-    history[mesociclo].push(entry)
+  // Versionado local: conservar varias copias por semana para poder recuperar borradores antiguos.
+  history[mesociclo].push(entry)
+  // Limitar crecimiento: máx 8 versiones por semana, y 80 entradas totales por mesociclo.
+  const byWeek = {}
+  for (const e of history[mesociclo]) {
+    const w = Number(e?.semana || 0)
+    if (!byWeek[w]) byWeek[w] = []
+    byWeek[w].push(e)
   }
-
-  // Ordenar por semana
-  history[mesociclo].sort((a, b) => a.semana - b.semana)
+  const trimmed = []
+  for (const weekKey of Object.keys(byWeek)) {
+    const group = byWeek[weekKey]
+      .slice()
+      .sort((a, b) => new Date(b?.savedAt || 0).getTime() - new Date(a?.savedAt || 0).getTime())
+      .slice(0, 8)
+    trimmed.push(...group)
+  }
+  history[mesociclo] = trimmed
+    .sort((a, b) => new Date(b?.savedAt || 0).getTime() - new Date(a?.savedAt || 0).getTime())
+    .slice(0, 80)
   saveHistory(history)
 }
 
@@ -73,14 +90,20 @@ export function saveWeekToHistory(mesociclo, semana, weekData) {
 export function getHistoryForMesocycle(mesociclo) {
   if (!mesociclo) return []
   const history = loadHistory()
-  return history[mesociclo] || []
+  return (history[mesociclo] || [])
+    .slice()
+    .sort((a, b) => new Date(b?.savedAt || 0).getTime() - new Date(a?.savedAt || 0).getTime())
 }
 
-// Elimina una semana concreta del historial
-export function deleteWeekFromHistory(mesociclo, semana) {
+// Elimina una versión concreta del historial (fallback a semana completa si no hay entryId).
+export function deleteWeekFromHistory(mesociclo, semana, entryId = null) {
   const history = loadHistory()
   if (!history[mesociclo]) return
-  history[mesociclo] = history[mesociclo].filter((e) => e.semana !== semana)
+  if (entryId) {
+    history[mesociclo] = history[mesociclo].filter((e) => e.entryId !== entryId)
+  } else {
+    history[mesociclo] = history[mesociclo].filter((e) => e.semana !== semana)
+  }
   if (!history[mesociclo].length) delete history[mesociclo]
   saveHistory(history)
 }

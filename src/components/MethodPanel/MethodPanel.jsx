@@ -48,7 +48,7 @@ export const DEFAULT_LEARNED_PLACEHOLDER = `Anota aquí correcciones tras revisa
 
 export const DEFAULT_REFERENCE_MESOCYCLES_PLACEHOLDER = `Opcional: pega aquí extractos o resúmenes de semanas que ya programaste (otro mesociclo, Drive, notas). No hace falta la semana entera: bloques que os fueron bien, decisiones de timing/descansos, o “en fuerza evitamos X”.
 
-La IA lo usa como referencia de estilo y ritmo en sala — no para copiar sesiones literales. Si lo dejas vacío, no se envía nada extra.`
+La IA lo usa como referencia de estilo y ritmo en sala — no para copiar sesiones literales. Además, el generador extrae señales de progresión/formatos de este bloque para construir reglas inferidas automáticas. Si lo dejas vacío, no se envía nada extra.`
 
 export function getLearnedRulesText() {
   return getLearnedRulesConcatenated()
@@ -128,10 +128,41 @@ export default function MethodPanel({ onClose }) {
     }
   }, [])
 
-  function handleSave() {
+  async function syncReferenceContextToServer(nextReferenceText) {
+    const secret = driveAdminSecret.trim()
+    if (!secret) return { ok: false, reason: 'missing_secret' }
+    try {
+      const res = await fetch('/api/programming-reference-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret,
+          contextText: String(nextReferenceText || ''),
+          source: 'method_panel_save',
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return { ok: false, reason: String(json.error || `Error ${res.status}`) }
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, reason: e?.message || 'network_error' }
+    }
+  }
+
+  async function handleSave() {
     saveMethodText(baseText)
     saveLearnedState({ manual: learnedManual, auto: autoEntries })
     saveReferenceMesocycleContextRaw(referenceMesocycles)
+    const syncRes = await syncReferenceContextToServer(referenceMesocycles)
+    if (syncRes.ok) {
+      setDriveImportMsg('Contexto de referencia guardado local y sincronizado en Supabase.')
+    } else if (syncRes.reason === 'missing_secret') {
+      setDriveImportMsg(
+        'Guardado local hecho. Para sincronizar en Supabase, añade la clave admin en “Importar desde Google Drive”.',
+      )
+    } else {
+      setDriveImportMsg(`Guardado local hecho. No se pudo sincronizar en Supabase: ${syncRes.reason}`)
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -203,16 +234,21 @@ export default function MethodPanel({ onClose }) {
       }
       const stamp = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
       const banner = `--- Importación Google Drive (${stamp}) · ${meta.exported || 0} archivo(s) ---`
-      setReferenceMesocycles((prev) => {
-        const base = String(prev || '').trim()
+      const nextText = (() => {
+        const base = String(referenceMesocycles || '').trim()
         const next = base ? `${base}\n\n${banner}\n${imported}` : `${banner}\n${imported}`
         return next
-      })
+      })()
+      setReferenceMesocycles(nextText)
+      const syncRes = await syncReferenceContextToServer(nextText)
       const folderMsg = meta.folderNameMatched
         ? ` Carpeta detectada automáticamente: ${meta.folderNameMatched}.`
         : ''
+      const syncMsg = syncRes.ok
+        ? ' Sincronizado también en Supabase.'
+        : ` Guardado local pendiente de sincronizar (${syncRes.reason}).`
       setDriveImportMsg(
-        `Listo: se añadieron ~${imported.length} caracteres (${meta.exported || 0} archivos).${folderMsg} Pulsa «Guardar cambios» para persistir.`,
+        `Listo: se añadieron ~${imported.length} caracteres (${meta.exported || 0} archivos).${folderMsg}${syncMsg} Pulsa «Guardar cambios» para persistir.`,
       )
     } catch (e) {
       setDriveImportMsg(e?.message || 'No se pudo conectar con el servidor (¿estás en Vercel o `vercel dev`?).')

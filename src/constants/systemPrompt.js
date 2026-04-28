@@ -126,6 +126,14 @@ CALENTAMIENTO Y JUEGOS
 El calentamiento en EVO no es solo movilidad — también es el momento
 de crear ambiente, romper el hielo y conectar al grupo con la sesión.
 
+Regla de coach (OBLIGATORIO): el calentamiento es el ENSAYO del trabajo del día.
+- Usa en el calentamiento versiones sencillas y progresivas de los movimientos que aparecerán después.
+- No lo conviertas en una regla rígida de “siempre core”: elige 1-2 piezas del día que más ayuden a que luego fluya
+  la clase (técnica, ritmo, logística o búsqueda de pesos).
+- Si hay fuerza y hace falta fijar posición o encontrar carga: incluye en warm-up reps progresivas fáciles del patrón
+  (o una variante más simple) para explicar, practicar y corregir antes del bloque efectivo. Si el core del día es
+  relevante para el WOD o se repite, puedes adelantarlo en dosis mínima.
+
 EVOBASICS — JUEGOS CON MAYOR PRESENCIA:
   En Basics el juego es una herramienta pedagógica. Ayuda a perder el
   miedo, crear confianza y aprender movimientos sin presión.

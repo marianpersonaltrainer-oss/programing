@@ -385,3 +385,76 @@ export function formatReviewHintsForGenerationPrompt(dias, sessionKeys, resumenF
   }
   return out
 }
+
+function severityWeight(sev) {
+  if (sev === 'red') return 3
+  if (sev === 'orange') return 2
+  if (sev === 'yellow') return 1
+  return 0
+}
+
+/**
+ * Score semanal (0-10) + días conflictivos para autocorrección.
+ * Usa la misma heurística del panel, agregada por columnas seleccionadas.
+ */
+export function summarizeWeekQuality(dias, sessionKeys, resumenFoco = '') {
+  const keys =
+    Array.isArray(sessionKeys) && sessionKeys.length > 0
+      ? sessionKeys
+      : ['evofuncional', 'evobasics', 'evofit']
+
+  const byClass = []
+  const dayPenalty = new Map()
+  let totalProgrammed = 0
+  let redCount = 0
+  let orangeCount = 0
+  let yellowCount = 0
+
+  for (const sk of keys) {
+    const review = buildWeekSessionClassReview(dias || [], sk, { resumenFoco })
+    const rows = review.rows || []
+    const programmedRows = rows.filter((r) => !r.placeholder)
+    const reds = programmedRows.filter((r) => r.severity === 'red').length
+    const oranges = programmedRows.filter((r) => r.severity === 'orange').length
+    const yellows = programmedRows.filter((r) => r.severity === 'yellow').length
+    totalProgrammed += programmedRows.length
+    redCount += reds
+    orangeCount += oranges
+    yellowCount += yellows
+
+    for (const r of programmedRows) {
+      const w = severityWeight(r.severity)
+      if (!w) continue
+      dayPenalty.set(r.dayIdx, (dayPenalty.get(r.dayIdx) || 0) + w)
+    }
+
+    byClass.push({
+      key: sk,
+      hasAnyProgram: review.hasAnyProgram,
+      reds,
+      oranges,
+      yellows,
+    })
+  }
+
+  const weightedIssues = redCount * 3 + orangeCount * 2 + yellowCount
+  const denom = Math.max(1, totalProgrammed * 3)
+  const issueRatio = Math.min(1, weightedIssues / denom)
+  const score = Math.max(0, Math.min(10, Number((10 - issueRatio * 10).toFixed(1))))
+
+  const blockingDayIdx = [...dayPenalty.entries()]
+    .filter(([, p]) => p >= 4)
+    .map(([idx]) => idx)
+    .sort((a, b) => a - b)
+
+  return {
+    score,
+    totalProgrammed,
+    redCount,
+    orangeCount,
+    yellowCount,
+    blockingDayIdx,
+    byClass,
+    hasBlocking: redCount > 0 || blockingDayIdx.length > 0,
+  }
+}

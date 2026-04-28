@@ -1553,7 +1553,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       let merged = { ...prevDia }
       let changedSessions = []
       let focusedChanged = false
-      const wantsChange = /\b(cambia|modifica|sustituye|reescribe|corrige|arregla|ajusta)\b/i.test(instr)
+      const wantsChange = true
       const wantsSoloFocusedClass =
         /\bsolo\b/i.test(instr) &&
         new RegExp(`\\b${String(editFocusClassKey).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(instr)
@@ -1582,6 +1582,59 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         focusedChanged = String(prevDia[editFocusClassKey] ?? '') !== String(merged[editFocusClassKey] ?? '')
         if (!wantsChange) break
         if (focusedChanged || changedSessions.length > 0) break
+      }
+
+      // Fallback duro: si no hubo cambios reales en la clase foco, pedimos SOLO ese campo en texto plano.
+      if (!focusedChanged) {
+        const focusedPrev = String(prevDia[editFocusClassKey] || '')
+        const fallbackSystem = `Eres ProgramingEvo. Debes reescribir SOLO una clase de un día.
+Devuelve SOLO texto plano de sesión (sin JSON, sin markdown, sin explicaciones), conservando estructura BIENVENIDA + A) + B) + C) + CIERRE.
+No toques otros campos porque no se te piden.
+Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
+        const fallbackUser = [
+          `Día: ${dia.nombre || `Día ${diaIdx + 1}`}`,
+          `Clase objetivo: ${focusedClassLabel} (${editFocusClassKey})`,
+          '',
+          'Instrucción del programador:',
+          instr,
+          '',
+          'Texto actual de la clase objetivo:',
+          focusedPrev || '(vacío)',
+          '',
+          'Devuelve SOLO el texto nuevo completo de esta clase.',
+        ].join('\n')
+
+        let fbRes
+        try {
+          fbRes = await fetch('/api/anthropic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: PROGRAMMING_MODEL,
+              max_tokens: 3200,
+              system: fallbackSystem,
+              messages: [{ role: 'user', content: fallbackUser }],
+            }),
+          })
+        } catch (e) {
+          throw new Error(explainAnthropicFetchFailure(e))
+        }
+        const fbText = await fbRes.text()
+        let fbData
+        try {
+          fbData = parseAnthropicProxyBody(fbText)
+        } catch {
+          throw new Error('Fallback IA: respuesta no JSON válida del servidor.')
+        }
+        if (!fbRes.ok || isAnthropicProxyFailure(fbData)) {
+          throw new Error(fbData?.error?.message || `Fallback IA error ${fbRes.status}`)
+        }
+        const forcedText = stripCodeFences(extractAnthropicTextBlocks(fbData)).trim()
+        if (forcedText && forcedText !== focusedPrev) {
+          merged[editFocusClassKey] = forcedText
+          focusedChanged = true
+          changedSessions = listSessionFieldsChanged(prevDia, merged)
+        }
       }
 
       updateWeekData((prev) => {
@@ -1614,7 +1667,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
       if (wantsChange && !focusedChanged && changedSessions.length === 0) {
         throw new Error(
-          `La IA devolvió el día sin cambios aplicables tras varios intentos. Prueba con instrucción concreta: "cambia SOLO ${editFocusClassKey} y deja el resto igual".`,
+          `La IA devolvió el día sin cambios aplicables tras todos los intentos (incluido fallback). Prueba una orden más específica de reemplazo para ${editFocusClassKey}.`,
         )
       }
 

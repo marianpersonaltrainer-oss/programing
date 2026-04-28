@@ -1549,18 +1549,39 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return parseAssistantDayJson(raw)
       }
 
-      let parsedDia = await requestEditedDay()
       const prevDia = { ...(weekData.dias[diaIdx] || {}) }
-      let merged = mergeDayFromAiPatch(prevDia, parsedDia)
-      let changedSessions = listSessionFieldsChanged(prevDia, merged)
-
+      let merged = { ...prevDia }
+      let changedSessions = []
+      let focusedChanged = false
       const wantsChange = /\b(cambia|modifica|sustituye|reescribe|corrige|arregla|ajusta)\b/i.test(instr)
-      if (wantsChange && changedSessions.length === 0) {
-        parsedDia = await requestEditedDay(
-          `REINTENTO OBLIGATORIO: en la respuesta anterior no hubo cambios aplicables. Debes cambiar como mínimo la clase en foco (${editFocusClassKey}) o su feedback asociado según la instrucción del programador. No devuelvas el día idéntico.`,
-        )
+      const wantsSoloFocusedClass =
+        /\bsolo\b/i.test(instr) &&
+        new RegExp(`\\b${String(editFocusClassKey).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(instr)
+
+      const attemptGuidance = [
+        '',
+        `REINTENTO OBLIGATORIO: en la respuesta anterior no hubo cambios aplicables. Debes cambiar como mínimo la clase en foco (${editFocusClassKey}) o su feedback asociado según la instrucción del programador. No devuelvas el día idéntico.`,
+        `ÚLTIMO REINTENTO ESTRICTO: cambia obligatoriamente ${editFocusClassKey}. Si no cambias ese campo, la respuesta se considerará inválida.`,
+      ]
+
+      for (let attempt = 0; attempt < attemptGuidance.length; attempt += 1) {
+        const parsedDia = await requestEditedDay(attemptGuidance[attempt])
         merged = mergeDayFromAiPatch(prevDia, parsedDia)
+
+        // Si la instrucción dice "solo <clase>", no dejamos que la IA toque otras clases del día.
+        if (wantsSoloFocusedClass) {
+          for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+            if (key === editFocusClassKey) continue
+            merged[key] = prevDia[key] ?? ''
+            merged[feedbackKey] = prevDia[feedbackKey] ?? ''
+          }
+          merged.wodbuster = prevDia.wodbuster ?? ''
+        }
+
         changedSessions = listSessionFieldsChanged(prevDia, merged)
+        focusedChanged = String(prevDia[editFocusClassKey] ?? '') !== String(merged[editFocusClassKey] ?? '')
+        if (!wantsChange) break
+        if (focusedChanged || changedSessions.length > 0) break
       }
 
       updateWeekData((prev) => {
@@ -1591,9 +1612,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         }
       }
 
-      if (wantsChange && changedSessions.length === 0) {
+      if (wantsChange && !focusedChanged && changedSessions.length === 0) {
         throw new Error(
-          `La IA devolvió el día sin cambios aplicables. Prueba con instrucción más concreta (ej.: "cambia SOLO ${editFocusClassKey} y deja el resto igual").`,
+          `La IA devolvió el día sin cambios aplicables tras varios intentos. Prueba con instrucción concreta: "cambia SOLO ${editFocusClassKey} y deja el resto igual".`,
         )
       }
 

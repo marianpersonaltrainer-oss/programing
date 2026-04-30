@@ -71,6 +71,8 @@ const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
 const EXCEL_COHERENCE_JSON_MAX_CHARS = 45_000
 
 const ADDENDUM_MAX_CHARS = 3000
+const QA_AUTO_FIX_MAX_PASSES = 5
+const QA_TARGET_SCORE = 8.2
 
 function buildAllClassesSelection() {
   return Object.fromEntries(EVO_SESSION_CLASS_DEFS.map(({ key }) => [key, true]))
@@ -1226,7 +1228,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
        * Si detectamos días conflictivos (rojo o acumulado alto), reintenta SOLO esos días una vez
        * con instrucciones de corrección, en vez de llevar toda la semana a edición manual.
        */
-      function buildCriticalHintsByDay() {
+      function buildCriticalHintsByDay(includeYellow = false) {
         const out = new Map()
         const foco = String(acc?.resumen?.foco || '')
         for (const sk of [...selectedClassKeys]) {
@@ -1234,7 +1236,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           const r = buildWeekSessionClassReview(acc.dias || [], sk, { resumenFoco: foco })
           for (const row of r.rows || []) {
             if (row.placeholder) continue
-            if (!(row.severity === 'red' || row.severity === 'orange')) continue
+            if (
+              !(
+                row.severity === 'red' ||
+                row.severity === 'orange' ||
+                (includeYellow && row.severity === 'yellow')
+              )
+            ) {
+              continue
+            }
             if (!daysToGenerate.has(EXCEL_DAY_ORDER[row.dayIdx])) continue
             const prev = out.get(row.dayIdx) || []
             prev.push(`${label}: ${row.hints.join(' · ')}`)
@@ -1244,32 +1254,57 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return out
       }
 
-      const qualityBefore = summarizeWeekQuality(
-        acc.dias || [],
-        [...selectedClassKeys],
-        String(acc?.resumen?.foco || ''),
-      )
-      const criticalHintsByDay = buildCriticalHintsByDay()
-      const blockingIdxSet = new Set([
-        ...(qualityBefore.blockingDayIdx || []),
-        ...[...criticalHintsByDay.keys()],
-      ])
-      const blockingCanonDays = [...blockingIdxSet]
-        .map((idx) => EXCEL_DAY_ORDER[idx])
-        .filter((d) => d && daysToGenerate.has(d))
+      for (let qaPass = 1; qaPass <= QA_AUTO_FIX_MAX_PASSES; qaPass += 1) {
+        const qualityBeforePass = summarizeWeekQuality(
+          acc.dias || [],
+          [...selectedClassKeys],
+          String(acc?.resumen?.foco || ''),
+        )
+        const shouldChaseScore = qualityBeforePass.score < QA_TARGET_SCORE
+        const includeYellow = qaPass >= 2 && shouldChaseScore
+        const criticalHintsByDay = buildCriticalHintsByDay(includeYellow)
+        const blockingIdxSet = new Set([
+          ...(qualityBeforePass.blockingDayIdx || []),
+          ...[...criticalHintsByDay.keys()],
+        ])
+        let blockingCanonDays = [...blockingIdxSet]
+          .map((idx) => EXCEL_DAY_ORDER[idx])
+          .filter((d) => d && daysToGenerate.has(d))
 
-      if (blockingCanonDays.length) {
-        setGenStep(`Auto-corrección QA (${blockingCanonDays.join(' · ')})…`)
+        // En pasadas orientadas a score, priorizar días con más avisos para subir calidad rápido.
+        if (includeYellow && blockingCanonDays.length > 3) {
+          blockingCanonDays = blockingCanonDays
+            .sort((a, b) => (criticalHintsByDay.get(EXCEL_DAY_ORDER.indexOf(b)) || []).length - (criticalHintsByDay.get(EXCEL_DAY_ORDER.indexOf(a)) || []).length)
+            .slice(0, 3)
+        }
+
+        if (!blockingCanonDays.length) break
+
+        setGenStep(
+          `Auto-corrección QA ${qaPass}/${QA_AUTO_FIX_MAX_PASSES} (score ${qualityBeforePass.score}/10 → objetivo ${QA_TARGET_SCORE}) en ${blockingCanonDays.join(' · ')}…`,
+        )
         for (const d of blockingCanonDays) {
           const dayIdx = EXCEL_DAY_ORDER.indexOf(d)
-          const dayHints = (criticalHintsByDay.get(dayIdx) || []).slice(0, 4).join('\n- ')
+          const dayHints = (criticalHintsByDay.get(dayIdx) || []).slice(0, 5).join('\n- ')
           const forceCoherence = buildCoherenceBlockFromAccumulator()
           const forceMsg =
             buildChunkMessage(new Set([d]), forceCoherence) +
-            `\n\nAUTO-CORRECCIÓN DE CALIDAD (${d}): revisa y corrige avisos rojos/naranjas sin tocar días fuera de ${d}.` +
-            `\nPrioridad: variar lift/formato y mantener logística viable.\n- ${dayHints || 'Evitar repetición dominante y mejorar coherencia de ese día.'}`
+            `\n\nAUTO-CORRECCIÓN DE CALIDAD (${d}) — pasada ${qaPass}/${QA_AUTO_FIX_MAX_PASSES}: reescribe este día para eliminar avisos rojos/naranjas y no toques otros días.` +
+            `\nPrioridad: variar lift/formato dominante, quitar repeticiones cercanas y mantener logística viable.` +
+            `\nSi aparece calentamiento genérico, cámbialo por movilidad específica estratégica o elimínalo.` +
+            `\nObjetivo global: subir score semanal hacia ${QA_TARGET_SCORE}/10 o más.` +
+            `\n- ${dayHints || 'Evitar repetición dominante y mejorar coherencia de ese día.'}`
           const part = await callApi(forceMsg, systemExcelFull, weekContextText)
           mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+        }
+
+        const qualityAfterPass = summarizeWeekQuality(
+          acc.dias || [],
+          [...selectedClassKeys],
+          String(acc?.resumen?.foco || ''),
+        )
+        if (!qualityAfterPass.hasBlocking && qualityAfterPass.score >= QA_TARGET_SCORE) {
+          break
         }
       }
 

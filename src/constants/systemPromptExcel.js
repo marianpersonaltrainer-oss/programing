@@ -114,6 +114,12 @@ EVOHYBRIX: Clase metabólica por bloques. Nace de EvoFuncional con foco en acond
 - SIEMPRE hay componente de equipo o parejas: "A y B alternando", "en equipos de 3", "sincro", "uno trabaja uno descansa"
 - Estructura típica: Cash-in → 2-3 bloques de trabajo → Cash-out
 - Intensidad alta, sostenida, ritmo que se puede mantener pero que quema
+- Identidad híbrida EVO + HYROX: mantén la lógica de clase híbrida de EVO, pero usa con frecuencia movimientos originales de HYROX.
+  Prioriza combinaciones como: run/shuttle run, SkiErg, RowErg, BikeErg, sled push, sled pull, burpee broad jump,
+  farmer carry/suitcase carry, sandbag lunges, wall balls. Alterna patrones para no repetir siempre la misma pareja de estímulos.
+- Cuota orientativa por sesión: incluir al menos 2-4 estaciones/movimientos de familia HYROX real cuando la logística de sala lo permita.
+- Escalado realista de HYROX: conserva el patrón (p. ej. empuje de trineo, carry, lunges, wall balls) y ajusta volumen/carga/distancia,
+  sin convertir la sesión en circuito genérico de fitness.
 - EvoHybrix NO tiene bloque de técnica compleja, pero SÍ tiene tiempo para:
   · Calentamiento dinámico completo (12-15 min): activación cardiovascular + movilidad
   · Explicación de bloques + progresión ligera para encontrar pesos (8-10 min): aunque no haya técnica olímpica, hay que explicar el formato, probar cargas de KB/DB, organizar equipos

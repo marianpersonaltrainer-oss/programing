@@ -65,6 +65,16 @@ EVOFIT — Accesible para todos los niveles
 técnica compleja. Core, movilidad dinámica y WOD de intensidad media.
 
 ──────────────────────────────────────
+EVOHYBRIX — Metabólica híbrida por bloques
+──────────────────────────────────────
+Clase híbrida de acondicionamiento: alta densidad, trabajo en equipo/parejas y
+ritmo sostenido. Mantén la identidad EVO, pero usa con frecuencia movimientos
+originales de HYROX: run/shuttle run, SkiErg, RowErg, BikeErg, sled push, sled pull,
+burpee broad jump, farmer carry/suitcase carry, sandbag lunges y wall balls.
+Escala carga/distancia/volumen sin perder el patrón original del movimiento.
+Sin técnica olímpica compleja.
+
+──────────────────────────────────────
 EVOTODOS — Solo si las instrucciones lo piden
 ──────────────────────────────────────
 Clase abierta a todos los niveles. Juego, equipo o parejas. Pensada para

@@ -26,7 +26,6 @@ import {
   mergeGeneratedDaysIntoAccumulator,
   applyPreservedFromOverlay,
   applyFestivoToNonGeneratedDays,
-  maskUnselectedSessionColumns,
   resolveDaysToGenerateFromSelection,
   EXCEL_DAY_ORDER,
 } from '../../utils/excelGenerationPlan.js'
@@ -71,7 +70,20 @@ const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
 /** Tope del JSON «días ya generados» en el user (POST muy grande → timeouts / conexión cortada). */
 const EXCEL_COHERENCE_JSON_MAX_CHARS = 45_000
 
-const ADDENDUM_MAX_CHARS = 300
+const ADDENDUM_MAX_CHARS = 3000
+
+function buildAllClassesSelection() {
+  return Object.fromEntries(EVO_SESSION_CLASS_DEFS.map(({ key }) => [key, true]))
+}
+
+function buildDayClassSelection(allSelected = true) {
+  return Object.fromEntries(
+    EXCEL_DAY_ORDER.map((day) => [
+      day,
+      Object.fromEntries(EVO_SESSION_CLASS_DEFS.map(({ key }) => [key, !!allSelected])),
+    ]),
+  )
+}
 
 /**
  * Serializa el acumulador para el bloque de coherencia: compacta y recorta textos largos si hace falta.
@@ -443,9 +455,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     Object.fromEntries(EXCEL_DAY_ORDER.map((d) => [d, true])),
   )
   /** Columnas de sesión (EvoFuncional, Basics, …) que deben rellenarse en la generación. */
-  const [classPicker, setClassPicker] = useState(() =>
-    Object.fromEntries(EVO_SESSION_CLASS_DEFS.map(({ key }) => [key, true])),
-  )
+  const [classPicker, setClassPicker] = useState(() => buildAllClassesSelection())
+  /** Matriz día x clase: selección final de columnas a generar por día. */
+  const [dayClassPicker, setDayClassPicker] = useState(() => buildDayClassSelection(true))
   /** Pestaña «Editar»: día visible (el resto de la semana en tabs, sin scroll infinito). */
   const [editFocusDayIdx, setEditFocusDayIdx] = useState(0)
   /** Clase enfocada en pestaña Editar (bloque activo de la parrilla semanal). */
@@ -462,10 +474,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [weekGridSummaryMode, setWeekGridSummaryMode] = useState(true)
   const [weekGridColWidth, setWeekGridColWidth] = useState(190)
 
-  const selectedClassKeysForReview = useMemo(
-    () => EVO_SESSION_CLASS_DEFS.filter(({ key }) => classPicker[key]).map(({ key }) => key),
-    [classPicker],
-  )
+  const selectedClassKeysForReview = useMemo(() => {
+    const out = new Set()
+    for (const d of EXCEL_DAY_ORDER) {
+      for (const { key } of EVO_SESSION_CLASS_DEFS) {
+        if (dayClassPicker?.[d]?.[key]) out.add(key)
+      }
+    }
+    return [...out]
+  }, [dayClassPicker])
 
   const weekQuality = useMemo(() => {
     if (!weekData?.dias) return null
@@ -484,8 +501,21 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }, [weekState.mesocycle])
 
   useEffect(() => {
-    setClassPicker(Object.fromEntries(EVO_SESSION_CLASS_DEFS.map(({ key }) => [key, true])))
+    const all = buildAllClassesSelection()
+    setClassPicker(all)
+    setDayClassPicker(buildDayClassSelection(true))
   }, [weekState.mesocycle])
+
+  useEffect(() => {
+    // El selector global de clases actúa como "aplicar a todos los días".
+    setDayClassPicker((prev) => {
+      const next = { ...prev }
+      for (const d of EXCEL_DAY_ORDER) {
+        next[d] = { ...(next[d] || {}), ...classPicker }
+      }
+      return next
+    })
+  }, [classPicker])
 
   useEffect(() => {
     let cancelled = false
@@ -995,14 +1025,22 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       return
     }
 
-    const selectedClassKeys = new Set(
-      EVO_SESSION_CLASS_DEFS.filter(({ key }) => classPicker[key]).map(({ key }) => key),
+    const classesByDay = Object.fromEntries(
+      EXCEL_DAY_ORDER.map((d) => [d, new Set(EVO_SESSION_CLASS_DEFS.filter(({ key }) => !!dayClassPicker?.[d]?.[key]).map(({ key }) => key))]),
     )
-    const selectedClassLabels = EVO_SESSION_CLASS_DEFS.filter(({ key }) => classPicker[key]).map(
-      ({ label }) => label,
+    const selectedClassKeys = new Set(
+      [...daysToGenerate].flatMap((d) => [...(classesByDay[d] || new Set())]),
     )
     if (selectedClassKeys.size === 0) {
-      setErrorMsg('Marca al menos un tipo de clase (columna) para generar contenido.')
+      setErrorMsg('Marca al menos una clase en algún día seleccionado para generar.')
+      setStatus('error')
+      return
+    }
+    const daysWithoutClasses = [...daysToGenerate].filter((d) => (classesByDay[d]?.size || 0) === 0)
+    if (daysWithoutClasses.length) {
+      setErrorMsg(
+        `Hay días marcados sin clases seleccionadas: ${daysWithoutClasses.join(', ')}. Marca al menos una clase en cada día o desmarca el día.`,
+      )
       setStatus('error')
       return
     }
@@ -1043,11 +1081,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
       applyPreservedFromOverlay(acc, overlay, daysPreserved)
 
+      const perDayPlanLines = EXCEL_DAY_ORDER
+        .filter((d) => daysToGenerate.has(d))
+        .map((d) => {
+          const labels = EVO_SESSION_CLASS_DEFS.filter(({ key }) => classesByDay[d]?.has(key)).map(
+            ({ label }) => label,
+          )
+          return `${d}: ${labels.length ? labels.join(', ') : '(sin clases)'}`
+        })
       const planSummary = `PLAN DE DÍAS Y COLUMNAS (obligatorio):
 - Días marcados en el selector del cliente: ${[...selectedCanon].join(', ')}
 - Generar contenido real (sesiones y feedbacks) SOLO para: ${[...daysToGenerate].join(', ')}
   En esos días el campo wodbuster del JSON debe ser cadena vacía "" (el pegado WodBuster lo arma la app desde las columnas de clase).
-- Columnas de clase a programar en esos días (solo estas; en el resto de columnas de los mismos días usa exactamente «(no programada esta semana)» y feedback vacío): ${selectedClassLabels.join(', ')}
+- Columnas de clase por día (solo estas; en el resto de columnas del mismo día usa exactamente «(no programada esta semana)» y feedback vacío):
+${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
 - Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...daysPreserved].join(', ') || 'ninguno'}
 - Para NO generar un día: desmárcalo en el selector (el texto ya no excluye días automáticamente).
 - Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente: (no programada esta semana). Feedbacks "". wodbuster "". Festivo real del gimnasio (solo si el usuario lo indica): ver system prompt (FESTIVO).`
@@ -1070,7 +1117,7 @@ Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orde
 
 Antes de redactar, haz internamente una mini-matriz de semana (no la imprimas) con: patrón dominante del día, formato de fuerza, formato WOD, complejidad logística/material. Úsala para evitar repetición entre días consecutivos.
 
-Solo rellena contenido completo (sesiones y feedbacks) para: ${list}, y SOLO en las columnas de clase listadas en PLAN DE DÍAS Y COLUMNAS; en otras columnas de esos mismos días deja «(no programada esta semana)» y feedback vacío. En esos días wodbuster = "".
+Solo rellena contenido completo (sesiones y feedbacks) para: ${list}, respetando exactamente las columnas por día listadas en PLAN DE DÍAS Y COLUMNAS; en otras columnas de esos mismos días deja «(no programada esta semana)» y feedback vacío. En esos días wodbuster = "".
 Para el resto de días: cada sesión = exactamente (no programada esta semana); feedbacks ""; wodbuster "". Festivo real solo si el usuario lo pide (FESTIVO). No inventes sesiones para días fuera de la lista.
 
 Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
@@ -1154,7 +1201,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         if (idx < 0) return false
         const dia = acc?.dias?.[idx]
         if (!dia || typeof dia !== 'object') return true
-        const keys = [...selectedClassKeys]
+        const keys = [...(classesByDay[dayCanon] || new Set())]
         if (!keys.length) return false
         return keys.every((k) => isNoProgramadaLike(dia[k]))
       }
@@ -1227,7 +1274,19 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       }
 
       applyFestivoToNonGeneratedDays(acc, daysToGenerate, daysPreserved)
-      maskUnselectedSessionColumns(acc, daysToGenerate, selectedClassKeys)
+      for (let i = 0; i < EXCEL_DAY_ORDER.length; i += 1) {
+        const dayName = EXCEL_DAY_ORDER[i]
+        if (!daysToGenerate.has(dayName)) continue
+        const row = acc?.dias?.[i]
+        if (!row || typeof row !== 'object') continue
+        const selectedForDay = classesByDay[dayName] || new Set()
+        for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+          if (!selectedForDay.has(key)) {
+            row[key] = '(no programada esta semana)'
+            row[feedbackKey] = ''
+          }
+        }
+      }
 
       const combined = {
         ...acc,
@@ -2177,7 +2236,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       <button
                         type="button"
                         onClick={() =>
-                          setClassPicker(Object.fromEntries(EVO_SESSION_CLASS_DEFS.map(({ key }) => [key, true])))
+                          setClassPicker(buildAllClassesSelection())
                         }
                         className="text-[9px] font-bold uppercase text-evo-accent px-2 py-1 rounded-lg border border-evo-accent/20 hover:bg-evo-accent/10"
                       >
@@ -2199,7 +2258,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                     </div>
                   </div>
                   <p className="text-[9px] text-neutral-600 font-medium leading-relaxed">
-                    Solo se rellenan las columnas marcadas; el resto queda «no programada» en los días que generes.
+                    Este selector aplica por defecto a todos los días; debajo puedes ajustar clases por día.
                   </p>
                   <div className="flex flex-wrap gap-2 pt-0.5">
                     {EVO_SESSION_CLASS_DEFS.map(({ key, label }) => (
@@ -2220,6 +2279,48 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                         {label}
                       </label>
                     ))}
+                  </div>
+                  <div className="pt-2 border-t border-black/10 space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#1A0A1A]">
+                      Clases por día (ajuste fino)
+                    </div>
+                    <p className="text-[9px] text-neutral-600 font-medium leading-relaxed">
+                      Marca exactamente qué clases quieres generar en cada día.
+                    </p>
+                    <div className="space-y-2">
+                      {EXCEL_DAY_ORDER.map((d) => (
+                        <div key={d} className="rounded-xl border border-black/10 bg-neutral-50/70 p-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-[#1A0A1A] mb-1.5">
+                            {d}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {EVO_SESSION_CLASS_DEFS.map(({ key, label }) => (
+                              <label
+                                key={`${d}-${key}`}
+                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold cursor-pointer select-none transition-colors ${
+                                  dayClassPicker?.[d]?.[key]
+                                    ? 'border-evo-accent/40 bg-white text-[#1A0A1A]'
+                                    : 'border-black/10 bg-gray-50 text-neutral-500'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!dayClassPicker?.[d]?.[key]}
+                                  onChange={() =>
+                                    setDayClassPicker((prev) => ({
+                                      ...prev,
+                                      [d]: { ...(prev[d] || {}), [key]: !prev?.[d]?.[key] },
+                                    }))
+                                  }
+                                  className="rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

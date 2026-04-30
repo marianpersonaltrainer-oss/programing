@@ -26,3 +26,21 @@ export function isAnthropicProxyFailure(data) {
   if (data.error && !Array.isArray(data.content)) return true
   return false
 }
+
+/**
+ * Extrae el mejor mensaje de error posible del proxy Anthropic.
+ * Evita mostrar solo "Error 500" cuando el backend sí devolvió detalle útil.
+ */
+export function getAnthropicProxyErrorMessage(data, rawText, status) {
+  const objMsg =
+    (typeof data?.error === 'object' && data?.error?.message) ||
+    (typeof data?.error === 'string' && data.error) ||
+    (typeof data?.message === 'string' && data.message) ||
+    ''
+  if (String(objMsg || '').trim()) return String(objMsg).trim()
+
+  const txt = String(rawText || '').trim()
+  if (txt) return txt.slice(0, 500)
+
+  return `Error ${status}`
+}

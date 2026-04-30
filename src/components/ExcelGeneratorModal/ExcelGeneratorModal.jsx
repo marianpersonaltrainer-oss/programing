@@ -34,7 +34,12 @@ import { buildWeekWodBusterPaste } from '../../utils/formatWodBusterPaste.js'
 import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG, PROGRAMMING_MODEL, SUPPORT_MODEL } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
-import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../../utils/parseAnthropicProxyBody.js'
+import {
+  parseAnthropicProxyBody,
+  isAnthropicProxyFailure,
+  getAnthropicProxyErrorMessage,
+} from '../../utils/parseAnthropicProxyBody.js'
+import { extractAnthropicTextBlocks } from '../../utils/extractAnthropicTextBlocks.js'
 import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { parseAssistantDayJson } from '../../utils/parseAssistantDayJson.js'
 import { mergeDayFromAiPatch, listSessionFieldsChanged } from '../../utils/mergeDayFromAiPatch.js'
@@ -67,19 +72,6 @@ const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
 const EXCEL_COHERENCE_JSON_MAX_CHARS = 45_000
 
 const ADDENDUM_MAX_CHARS = 300
-
-/**
- * Anthropic puede devolver varios bloques de contenido (thinking + text).
- * Tomamos y unimos SOLO los bloques de texto para parsear JSON/feedback.
- */
-function extractAnthropicTextBlocks(data) {
-  const blocks = Array.isArray(data?.content) ? data.content : []
-  const text = blocks
-    .map((b) => (b && b.type === 'text' ? String(b.text || '') : ''))
-    .join('\n')
-    .trim()
-  return text
-}
 
 /**
  * Serializa el acumulador para el bloque de coherencia: compacta y recorta textos largos si hace falta.
@@ -359,14 +351,26 @@ async function postJsonWithRetry(url, payload, retries = 2) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const json = await res.json().catch(() => ({}))
+      const rawText = await res.text()
+      let json = {}
+      try {
+        json = rawText ? JSON.parse(rawText) : {}
+      } catch {
+        json = {}
+      }
+      const errorMessage =
+        (typeof json?.error === 'string' && json.error) ||
+        (typeof json?.error === 'object' && json?.error?.message) ||
+        (typeof json?.message === 'string' && json.message) ||
+        rawText?.trim()?.slice(0, 500) ||
+        `Error ${res.status}`
       const retriable = [429, 502, 503, 504, 529].includes(Number(res.status))
       if (!res.ok && retriable && attempt < retries) {
         const waitMs = (attempt + 1) * 2500
         await new Promise((r) => setTimeout(r, waitMs))
         continue
       }
-      return { res, json }
+      return { res, json, errorMessage }
     } catch (e) {
       if (attempt < retries) {
         const waitMs = (attempt + 1) * 2500
@@ -501,13 +505,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setProposalNarrative('')
       setProposalSuggestedFocus('')
       try {
-        const { res, json } = await postJsonWithRetry('/api/programming-week-briefing', {
+        const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
           mesociclo: weekState.mesocycle,
           semana: Number(weekState.week),
           phase: weekState.phase || '',
           totalWeeks: weekState.totalWeeks ?? null,
         })
-        if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+        if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
         if (cancelled) return
         setBriefingContextPack(String(json.contextPack || ''))
         setProposalTitle(String(json.proposal?.title || '').trim())
@@ -700,7 +704,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setErrorMsg('')
     try {
       const nextMessages = [...briefingApiMessages, { role: 'user', content: line }]
-      const { res, json } = await postJsonWithRetry('/api/programming-week-briefing', {
+      const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
         messages: nextMessages,
         contextPack: briefingContextPack,
         mesociclo: weekState.mesocycle,
@@ -708,7 +712,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         phase: weekState.phase || '',
         totalWeeks: weekState.totalWeeks ?? null,
       })
-      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+      if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
       const assistantText = JSON.stringify(json.proposal || {})
       setProposalTitle(String(json.proposal?.title || '').trim())
       setProposalNarrative(String(json.proposal?.narrative || '').trim())
@@ -820,10 +824,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
               'Plan Hobby (~10 s de función) no basta para esta generación: hace falta Pro u otro plan con funciones largas.',
           )
         }
-        const apiMsg =
-          (typeof err?.error === 'object' && err?.error?.message) ||
-          (typeof err?.error === 'string' && err.error) ||
-          err?.message
+        const apiMsg = getAnthropicProxyErrorMessage(err, responseText, response.status)
         throw new Error(apiMsg || `Error ${response.status}`)
       }
       const text = extractAnthropicTextBlocks(data)
@@ -1277,11 +1278,43 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     onClose()
   }
 
+  function getWarmupBlockingIssuesForPublish(dias) {
+    const out = []
+    const focus = String(weekData?.resumen?.foco || '')
+    for (const sessionKey of selectedClassKeysForReview) {
+      const classLabel = EVO_SESSION_CLASS_DEFS.find((d) => d.key === sessionKey)?.label || sessionKey
+      const review = buildWeekSessionClassReview(dias || [], sessionKey, { resumenFoco: focus })
+      for (const row of review.rows || []) {
+        if (row.placeholder) continue
+        if (!(row.severity === 'orange' || row.severity === 'red')) continue
+        const warmupHints = (row.hints || []).filter((h) => /calentamiento|warm-?up|movilidad/i.test(String(h)))
+        if (!warmupHints.length) continue
+        out.push({
+          dayLabel: row.dayLabel,
+          classLabel,
+          hint: warmupHints[0],
+        })
+      }
+    }
+    return out
+  }
+
   async function handlePublish() {
     try {
       setPublishing(true)
+      setErrorMsg('')
       let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
       data.titulo = editTitle || data.titulo
+      const warmupIssues = getWarmupBlockingIssuesForPublish(data?.dias || [])
+      if (warmupIssues.length) {
+        const top = warmupIssues
+          .slice(0, 4)
+          .map((x) => `${x.dayLabel} · ${x.classLabel}: ${x.hint}`)
+          .join(' | ')
+        throw new Error(
+          `Publicación bloqueada por calentamiento genérico (orange/red). Ajusta esos días y vuelve a publicar. ${top}`,
+        )
+      }
       await publishWeek(data, weekState.mesocycle, weekState.week)
       setPublished(true)
     } catch (err) {
@@ -1439,7 +1472,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       }
 
       if (!response.ok || isAnthropicProxyFailure(data)) {
-        throw new Error(data?.error?.message || `Error ${response.status}`)
+        throw new Error(getAnthropicProxyErrorMessage(data, responseText, response.status))
       }
       const raw = extractAnthropicTextBlocks(data)
       const feedback = stripCodeFences(raw)
@@ -1490,6 +1523,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const refDay = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
       if (refDay) {
         systemFull += refDay
+        const inferredRules = buildInferredMethodFromReference(getReferenceMesocycleContextForLLM())
+        if (inferredRules) {
+          systemFull += `\n\n${inferredRules}`
+        }
       }
 
       const weekCtx = buildCompactWeekContextForDayEdit(weekData, diaIdx)
@@ -1542,7 +1579,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           throw new Error('La respuesta del servidor no es JSON válido.')
         }
         if (!response.ok || isAnthropicProxyFailure(data)) {
-          throw new Error(data?.error?.message || `Error ${response.status}`)
+          throw new Error(getAnthropicProxyErrorMessage(data, responseText, response.status))
         }
         const raw = extractAnthropicTextBlocks(data)
         if (!raw.trim()) throw new Error('La API no devolvió texto.')
@@ -1627,7 +1664,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           throw new Error('Fallback IA: respuesta no JSON válida del servidor.')
         }
         if (!fbRes.ok || isAnthropicProxyFailure(fbData)) {
-          throw new Error(fbData?.error?.message || `Fallback IA error ${fbRes.status}`)
+          throw new Error(getAnthropicProxyErrorMessage(fbData, fbText, fbRes.status))
         }
         const forcedText = stripCodeFences(extractAnthropicTextBlocks(fbData)).trim()
         if (forcedText && forcedText !== focusedPrev) {

@@ -34,7 +34,12 @@ import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } fr
 import EvoLogo from '../EvoLogo.jsx'
 import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
-import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../../utils/parseAnthropicProxyBody.js'
+import {
+  parseAnthropicProxyBody,
+  isAnthropicProxyFailure,
+  getAnthropicProxyErrorMessage,
+} from '../../utils/parseAnthropicProxyBody.js'
+import { extractAnthropicTextBlocks } from '../../utils/extractAnthropicTextBlocks.js'
 import { coachFeedbackRowIndicatesChange } from '../../utils/coachSessionFeedback.js'
 import { mergeServerFeedbackIntoLog } from '../../utils/coachFeedbackLocalLog.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
@@ -955,10 +960,10 @@ export default function CoachView() {
         return
       }
       if (!response.ok || isAnthropicProxyFailure(data)) {
-        setError(data?.error?.message || `Error ${response.status}`)
+        setError(getAnthropicProxyErrorMessage(data, responseText, response.status))
         return
       }
-      const reply = data.content?.[0]?.text || 'Sin respuesta'
+      const reply = extractAnthropicTextBlocks(data) || 'Sin respuesta'
       setSupportCachedReply(cacheKey, reply)
       const usedAfter = incrementSupportMessagesUsed()
       setSupportUsedToday(usedAfter)

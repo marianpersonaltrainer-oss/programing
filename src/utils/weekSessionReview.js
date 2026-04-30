@@ -86,6 +86,30 @@ const BORING_TOKEN_RE = /^(reps?|rep|rondas?|rounds?|min|mins?|seg|s|series|x|rm
 const MOVEMENT_LIKE_RE =
   /\b(squat|sentadilla|press|row|remo|pull|push|deadlift|lunge|zancada|step|burpee|thruster|wall\s*ball|jump|swing|snatch|clean|jerk|dip|ring|muscle|toes|sit[\s-]?up|plank|carry|rdl|hinge|cluster|pike|handstand|box|copenhagen|pallof|kb|db|goblet|landmine|dominada|strict|kipping|c2b|lunges?|raises?|curls?|wall|shoulder|hip|bridge|raise|walk|rope|under|v[\s-]?up|negative|tempo|iso|isometric)\b/i
 
+const WARMUP_TITLE_RE = /\b(calentamiento|warm[\s-]?up|movilidad\s+inicial|wod\s*prep)\b/i
+const GENERIC_WARMUP_RE =
+  /\b(movilidad\s+general|movilidad\s+articular|activacion\s+general|activaci[oó]n\s+general|trote\s+suave|cardio\s+suave)\b/i
+
+function sessionWarmupIssue(raw) {
+  const text = String(raw || '').trim()
+  if (!text || isSessionPlaceholder(text)) return null
+  const hasWarmupTitle = WARMUP_TITLE_RE.test(text)
+  const hasGenericWarmup = GENERIC_WARMUP_RE.test(text)
+  if (!hasWarmupTitle && !hasGenericWarmup) return null
+  if (hasWarmupTitle && hasGenericWarmup) {
+    return {
+      severity: 'orange',
+      hint:
+        'Calentamiento genérico detectado: deja solo movilidad específica cuando sea estratégica; evita bloque fijo de warm-up.',
+    }
+  }
+  return {
+    severity: 'yellow',
+    hint:
+      'Hay bloque de calentamiento: confirma que aporta estrategia real (no obligatorio) y no es plantilla fija.',
+  }
+}
+
 function tokenWorthTracking(norm) {
   if (!norm || norm.length < 6) return false
   if (norm.length >= 14) return true
@@ -175,6 +199,14 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
       _muscle: muscle,
       placeholder,
     })
+  }
+
+  for (let i = 0; i < n; i += 1) {
+    if (!hasProgram[i]) continue
+    const issue = sessionWarmupIssue(String((dias?.[i] || {})[sessionKey] || ''))
+    if (!issue) continue
+    rows[i].severity = maxSeverity(rows[i].severity, issue.severity)
+    rows[i].hints.push(issue.hint)
   }
 
   const normToDays = new Map()

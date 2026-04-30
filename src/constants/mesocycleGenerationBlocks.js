@@ -46,6 +46,11 @@ Distribución de estímulos (orientación):
 - Prioriza cada semana mezcla de: tracción (dominadas, ring row, escalados), empuje en pino/handstand y variantes, trabajo en anillas (support, dips, MU escalado si toca), suelo (hollow/arch, L-sit progresiones en suelo/caja), unilateral y anti-rotación, equilibrio.
 - Incluye a menudo formatos sociales o motivadores acordes a EVO: parejas, relevos, equipos, mini-competiciones amistosas, “carrera” por bloques, cuando encaje con el objetivo técnico del día (sin convertir todo en juego vacío).
 
+Mínimos semanales obligatorios (autocarga):
+- Patrones rotacionales: incluir al menos 1 estímulo rotacional real por semana (rotación/anti-rotación con intención, no accesorio decorativo).
+- Cuidado del hombro: controlar el volumen total de empuje de hombro; evitar acumulaciones altas de press/overhead/HSPU en días cercanos. Si hay empuje exigente, compensar con tracción y estabilidad escapular.
+- Día técnico integrado (1/semana): programar un día con foco en técnica donde convivan de forma pedagógica halterofilia técnica + bloque de fuerza + trabajo de básicos, con carga moderada y prioridad de ejecución limpia.
+
 Fuerza con barra / mancuernas cuando toque combinar:
 - Mantén % moderados en la mayoría de semanas (orientación aproximada S1–S3: zona técnica ~65–75% o RIR alto; prioriza calidad y rangos completos).
 - En semanas ${late ? '4–5 (peak/test) y en general en tramos finales del mesociclo' : 'finales del mesociclo (4–5)'} puedes rozar cargas altas SOLO si el briefing lo apoya: series cortas, DESCANSOS LARGOS, pocas reps, SIN sesión centrada en “perseguir RM” ni en test máximo salvo que el briefing o la nota de la programadora lo pidan explícitamente.

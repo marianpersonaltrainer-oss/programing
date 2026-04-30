@@ -71,6 +71,27 @@ function parseRequestBody(req) {
   return null
 }
 
+function extractAnthropicTextBlocks(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : []
+  return blocks
+    .map((block) => {
+      if (!block || typeof block !== 'object') return ''
+      if (block.type && block.type !== 'text') return ''
+      return typeof block.text === 'string' ? block.text : ''
+    })
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function summarizeAnthropicContentTypes(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : []
+  if (!blocks.length) return '(sin content)'
+  return blocks
+    .map((block) => String(block?.type || 'unknown'))
+    .join(', ')
+}
+
 function getClientIp(req) {
   const xff = String(req.headers?.['x-forwarded-for'] || '')
   const firstForwarded = xff.split(',')[0]?.trim()
@@ -335,6 +356,29 @@ export default async function handler(req, res) {
         JSON.stringify({
           ...data,
           error: baseError,
+        }),
+      )
+    }
+
+    const textPayload = extractAnthropicTextBlocks(data)
+    if (!textPayload) {
+      const contentTypes = summarizeAnthropicContentTypes(data)
+      console.error('Anthropic response without text blocks:', {
+        status: response.status,
+        model: data?.model || model || 'unknown',
+        contentTypes,
+      })
+      clearHeartbeat()
+      return res.end(
+        JSON.stringify({
+          error: {
+            type: 'anthropic_empty_text',
+            message:
+              'Anthropic devolvió una respuesta sin bloques de texto utilizables. Reintenta; si persiste, revisa el prompt/modelo.',
+            details: {
+              content_types: contentTypes,
+            },
+          },
         }),
       )
     }

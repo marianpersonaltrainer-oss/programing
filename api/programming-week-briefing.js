@@ -227,6 +227,25 @@ function parseProposalJson(assistantText) {
   return { title, narrative, suggestedFocus }
 }
 
+function extractAnthropicTextBlocks(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : []
+  return blocks
+    .map((block) => {
+      if (!block || typeof block !== 'object') return ''
+      if (block.type && block.type !== 'text') return ''
+      return typeof block.text === 'string' ? block.text : ''
+    })
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function summarizeAnthropicContentTypes(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : []
+  if (!blocks.length) return '(sin content)'
+  return blocks.map((b) => String(b?.type || 'unknown')).join(', ')
+}
+
 /**
  * Semanas publicadas en Supabase para CONTEXTO del briefing.
  * Si hay `mesociclo`, solo filas de ese mesociclo (hasta 8 semanas distintas, última publicación por S#).
@@ -458,8 +477,25 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: msg })
     }
 
-    const assistantText = data?.content?.[0]?.text || ''
-    const proposal = parseProposalJson(assistantText)
+    const assistantText = extractAnthropicTextBlocks(data)
+    if (!assistantText) {
+      const contentTypes = summarizeAnthropicContentTypes(data)
+      console.error('[programming-week-briefing] Anthropic sin texto utilizable:', {
+        status: upstream.status,
+        model: data?.model || model,
+        contentTypes,
+      })
+      return res.status(502).json({
+        error:
+          'Anthropic devolvió una respuesta sin texto utilizable para el briefing. Reintenta; si persiste, revisa prompt/modelo.',
+      })
+    }
+    let proposal
+    try {
+      proposal = parseProposalJson(assistantText)
+    } catch (e) {
+      return res.status(502).json({ error: e?.message || 'La IA devolvió una propuesta inválida.' })
+    }
 
     const payload = {
       proposal,

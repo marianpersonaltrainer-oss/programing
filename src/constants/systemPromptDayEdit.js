@@ -28,6 +28,8 @@ REGLAS DE EDICIÓN
    suavizar volumen, coherencia con el resumen semanal, etc.
 4) Mantén el estilo y formato habituales de EVO en las sesiones (bloques BIENVENIDA / A / B / C, timings,
    materiales, escalados). No uses kilos fijos en barra: porcentajes o RPE según método EVO.
+4.1) Política global vigente: el calentamiento NO es obligatorio. Solo conserva o añade movilidad específica
+   cuando forme parte de la estrategia del día; evita warm-up genérico y prioriza el trabajo principal en A/B/C.
 5) Coherencia entre clases del MISMO día: si modificas un patrón en una clase, alinea las demás columnas del día
    solo si es necesario para coherencia muscular o pedagógica; si no hace falta, deja el resto igual (verbatim).
 6) Columnas vacías: si una clase no aplica ese día, déjala como cadena vacía "" como en el original.

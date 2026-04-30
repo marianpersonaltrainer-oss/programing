@@ -11,8 +11,14 @@ import { AI_CONFIG, PROGRAMMING_MODEL } from '../constants/config.js'
 import { getCoachExerciseLibrary, supabase } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
-import { parseAnthropicProxyBody, isAnthropicProxyFailure } from '../utils/parseAnthropicProxyBody.js'
+import {
+  parseAnthropicProxyBody,
+  isAnthropicProxyFailure,
+  getAnthropicProxyErrorMessage,
+} from '../utils/parseAnthropicProxyBody.js'
+import { extractAnthropicTextBlocks } from '../utils/extractAnthropicTextBlocks.js'
 import { buildMesocycleProgrammingBlock } from '../constants/mesocycleGenerationBlocks.js'
+import { buildInferredMethodFromReference } from '../utils/buildInferredMethodFromReference.js'
 import {
   getReferenceMesocycleContextForLLM,
   buildReferenceMesocycleSystemAppendix,
@@ -61,6 +67,10 @@ export function useAgent(weekState) {
     const referenceAppendix = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
     if (referenceAppendix) {
       systemWithContext += referenceAppendix
+      const inferredRules = buildInferredMethodFromReference(getReferenceMesocycleContextForLLM())
+      if (inferredRules) {
+        systemWithContext += `\n\n${inferredRules}`
+      }
     }
     if (weekCtx) {
       systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`
@@ -136,9 +146,12 @@ export function useAgent(weekState) {
       }
 
       if (!response.ok || isAnthropicProxyFailure(data)) {
-        throw new Error(data?.error?.message || `Error ${response.status}`)
+        throw new Error(getAnthropicProxyErrorMessage(data, responseText, response.status))
       }
-      const assistantContent = data.content?.[0]?.text || ''
+      const assistantContent = extractAnthropicTextBlocks(data)
+      if (!assistantContent.trim()) {
+        throw new Error('La API no devolvió texto del asistente.')
+      }
 
       const updated = [
         ...newMessages,

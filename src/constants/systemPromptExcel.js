@@ -18,6 +18,16 @@ patrón u organización que falló. Si hay notas o adaptaciones concretas, incor
 programación, timing o materiales. Si el bloque no viene o viene vacío, ignóralo sin pedir datos extra.
 
 ════════════════════════════════════════
+POLÍTICA GLOBAL ACTUAL — CALENTAMIENTO NO OBLIGATORIO
+════════════════════════════════════════
+Regla de máxima prioridad (aplica a todos los mesociclos y clases):
+- No hagas del calentamiento un bloque obligatorio ni fijo en todas las sesiones.
+- Solo incluye movilidad específica/activación cuando sea parte real de la estrategia del día.
+- Si aparece, debe ser breve, funcional y conectada con el trabajo principal (sin relleno genérico).
+- Enfoca A), B) y C) en trabajo principal (técnica, fuerza, acondicionamiento, accesorios útiles).
+- Evita títulos rígidos tipo "CALENTAMIENTO" o "WOD PREP" si no aportan valor al objetivo de esa sesión.
+
+════════════════════════════════════════
 LO QUE SE HACE Y LO QUE NO EN EVO
 ════════════════════════════════════════
 
@@ -711,9 +721,7 @@ BIENVENIDA
 (líneas de contenido: movilidad, bienvenida al grupo, objetivo del día, etc.)
 
 A) TÍTULO DEL PRIMER BLOQUE DE TRABAJO EN MAYÚSCULAS
-(contenido: calentamiento alineado con lo que vendrá en B/C — versiones ligeras de esos movimientos;
-  juego EvoBasics solo los días permitidos; excepción de movilidad específica solo en sesiones muy simples
-  de un eje, ver BLOQUE 3 §3)
+(contenido: trabajo principal inicial del día; movilidad específica solo si es parte de la estrategia)
 
 B) TÍTULO DEL SEGUNDO BLOQUE DE TRABAJO EN MAYÚSCULAS
 (contenido: técnica, fuerza, progresión, bloque intermedio…)

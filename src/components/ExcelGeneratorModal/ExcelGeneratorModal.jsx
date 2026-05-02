@@ -7,6 +7,7 @@ import {
 } from '../../constants/systemPromptExcel.js'
 import { SYSTEM_PROMPT_DAY_EDIT } from '../../constants/systemPromptDayEdit.js'
 import { generateWeekExcel } from '../../utils/generateExcel.js'
+import { importProgramingEvoWeekFromXlsxBuffer } from '../../utils/importProgramingEvoWeekXlsx.js'
 import {
   saveWeekToHistory,
   getHistoryForMesocycle,
@@ -447,6 +448,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [editingPublishedIsActive, setEditingPublishedIsActive] = useState(false)
   const [savingPublishedEdit, setSavingPublishedEdit] = useState(false)
   const [savedPublishedEdit, setSavedPublishedEdit] = useState(false)
+  const [importingExcel, setImportingExcel] = useState(false)
+  const excelImportInputRef = useRef(null)
   const [activePublishedWeek, setActivePublishedWeek] = useState(null)
   const [openingActiveEdit, setOpeningActiveEdit] = useState(false)
   /** Texto de sesión alineado con el feedback (solo memoria del modal). */
@@ -1958,6 +1961,46 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
     }
   }
 
+  async function handleImportExcelChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!weekData) {
+      setErrorMsg('Primero genera o carga una semana en el modal.')
+      return
+    }
+    if (!/\.xlsx$/i.test(file.name)) {
+      setErrorMsg('Sube un .xlsx exportado desde este modal (Descargar Excel).')
+      return
+    }
+    try {
+      setImportingExcel(true)
+      setErrorMsg('')
+      const buf = await file.arrayBuffer()
+      let base
+      try {
+        base = editingJson ? JSON.parse(rawJson) : { ...weekData }
+      } catch {
+        setErrorMsg('El JSON en modo edición no es válido; desactiva «Editar JSON» o corrígelo antes de importar.')
+        return
+      }
+      base.titulo = String(editTitle || base.titulo || '').trim() || base.titulo
+      const { data, warnings } = await importProgramingEvoWeekFromXlsxBuffer(buf, base)
+      loadWeekDataIntoEditor(data, weekState.week, data.titulo || editTitle || '')
+      if (warnings.length) {
+        setDraftNotice(`Excel importado con avisos: ${warnings.join(' · ')}`)
+        window.setTimeout(() => setDraftNotice(''), 9000)
+      } else {
+        setDraftNotice('Excel importado: sesiones y feedbacks del archivo aplicados al borrador.')
+        window.setTimeout(() => setDraftNotice(''), 5500)
+      }
+    } catch (err) {
+      setErrorMsg(String(err?.message || err) || 'No se pudo importar el Excel.')
+    } finally {
+      setImportingExcel(false)
+    }
+  }
+
   const localMesoSummaries = getAllMesocycleSummaries()
 
   return (
@@ -2001,7 +2044,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               <p className="text-[9px] text-neutral-500 font-medium mt-2 max-w-xl leading-relaxed">
                 Borrador: se guarda en este navegador (historial del mesociclo) al pulsar «Guardar borrador», al bajar el
                 Excel, al cerrar el modal o unos segundos después de editar. «Publicar Hub» sigue siendo lo único que
-                activa la semana en la app.
+                activa la semana en la app. Si editaste el Excel descargado desde aquí, usa «Importar Excel» en vista previa
+                para volcar sesiones y feedbacks al JSON antes de publicar o regenerar con la IA.
                 {editingPublishedRowId ? (
                   <span className="block text-indigo-700/90 mt-0.5">
                     Semana ya en Supabase: usa «Guardar cambios» para actualizar el Hub sin publicar de nuevo.
@@ -3237,6 +3281,22 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-evo-accent/20 bg-evo-accent/5 hover:bg-evo-accent/10 disabled:opacity-50 text-evo-accent text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
                 >
                   {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}
+                </button>
+                <input
+                  ref={excelImportInputRef}
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={handleImportExcelChange}
+                />
+                <button
+                  type="button"
+                  title="Solo el Excel descargado desde aquí (mismo orden de columnas). Recupera ediciones hechas en Excel al JSON del modal."
+                  onClick={() => excelImportInputRef.current?.click()}
+                  disabled={importingExcel || !weekData}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-violet-200 bg-violet-50/90 hover:bg-violet-100 disabled:opacity-50 text-violet-900 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                >
+                  {importingExcel ? 'Importando…' : 'Importar Excel'}
                 </button>
                 <button
                   onClick={handleDownload}

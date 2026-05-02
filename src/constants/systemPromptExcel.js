@@ -698,6 +698,12 @@ Reglas:
 - Si el timing es crítico, intégralo dentro de la línea 3 (si existe) con una acción concreta de anticipación.
   Si el timing es crítico pero no hay línea 3, entonces conviértela en obligatoria ese día.
 
+COHERENCIA CON LA SESIÓN (obligatorio — evita feedback “hueco”):
+- Cada línea debe estar ligada a algo que SÍ aparece en el texto de esa clase el mismo día (bloque A/B/C, implemento, salida a calle, parejas, rack). Si no puedes enlazarlo, reescribe: el coach notará que no tiene sentido.
+- Línea 1 = acción de sala en los primeros minutos (quién dónde, qué material), no filosofía ni resumen del objetivo del mes.
+- Línea 2 = un solo cue técnico o riesgo real ligado al trabajo principal del día (no genérico “cuidado con la técnica” si no aporta).
+- No inventes problemas (tráfico en sala, doble clase, 3 materiales) si la sesión no los sugiere; la línea 3 solo si aplica según disparadores de arriba.
+
 CLASES SIMULTÁNEAS (cuando el día/programa implique dos clases a la vez con salidas distintas):
 - Si una sale a correr y la otra queda en sala: menciona dejar pasillo libre y no cruzar tráfico.
 - Si en una hay sit-ups/comba y en la otra salida a correr: una frase sobre cómo repartir espacio
@@ -798,7 +804,7 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
       "evofuerza":     "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
       "evogimnastica": "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
       "evotodos": "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
-      "feedback_funcional":  "[Briefing Marian pre-sala: formato EXACTO con \\n entre bloques; foco + línea - (org | pista calent/explicación corta) + ⚠️ + (opcional) ⏱ + ✅; 40-70 palabras total; ver TONO DEL FEEDBACK]",
+      "feedback_funcional":  "[Briefing Marian: exactamente 2 o 3 líneas que empiezan por \"-\" y \\n entre ellas; 40-70 palabras; ver TONO DEL FEEDBACK y COHERENCIA CON LA SESIÓN. Opcional una sola vez en todo el bloque: ⚠️ o ⏱ o ✅ si aporta claridad, sin forzar]",
       "feedback_basics":     "[igual que feedback_funcional]",
       "feedback_fit":        "[igual que feedback_funcional]",
       "feedback_hybrix":     "[igual que feedback_funcional]",
@@ -817,6 +823,8 @@ Voz: Marian (head coach) hablando al entrenador justo antes de entrar a sala —
 rápido entre compañeros. Anticipa lo que va a pasar para que organicen y no se les vaya el tiempo.
 
 Extensión: 35–55 palabras total; techo duro 65. Frases cortas; cero relleno.
+
+COHERENCIA: lee el texto de la sesión que te pasan. Cada línea debe referirse a algo real de ese día (rack, DB, run, bloque fuerte, parejas). No inventes “doble salida” ni “tres materiales” si el programa no lo plantea. Si no hay disparador claro para la tercera línea, quédate en 2 líneas.
 
 FORMATO EXACTO (obligatorio — 2 o 3 líneas, todas empiezan por "-"; sin títulos, sin emojis obligatorios):
 
@@ -846,6 +854,7 @@ Tu salida debe ser publicable tras ajustes mínimos (logística, nombres, timing
 - Varía lifts dominantes, formatos de fuerza, formatos WOD y accesorios entre días; la semana debe sentirse diseñada, no repetida por columnas ni por días cercanos.
 - Misma día con varias clases activas: coherencia muscular / story del día compatible entre columnas sin duplicar el mismo fallo entre ellas (el chequeo automatizado mira cada columna).
 - Calentamiento: solo movilidad/activación con objetivo explícito; evita párrafos genéricos de «movilidad general» sin vínculo con B/C/WOD.
+- Feedbacks Marian (feedback_*): 2–3 líneas con «-», cada una anclada al texto real de esa columna ese día (montaje, riesgo real del bloque fuerte); sin inventar doble salida ni «tres materiales» si el programa no lo tiene.
 
 No entregues el JSON pensando en «luego Marian lo pulirá»: optimiza YA para pasar revisión como entrenamiento experto.
 `.trim()

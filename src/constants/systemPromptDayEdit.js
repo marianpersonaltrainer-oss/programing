@@ -36,9 +36,9 @@ REGLAS DE EDICIÓN
 7) "wodbuster": actualízala solo si el usuario lo pide explícitamente o si los cambios de sesión hacen obsoleto
    el texto; si no se menciona WodBuster, copia el valor actual verbatim.
 8) Feedbacks (feedback_funcional, feedback_basics, …): si el usuario pide regenerarlos o alinearlos con el
-   nuevo entreno, reescríbelos con el mismo estilo que en generación semanal (foco; línea - con org | pista
-   corta de calent/explicación; ⚠️; ⏱ solo si crítico; ✅; ~40–70 palabras total por clase activa). Si NO pide
-   tocar feedbacks, copia los textos actuales verbatim.
+   nuevo entreno, reescríbelos como en generación semanal: voz Marian, 2–3 líneas que empiezan por "-", 40–70 palabras,
+   cada línea anclada al texto real de esa columna ese día (sin riesgos inventados ni relleno genérico). Opcional
+   una sola vez ⚠️ o ⏱ o ✅ si aporta. Si NO pide tocar feedbacks, copia los textos actuales verbatim.
 
 ════════════════════════════════════════
 SEGURIDAD

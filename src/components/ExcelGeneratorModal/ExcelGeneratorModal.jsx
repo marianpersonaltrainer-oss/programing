@@ -2595,6 +2595,20 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   <span>· rojos: {weekQuality.redCount}</span>
                   <span>· naranjas: {weekQuality.orangeCount}</span>
                   <span>· amarillos: {weekQuality.yellowCount}</span>
+                  {typeof weekQuality.scoreDaysRed === 'number' ? (
+                    <span
+                      className="font-semibold normal-case max-w-full"
+                      title="Para el número del score: un solo aviso por día y columna (peor caso entre clases ese día)."
+                    >
+                      · días (peor caso/día): {weekQuality.scoreDaysRed} rojo
+                      {typeof weekQuality.scoreDaysOrange === 'number'
+                        ? ` · ${weekQuality.scoreDaysOrange} naranja`
+                        : ''}
+                      {typeof weekQuality.scoreDaysYellow === 'number'
+                        ? ` · ${weekQuality.scoreDaysYellow} amarillo`
+                        : ''}
+                    </span>
+                  ) : null}
                   {weekQuality.hasBlocking ? <span>· requiere edición focalizada</span> : null}
                 </div>
               )}

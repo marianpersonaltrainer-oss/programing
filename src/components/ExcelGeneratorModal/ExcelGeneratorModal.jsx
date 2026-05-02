@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import {
   SYSTEM_PROMPT_EXCEL,
   SYSTEM_PROMPT_REGENERATE_FEEDBACK,
+  EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE,
   EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK,
 } from '../../constants/systemPromptExcel.js'
 import { SYSTEM_PROMPT_DAY_EDIT } from '../../constants/systemPromptDayEdit.js'
@@ -611,7 +612,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
    * Guarda la semana actual en el historial del navegador (localStorage) sin publicar en el Hub.
    * No sustituye a «Guardar cambios» cuando editas una fila ya publicada en Supabase.
    */
-  const persistDraftToLocalHistory = useCallback(() => {
+  const persistDraftToLocalHistory = useCallback((options = {}) => {
+    const force = options.force === true
     if (!weekState.mesocycle || weekData == null) return false
     let data
     try {
@@ -624,7 +626,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     data.semana = weekState.week
     data.mesociclo = weekState.mesocycle
     const sig = JSON.stringify(data)
-    if (sig === lastPersistedDraftRef.current) return false
+    if (!force && sig === lastPersistedDraftRef.current) return false
     saveWeekToHistory(weekState.mesocycle, weekState.week, data)
     setHistory(getHistoryForMesocycle(weekState.mesocycle))
     lastPersistedDraftRef.current = sig
@@ -1113,7 +1115,7 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
 
       function buildChunkMessage(chunkDays, coherenceBlock) {
         const list = [...chunkDays].join(', ')
-        const core = `${baseContext}\n\n${planSummary}\n\n${EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
+        const core = `${baseContext}\n\n${planSummary}\n\n${EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE}\n\n${EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
 
 Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
 
@@ -1261,7 +1263,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           String(acc?.resumen?.foco || ''),
         )
         const shouldChaseScore = qualityBeforePass.score < QA_TARGET_SCORE
-        const includeYellow = qaPass >= 2 && shouldChaseScore
+        /** Desde la primera pasada si hace falta subir score (menos trabajo manual para el cliente). */
+        const includeYellow = shouldChaseScore
         const criticalHintsByDay = buildCriticalHintsByDay(includeYellow)
         const blockingIdxSet = new Set([
           ...(qualityBeforePass.blockingDayIdx || []),
@@ -1352,13 +1355,16 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
   function handleSaveDraft() {
     setErrorMsg('')
-    if (!persistDraftToLocalHistory()) {
+    if (!weekState.mesocycle) {
+      setErrorMsg('Selecciona mesociclo y semana en el panel antes de guardar el borrador.')
+      return
+    }
+    if (!persistDraftToLocalHistory({ force: true })) {
       if (editingJson) {
         setErrorMsg('No se pudo guardar: el JSON en modo edición no es válido. Corrige el JSON o desactiva «Editar JSON».')
         return
       }
-      setDraftNotice('Sin cambios nuevos que guardar')
-      window.setTimeout(() => setDraftNotice(''), 2500)
+      setErrorMsg('No hay datos de semana para guardar.')
       return
     }
     setDraftNotice('Guardado en el historial del mesociclo (solo este dispositivo). Puedes cerrar sin publicar.')
@@ -1372,6 +1378,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     onClose()
   }
 
+  /**
+   * Solo bloquea publicar si hay calentamiento realmente «genérico» (combinación explícita en texto).
+   * No bloqueamos el aviso «Hay bloque de calentamiento» (solo amarillo informativo ni colgado junto con otra cosa).
+   */
+  const warmupPublishBlockPrefixes = ['Calentamiento genérico detectado']
+
   function getWarmupBlockingIssuesForPublish(dias) {
     const out = []
     const focus = String(weekData?.resumen?.foco || '')
@@ -1381,7 +1393,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       for (const row of review.rows || []) {
         if (row.placeholder) continue
         if (!(row.severity === 'orange' || row.severity === 'red')) continue
-        const warmupHints = (row.hints || []).filter((h) => /calentamiento|warm-?up|movilidad/i.test(String(h)))
+        const warmupHints = (row.hints || []).filter((h) => {
+          const s = String(h)
+          return warmupPublishBlockPrefixes.some((p) => s.startsWith(p))
+        })
         if (!warmupHints.length) continue
         out.push({
           dayLabel: row.dayLabel,
@@ -1393,10 +1408,19 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     return out
   }
 
+  function formatClientError(err) {
+    const e = err && typeof err === 'object' ? err : { message: String(err) }
+    const bits = [e.message, e.details, e.hint, e.code != null && `code=${e.code}`].filter(Boolean)
+    return bits.join(' · ') || 'Error desconocido'
+  }
+
   async function handlePublish() {
     try {
       setPublishing(true)
       setErrorMsg('')
+      if (!weekState.mesocycle || weekState.week == null) {
+        throw new Error('Falta mesociclo o número de semana en el panel izquierdo.')
+      }
       let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
       data.titulo = editTitle || data.titulo
       const warmupIssues = getWarmupBlockingIssuesForPublish(data?.dias || [])
@@ -1406,13 +1430,18 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           .map((x) => `${x.dayLabel} · ${x.classLabel}: ${x.hint}`)
           .join(' | ')
         throw new Error(
-          `Publicación bloqueada por calentamiento genérico (orange/red). Ajusta esos días y vuelve a publicar. ${top}`,
+          `Publicación bloqueada: calentamiento claramente genérico (titulado + texto tipo «movilidad general», etc.). Ajusta esos casos y vuelve a publicar. ${top}`,
         )
       }
       await publishWeek(data, weekState.mesocycle, weekState.week)
       setPublished(true)
+      try {
+        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'publish' } }))
+      } catch {
+        /* noop */
+      }
     } catch (err) {
-      setErrorMsg('Error publicando: ' + err.message)
+      setErrorMsg('Error publicando: ' + formatClientError(err))
     } finally {
       setPublishing(false)
     }
@@ -1455,8 +1484,13 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setWeekData(data)
       setRawJson(JSON.stringify(data, null, 2))
       setSavedPublishedEdit(true)
+      try {
+        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'save-published' } }))
+      } catch {
+        /* noop */
+      }
     } catch (err) {
-      setErrorMsg('Error guardando cambios en Supabase: ' + err.message)
+      setErrorMsg('Error guardando cambios en Supabase: ' + formatClientError(err))
     } finally {
       setSavingPublishedEdit(false)
     }
@@ -2553,7 +2587,11 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       ? 'bg-amber-50 border-amber-200 text-amber-800'
                       : 'bg-emerald-50 border-emerald-200 text-emerald-700'
                 }`}>
-                  <span>Score calidad: {weekQuality.score}/10</span>
+                  <span
+                    title="El score usa la severidad máxima por día entre columnas activas; R/O/A son recuentos por celda en el panel."
+                  >
+                    Score calidad: {weekQuality.score}/10
+                  </span>
                   <span>· rojos: {weekQuality.redCount}</span>
                   <span>· naranjas: {weekQuality.orangeCount}</span>
                   <span>· amarillos: {weekQuality.yellowCount}</span>

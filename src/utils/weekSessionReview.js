@@ -86,7 +86,8 @@ const BORING_TOKEN_RE = /^(reps?|rep|rondas?|rounds?|min|mins?|seg|s|series|x|rm
 const MOVEMENT_LIKE_RE =
   /\b(squat|sentadilla|press|row|remo|pull|push|deadlift|lunge|zancada|step|burpee|thruster|wall\s*ball|jump|swing|snatch|clean|jerk|dip|ring|muscle|toes|sit[\s-]?up|plank|carry|rdl|hinge|cluster|pike|handstand|box|copenhagen|pallof|kb|db|goblet|landmine|dominada|strict|kipping|c2b|lunges?|raises?|curls?|wall|shoulder|hip|bridge|raise|walk|rope|under|v[\s-]?up|negative|tempo|iso|isometric)\b/i
 
-const WARMUP_TITLE_RE = /\b(calentamiento|warm[\s-]?up|movilidad\s+inicial|wod\s*prep)\b/i
+/** No incluir «movilidad inicial» aquí: en EVO es uso habitual ligado al trabajo del día → inflaba amarillo×columna. */
+const WARMUP_TITLE_RE = /\b(calentamiento|warm[\s-]?up|wod\s*prep)\b/i
 const GENERIC_WARMUP_RE =
   /\b(movilidad\s+general|movilidad\s+articular|activacion\s+general|activaci[oó]n\s+general|trote\s+suave|cardio\s+suave)\b/i
 
@@ -425,9 +426,14 @@ function severityWeight(sev) {
   return 0
 }
 
+/** Peso del amarillo en el ratio del score (el panel sigue marcando cada celda; aquí amortiguamos falsos grandes). */
+const SCORE_YELLOW_WEIGHT = 0.45
+
 /**
  * Score semanal (0-10) + días conflictivos para autocorrección.
- * Usa la misma heurística del panel, agregada por columnas seleccionadas.
+ * Usa la misma heurística del panel. Los contadores rojos/naranjas/amarillos siguen siendo por **celdas**
+ * (útiles junto al panel). El **score** agrega por **día calendario** la severidad máxima entre columnas activas:
+ * así no se cuenta 7× el mismo aviso porque hay 7 clases ese día.
  */
 export function summarizeWeekQuality(dias, sessionKeys, resumenFoco = '') {
   const keys =
@@ -437,6 +443,8 @@ export function summarizeWeekQuality(dias, sessionKeys, resumenFoco = '') {
 
   const byClass = []
   const dayPenalty = new Map()
+  const dayWorstSeverity = new Map()
+  const daysWithAnyProgrammedColumn = new Set()
   let totalProgrammed = 0
   let redCount = 0
   let orangeCount = 0
@@ -455,7 +463,12 @@ export function summarizeWeekQuality(dias, sessionKeys, resumenFoco = '') {
     yellowCount += yellows
 
     for (const r of programmedRows) {
+      daysWithAnyProgrammedColumn.add(r.dayIdx)
       const w = severityWeight(r.severity)
+      dayWorstSeverity.set(
+        r.dayIdx,
+        maxSeverity(dayWorstSeverity.get(r.dayIdx) || 'ok', r.severity),
+      )
       if (!w) continue
       dayPenalty.set(r.dayIdx, (dayPenalty.get(r.dayIdx) || 0) + w)
     }
@@ -469,8 +482,21 @@ export function summarizeWeekQuality(dias, sessionKeys, resumenFoco = '') {
     })
   }
 
-  const weightedIssues = redCount * 3 + orangeCount * 2 + yellowCount
-  const denom = Math.max(1, totalProgrammed * 3)
+  let scoreDaysRed = 0
+  let scoreDaysOrange = 0
+  let scoreDaysYellow = 0
+  for (const sev of dayWorstSeverity.values()) {
+    if (sev === 'red') scoreDaysRed += 1
+    else if (sev === 'orange') scoreDaysOrange += 1
+    else if (sev === 'yellow') scoreDaysYellow += 1
+  }
+  const programmedDaysDistinct = Math.max(daysWithAnyProgrammedColumn.size, 1)
+
+  const weightedIssues =
+    scoreDaysRed * 3 +
+    scoreDaysOrange * 2 +
+    scoreDaysYellow * SCORE_YELLOW_WEIGHT
+  const denom = Math.max(1, programmedDaysDistinct * 3)
   const issueRatio = Math.min(1, weightedIssues / denom)
   const score = Math.max(0, Math.min(10, Number((10 - issueRatio * 10).toFixed(1))))
 
@@ -485,6 +511,10 @@ export function summarizeWeekQuality(dias, sessionKeys, resumenFoco = '') {
     redCount,
     orangeCount,
     yellowCount,
+    /** Días distintos (peor entre columnas) usados solo para interpretación del score. */
+    scoreDaysRed,
+    scoreDaysOrange,
+    scoreDaysYellow,
     blockingDayIdx,
     byClass,
     hasBlocking: redCount > 0 || blockingDayIdx.length > 0,

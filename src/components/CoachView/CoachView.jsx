@@ -331,6 +331,8 @@ export default function CoachView() {
   const newWeekToastQueuedRef = useRef(null)
   /** Sincronizado con `activeWeekRow.id` para comparar sin closures obsoletos al refrescar en foco. */
   const activeWeekIdRef = useRef(null)
+  /** Evita ignorar actualizaciones cuando el id no cambia pero `data` sí (Guardar cambios en Supabase). */
+  const activeWeekDataSigRef = useRef('')
 
   useEffect(() => {
     activeWeekIdRef.current = activeWeekRow?.id ?? null
@@ -359,18 +361,29 @@ export default function CoachView() {
         if (prevId != null) {
           setWeekData(null)
           setActiveWeekRow(null)
+          activeWeekDataSigRef.current = ''
           if (step === 'chat') setStep('noweek')
         }
         return
       }
-      if (week.id === prevId) return
-      setIsWeekSwitching(true)
-      // Semana activa distinta: limpiamos estado ligado a la semana anterior para evitar stale UI.
-      resetWeekDerivedState()
-      setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
+      const dataSig = JSON.stringify(week?.data ?? null)
+      if (week.id === prevId && dataSig === activeWeekDataSigRef.current) {
+        return
+      }
+      activeWeekDataSigRef.current = dataSig
+
+      if (week.id !== prevId) {
+        setIsWeekSwitching(true)
+        resetWeekDerivedState()
+        setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
+        setWeekData(week.data)
+        setActiveDay(defaultActiveDayNameFromWeek(week.data))
+        setIsWeekSwitching(false)
+        return
+      }
+
+      // Misma fila activa: JSON actualizado en remoto (p. ej. programador → «Guardar cambios»).
       setWeekData(week.data)
-      setActiveDay(defaultActiveDayNameFromWeek(week.data))
-      setIsWeekSwitching(false)
     } catch (e) {
       console.warn('CoachView: refreshActiveWeekOnFocus', e)
       setIsWeekSwitching(false)
@@ -426,11 +439,16 @@ export default function CoachView() {
       void refreshActiveWeekOnFocus()
       refreshWeeklyCheckinModal()
     }
+    const onProgrammingHubWrite = () => {
+      void refreshActiveWeekOnFocus()
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onWinFocus)
+    window.addEventListener('evo-active-week-updated', onProgrammingHubWrite)
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onWinFocus)
+      window.removeEventListener('evo-active-week-updated', onProgrammingHubWrite)
     }
   }, [refreshActiveWeekOnFocus, refreshWeeklyCheckinModal])
 
@@ -731,6 +749,7 @@ export default function CoachView() {
         }
         setWeekData(week.data)
         setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
+        activeWeekDataSigRef.current = JSON.stringify(week?.data ?? null)
 
         const authed = localStorage.getItem(COACH_AUTH_KEY)
         const expected = getExpectedCoachCode()
@@ -801,6 +820,10 @@ export default function CoachView() {
   async function startSession(week, name) {
     if (week?.id) {
       setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
+    }
+    if (week?.data != null) {
+      setWeekData(week.data)
+      activeWeekDataSigRef.current = JSON.stringify(week.data)
     }
     try {
       const savedSession = localStorage.getItem(COACH_SESSION_KEY)

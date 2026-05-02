@@ -15,11 +15,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 // ── Semanas publicadas ────────────────────────────────────────────────────────
 
 export async function publishWeek(weekData, mesociclo, semana) {
-  // Desactivar semanas anteriores del mismo mesociclo
-  await supabase
+  const { error: deactivateErr } = await supabase
     .from('published_weeks')
     .update({ is_active: false })
     .eq('mesociclo', mesociclo)
+
+  if (deactivateErr) throw deactivateErr
 
   const { data, error } = await supabase
     .from('published_weeks')

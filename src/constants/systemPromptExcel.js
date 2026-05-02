@@ -836,6 +836,21 @@ SALIDA: solo el texto del briefing con los saltos de línea indicados. Sin JSON,
 mensaje completo, sin bloques de código.`
 
 /**
+ * Refuerzo de primera pasada: el cliente publica sin reescritura pesada — la creatividad y coherencia vienen aquí.
+ */
+export const EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE = `
+════════════════════════════════════════
+PRIMERA ENTREGA = CALIDAD DE PROGRAMADOR SENIOR
+════════════════════════════════════════
+Tu salida debe ser publicable tras ajustes mínimos (logística, nombres, timing fino — no reprogramar la semana).
+- Varía lifts dominantes, formatos de fuerza, formatos WOD y accesorios entre días; la semana debe sentirse diseñada, no repetida por columnas ni por días cercanos.
+- Misma día con varias clases activas: coherencia muscular / story del día compatible entre columnas sin duplicar el mismo fallo entre ellas (el chequeo automatizado mira cada columna).
+- Calentamiento: solo movilidad/activación con objetivo explícito; evita párrafos genéricos de «movilidad general» sin vínculo con B/C/WOD.
+
+No entregues el JSON pensando en «luego Marian lo pulirá»: optimiza YA para pasar revisión como entrenamiento experto.
+`.trim()
+
+/**
  * Se inyecta en el mensaje de usuario de cada POST de generación semanal (no solo en el panel de revisión).
  * Obliga a la IA a comprobar duplicados de lift, formatos de fuerza/WOD y patrón muscular **mientras escribe**
  * cada día, usando el JSON ya generado o el bloque «CONTEXTO YA GENERADO» si viene en la petición.

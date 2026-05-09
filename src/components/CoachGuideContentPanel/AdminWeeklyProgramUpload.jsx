@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Component, useMemo, useState } from 'react'
 import {
   getPublishedWeekByMesocycleAndWeek,
   listPublishedWeeksForMesocycle,
@@ -13,7 +13,53 @@ import {
 const MESO_OPTS = ['fuerza', 'autocarga', 'mixto']
 const WEEK_OPTS = Array.from({ length: 12 }, (_, i) => i + 1)
 
-export default function AdminWeeklyProgramUpload() {
+const SAFE_POINTS_FALLBACK = { estructura: 0, variedad: 0, coherencia: 0, feedback: 0 }
+
+function stringifyRow(x) {
+  if (x == null) return ''
+  if (typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean') return String(x)
+  try {
+    return JSON.stringify(x)
+  } catch {
+    return String(x)
+  }
+}
+
+/** Evita tirar React entero si el informe viene con un campo raro de Excel/legacy. */
+class AdminWeeklyProgramUploadBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { err: null }
+  }
+
+  static getDerivedStateFromError(err) {
+    return { err }
+  }
+
+  render() {
+    const { err } = this.state
+    if (!err) return this.props.children
+    const msg = err?.message || String(err)
+    return (
+      <div className="rounded-xl border border-red-500/50 bg-red-950/35 px-4 py-4 text-sm text-red-100 space-y-2">
+        <p className="font-evo-display font-bold uppercase tracking-wide">Error al mostrar el análisis</p>
+        <p className="text-xs opacity-90 break-words">{msg}</p>
+        <p className="text-[10px] text-[#F6E8F9]/70">
+          Abre la consola del navegador (F12 → Consola) para el stack trace, o recarga la página y prueba otro archivo.
+        </p>
+        <button
+          type="button"
+          className="h-10 px-4 rounded-lg bg-[#6A1F6D] text-[#FFFF4C] font-evo-display uppercase text-xs"
+          onClick={() => this.setState({ err: null })}
+        >
+          Reintentar vista
+        </button>
+      </div>
+    )
+  }
+}
+
+function AdminWeeklyProgramUploadInner() {
   const [file, setFile] = useState(null)
   const [batchFiles, setBatchFiles] = useState([])
   const [mesocycle, setMesocycle] = useState('autocarga')
@@ -36,13 +82,17 @@ export default function AdminWeeklyProgramUpload() {
   const canBatchAnalyze = batchFiles.length > 0 && !batchBusy
   function buildHubPayload() {
     if (!result?.parsedWeekData) return null
-    return normalizeWeekDataForEditor(
-      { ...result.parsedWeekData, mesociclo, semana: Number(week) },
-      { semana: Number(week), mesociclo },
-    )
+    try {
+      return normalizeWeekDataForEditor(
+        { ...result.parsedWeekData, mesociclo: mesocycle, semana: Number(week) },
+        { semana: Number(week), mesociclo: mesocycle },
+      )
+    } catch {
+      return null
+    }
   }
 
-  const hubPayloadPreview = buildHubPayload()
+  const hubPayloadPreview = useMemo(() => buildHubPayload(), [result, mesocycle, week])
   const canSubirAlHub =
     !!hubPayloadPreview && weekHasMeaningfulSessionContent(hubPayloadPreview) && !importing && !busy
   /** Botón visible tras analizar aunque falle el chequeo de contenido (al pulsar se muestra el motivo). */
@@ -64,6 +114,18 @@ export default function AdminWeeklyProgramUpload() {
     if (key === 'aprobado_con_alertas') return 'text-amber-300'
     return 'text-emerald-300'
   }, [result])
+
+  const alertsSafe = Array.isArray(result?.alerts) ? result.alerts : []
+  const blockingSafe = Array.isArray(result?.blockingReasons) ? result.blockingReasons : []
+  const pendingSafe = Array.isArray(result?.pendingCorrections)
+    ? result.pendingCorrections
+    : Array.isArray(result?.failed)
+      ? result.failed
+      : []
+  const pointsSafe =
+    result?.points && typeof result.points === 'object' && result.points !== null
+      ? result.points
+      : SAFE_POINTS_FALLBACK
 
   async function handleAnalyze() {
     if (!file) return
@@ -580,10 +642,18 @@ export default function AdminWeeklyProgramUpload() {
             </div>
           ) : null}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Estructura: {result.points.estructura}/25</p>
-            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Variedad: {result.points.variedad}/25</p>
-            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Coherencia: {result.points.coherencia}/25</p>
-            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Feedback: {result.points.feedback}/25</p>
+            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
+              Estructura: {pointsSafe.estructura ?? 0}/25
+            </p>
+            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
+              Variedad: {pointsSafe.variedad ?? 0}/25
+            </p>
+            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
+              Coherencia: {pointsSafe.coherencia ?? 0}/25
+            </p>
+            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
+              Feedback: {pointsSafe.feedback ?? 0}/25
+            </p>
           </div>
           {result.coachReview ? (
             <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
@@ -626,25 +696,25 @@ export default function AdminWeeklyProgramUpload() {
               ))}
             </div>
           ) : null}
-          {(result.blockingReasons || []).length ? (
+          {blockingSafe.length ? (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-red-400/90 mb-1">Bloqueantes</p>
               <ul className="space-y-1 max-h-32 overflow-y-auto">
-                {result.blockingReasons.map((b, i) => (
+                {blockingSafe.map((b, i) => (
                   <li key={`blk-${i}`} className="text-xs text-red-200">
-                    - {b}
+                    - {stringifyRow(b)}
                   </li>
                 ))}
               </ul>
             </div>
           ) : null}
-          {(result.pendingCorrections || result.failed || []).length ? (
+          {pendingSafe.length ? (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-orange-300/90 mb-1">Pendiente de corrección</p>
               <ul className="space-y-1 max-h-40 overflow-y-auto">
-                {(result.pendingCorrections || result.failed || []).slice(0, 80).map((f, i) => (
+                {pendingSafe.slice(0, 80).map((f, i) => (
                   <li key={`pend-${i}`} className="text-xs text-orange-100">
-                    - {f}
+                    - {stringifyRow(f)}
                   </li>
                 ))}
               </ul>
@@ -653,17 +723,25 @@ export default function AdminWeeklyProgramUpload() {
           <div>
             <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA] mb-1">Alertas</p>
             <ul className="space-y-1 max-h-44 overflow-y-auto">
-              {result.alerts.slice(0, 120).map((a, i) => (
-                <li key={`${i}-${a}`} className="text-xs text-amber-200/95">
-                  - {a}
+              {alertsSafe.slice(0, 120).map((a, i) => (
+                <li key={`${i}-${stringifyRow(a).slice(0, 120)}`} className="text-xs text-amber-200/95">
+                  - {stringifyRow(a)}
                 </li>
               ))}
-              {!result.alerts.length ? <li className="text-xs text-emerald-200">- Sin alertas</li> : null}
+              {!alertsSafe.length ? <li className="text-xs text-emerald-200">- Sin alertas</li> : null}
             </ul>
           </div>
         </div>
       ) : null}
     </section>
+  )
+}
+
+export default function AdminWeeklyProgramUpload() {
+  return (
+    <AdminWeeklyProgramUploadBoundary>
+      <AdminWeeklyProgramUploadInner />
+    </AdminWeeklyProgramUploadBoundary>
   )
 }
 

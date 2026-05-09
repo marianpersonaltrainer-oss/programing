@@ -66,6 +66,10 @@ import {
 } from '../../utils/weekSessionReview.js'
 import { buildMesocycleProgrammingBlock } from '../../constants/mesocycleGenerationBlocks.js'
 import { buildInferredMethodFromReference } from '../../utils/buildInferredMethodFromReference.js'
+import {
+  normalizeWeekDataForEditor,
+  weekHasMeaningfulSessionContent,
+} from '../../utils/normalizeWeekDataForEditor.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
@@ -458,6 +462,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [openingActiveEdit, setOpeningActiveEdit] = useState(false)
   /** Texto de sesión alineado con el feedback (solo memoria del modal). */
   const sessionFingerprintsRef = useRef(new Map())
+  const weekDataRef = useRef(null)
+  weekDataRef.current = weekData
   const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
   const [regeneratingFeedbackKey, setRegeneratingFeedbackKey] = useState(null)
   /** LUNES–SÁBADO: fuente de verdad de qué días pide generar el cliente (el texto solo añade preservados/excluidos). */
@@ -584,6 +590,21 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
   }, [weekState.mesocycle, weekState.week, weekState.phase, briefingRetry])
 
+  /** Cambiar mesociclo/semana en el panel debe limpiar la rejilla anterior (la auto-carga trae la fila del slot nuevo). */
+  useEffect(() => {
+    if (!weekState.mesocycle || weekState.week == null) return
+    setWeekData(null)
+    setRawJson('')
+    setEditingPublishedRowId(null)
+    setEditingPublishedIsActive(false)
+    setSavedPublishedEdit(false)
+    setPublished(false)
+    setStatus('idle')
+    setEditTitle('')
+    setEditSheetName(`S${weekState.week || 1}`)
+    lastPersistedDraftRef.current = ''
+  }, [weekState.mesocycle, weekState.week])
+
   /** Tras cargar el briefing, alinear historial local con semanas ya publicadas en Supabase (p. ej. S6 en Hub pero no en localStorage). */
   useEffect(() => {
     if (briefingStatus !== 'ready' || !weekState.mesocycle) return undefined
@@ -595,13 +616,17 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         const existingHistory = getHistoryForMesocycle(weekState.mesocycle)
         const existingBySemana = new Set(existingHistory.map((e) => Number(e?.semana || 0)))
         for (const row of rows) {
-          if (!row?.data || !Array.isArray(row.data.dias)) continue
+          if (!row?.data) continue
           // No pisar borradores locales ya guardados en este dispositivo.
           if (existingBySemana.has(Number(row.semana))) continue
-          const data = JSON.parse(JSON.stringify(row.data))
+          const data = normalizeWeekDataForEditor(row.data, {
+            semana: Number(row.semana),
+            mesociclo: weekState.mesocycle,
+          })
           data.semana = Number(row.semana)
           data.titulo = row.titulo || data.titulo
           data.mesociclo = weekState.mesocycle
+          if (!weekHasMeaningfulSessionContent(data)) continue
           saveWeekToHistory(weekState.mesocycle, Number(row.semana), data)
         }
         setHistory(getHistoryForMesocycle(weekState.mesocycle))
@@ -613,6 +638,39 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       cancelled = true
     }
   }, [briefingStatus, weekState.mesocycle])
+
+  /** Semana publicada para este slot: precargar rejilla si el modal aún no tiene datos locales. */
+  useEffect(() => {
+    if (briefingStatus !== 'ready' || !weekState.mesocycle || weekState.week == null) return undefined
+    const mesoTarget = weekState.mesocycle
+    const semTarget = Number(weekState.week)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const row = await getPublishedWeekByMesocycleAndWeek(mesoTarget, semTarget)
+        if (cancelled || !row?.data || mesoTarget !== weekState.mesocycle || semTarget !== Number(weekState.week)) {
+          return
+        }
+        const normalized = normalizeWeekDataForEditor(row.data, {
+          semana: Number(row.semana),
+          mesociclo: row.mesociclo || mesoTarget,
+        })
+        if (!weekHasMeaningfulSessionContent(normalized)) return
+        const cur = weekDataRef.current
+        if (cur && weekHasMeaningfulSessionContent(cur)) return
+        if (mesoTarget !== weekState.mesocycle || semTarget !== Number(weekState.week)) return
+        setEditingPublishedRowId(row.id || null)
+        setEditingPublishedIsActive(!!row.is_active)
+        loadWeekDataIntoEditor(normalized, Number(row.semana), row.titulo || normalized.titulo || '')
+        onSyncWeekFromHistory?.(Number(row.semana), weekState.mesocycle, normalized.phase || null)
+      } catch (e) {
+        console.warn('[ExcelGeneratorModal] auto-carga semana desde Supabase:', e?.message || e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [briefingStatus, weekState.mesocycle, weekState.week, onSyncWeekFromHistory])
 
   useEffect(() => {
     const n = weekData?.dias?.length ?? 0
@@ -694,10 +752,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         )
         if (!go) return
       }
-      const row = (await refreshActivePublishedWeek()) || activePublishedWeek
-      if (!row?.data || !Array.isArray(row.data.dias)) {
+      let row = null
+      try {
+        if (weekState.mesocycle && weekState.week != null) {
+          row = await getPublishedWeekByMesocycleAndWeek(weekState.mesocycle, Number(weekState.week))
+        }
+      } catch {
+        row = null
+      }
+      if (!row?.data) {
+        row = (await refreshActivePublishedWeek()) || activePublishedWeek
+      }
+      if (!row?.data) {
         setErrorMsg(
-          'No hay semana activa editable en el Hub ahora mismo. Si acabas de publicar, cierra y abre el modal para refrescar o revisa permisos de lectura.',
+          'No hay semana del Hub editable para este mesociclo/semana ni semana activa global. Si acabas de publicar, cierra y abre el modal para refrescar o revisa permisos de lectura.',
         )
         return
       }
@@ -1517,14 +1585,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
   }
 
   function openPublishedRowForEdit(row, fallbackSemana = null, fallbackMeso = null) {
-    if (!row?.data || !Array.isArray(row.data.dias)) {
+    if (!row?.data) {
       setErrorMsg('La semana publicada no tiene JSON editable válido en Supabase.')
       setStatus((s) => (s === 'previewing' ? 'previewing' : 'error'))
       return
     }
     const semana = Number(row.semana) || Number(fallbackSemana) || 1
     const mesociclo = row.mesociclo || fallbackMeso || weekState.mesocycle || null
-    const sourceData = JSON.parse(JSON.stringify(row.data))
+    const sourceData = normalizeWeekDataForEditor(row.data, { semana, mesociclo })
     sourceData.semana = semana
     sourceData.mesociclo = mesociclo || sourceData.mesociclo
     setEditingPublishedRowId(row.id || null)
@@ -1912,11 +1980,14 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
     }
 
     let sourceData = null
-    if (entry?.weekDataFull && Array.isArray(entry.weekDataFull.dias)) {
-      sourceData = JSON.parse(JSON.stringify(entry.weekDataFull))
+    if (entry?.weekDataFull) {
+      sourceData = normalizeWeekDataForEditor(entry.weekDataFull, {
+        semana: Number(entry.semana),
+        mesociclo: mesociclo || entry.weekDataFull?.mesociclo || '',
+      })
       setEditingPublishedRowId(publishedRow?.id || null)
       setEditingPublishedIsActive(!!publishedRow?.is_active)
-    } else if (publishedRow?.data && Array.isArray(publishedRow.data.dias)) {
+    } else if (publishedRow?.data) {
       openPublishedRowForEdit(publishedRow, entry?.semana, mesociclo)
       return
     }
@@ -2023,8 +2094,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (!weekData) {
-      setErrorMsg('Primero genera o carga una semana en el modal.')
+    if (!weekState.mesocycle || weekState.week == null) {
+      setErrorMsg('Selecciona mesociclo y semana en el panel antes de importar el Excel.')
       return
     }
     if (!/\.xlsx$/i.test(file.name)) {
@@ -2037,7 +2108,11 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       const buf = await file.arrayBuffer()
       let base
       try {
-        base = editingJson ? JSON.parse(rawJson) : { ...weekData }
+        if (weekData) {
+          base = editingJson ? JSON.parse(rawJson) : { ...weekData }
+        } else {
+          base = buildWeekSkeleton(Number(weekState.week), weekState.mesocycle)
+        }
       } catch {
         setErrorMsg('El JSON en modo edición no es válido; desactiva «Editar JSON» o corrígelo antes de importar.')
         return
@@ -3455,7 +3530,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   type="button"
                   title="Solo el Excel descargado desde aquí (mismo orden de columnas). Recupera ediciones hechas en Excel al JSON del modal."
                   onClick={() => excelImportInputRef.current?.click()}
-                  disabled={importingExcel || !weekData}
+                  disabled={
+                    importingExcel || !weekState.mesocycle || weekState.week == null
+                  }
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-violet-200 bg-violet-50/90 hover:bg-violet-100 disabled:opacity-50 text-violet-900 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
                 >
                   {importingExcel ? 'Importando…' : 'Importar Excel'}

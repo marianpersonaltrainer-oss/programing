@@ -125,7 +125,35 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
  * Upsert idempotente por slot lógico (mesociclo + semana).
  * Si existe una fila publicada previa en ese slot, la actualiza; si no, inserta nueva fila no activa.
  */
-export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana) {
+/**
+ * Una sola semana visible en el Hub para coaches: desactiva el resto y activa la del slot (mesociclo + semana).
+ * Debe ejecutarse tras guardar datos con `upsertPublishedWeekBySlot` si quieres que `getActiveWeek()` devuelva esta semana.
+ */
+export async function activatePublishedWeekForHub(mesociclo, semana) {
+  if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
+  const row = await getPublishedWeekByMesocycleAndWeek(mesociclo, semana)
+  if (!row?.id) throw new Error('No se encontró la fila publicada para activar en el Hub')
+  const { error: offErr } = await supabase
+    .from('published_weeks')
+    .update({ is_active: false })
+    .neq('id', '00000000-0000-0000-0000-000000000000')
+  if (offErr) {
+    console.warn(
+      'activatePublishedWeekForHub: no se pudieron desactivar todas las semanas (revisa RLS). Se activa solo esta fila con published_at reciente.',
+      offErr.message,
+    )
+  }
+  const now = new Date().toISOString()
+  const { error: onErr } = await supabase
+    .from('published_weeks')
+    .update({ is_active: true, published_at: now })
+    .eq('id', row.id)
+  if (onErr) throw onErr
+  return { id: row.id, mesociclo: row.mesociclo, semana: row.semana }
+}
+
+export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, options = {}) {
+  const { activateForHub = true } = options
   if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
   const prev = await getPublishedWeekByMesocycleAndWeek(mesociclo, semana)
   if (prev?.id) {
@@ -134,7 +162,10 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana) {
       mesociclo,
       semana: Number(semana),
     })
-    return { id: prev.id, mode: 'update' }
+    if (activateForHub) {
+      await activatePublishedWeekForHub(mesociclo, semana)
+    }
+    return { id: prev.id, mode: 'update', active: !!activateForHub }
   }
   const { data, error } = await supabase
     .from('published_weeks')
@@ -152,7 +183,10 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana) {
     .select('id')
     .single()
   if (error) throw error
-  return { id: data?.id || null, mode: 'insert' }
+  if (activateForHub) {
+    await activatePublishedWeekForHub(mesociclo, semana)
+  }
+  return { id: data?.id || null, mode: 'insert', active: !!activateForHub }
 }
 
 /**

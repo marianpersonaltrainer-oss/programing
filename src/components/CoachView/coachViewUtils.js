@@ -23,13 +23,27 @@ export function hasProgrammedSessionText(val) {
   return true
 }
 
+const NORM_DAY = (s) =>
+  String(s || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s*·\s*/g, ' ')
+    .split(/\s+/)[0] || ''
+
 export function findDia(dias, name) {
   if (!name || name === 'show') return null
-  return dias.find(
-    (d) =>
-      d.nombre === name ||
-      (d.nombre && name && String(d.nombre).trim().toUpperCase() === String(name).trim().toUpperCase()),
-  )
+  const want = NORM_DAY(name)
+  return dias.find((d) => {
+    if (!d?.nombre) return false
+    if (d.nombre === name) return true
+    const a = String(d.nombre).trim().toUpperCase()
+    const b = String(name).trim().toUpperCase()
+    if (a === b) return true
+    if (want && NORM_DAY(d.nombre) === want) return true
+    return false
+  })
 }
 
 export function previewText(text, maxLines = 4, maxChars = 320) {
@@ -101,7 +115,11 @@ const NORM = (s) =>
 
 /** `dia.nombre` (LUNES, MIÉRCOLES…) → clave `CoachSessionFeedbackForm` / DAYS_ORDER */
 export function dayNombreToFeedbackKey(nombre) {
-  const n = NORM(nombre)
+  const first = String(nombre || '')
+    .trim()
+    .split(/[\s·]+/)[0]
+    .trim()
+  const n = NORM(first)
   const map = {
     LUNES: 'monday',
     MARTES: 'tuesday',
@@ -116,9 +134,8 @@ export function dayNombreToFeedbackKey(nombre) {
 /** Vecinos en el array `dias` publicado (mismo orden que la semana). */
 export function getAdjacentDayNames(dias, activeName) {
   if (!Array.isArray(dias) || !activeName || activeName === 'show') return { prev: null, next: null }
-  const i = dias.findIndex(
-    (d) => NORM(d?.nombre) === NORM(activeName),
-  )
+  const target = NORM_DAY(activeName)
+  const i = dias.findIndex((d) => NORM_DAY(d?.nombre) === target || NORM(d?.nombre) === NORM(activeName))
   if (i < 0) return { prev: null, next: null }
   return {
     prev: i > 0 ? dias[i - 1]?.nombre ?? null : null,

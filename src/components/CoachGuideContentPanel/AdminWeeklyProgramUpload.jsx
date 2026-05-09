@@ -1,33 +1,68 @@
 import { useMemo, useState } from 'react'
 import {
   getPublishedWeekByMesocycleAndWeek,
+  listPublishedWeeksForMesocycle,
   upsertPublishedWeekBySlot,
 } from '../../lib/supabase.js'
-import { analyzeWeeklyProgramXlsx } from '../../utils/analyzeWeeklyProgramXlsx.js'
+import { analyzeWeeklyProgramXlsx, generateCreativeProgrammingSuggestions } from '../../utils/analyzeWeeklyProgramXlsx.js'
+import {
+  normalizeWeekDataForEditor,
+  weekHasMeaningfulSessionContent,
+} from '../../utils/normalizeWeekDataForEditor.js'
 
 const MESO_OPTS = ['fuerza', 'autocarga', 'mixto']
 const WEEK_OPTS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 export default function AdminWeeklyProgramUpload() {
   const [file, setFile] = useState(null)
+  const [batchFiles, setBatchFiles] = useState([])
   const [mesocycle, setMesocycle] = useState('autocarga')
   const [week, setWeek] = useState(1)
   const [phase, setPhase] = useState('')
   const [busy, setBusy] = useState(false)
+  const [batchBusy, setBatchBusy] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [batchResult, setBatchResult] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
   const [partialWeekMode, setPartialWeekMode] = useState(true)
+  const [experienciaEvoEnabled, setExperienciaEvoEnabled] = useState(true)
+  const [creativeGoal, setCreativeGoal] = useState('equilibrio')
+  const [creativeIdeas, setCreativeIdeas] = useState([])
+  const [subirHubAutomatico, setSubirHubAutomatico] = useState(false)
 
   const canAnalyze = !!file && !busy
-  const canImport = result?.score > 70 && !importing
+  const canBatchAnalyze = batchFiles.length > 0 && !batchBusy
+  function buildHubPayload() {
+    if (!result?.parsedWeekData) return null
+    return normalizeWeekDataForEditor(
+      { ...result.parsedWeekData, mesociclo, semana: Number(week) },
+      { semana: Number(week), mesociclo },
+    )
+  }
+
+  const hubPayloadPreview = buildHubPayload()
+  const canSubirAlHub =
+    !!hubPayloadPreview && weekHasMeaningfulSessionContent(hubPayloadPreview) && !importing && !busy
+  /** Botón visible tras analizar aunque falle el chequeo de contenido (al pulsar se muestra el motivo). */
+  const showSubirHubButton = !!(result?.parsedWeekData && !busy)
+
+  const statusBadgeClass = useMemo(() => {
+    const key = result?.kpi?.status || result?.validationOutcome?.key
+    if (key === 'bloqueado') return 'bg-red-950/80 border-red-500/60 text-red-100'
+    if (key === 'revision_necesaria') return 'bg-orange-950/60 border-orange-500/50 text-orange-100'
+    if (key === 'aprobado_con_alertas') return 'bg-amber-950/50 border-amber-500/50 text-amber-100'
+    return 'bg-emerald-950/50 border-emerald-500/50 text-emerald-100'
+  }, [result])
 
   const bucketClass = useMemo(() => {
     if (!result) return 'text-[#F6E8F9]'
-    if (result.score >= 85) return 'text-emerald-300'
-    if (result.score >= 70) return 'text-amber-300'
-    return 'text-red-300'
+    const key = result?.kpi?.status || result?.validationOutcome?.key
+    if (key === 'bloqueado') return 'text-red-300'
+    if (key === 'revision_necesaria') return 'text-orange-300'
+    if (key === 'aprobado_con_alertas') return 'text-amber-300'
+    return 'text-emerald-300'
   }, [result])
 
   async function handleAnalyze() {
@@ -42,19 +77,63 @@ export default function AdminWeeklyProgramUpload() {
         const prev = await getPublishedWeekByMesocycleAndWeek(mesocycle, Number(week) - 1)
         previousWeekData = prev?.data || null
       }
+      const mesoHistory = await listPublishedWeeksForMesocycle(mesocycle)
+      const historicalWeeksData = (mesoHistory || [])
+        .filter((row) => Number(row?.semana) < Number(week))
+        .slice(-4)
+        .map((row) => row?.data)
+        .filter(Boolean)
       const out = await analyzeWeeklyProgramXlsx({
         buffer: buf,
         mesocycle,
         week: Number(week),
         phase,
         previousWeekData,
+        historicalWeeksData,
         scope: {
           partialWeek: partialWeekMode,
           activeClassesOnly: partialWeekMode,
           draftMode: partialWeekMode,
+          experienciaEvo: experienciaEvoEnabled,
         },
       })
       setResult(out)
+      setCreativeIdeas(
+        generateCreativeProgrammingSuggestions({
+          weekData: out?.parsedWeekData,
+          objective: creativeGoal,
+          historicalInsights: out?.historicalInsights,
+        }),
+      )
+      if (subirHubAutomatico && out?.parsedWeekData) {
+        const normalized = normalizeWeekDataForEditor(
+          { ...out.parsedWeekData, mesociclo: mesocycle, semana: Number(week) },
+          { semana: Number(week), mesociclo: mesocycle },
+        )
+        if (weekHasMeaningfulSessionContent(normalized)) {
+          setImporting(true)
+          try {
+            const r = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week))
+            setImportMsg(
+              r?.active !== false
+                ? 'Subida automática al Hub OK. Abre «Generar programación semanal» para ver la rejilla o recarga ?coach=1.'
+                : 'Guardado en Supabase (revisa activación).',
+            )
+            try {
+              window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload-auto' } }))
+            } catch {
+              /* noop */
+            }
+          } catch (upErr) {
+            const msg = upErr?.message || String(upErr)
+            setError(
+              `Subida automática fallida: ${msg}. Revisa permisos Supabase (RLS) o vuelve a intentar con «Subir al Hub».`,
+            )
+          } finally {
+            setImporting(false)
+          }
+        }
+      }
     } catch (e) {
       setError(e?.message || 'No se pudo analizar el Excel')
       setResult(null)
@@ -63,21 +142,143 @@ export default function AdminWeeklyProgramUpload() {
     }
   }
 
-  async function handleImportAnyway() {
-    if (!result?.parsedWeekData || !canImport) return
-    setImporting(true)
+  function handleGenerateCreativeIdeas() {
+    if (!result?.parsedWeekData) return
+    const ideas = generateCreativeProgrammingSuggestions({
+      weekData: result.parsedWeekData,
+      objective: creativeGoal,
+      historicalInsights: result.historicalInsights,
+    })
+    setCreativeIdeas(ideas)
+  }
+
+  function inferWeekFromFileName(name, fallback) {
+    const s = String(name || '')
+    const m1 = s.match(/(?:^|[\s_\-])(?:S|s)(\d{1,2})(?=\b|[\s_\-]|\.)/)
+    const m2 = s.match(/\b(?:s|semana)\s*([0-9]{1,2})\b/i)
+    const n = Number((m1 || m2)?.[1])
+    if (Number.isFinite(n) && n >= 1 && n <= 52) return n
+    return fallback
+  }
+
+  async function handleAnalyzeBatch() {
+    if (!batchFiles.length) return
+    setBatchBusy(true)
     setError('')
     setImportMsg('')
+    setBatchResult(null)
     try {
-      const weekData = {
-        ...result.parsedWeekData,
-        mesociclo: mesocycle,
-        semana: Number(week),
+      const filesSorted = [...batchFiles].sort((a, b) => inferWeekFromFileName(a.name, 999) - inferWeekFromFileName(b.name, 999))
+      const rows = []
+      const alertFreq = new Map()
+      const recFreq = new Map()
+      let prevParsedWeek = null
+      for (let i = 0; i < filesSorted.length; i += 1) {
+        const f = filesSorted[i]
+        const detectedWeek = inferWeekFromFileName(f.name, i + 1)
+        const buf = await f.arrayBuffer()
+        const out = await analyzeWeeklyProgramXlsx({
+          buffer: buf,
+          mesocycle,
+          week: detectedWeek,
+          phase,
+          previousWeekData: prevParsedWeek,
+          historicalWeeksData: rows.map((r) => r.parsedWeekData).filter(Boolean).slice(-4),
+          scope: {
+            partialWeek: partialWeekMode,
+            activeClassesOnly: partialWeekMode,
+            draftMode: partialWeekMode,
+            experienciaEvo: experienciaEvoEnabled,
+          },
+        })
+        rows.push({
+          fileName: f.name,
+          week: detectedWeek,
+          score: out.score,
+          statusLabel: out.kpi?.statusLabel || out.validationOutcome?.label,
+          basicScore: out.basicScore,
+          qualityScore: out.qualityScore,
+          alertsCount: out.alerts.length,
+          pendingCount: out.pendingCorrections?.length ?? out.failed?.length ?? 0,
+          blockingCount: out.blockingReasons?.length ?? 0,
+          topAlert: out.alerts[0] || 'Sin alertas',
+          topRecommendation: out.smartRecommendations?.[0] || 'Sin recomendación',
+          parsedWeekData: out.parsedWeekData,
+        })
+        prevParsedWeek = out.parsedWeekData
+        for (const a of out.alerts || []) {
+          const key = String(a).trim().toLowerCase()
+          alertFreq.set(key, (alertFreq.get(key) || 0) + 1)
+        }
+        for (const r of out.smartRecommendations || []) {
+          const key = String(r).trim().toLowerCase()
+          recFreq.set(key, (recFreq.get(key) || 0) + 1)
+        }
       }
-      await upsertPublishedWeekBySlot(weekData, mesocycle, Number(week))
-      setImportMsg('Importación completada: semana guardada en Supabase (idempotente por semana + mesociclo).')
+      const avg =
+        rows.length > 0
+          ? Math.round(rows.reduce((acc, r) => acc + Number(r.score || 0), 0) / rows.length)
+          : 0
+      const topAlerts = [...alertFreq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([text, count]) => ({ text, count }))
+      const topRecs = [...recFreq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([text, count]) => ({ text, count }))
+
+      setBatchResult({
+        totalFiles: rows.length,
+        averageScore: avg,
+        rows,
+        topAlerts,
+        topRecs,
+      })
+      setImportMsg('Lote analizado. Revisa patrones repetidos y valor real de recomendaciones.')
     } catch (e) {
-      setError(e?.message || 'No se pudo importar en Supabase')
+      setError(e?.message || 'No se pudo analizar el lote de semanas')
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
+  async function handleSubirAlHub() {
+    setError('')
+    setImportMsg('')
+    if (!result?.parsedWeekData) {
+      setError('Primero analiza el Excel con el botón morado.')
+      return
+    }
+    const normalized = buildHubPayload()
+    if (!normalized) {
+      setError('No se pudo preparar los datos. Vuelve a analizar el archivo.')
+      return
+    }
+    if (!weekHasMeaningfulSessionContent(normalized)) {
+      setError(
+        'No hay texto de sesión reconocible (solo celdas vacías o «no programada»). Revisa mesociclo/semana, el Excel o desactiva modo borrador si la hoja está incompleta.',
+      )
+      return
+    }
+    setImporting(true)
+    try {
+      const r = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week))
+      setImportMsg(
+        r?.active !== false
+          ? 'Hub actualizado: semana activa para coaches. Abre «Generar programación semanal» (abajo) para verla en el generador, o recarga la pestaña ?coach=1.'
+          : 'Guardado en Supabase. Si no se activa sola, revisa políticas RLS o la consola.',
+      )
+      try {
+        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload' } }))
+      } catch {
+        /* noop */
+      }
+    } catch (e) {
+      const msg = e?.message || String(e)
+      setError(
+        `No se pudo subir al Hub: ${msg}${/policy|rls|permission|42501/i.test(msg) ? ' — Revisa políticas RLS de published_weeks para INSERT/UPDATE con la anon key.' : ''}`,
+      )
     } finally {
       setImporting(false)
     }
@@ -98,7 +299,7 @@ export default function AdminWeeklyProgramUpload() {
   return (
     <section className="space-y-4">
       <p className="text-sm text-[#F6E8F9CC]">
-        Sube un Excel semanal, analízalo con scoring automático y solo luego importa en Supabase.
+        Sube un Excel, analízalo y pulsa «Subir al Hub» para guardar la semana en Supabase y activarla para coaches. La columna «Semana / Programar día» del panel es otro flujo (sesiones del chat); lo que subes aquí se ve en «Generar programación semanal» y en la vista coach.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -107,7 +308,14 @@ export default function AdminWeeklyProgramUpload() {
           <input
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0] || null
+              setFile(f)
+              if (f?.name) {
+                const inferred = inferWeekFromFileName(f.name, week)
+                if (inferred !== week) setWeek(inferred)
+              }
+            }}
             className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
           />
         </label>
@@ -159,6 +367,41 @@ export default function AdminWeeklyProgramUpload() {
         />
         Modo semana parcial / draft (no penaliza plantilla incompleta)
       </label>
+      <label className="inline-flex items-center gap-2 text-xs text-[#F6E8F9CC]">
+        <input
+          type="checkbox"
+          checked={experienciaEvoEnabled}
+          onChange={(e) => setExperienciaEvoEnabled(e.target.checked)}
+        />
+        Capa Experiencia EVO (lectura cualitativa; no cambia el score técnico)
+      </label>
+      <label className="inline-flex items-center gap-2 text-xs text-[#F6E8F9CC]">
+        <input
+          type="checkbox"
+          checked={subirHubAutomatico}
+          onChange={(e) => setSubirHubAutomatico(e.target.checked)}
+        />
+        Tras analizar, subir al Hub automáticamente (activa la semana en la app)
+      </label>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <label className="space-y-1 md:col-span-2">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Objetivo assistant creativo</span>
+          <input
+            value={creativeGoal}
+            onChange={(e) => setCreativeGoal(e.target.value)}
+            placeholder="Ej.: más atlética / menos caos logístico / más pedagógica"
+            className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={handleGenerateCreativeIdeas}
+          disabled={!result}
+          className="h-11 mt-auto px-4 rounded-lg bg-[#4C1D95] text-white font-evo-display uppercase disabled:opacity-50"
+        >
+          Generar ideas
+        </button>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -169,6 +412,17 @@ export default function AdminWeeklyProgramUpload() {
         >
           {busy ? 'Analizando…' : 'Analizar antes de importar'}
         </button>
+        {showSubirHubButton ? (
+          <button
+            type="button"
+            onClick={handleSubirAlHub}
+            disabled={importing || busy}
+            title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
+            className="h-11 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
+          >
+            {importing ? 'Subiendo al Hub…' : 'Subir al Hub'}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleExportReport}
@@ -177,15 +431,64 @@ export default function AdminWeeklyProgramUpload() {
         >
           Exportar informe
         </button>
-        {canImport ? (
+      </div>
+
+      <div className="rounded-xl border border-[#6A1F6D]/40 bg-[#221427] p-3 space-y-2">
+        <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Laboratorio real (lote de semanas)</p>
+        <p className="text-xs text-[#F6E8F9CC]">
+          Sube varias semanas .xlsx para validar el sistema con casos reales (fuerza/autocarga/mixto, simples/complejas) sin añadir reglas nuevas.
+        </p>
+        <input
+          type="file"
+          multiple
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={(e) => setBatchFiles(Array.from(e.target.files || []))}
+          className="w-full h-11 rounded-lg bg-[#1A0F1E] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+        />
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleImportAnyway}
-            disabled={importing}
-            className="h-11 px-4 rounded-lg bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50"
+            onClick={handleAnalyzeBatch}
+            disabled={!canBatchAnalyze}
+            className="h-10 px-4 rounded-lg bg-[#6A1F6D] text-[#FFFF4C] font-evo-display uppercase disabled:opacity-50"
           >
-            {importing ? 'Importando…' : 'Importar de todas formas'}
+            {batchBusy ? 'Analizando lote…' : `Analizar lote (${batchFiles.length})`}
           </button>
+          {batchFiles.length ? <p className="text-xs text-[#F6E8F9AA]">{batchFiles.length} archivo(s) cargados</p> : null}
+        </div>
+        {batchResult ? (
+          <div className="space-y-2">
+            <p className="text-xs text-emerald-200">
+              Resultado lote: {batchResult.totalFiles} semanas · Score medio {batchResult.averageScore}/100
+            </p>
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {batchResult.rows.map((r) => (
+                <p key={`${r.fileName}-${r.week}`} className="text-xs text-[#F6E8F9]">
+                  S{r.week} · {r.statusLabel || '—'} · {r.fileName} · {r.score}/100 · bás. {r.basicScore} · cal. {r.qualityScore} · ⚠ {r.alertsCount} ·
+                  pend. {r.pendingCount}
+                  {r.blockingCount ? ` · bloq. ${r.blockingCount}` : ''}
+                </p>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="rounded-lg border border-[#6A1F6D]/30 px-2 py-2">
+                <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA] mb-1">Alertas más repetidas</p>
+                {(batchResult.topAlerts || []).map((a, i) => (
+                  <p key={`ta-${i}`} className="text-xs text-red-200">
+                    - ({a.count}) {a.text}
+                  </p>
+                ))}
+              </div>
+              <div className="rounded-lg border border-[#6A1F6D]/30 px-2 py-2">
+                <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA] mb-1">Recomendaciones más útiles (repetidas)</p>
+                {(batchResult.topRecs || []).map((r, i) => (
+                  <p key={`tr-${i}`} className="text-xs text-emerald-200">
+                    - ({r.count}) {r.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
 
@@ -194,18 +497,164 @@ export default function AdminWeeklyProgramUpload() {
 
       {result ? (
         <div className="rounded-xl border border-[#6A1F6D]/40 bg-[#221427] p-4 space-y-3">
-          <p className={`text-lg font-extrabold ${bucketClass}`}>Score total: {result.score}/100</p>
+          <div className="rounded-xl border-2 border-emerald-500/45 bg-gradient-to-br from-emerald-950/55 to-[#0f2818]/80 px-4 py-4 space-y-3 shadow-lg shadow-emerald-950/40">
+            <div>
+              <p className="text-[10px] font-evo-display font-bold uppercase tracking-[0.14em] text-emerald-300/95">
+                Paso 2 · Publicar para coaches
+              </p>
+              <p className="text-xs text-[#E8FDE8]/90 mt-1 leading-relaxed">
+                El análisis no sube solo: pulsa aquí para guardar esta semana en Supabase y{' '}
+                <span className="font-semibold text-white">activarla en el Hub</span> (vista coach + generador Excel). El panel «Programar día»
+                del programador es otro flujo.
+              </p>
+            </div>
+            {showSubirHubButton ? (
+              <button
+                type="button"
+                onClick={handleSubirAlHub}
+                disabled={importing || busy}
+                className="w-full min-h-[3.25rem] rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-[#052e16] font-evo-display font-bold uppercase tracking-wide text-sm sm:text-base shadow-md disabled:opacity-50 disabled:pointer-events-none transition-all"
+              >
+                {importing ? 'Publicando en el Hub…' : 'Publicar en el Hub ahora (un clic)'}
+              </button>
+            ) : (
+              <p className="text-xs text-amber-200/95 border border-amber-500/30 rounded-lg px-3 py-2 bg-amber-950/40">
+                Analiza de nuevo tras elegir archivo y mesociclo/semana; si ya analizaste y falla esto, revisa el mensaje de error superior.
+              </p>
+            )}
+            {canSubirAlHub && !importing ? (
+              <p className="text-[10px] text-emerald-200/80 uppercase tracking-wide">Listo para publicar: sesiones detectadas en el Excel</p>
+            ) : showSubirHubButton && !busy && !importing ? (
+              <p className="text-[10px] text-[#F6E8F9]/70">
+                Si al pulsar ves un error, puede que falte texto útil en las clases o haya bloqueado Supabase (RLS).
+              </p>
+            ) : null}
+          </div>
+          <div className={`rounded-lg border px-3 py-2 text-sm font-evo-display uppercase tracking-wide ${statusBadgeClass}`}>
+            {result.kpi?.statusLabel || result.validationOutcome?.label || '—'}
+          </div>
+          <p className={`text-lg font-extrabold ${bucketClass}`}>Score: {result.score}/100</p>
+          {result.scoreRaw != null && result.scoreRaw !== result.score ? (
+            <p className="text-[10px] text-[#F6E8F9AA]">Referencia interna (si aplica bonus futuro): {result.scoreRaw}</p>
+          ) : null}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
+              Validación básica: {result.basicScore ?? result.score}/100
+            </p>
+            <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
+              Calidad de programación: {result.qualityScore ?? result.score}/100
+            </p>
+            {result.experienciaEvo?.enabled ? (
+              <p className="rounded-lg border border-cyan-700/40 px-2 py-1 text-cyan-100">
+                Experiencia EVO: {result.experienciaEvo.indiceExperienciaSemana}/100
+              </p>
+            ) : (
+              <p className="rounded-lg border border-[#6A1F6D]/20 px-2 py-1 text-[#F6E8F9AA]">
+                Experiencia EVO: desactivada
+              </p>
+            )}
+          </div>
+          {result.experienciaEvo?.enabled ? (
+            <div className="rounded-lg border border-cyan-700/35 bg-[#0f1729] px-3 py-2 space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-cyan-300/90">Experiencia EVO (cualitativa)</p>
+              <p className="text-xs text-[#E0F2FE]">{result.experienciaEvo.queHaceEspecialLaSemana}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-[#BAE6FD]">
+                <p>Día más memorable: {result.experienciaEvo.diaMasMemorable || '—'}</p>
+                <p>Día más plano: {result.experienciaEvo.diaMasPlano || '—'}</p>
+              </div>
+              <p className="text-xs text-amber-100/95">
+                <span className="font-semibold text-amber-200">Mejora prioritaria: </span>
+                {result.experienciaEvo.mejoraPrioritaria}
+              </p>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-cyan-400/80 mb-1">Vs semana anterior</p>
+                <ul className="space-y-0.5 max-h-28 overflow-y-auto">
+                  {(result.experienciaEvo.mejorasVsSemanaAnterior || []).map((m, i) => (
+                    <li key={`exp-${i}`} className="text-xs text-[#E0F2FE]">
+                      - {m}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-[10px] text-[#93C5FD]/90">{result.experienciaEvo.nota}</p>
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
             <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Estructura: {result.points.estructura}/25</p>
             <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Variedad: {result.points.variedad}/25</p>
             <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Coherencia: {result.points.coherencia}/25</p>
             <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">Feedback: {result.points.feedback}/25</p>
           </div>
+          {result.coachReview ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Lectura Head Coach</p>
+              <p className="text-xs text-red-200">Riesgo principal: {result.coachReview.risk}</p>
+              <p className="text-xs text-amber-200">Mejora prioritaria: {result.coachReview.priority}</p>
+              <p className="text-xs text-emerald-200">Qué hace especial esta semana: {result.coachReview.special}</p>
+              <p className="text-xs text-[#F6E8F9]">Qué podría hacerla más memorable: {result.coachReview.memorable}</p>
+              <p className="text-xs text-[#F6E8F9]">Recomendación de Head Coach: {result.coachReview.headCoach}</p>
+            </div>
+          ) : null}
+          {result.historicalInsights ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Memoria del mesociclo</p>
+              <p className="text-xs text-[#F6E8F9]">{result.historicalInsights.summary}</p>
+              {(result.historicalInsights.bullets || []).map((b, i) => (
+                <p key={`hist-${i}`} className="text-xs text-[#F6E8F9CC]">
+                  - {b}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {Array.isArray(result.smartRecommendations) && result.smartRecommendations.length ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Sugerencias inteligentes</p>
+              {result.smartRecommendations.map((r, i) => (
+                <p key={`rec-${i}`} className="text-xs text-emerald-200">
+                  - {r}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {Array.isArray(creativeIdeas) && creativeIdeas.length ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Assistant creativo ({creativeGoal})</p>
+              {creativeIdeas.map((idea, i) => (
+                <p key={`idea-${i}`} className="text-xs text-[#F6E8F9]">
+                  - {idea}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {(result.blockingReasons || []).length ? (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-red-400/90 mb-1">Bloqueantes</p>
+              <ul className="space-y-1 max-h-32 overflow-y-auto">
+                {result.blockingReasons.map((b, i) => (
+                  <li key={`blk-${i}`} className="text-xs text-red-200">
+                    - {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {(result.pendingCorrections || result.failed || []).length ? (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-orange-300/90 mb-1">Pendiente de corrección</p>
+              <ul className="space-y-1 max-h-40 overflow-y-auto">
+                {(result.pendingCorrections || result.failed || []).slice(0, 80).map((f, i) => (
+                  <li key={`pend-${i}`} className="text-xs text-orange-100">
+                    - {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div>
             <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA] mb-1">Alertas</p>
             <ul className="space-y-1 max-h-44 overflow-y-auto">
               {result.alerts.slice(0, 120).map((a, i) => (
-                <li key={`${i}-${a}`} className="text-xs text-red-200">
+                <li key={`${i}-${a}`} className="text-xs text-amber-200/95">
                   - {a}
                 </li>
               ))}

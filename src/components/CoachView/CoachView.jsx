@@ -51,6 +51,7 @@ import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
 import HandoffTimeline from './HandoffTimeline.jsx'
 import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
 import { isoWeekString, madridCheckinGateParts, madridDateParts, defaultActiveDayNameFromWeek } from '../../utils/coachTime.js'
+import { normalizePublishedWeekForConsumers } from '../../utils/normalizeWeekDataForEditor.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -436,7 +437,8 @@ export default function CoachView() {
         }
         return
       }
-      const dataSig = JSON.stringify(week?.data ?? null)
+      const normalized = normalizePublishedWeekForConsumers(week.data, week)
+      const dataSig = JSON.stringify(normalized ?? null)
       if (week.id === prevId && dataSig === activeWeekDataSigRef.current) {
         return
       }
@@ -446,14 +448,14 @@ export default function CoachView() {
         setIsWeekSwitching(true)
         resetWeekDerivedState()
         setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
-        setWeekData(week.data)
-        setActiveDay(defaultActiveDayNameFromWeek(week.data))
+        setWeekData(normalized)
+        setActiveDay(defaultActiveDayNameFromWeek(normalized))
         setIsWeekSwitching(false)
         return
       }
 
       // Misma fila activa: JSON actualizado en remoto (p. ej. programador → «Guardar cambios»).
-      setWeekData(week.data)
+      setWeekData(normalized)
     } catch (e) {
       console.warn('CoachView: refreshActiveWeekOnFocus', e)
       setIsWeekSwitching(false)
@@ -835,9 +837,10 @@ export default function CoachView() {
           setStep('noweek')
           return
         }
-        setWeekData(week.data)
+        const normalizedInit = normalizePublishedWeekForConsumers(week.data, week)
+        setWeekData(normalizedInit)
         setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
-        activeWeekDataSigRef.current = JSON.stringify(week?.data ?? null)
+        activeWeekDataSigRef.current = JSON.stringify(normalizedInit ?? null)
 
         const authed = localStorage.getItem(COACH_AUTH_KEY)
         const expected = getExpectedCoachCode()
@@ -909,9 +912,11 @@ export default function CoachView() {
     if (week?.id) {
       setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
     }
-    if (week?.data != null) {
-      setWeekData(week.data)
-      activeWeekDataSigRef.current = JSON.stringify(week.data)
+    const normalizedSession =
+      week?.data != null ? normalizePublishedWeekForConsumers(week.data, week) : null
+    if (normalizedSession != null) {
+      setWeekData(normalizedSession)
+      activeWeekDataSigRef.current = JSON.stringify(normalizedSession)
     }
     try {
       const savedSession = localStorage.getItem(COACH_SESSION_KEY)
@@ -921,7 +926,7 @@ export default function CoachView() {
         if (date === today) {
           setSessionId(id)
           setStep('chat')
-          setActiveDay(defaultActiveDayNameFromWeek(week.data))
+          setActiveDay(defaultActiveDayNameFromWeek(normalizedSession))
           return
         }
       }
@@ -929,7 +934,7 @@ export default function CoachView() {
       localStorage.setItem(COACH_SESSION_KEY, JSON.stringify({ id: session.id, date: new Date().toDateString() }))
       setSessionId(session.id)
       setStep('chat')
-      setActiveDay(defaultActiveDayNameFromWeek(week.data))
+      setActiveDay(defaultActiveDayNameFromWeek(normalizedSession))
     } catch (e) {
       console.error('CoachView: StartSession error:', e)
       setError('Error iniciando sesión')

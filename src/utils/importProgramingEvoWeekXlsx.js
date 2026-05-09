@@ -31,6 +31,31 @@ function canonDayFromRow(s) {
   return null
 }
 
+/** "LUNES · TRACCIÓN · …" u otras etiquetas largas del export ProgramingEvo. */
+function canonDayFromRowLoose(s) {
+  const exact = canonDayFromRow(s)
+  if (exact) return exact
+  const n = normalizeDayName(s)
+  if (!n) return null
+  for (const d of EXCEL_DAY_ORDER) {
+    const dn = normalizeDayName(d)
+    if (n === dn) return d
+    if (n.startsWith(`${dn} `) || n.startsWith(`${dn}·`) || n.startsWith(`${dn},`)) return d
+  }
+  return null
+}
+
+function rowLooksLikeClassHeader(row) {
+  if (!row) return false
+  const h1 = cellToPlainString(row.getCell(1)).trim()
+  if (/^Evo/i.test(h1)) return true
+  for (let c = 2; c <= 10; c += 1) {
+    const t = cellToPlainString(row.getCell(c)).trim()
+    if (/^Evo/i.test(t)) return true
+  }
+  return false
+}
+
 function normalizeText(s) {
   return String(s || '')
     .normalize('NFD')
@@ -43,7 +68,7 @@ function dayFromAnyCell(row) {
   if (!row) return null
   for (let c = 1; c <= Math.max(10, row.cellCount || 0); c += 1) {
     const v = cellToPlainString(row.getCell(c)).trim()
-    const d = canonDayFromRow(v)
+    const d = canonDayFromRowLoose(v)
     if (d) return d
   }
   return null
@@ -225,7 +250,8 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
   while (r <= maxR) {
     const row = sheet.getRow(r)
     const v1 = cellToPlainString(row.getCell(1)).trim()
-    const dayCanon = v1.length <= 12 ? canonDayFromRow(v1) : null
+    let dayCanon = canonDayFromRowLoose(v1)
+    if (!dayCanon) dayCanon = dayFromAnyCell(row)
 
     if (!dayCanon) {
       r += 1
@@ -233,8 +259,7 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     }
 
     const headerRow = sheet.getRow(r + 1)
-    const h1 = cellToPlainString(headerRow.getCell(1)).trim()
-    if (!/^Evo/i.test(h1)) {
+    if (!rowLooksLikeClassHeader(headerRow)) {
       warnings.push(`Fila ${r}: se leyó «${dayCanon}» pero la siguiente no parece cabecera de clases; se omite.`)
       r += 1
       continue
@@ -260,7 +285,7 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       let rrScan = r + 1
       while (rrScan <= Math.min(maxR, r + 14)) {
         const label = cellToPlainString(sheet.getRow(rrScan).getCell(1)).trim().toUpperCase()
-        if (rrScan > r + 1 && canonDayFromRow(label)) break
+        if (rrScan > r + 1 && canonDayFromRowLoose(label)) break
         if (!/(PARTE\s*A|PARTE\s*B|FEEDBACK)/i.test(label)) {
           rrScan += 1
           continue

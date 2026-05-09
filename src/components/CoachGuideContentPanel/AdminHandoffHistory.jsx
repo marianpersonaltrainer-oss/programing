@@ -1,16 +1,111 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Papa from 'papaparse'
 import { listDailyHandoffsHistory } from '../../lib/supabase.js'
+
+const DAILY_HANDOFFS_MIGRATION_SQL = `create table if not exists public.daily_handoffs (
+  id uuid default gen_random_uuid() primary key,
+  coach_id uuid references auth.users(id),
+  coach_name text not null,
+  class_time text not null,
+  class_type text not null,
+  energy_level smallint check (energy_level between 1 and 5),
+  had_incident boolean default false,
+  note text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.weekly_checkins (
+  id uuid default gen_random_uuid() primary key,
+  coach_id uuid references auth.users(id),
+  coach_name text not null,
+  week_iso text not null,
+  mood_score smallint check (mood_score between 1 and 5),
+  feedback_text text,
+  highlights text,
+  improvements text,
+  created_at timestamptz default now(),
+  unique (coach_id, week_iso)
+);
+
+alter table public.daily_handoffs enable row level security;
+alter table public.weekly_checkins enable row level security;
+
+drop policy if exists coaches_see_today on public.daily_handoffs;
+create policy coaches_see_today
+  on public.daily_handoffs
+  for select
+  using (
+    auth.uid() is not null
+    and timezone('Europe/Madrid', created_at)::date = timezone('Europe/Madrid', now())::date
+  );
+
+drop policy if exists coaches_insert_own on public.daily_handoffs;
+create policy coaches_insert_own
+  on public.daily_handoffs
+  for insert
+  with check (coach_id = auth.uid());
+
+drop policy if exists admins_see_all_handoffs on public.daily_handoffs;
+create policy admins_see_all_handoffs
+  on public.daily_handoffs
+  for select
+  using (
+    exists (
+      select 1
+      from public.profiles
+      where profiles.id = auth.uid()
+        and profiles.role = 'admin'
+    )
+  );
+
+drop policy if exists weekly_checkins_insert_own on public.weekly_checkins;
+create policy weekly_checkins_insert_own
+  on public.weekly_checkins
+  for insert
+  with check (coach_id = auth.uid());
+
+drop policy if exists weekly_checkins_select_own on public.weekly_checkins;
+create policy weekly_checkins_select_own
+  on public.weekly_checkins
+  for select
+  using (coach_id = auth.uid());
+
+drop policy if exists weekly_checkins_admin_read on public.weekly_checkins;
+create policy weekly_checkins_admin_read
+  on public.weekly_checkins
+  for select
+  using (
+    exists (
+      select 1
+      from public.profiles
+      where profiles.id = auth.uid()
+        and profiles.role = 'admin'
+    )
+  );`
+
+function toIsoDateLocal(d) {
+  if (!(d instanceof Date)) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 export default function AdminHandoffHistory() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return toIsoDateLocal(d)
+  })
+  const [toDate, setToDate] = useState(() => toIsoDateLocal(new Date()))
   const [coachName, setCoachName] = useState('')
   const [classType, setClassType] = useState('')
   const [onlyIncident, setOnlyIncident] = useState(false)
   const [error, setError] = useState('')
+  const [loadedOnce, setLoadedOnce] = useState(false)
+  const [copyMsg, setCopyMsg] = useState('')
 
   async function load() {
     setLoading(true)
@@ -18,6 +113,7 @@ export default function AdminHandoffHistory() {
     try {
       const data = await listDailyHandoffsHistory({ fromDate, toDate, coachName, classType, onlyIncident, limit: 200 })
       setRows(data)
+      setLoadedOnce(true)
     } catch (e) {
       setError(e?.message || 'No se pudo cargar el historial')
     } finally {
@@ -25,10 +121,23 @@ export default function AdminHandoffHistory() {
     }
   }
 
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const coaches = useMemo(() => Array.from(new Set(rows.map((r) => r.coach_name).filter(Boolean))).sort(), [rows])
   const classes = useMemo(() => Array.from(new Set(rows.map((r) => r.class_type).filter(Boolean))).sort(), [rows])
+  const incidentCount = useMemo(() => rows.filter((r) => r.had_incident).length, [rows])
+  const lowEnergyCount = useMemo(() => rows.filter((r) => Number(r.energy_level) <= 2).length, [rows])
+  const avgEnergy = useMemo(() => {
+    const vals = rows.map((r) => Number(r.energy_level)).filter((n) => Number.isFinite(n))
+    if (!vals.length) return null
+    return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
+  }, [rows])
 
   function exportCsv() {
+    if (!rows.length) return
     const csv = Papa.unparse(rows)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -39,31 +148,141 @@ export default function AdminHandoffHistory() {
     URL.revokeObjectURL(url)
   }
 
+  const missingTableError = error.includes('daily_handoffs')
+
+  async function copyMigrationSql() {
+    try {
+      await navigator.clipboard.writeText(DAILY_HANDOFFS_MIGRATION_SQL)
+      setCopyMsg('SQL copiado. Pégalo en Supabase SQL Editor y ejecútalo.')
+      setTimeout(() => setCopyMsg(''), 3500)
+    } catch {
+      setCopyMsg('No se pudo copiar automáticamente. Usa el archivo de migración en el repo.')
+      setTimeout(() => setCopyMsg(''), 3500)
+    }
+  }
+
   return (
     <section className="space-y-4">
-      <p className="text-sm text-[#F6E8F9CC]">Historial de pases (25 por página recomendado).</p>
+      <p className="text-sm text-[#F6E8F9CC]">
+        Historial de pases entre coaches. Carga inicial: últimos 7 días (máx. 200 filas).
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="rounded-lg border border-[#6A1F6D]/40 bg-[#221427] px-3 py-2">
+          <p className="text-[10px] uppercase tracking-widest text-[#F6E8F999]">Registros</p>
+          <p className="text-xl font-extrabold text-white">{rows.length}</p>
+        </div>
+        <div className="rounded-lg border border-[#6A1F6D]/40 bg-[#221427] px-3 py-2">
+          <p className="text-[10px] uppercase tracking-widest text-[#F6E8F999]">Con incidencia</p>
+          <p className="text-xl font-extrabold text-[#FFB4B4]">{incidentCount}</p>
+        </div>
+        <div className="rounded-lg border border-[#6A1F6D]/40 bg-[#221427] px-3 py-2">
+          <p className="text-[10px] uppercase tracking-widest text-[#F6E8F999]">Energía ≤ 2</p>
+          <p className="text-xl font-extrabold text-[#FFFF4C]">{lowEnergyCount}</p>
+        </div>
+        <div className="rounded-lg border border-[#6A1F6D]/40 bg-[#221427] px-3 py-2">
+          <p className="text-[10px] uppercase tracking-widest text-[#F6E8F999]">Energía media</p>
+          <p className="text-xl font-extrabold text-[#F6E8F9]">{avgEnergy ?? '—'}</p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]" />
-        <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]" />
-        <select value={coachName} onChange={(e) => setCoachName(e.target.value)} className="h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]">
-          <option value="">Coach</option>
-          {coaches.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={classType} onChange={(e) => setClassType(e.target.value)} className="h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]">
-          <option value="">Clase</option>
-          {classes.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <label className="h-11 inline-flex items-center gap-2 text-[#F6E8F9CC]"><input type="checkbox" checked={onlyIncident} onChange={(e) => setOnlyIncident(e.target.checked)} /> Solo incidencia</label>
+        <label className="space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9B3]">Desde</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="h-11 w-full rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9B3]">Hasta</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="h-11 w-full rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9B3]">Coach</span>
+          <select
+            value={coachName}
+            onChange={(e) => setCoachName(e.target.value)}
+            className="h-11 w-full rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          >
+            <option value="">Todos</option>
+            {coaches.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9B3]">Clase</span>
+          <select
+            value={classType}
+            onChange={(e) => setClassType(e.target.value)}
+            className="h-11 w-full rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          >
+            <option value="">Todas</option>
+            {classes.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="h-11 inline-flex items-center gap-2 text-[#F6E8F9CC] mt-6">
+          <input type="checkbox" checked={onlyIncident} onChange={(e) => setOnlyIncident(e.target.checked)} /> Solo incidencia
+        </label>
       </div>
-      <div className="flex gap-2">
+
+      <div className="flex flex-wrap gap-2">
         <button type="button" onClick={load} className="h-11 px-4 rounded-lg bg-[#6A1F6D] text-[#FFFF4C] font-evo-display uppercase">Cargar</button>
-        <button type="button" onClick={exportCsv} className="h-11 px-4 rounded-lg bg-[#A729AD] text-white font-evo-display uppercase">Exportar</button>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={!rows.length}
+          className="h-11 px-4 rounded-lg bg-[#A729AD] text-white font-evo-display uppercase disabled:opacity-50"
+        >
+          Exportar CSV
+        </button>
       </div>
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+
+      {error ? (
+        <div className="rounded-lg border border-red-400/50 bg-red-950/30 px-3 py-2">
+          <p className="text-sm text-red-200">{error}</p>
+          {missingTableError ? (
+            <div className="mt-2 space-y-2">
+              <p className="text-xs text-red-100/90">
+                Consejo: ejecuta esa migración en Supabase SQL Editor y vuelve a pulsar «Cargar».
+              </p>
+              <button
+                type="button"
+                onClick={copyMigrationSql}
+                className="h-9 px-3 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wide"
+              >
+                Copiar SQL de migración
+              </button>
+              {copyMsg ? <p className="text-xs text-red-100/90">{copyMsg}</p> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {loading ? <p className="text-sm text-[#F6E8F9CC]">Cargando…</p> : null}
+
+      {!loading && loadedOnce && !error && rows.length === 0 ? (
+        <p className="text-sm text-[#F6E8F9CC] rounded-lg border border-[#6A1F6D]/30 px-3 py-2 bg-[#221427]/80">
+          No hay pases para estos filtros.
+        </p>
+      ) : null}
+
       <div className="rounded-lg border border-[#6A1F6D]/30 overflow-auto">
         <table className="w-full text-sm">
-          <thead className="bg-[#221427] text-[#F6E8F9CC]">
+          <thead className="bg-[#221427] text-[#F6E8F9CC] sticky top-0">
             <tr>
               <th className="px-3 py-2 text-left">Fecha</th><th className="px-3 py-2 text-left">Coach</th><th className="px-3 py-2 text-left">Hora</th><th className="px-3 py-2 text-left">Clase</th><th className="px-3 py-2 text-left">Energía</th><th className="px-3 py-2 text-left">Incidencia</th><th className="px-3 py-2 text-left">Nota</th>
             </tr>

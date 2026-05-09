@@ -2,115 +2,231 @@ import { useMemo } from 'react'
 import { summarizeFeedbackForWeek } from '../../utils/coachFeedbackLocalLog.js'
 import { DAYS_ES } from '../../constants/evoColors.js'
 import { coachBg, coachBorder, coachText } from './coachTheme.js'
+import { feedbackClassChrome, sortClassLabelsForFeedback } from '../../utils/coachFeedbackClassChrome.js'
+import {
+  formatMadridDateShort,
+  getMadridCoachProgramDayKey,
+  isMadridCalendarSunday,
+} from '../../utils/coachMadridDay.js'
 
-const HOW_LABEL = {
-  muy_bien: 'Muy bien',
-  bien: 'Bien',
-  regular: 'Regular',
-  mal: 'Mal',
+function groupByClass(items) {
+  const m = new Map()
+  for (const it of items) {
+    const label = String(it.class_label || '—').trim() || '—'
+    if (!m.has(label)) m.set(label, [])
+    m.get(label).push(it)
+  }
+  const keys = sortClassLabelsForFeedback([...m.keys()])
+  return keys.map((k) => ({ classLabel: k, items: m.get(k) || [] }))
 }
 
-export default function CoachFeedbackWeekSummary({ weekRow, refreshKey = 0, peerCount = 0 }) {
+export default function CoachFeedbackWeekSummary({
+  weekRow,
+  refreshKey = 0,
+  peerCount = 0,
+  /** `monday`…`saturday` o `null` (domingo). Si se omite, se usa el día de programa en Madrid. */
+  todayDayKey,
+}) {
+  const resolvedDayKey = todayDayKey === undefined ? getMadridCoachProgramDayKey() : todayDayKey
+
   const summary = useMemo(() => {
     if (!weekRow) return null
-    return summarizeFeedbackForWeek(weekRow.id ?? null)
-  }, [weekRow?.id, refreshKey, peerCount])
+    if (resolvedDayKey === null && isMadridCalendarSunday()) {
+      return {
+        count: 0,
+        timeSi: 0,
+        timeNo: 0,
+        timeJusto: 0,
+        recentNotes: [],
+        recentChanges: [],
+        isSunday: true,
+      }
+    }
+    if (resolvedDayKey === null && !isMadridCalendarSunday()) {
+      return {
+        ...summarizeFeedbackForWeek(weekRow.id ?? null, {}),
+        detectionFailed: true,
+      }
+    }
+    return summarizeFeedbackForWeek(weekRow.id ?? null, { dayKey: resolvedDayKey })
+  }, [weekRow?.id, refreshKey, peerCount, resolvedDayKey])
 
-  if (!summary || summary.count === 0) return null
+  if (!summary) return null
 
-  const { how, timeSi, timeNo, timeJusto, recentNotes, recentChanges } = summary
-  const totalHow = how.muy_bien + how.bien + how.regular + how.mal
-  const timeTotal = timeSi + timeNo + timeJusto
+  const dayTitle = resolvedDayKey ? DAYS_ES[resolvedDayKey] || resolvedDayKey : 'Hoy'
+  const madridDate = formatMadridDateShort()
+
+  if (summary.isSunday) {
+    return (
+      <section
+        className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-3`}
+        aria-label="Feedback de hoy"
+      >
+        <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
+          Feedback de hoy · {madridDate}
+        </h3>
+        <p className={`text-sm ${coachText.muted} leading-relaxed`}>
+          Domingo: no hay día de programación en la plantilla semanal. El lunes volverás a ver aquí solo el feedback del
+          día en curso; todo lo guardado sigue en el servidor para el equipo y la IA.
+        </p>
+      </section>
+    )
+  }
+
+  if (
+    !summary.detectionFailed &&
+    summary.count === 0 &&
+    !summary.timeSi &&
+    !summary.timeNo &&
+    !summary.timeJusto
+  ) {
+    return (
+      <section
+        className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-3`}
+        aria-label="Feedback de hoy"
+      >
+        <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
+          Resumen de hoy · {dayTitle}
+        </h3>
+        <p className={`text-xs ${coachText.muted}`}>{madridDate} · Europa/Madrid</p>
+        <p className={`text-sm ${coachText.muted} leading-relaxed`}>
+          Aún no hay envíos de feedback registrados hoy para <span className="font-semibold text-[#F3EAF8]">{dayTitle}</span> en
+          este dispositivo. Cuando envíes o se sincronice la lista, aparecerá aquí solo lo de hoy.
+        </p>
+        <p className={`text-xs ${coachText.muted} leading-relaxed border-t border-white/10 pt-3`}>
+          Los datos de otros días no se borran: siguen en Supabase y en el log local (hasta {400} entradas) para
+          informes y aprendizaje automático.
+        </p>
+      </section>
+    )
+  }
+
+  const { timeSi, timeNo, timeJusto, recentNotes, recentChanges } = summary
+  const timeParts = []
+  if (timeSi > 0) timeParts.push({ key: 'si', label: 'Sí, sobró tiempo', count: timeSi, cls: 'text-emerald-800' })
+  if (timeJusto > 0) timeParts.push({ key: 'justo', label: 'Justo', count: timeJusto, cls: 'text-amber-900' })
+  if (timeNo > 0) timeParts.push({ key: 'no', label: 'Corto / faltó', count: timeNo, cls: 'text-rose-900' })
+
+  const notesByClass = groupByClass(recentNotes)
+  const changesByClass = groupByClass(recentChanges)
 
   return (
     <section
-      className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-4`}
-      aria-label="Resumen de feedback de la semana"
+      className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-5`}
+      aria-label="Resumen de feedback del día"
     >
-      <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
-        Resumen de feedback (esta semana, este dispositivo)
-      </h3>
-      <p className={`text-xs ${coachText.muted} leading-relaxed`}>
-        Agregado desde datos guardados en localStorage (tus envíos y sincronización de la lista del servidor al abrir
-        Feedback). {summary.count} registro{summary.count === 1 ? '' : 's'}.
-      </p>
+      {summary.detectionFailed ? (
+        <p className="text-xs text-amber-950 bg-amber-100/90 border border-amber-400/60 rounded-lg px-3 py-2 leading-relaxed">
+          No se ha podido detectar el día en tu dispositivo; se muestra el agregado de toda la semana en este
+          dispositivo. Actualiza la página o la app instalada para volver a la vista solo «hoy».
+        </p>
+      ) : null}
+      <div>
+        <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
+          Resumen de hoy · {dayTitle}
+        </h3>
+        <p className={`text-xs ${coachText.muted} mt-1`}>{madridDate} · solo este día de programación en pantalla</p>
+        <p className={`text-xs ${coachText.muted} leading-relaxed mt-2`}>
+          Agregado desde datos en este dispositivo (tus envíos + sincronización al abrir Feedback).{' '}
+          <span className="font-semibold text-[#F3EAF8]/90">{summary.count}</span> registro
+          {summary.count === 1 ? '' : 's'} hoy.
+        </p>
+      </div>
 
-      {totalHow > 0 ? (
+      {timeParts.length > 0 ? (
         <div>
           <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Cómo fue la sesión?
+            Tiempo para explicar (solo respuestas dadas hoy)
           </p>
-          <ul className="flex flex-wrap gap-3 text-sm">
-            {Object.entries(how).map(([k, v]) => (
-              <li key={k} className={`rounded-xl px-3 py-2 border ${coachBorder} ${coachBg.cardMuted}`}>
-                <span className={`font-bold ${coachText.primary}`}>{HOW_LABEL[k] || k}:</span> {v}
+          <ul className="flex flex-wrap gap-2 text-sm">
+            {timeParts.map((p) => (
+              <li
+                key={p.key}
+                className={`rounded-xl px-3 py-2 border ${coachBorder} ${coachBg.cardMuted}`}
+              >
+                <span className={`font-bold ${p.cls}`}>{p.label}</span>
+                <span className={`${coachText.muted} font-semibold`}> · {p.count}</span>
               </li>
             ))}
           </ul>
         </div>
       ) : null}
 
-      {timeTotal > 0 ? (
-        <div>
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Tiempo para explicar?
+      {changesByClass.length > 0 ? (
+        <div className="space-y-3">
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
+            Cambios en sesión (por clase)
           </p>
-          <ul className="flex flex-wrap gap-3 text-sm">
-            <li className={`rounded-xl px-3 py-2 border ${coachBorder} ${coachBg.cardMuted}`}>
-              <span className="font-bold text-emerald-800">Sí, sobró</span> · {timeSi}
-            </li>
-            <li className={`rounded-xl px-3 py-2 border ${coachBorder} ${coachBg.cardMuted}`}>
-              <span className="font-bold text-amber-900">Justo</span> · {timeJusto}
-            </li>
-            <li className={`rounded-xl px-3 py-2 border ${coachBorder} ${coachBg.cardMuted}`}>
-              <span className="font-bold text-rose-900">Corto / faltó</span> · {timeNo}
-            </li>
-          </ul>
+          {changesByClass.map(({ classLabel, items }) => {
+            const chrome = feedbackClassChrome(classLabel)
+            return (
+              <div
+                key={`ch-${classLabel}`}
+                className="rounded-xl overflow-hidden border"
+                style={{ borderColor: chrome.border, backgroundColor: chrome.softBg }}
+              >
+                <div
+                  className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-widest flex items-center gap-2"
+                  style={{ color: chrome.text, borderLeft: `4px solid ${chrome.bar}` }}
+                >
+                  <span>{classLabel}</span>
+                  <span className={`font-normal opacity-80 ${coachText.muted}`}>· {dayTitle}</span>
+                </div>
+                <ul className="px-3 pb-3 space-y-2">
+                  {items.map((c, i) => (
+                    <li
+                      key={`${classLabel}-ch-${i}`}
+                      className="rounded-lg bg-white/90 px-3 py-2 text-sm text-orange-950 border border-orange-200/80"
+                    >
+                      <p className="font-semibold leading-snug whitespace-pre-wrap">{c.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
         </div>
       ) : null}
 
-      {recentChanges?.length > 0 ? (
-        <div>
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Cambios en sesión (detalle)
+      {notesByClass.length > 0 ? (
+        <div className="space-y-3">
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>
+            Sensaciones y notas para el siguiente coach (por clase)
           </p>
-          <ul className="space-y-2 text-sm">
-            {recentChanges.map((c, i) => (
-              <li key={i} className={`rounded-xl border border-orange-300/60 bg-orange-50/90 px-3 py-2 text-orange-950`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wide`}>
-                  {DAYS_ES[c.day_key] || c.day_key || '—'} · {c.class_label || '—'}
-                </p>
-                <p className="font-semibold leading-snug mt-1 whitespace-pre-wrap">{c.text}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {recentNotes.length > 0 ? (
-        <div>
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Sensaciones y notas para el siguiente coach
-          </p>
-          <ul className="space-y-2 text-sm">
-            {recentNotes.map((n, i) => (
-              <li key={i} className={`rounded-xl border ${coachBorder} px-3 py-2 ${coachBg.cardAlt}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wide ${coachText.accent}`}>
-                  {DAYS_ES[n.day_key] || n.day_key || '—'} · {n.class_label || '—'}
-                </p>
-                {n.group_feelings ? (
-                  <p className={`${coachText.muted} leading-snug mt-1 whitespace-pre-wrap`}>
-                    <span className="font-bold text-[#1A0A1A]/75">Sensaciones:</span> {n.group_feelings}
-                  </p>
-                ) : null}
-                {n.notes_next_week ? (
-                  <p className={`${coachText.primary} leading-snug mt-1 whitespace-pre-wrap`}>
-                    <span className="font-bold">Siguiente coach:</span> {n.notes_next_week}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          {notesByClass.map(({ classLabel, items }) => {
+            const chrome = feedbackClassChrome(classLabel)
+            return (
+              <div
+                key={`n-${classLabel}`}
+                className="rounded-xl overflow-hidden border"
+                style={{ borderColor: chrome.border, backgroundColor: chrome.softBg }}
+              >
+                <div
+                  className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-widest flex items-center gap-2"
+                  style={{ color: chrome.text, borderLeft: `4px solid ${chrome.bar}` }}
+                >
+                  <span>{classLabel}</span>
+                  <span className={`font-normal opacity-80 ${coachText.muted}`}>· {dayTitle}</span>
+                </div>
+                <ul className="px-3 pb-3 space-y-2">
+                  {items.map((n, i) => (
+                    <li key={`${classLabel}-n-${i}`} className="rounded-lg bg-white/95 px-3 py-2 text-sm border border-black/5">
+                      {n.group_feelings ? (
+                        <p className={`${coachText.muted} leading-snug whitespace-pre-wrap`}>
+                          <span className="font-bold text-[#1A0A1A]/80">Sensaciones:</span> {n.group_feelings}
+                        </p>
+                      ) : null}
+                      {n.notes_next_week ? (
+                        <p className={`${coachText.primary} leading-snug mt-1 whitespace-pre-wrap`}>
+                          <span className="font-bold">Siguiente coach:</span> {n.notes_next_week}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
         </div>
       ) : null}
     </section>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { DAYS_ORDER, DAYS_ES } from '../../constants/evoColors.js'
 import { ALL_CLASS_LABELS } from '../../constants/evoClasses.js'
 import { saveCoachSessionFeedback } from '../../lib/supabase.js'
@@ -13,6 +13,13 @@ import { appendAutoLearnedLines } from '../../utils/methodLearnedStorage.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
 import { coachBg, coachBorder, coachField, coachText, coachUi } from './coachTheme.js'
 import CoachFeedbackWeekSummary from './CoachFeedbackWeekSummary.jsx'
+import {
+  getMadridCoachProgramDayKey,
+  formatMadridDateShort,
+  normalizeProgramDayKey,
+  isMadridCalendarSunday,
+} from '../../utils/coachMadridDay.js'
+import { feedbackClassChrome } from '../../utils/coachFeedbackClassChrome.js'
 
 const SESSION_HOW = [
   { value: 'muy_bien', label: 'Muy bien' },
@@ -22,10 +29,16 @@ const SESSION_HOW = [
 ]
 
 const TIME_EXPLAIN = [
-  { value: 'si', label: 'Sí' },
-  { value: 'no', label: 'No' },
+  { value: 'si', label: 'Sí, sobró' },
+  { value: 'no', label: 'Corto / faltó' },
   { value: 'justo', label: 'Justo' },
 ]
+
+const TIME_EXPLAIN_SHORT = {
+  si: 'Explicación: sobró tiempo',
+  no: 'Explicación: faltó tiempo',
+  justo: 'Explicación: justo',
+}
 
 function formatFeedbackTime(iso) {
   if (!iso) return ''
@@ -95,6 +108,12 @@ export default function CoachSessionFeedbackForm({
   const [error, setError] = useState('')
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0)
   const [readChangedIds, setReadChangedIds] = useState(() => new Set())
+  const [showWeekArchive, setShowWeekArchive] = useState(false)
+
+  const madridProgramDayKey = useMemo(
+    () => getMadridCoachProgramDayKey(),
+    [summaryRefreshKey, peerEntries.length],
+  )
 
   useEffect(() => {
     const scope = feedbackReadScopeKey(weekRow?.id ?? null, coachName)
@@ -102,10 +121,15 @@ export default function CoachSessionFeedbackForm({
   }, [weekRow?.id, coachName, peerEntries.length])
 
   useEffect(() => {
-    if (!prefill || prefill.token == null) return
-    if (prefill.dayKey && DAYS_ORDER.includes(prefill.dayKey)) setDayKey(prefill.dayKey)
-    if (prefill.classLabel && ALL_CLASS_LABELS.includes(prefill.classLabel)) setClassLabel(prefill.classLabel)
-  }, [prefill?.token])
+    if (!weekRow?.id) return
+    if (prefill?.token != null) {
+      if (prefill.dayKey && DAYS_ORDER.includes(prefill.dayKey)) setDayKey(prefill.dayKey)
+      if (prefill.classLabel && ALL_CLASS_LABELS.includes(prefill.classLabel)) setClassLabel(prefill.classLabel)
+      return
+    }
+    const t = getMadridCoachProgramDayKey()
+    if (t && DAYS_ORDER.includes(t)) setDayKey(t)
+  }, [weekRow?.id, prefill?.token, prefill?.dayKey, prefill?.classLabel])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -192,8 +216,22 @@ export default function CoachSessionFeedbackForm({
     const tb = b?.created_at ? new Date(b.created_at).getTime() : 0
     return tb - ta
   })
-  const anyWithChange = weekPeerSorted.some((r) => coachFeedbackRowIndicatesChange(r))
-  const othersWithChange = weekPeerSorted.filter(
+
+  const todayPeerSorted = useMemo(() => {
+    if (!madridProgramDayKey) return []
+    return weekPeerSorted.filter((r) => normalizeProgramDayKey(r.day_key) === madridProgramDayKey)
+  }, [weekPeerSorted, madridProgramDayKey])
+
+  const archivePeerSorted = useMemo(() => {
+    if (!madridProgramDayKey) return []
+    return weekPeerSorted.filter((r) => normalizeProgramDayKey(r.day_key) !== madridProgramDayKey)
+  }, [weekPeerSorted, madridProgramDayKey])
+
+  /** Lista principal: solo hoy (día de programación en Madrid); domingo = vacía en “hoy”. */
+  const primaryPeerList = madridProgramDayKey ? todayPeerSorted : weekPeerSorted
+
+  const anyWithChange = primaryPeerList.some((r) => coachFeedbackRowIndicatesChange(r))
+  const othersWithChange = primaryPeerList.filter(
     (r) =>
       coachFeedbackRowIndicatesChange(r) &&
       (r?.coach_name?.trim().toLowerCase() || '') !== selfNorm,
@@ -203,20 +241,46 @@ export default function CoachSessionFeedbackForm({
   return (
     <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-xl mx-auto`}>
       <h2 className={coachUi.h2}>Feedback de clase</h2>
-      <p className={`text-sm ${coachText.muted} mb-8 leading-relaxed`}>
-        Una entrada por día y clase. La nota para el siguiente coach aparece en el detalle de esa clase la próxima vez que la des.
+      <p className={`text-sm ${coachText.muted} mb-2 leading-relaxed`}>
+        Vista centrada en <span className="font-semibold text-[#F3EAF8]">hoy</span> ({formatMadridDateShort()} · Madrid).
+        Los demás días siguen guardados en el servidor y en el historial local para informes y aprendizaje.
       </p>
+      <p
+        className={`text-xs ${coachText.muted} leading-relaxed ${
+          !madridProgramDayKey && !isMadridCalendarSunday() ? 'mb-2' : 'mb-8'
+        }`}
+      >
+        Una entrada por día y clase al enviar. La nota para el siguiente coach aparece en el detalle de esa clase cuando
+        vuelvas a impartirla.
+      </p>
+      {!madridProgramDayKey && !isMadridCalendarSunday() ? (
+        <p className="text-xs text-amber-100 bg-amber-900/35 border border-amber-400/40 rounded-xl px-3 py-2 mb-8 leading-relaxed">
+          No se ha detectado el día de la semana en tu dispositivo; la lista de equipo muestra toda la semana. Recarga
+          la página o actualiza la app cuando puedas.
+        </p>
+      ) : null}
 
-      <CoachFeedbackWeekSummary weekRow={weekRow} refreshKey={summaryRefreshKey} peerCount={peerEntries.length} />
+      <CoachFeedbackWeekSummary
+        weekRow={weekRow}
+        refreshKey={summaryRefreshKey}
+        peerCount={peerEntries.length}
+        todayDayKey={madridProgramDayKey}
+      />
 
-      {weekPeerSorted.length > 0 ? (
+      {primaryPeerList.length > 0 || archivePeerSorted.length > 0 ? (
         <section
           className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-3`}
-          aria-label="Feedback de coaches esta semana"
+          aria-label="Feedback del equipo"
         >
-          <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>Esta semana (feedback)</h3>
+          <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
+            {madridProgramDayKey
+              ? `Equipo · hoy (${DAYS_ES[madridProgramDayKey] || madridProgramDayKey})`
+              : 'Equipo · esta semana (domingo)'}
+          </h3>
           <p className={`text-xs ${coachText.muted} leading-relaxed`}>
-            Incluye tus envíos y los del resto del equipo. Los cambios no leídos aparecen resaltados para feedback.
+            {madridProgramDayKey
+              ? 'Solo entradas del día de programación que coincide con hoy. Los avisos con cambios no leídos se resaltan.'
+              : 'Vista semanal: hoy no hay día de sala en la plantilla; se muestran todos los envíos de la semana.'}
           </p>
           {unreadOthersWithChange.length > 0 ? (
             <div className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
@@ -225,8 +289,14 @@ export default function CoachSessionFeedbackForm({
               </p>
             </div>
           ) : null}
+          {primaryPeerList.length === 0 && madridProgramDayKey ? (
+            <p className={`text-xs ${coachText.muted} py-2`}>
+              Nadie del equipo ha enviado feedback para hoy todavía. Cuando lleguen entradas, aparecerán aquí con el
+              color de cada clase.
+            </p>
+          ) : null}
           <ul className="space-y-3">
-            {weekPeerSorted.map((row) => {
+            {primaryPeerList.map((row) => {
               const changed = coachFeedbackRowIndicatesChange(row)
               const isOwn = (row?.coach_name?.trim().toLowerCase() || '') === selfNorm
               const rowId = String(row?.id ?? '')
@@ -234,16 +304,18 @@ export default function CoachSessionFeedbackForm({
               if (changed && !isOwn && isRead) return null
               const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
               const when = formatFeedbackTime(row.created_at)
+              const clsChrome = feedbackClassChrome(row.class_label)
               return (
                 <li
                   key={row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}
-                  className={`rounded-xl border p-3 text-sm ${
+                  className={`rounded-xl border p-3 text-sm pl-3 ${
                     changed
                       ? isRead
                         ? `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
                         : 'border-orange-400/80 bg-orange-100 text-orange-950 ring-2 ring-orange-300/60'
                       : `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
                   }`}
+                  style={{ borderLeftWidth: 4, borderLeftColor: clsChrome.bar }}
                 >
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold">
                     {isOwn ? (
@@ -253,12 +325,17 @@ export default function CoachSessionFeedbackForm({
                     ) : null}
                     <span>{dayLabel}</span>
                     <span className={coachText.muted}>·</span>
-                    <span>{row.class_label || '—'}</span>
+                    <span style={{ color: clsChrome.text }}>{row.class_label || '—'}</span>
                     <span className={`font-semibold ${coachText.muted}`}>
                       · {row.coach_name?.trim() || 'Coach'}
                       {when ? ` · ${when}` : ''}
                     </span>
                   </div>
+                  {row.time_for_explanation && TIME_EXPLAIN_SHORT[row.time_for_explanation] ? (
+                    <p className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${coachText.muted}`}>
+                      {TIME_EXPLAIN_SHORT[row.time_for_explanation]}
+                    </p>
+                  ) : null}
                   {changed && row.changed_details?.trim() ? (
                     <p className="mt-2 font-semibold leading-snug whitespace-pre-wrap">{row.changed_details.trim()}</p>
                   ) : changed ? (
@@ -304,6 +381,50 @@ export default function CoachSessionFeedbackForm({
               Solo constan tus avisos con cambios; cuando otro coach envíe feedback, aparecerá aquí.
             </p>
           ) : null}
+
+          {madridProgramDayKey && archivePeerSorted.length > 0 ? (
+            <div className="pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowWeekArchive((v) => !v)}
+                className={`w-full text-left text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.primary} hover:opacity-95`}
+              >
+                {showWeekArchive ? '▼' : '▶'} Otros días de esta semana ({archivePeerSorted.length}) — no se borran,
+                solo se apartan de la vista diaria
+              </button>
+              {showWeekArchive ? (
+                <ul className="mt-3 space-y-2 opacity-95">
+                  {archivePeerSorted.map((row) => {
+                    const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
+                    const when = formatFeedbackTime(row.created_at)
+                    const ch = feedbackClassChrome(row.class_label)
+                    return (
+                      <li
+                        key={`arc-${row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}`}
+                        className={`rounded-lg border p-2.5 text-xs ${coachBorder} ${coachBg.cardAlt}`}
+                        style={{ borderLeftWidth: 3, borderLeftColor: ch.bar }}
+                      >
+                        <span className="font-bold text-[#F3EAF8]/90">
+                          {dayLabel} · {row.class_label || '—'}
+                        </span>
+                        <span className={`${coachText.muted} font-medium`}>
+                          {' '}
+                          · {row.coach_name?.trim() || 'Coach'}
+                          {when ? ` · ${when}` : ''}
+                        </span>
+                        {row.changed_details?.trim() ? (
+                          <p className="mt-1 text-orange-950/90 whitespace-pre-wrap">{row.changed_details.trim()}</p>
+                        ) : null}
+                        {row.group_feelings?.trim() ? (
+                          <p className={`mt-1 ${coachText.muted} whitespace-pre-wrap`}>{row.group_feelings.trim()}</p>
+                        ) : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -332,16 +453,19 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Cómo fue la sesión?
+            ¿Dio tiempo a explicar todo?
           </label>
+          <p className={`text-[11px] ${coachText.muted} mb-2 leading-relaxed`}>
+            Es la señal que más usamos en resumen diario; elige la opción que mejor encaje.
+          </p>
           <div className="flex flex-wrap gap-2">
-            {SESSION_HOW.map(({ value, label }) => (
+            {TIME_EXPLAIN.map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
-                onClick={() => setSessionHow(value)}
+                onClick={() => setTimeExplain(value)}
                 className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-colors ${
-                  sessionHow === value
+                  timeExplain === value
                     ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
                     : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
                 }`}
@@ -354,16 +478,19 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Dio tiempo a explicar todo?
+            Valoración general de la sesión
           </label>
+          <p className={`text-[11px] ${coachText.muted} mb-2 leading-relaxed`}>
+            Opcional en pantalla; se guarda para seguimiento interno y no aparece en el resumen diario simplificado.
+          </p>
           <div className="flex flex-wrap gap-2">
-            {TIME_EXPLAIN.map(({ value, label }) => (
+            {SESSION_HOW.map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
-                onClick={() => setTimeExplain(value)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-colors ${
-                  timeExplain === value
+                onClick={() => setSessionHow(value)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                  sessionHow === value
                     ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
                     : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
                 }`}
@@ -448,7 +575,11 @@ export default function CoachSessionFeedbackForm({
           <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-medium">{error}</p>
         )}
         {message && (
-          <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-medium">
+          <p
+            className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-medium"
+            role="status"
+            aria-live="polite"
+          >
             {message}
           </p>
         )}

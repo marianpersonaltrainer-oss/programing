@@ -1,6 +1,37 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
+
+function trimVideoUrl(s) {
+  return String(s || '').trim()
+}
+
+/** @returns {string | null} */
+function youtubeEmbedSrcFromUrl(raw) {
+  try {
+    const u = new URL(trimVideoUrl(raw))
+    if (u.protocol !== 'https:') return null
+    const host = u.hostname.replace(/^www\./, '').toLowerCase()
+    const idParam = u.searchParams.get('v')
+    if ((host === 'youtube.com' || host === 'm.youtube.com') && idParam && /^[a-zA-Z0-9_-]{11}$/.test(idParam)) {
+      return `https://www.youtube-nocookie.com/embed/${idParam}`
+    }
+    const mShort = u.pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/)
+    if (host === 'youtube.com' && mShort) return `https://www.youtube-nocookie.com/embed/${mShort[1]}`
+    if (host === 'youtu.be') {
+      const id = u.pathname.replace(/^\//, '').slice(0, 11)
+      if (/^[a-zA-Z0-9_-]{11}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}`
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function isLibraryVideoVerified(row) {
+  if (!trimVideoUrl(row?.video_url)) return true
+  return row?.video_url_verified !== false
+}
 
 const CATEGORIES = [
   { value: 'bisagra', label: 'Bisagra' },
@@ -31,6 +62,7 @@ const emptyForm = () => ({
   is_new: false,
   active: true,
   video_url: '',
+  video_url_verified: true,
 })
 
 export default function CoachExerciseLibraryAdmin({ adminSecret }) {
@@ -40,6 +72,8 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
   const [error, setError] = useState('')
   const [form, setForm] = useState(emptyForm())
   const [editingId, setEditingId] = useState(null)
+  const [videoCheck, setVideoCheck] = useState({ status: 'idle', message: '' })
+  const baselineRef = useRef({ video_url: '', video_url_verified: true })
 
   const load = useCallback(async () => {
     if (!adminSecret?.trim()) {
@@ -69,11 +103,19 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
   }, [load])
 
   function startNew() {
+    baselineRef.current = { video_url: '', video_url_verified: true }
+    setVideoCheck({ status: 'idle', message: '' })
     setForm(emptyForm())
     setEditingId('new')
   }
 
   function startEdit(row) {
+    const vu = isLibraryVideoVerified(row)
+    baselineRef.current = {
+      video_url: row.video_url || '',
+      video_url_verified: vu,
+    }
+    setVideoCheck({ status: 'idle', message: '' })
     setForm({
       id: row.id,
       name: row.name || '',
@@ -84,8 +126,34 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
       is_new: !!row.is_new,
       active: row.active !== false,
       video_url: row.video_url || '',
+      video_url_verified: vu,
     })
     setEditingId(row.id)
+  }
+
+  async function handleCheckVideoUrl() {
+    const url = trimVideoUrl(form.video_url)
+    if (!url) {
+      setError('Pega una URL de vídeo antes de comprobar.')
+      return
+    }
+    setVideoCheck({ status: 'loading', message: '' })
+    setError('')
+    try {
+      const res = await fetch(`/api/video-check?url=${encodeURIComponent(url)}`)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setVideoCheck({ status: 'error', message: json.error || `Error ${res.status}` })
+        return
+      }
+      if (json.ok) {
+        setVideoCheck({ status: 'ok', message: json.message || 'Enlace comprobado.' })
+      } else {
+        setVideoCheck({ status: 'error', message: json.message || 'El enlace no respondió como esperado.' })
+      }
+    } catch (e) {
+      setVideoCheck({ status: 'error', message: e?.message || 'No se pudo comprobar' })
+    }
   }
 
   function toggleClass(key) {
@@ -110,6 +178,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
     setSaving(true)
     setError('')
     try {
+      const vUrl = form.video_url.trim()
       const row = {
         id: form.id || undefined,
         name: form.name.trim(),
@@ -119,7 +188,8 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
         notes: form.notes.trim() || null,
         is_new: form.is_new,
         active: form.active,
-        video_url: form.video_url.trim() || null,
+        video_url: vUrl || null,
+        video_url_verified: vUrl ? form.video_url_verified === true : true,
       }
       const res = await fetch('/api/coach-exercise-library', {
         method: 'POST',
@@ -261,14 +331,92 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
               rows={3}
             />
           </div>
-          <div>
-            <label className={coachAdminUi.subLabel}>URL de vídeo (YouTube, Instagram…)</label>
+          <div className="space-y-2">
+            <label className={coachAdminUi.subLabel}>URL de vídeo (YouTube, Vimeo, Instagram…)</label>
             <input
               className={`${coachField} font-mono text-sm`}
               value={form.video_url}
-              onChange={(e) => setForm((f) => ({ ...f, video_url: e.target.value }))}
+              onChange={(e) => {
+                const next = e.target.value
+                const nextT = trimVideoUrl(next)
+                const base = baselineRef.current
+                const baseT = trimVideoUrl(base.video_url)
+                const urlUnchanged = nextT === baseT
+                setVideoCheck({ status: 'idle', message: '' })
+                setForm((f) => ({
+                  ...f,
+                  video_url: next,
+                  video_url_verified: !nextT ? true : urlUnchanged ? base.video_url_verified : false,
+                }))
+              }}
               placeholder="https://..."
             />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCheckVideoUrl}
+                disabled={saving || !trimVideoUrl(form.video_url) || videoCheck.status === 'loading'}
+                className="text-xs font-bold uppercase px-3 py-2 rounded-lg border border-[#6A1F6D]/40 text-[#6A1F6D] hover:bg-[#A729AD]/10 disabled:opacity-40"
+              >
+                {videoCheck.status === 'loading' ? 'Comprobando…' : 'Comprobar enlace'}
+              </button>
+              {videoCheck.status === 'ok' ? (
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, video_url_verified: true }))}
+                  className="text-xs font-bold uppercase px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  Marcar vídeo como verificado
+                </button>
+              ) : null}
+            </div>
+            {videoCheck.status === 'ok' ? (
+              <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{videoCheck.message}</p>
+            ) : null}
+            {videoCheck.status === 'error' ? (
+              <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{videoCheck.message}</p>
+            ) : null}
+            {(() => {
+              const embed = youtubeEmbedSrcFromUrl(form.video_url)
+              if (!embed) return null
+              return (
+                <div className="rounded-lg overflow-hidden border border-[#6A1F6D]/20 bg-black/5 aspect-video max-w-md">
+                  <iframe
+                    title="Vista previa del vídeo"
+                    src={embed}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )
+            })()}
+            {trimVideoUrl(form.video_url) ? (
+              <label className="flex items-start gap-2 text-sm font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 rounded border-[#6A1F6D]/40"
+                  checked={form.video_url_verified === true}
+                  disabled={(() => {
+                    const currentUrl = trimVideoUrl(form.video_url)
+                    const base = baselineRef.current
+                    const urlMatchesBaseline = currentUrl === trimVideoUrl(base.video_url)
+                    const canTurnOn =
+                      videoCheck.status === 'ok' || (urlMatchesBaseline && base.video_url_verified === true)
+                    if (!currentUrl) return true
+                    if (form.video_url_verified) return false
+                    return !canTurnOn
+                  })()}
+                  onChange={(e) => setForm((f) => ({ ...f, video_url_verified: e.target.checked }))}
+                />
+                <span>
+                  Vídeo verificado (se usa en Excel, contexto de generación y enlaces de coach). Activa solo tras
+                  «Comprobar enlace» o si el enlace no ha cambiado desde la última vez verificada.
+                </span>
+              </label>
+            ) : (
+              <p className={`text-xs ${coachText.muted}`}>Sin URL de vídeo no hace falta verificación.</p>
+            )}
           </div>
           <div className="flex flex-wrap gap-4">
             <label className="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer">
@@ -299,6 +447,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
             <button
               type="button"
               onClick={() => {
+                setVideoCheck({ status: 'idle', message: '' })
                 setForm(emptyForm())
                 setEditingId(null)
               }}
@@ -327,6 +476,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
               <th className="px-3 py-2">Nombre</th>
               <th className="px-3 py-2 hidden sm:table-cell">Cat.</th>
               <th className="px-3 py-2 hidden md:table-cell">Nivel</th>
+              <th className="px-3 py-2 hidden lg:table-cell">Vídeo</th>
               <th className="px-3 py-2">Estado</th>
               <th className="px-3 py-2 w-24" />
             </tr>
@@ -337,6 +487,15 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
                 <td className="px-3 py-2 font-medium text-[#1A0A1A] max-w-[200px] truncate">{r.name}</td>
                 <td className="px-3 py-2 hidden sm:table-cell text-xs">{r.category}</td>
                 <td className="px-3 py-2 hidden md:table-cell text-xs">{r.level}</td>
+                <td className="px-3 py-2 hidden lg:table-cell text-xs whitespace-nowrap">
+                  {!trimVideoUrl(r.video_url) ? (
+                    <span className={coachText.muted}>—</span>
+                  ) : isLibraryVideoVerified(r) ? (
+                    <span className="text-emerald-700">OK</span>
+                  ) : (
+                    <span className="text-amber-800 font-semibold">Pendiente</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-xs">
                   {r.active === false ? <span className="text-amber-700">Inactivo</span> : <span className="text-emerald-700">Activo</span>}
                   {r.is_new ? <span className="ml-1 text-[#A729AD] font-bold">NUEVO</span> : null}

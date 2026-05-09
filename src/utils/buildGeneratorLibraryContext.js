@@ -3,6 +3,8 @@
  * `rows` = filas activas de getCoachExerciseLibrary().
  */
 
+import { getTrustedLibraryVideoUrl } from './coachLibraryVideoMatch.js'
+
 export const GENERATOR_CATEGORY_LABELS = {
   bisagra: 'Bisagra',
   squat: 'Squat',
@@ -33,10 +35,11 @@ export const GENERATOR_CLASS_LABELS = {
 }
 
 /**
- * @param {Array<{ name: string, category?: string, classes?: string[], level?: string, notes?: string | null, is_new?: boolean, video_url?: string | null }>} rows
+ * @param {Array<{ name: string, category?: string, classes?: string[], level?: string, notes?: string | null, is_new?: boolean, video_url?: string | null, video_url_verified?: boolean }>} rows
+ * @param {Map<string, string> | null} [autoVideoByName] URLs ya resueltas (mapa estático o búsqueda + oembed en servidor) por nombre de ejercicio
  * @returns {string}
  */
-export function buildGeneratorLibraryBlock(rows) {
+export function buildGeneratorLibraryBlock(rows, autoVideoByName = null) {
   if (!Array.isArray(rows) || rows.length === 0) return ''
 
   const byCat = new Map()
@@ -53,6 +56,7 @@ export function buildGeneratorLibraryBlock(rows) {
     'Al nombrar ejercicios en la programación, USA EXACTAMENTE el nombre oficial de la lista cuando exista coincidencia.',
     'Puedes combinar con variaciones claras (carga, %RM, equipamiento) pero el nombre base debe alinearse con la biblioteca.',
     'Si necesitas un movimiento que no está en la lista, descríbelo con claridad; la head coach puede añadirlo después a la biblioteca.',
+    'Cuando aparezca «vídeo (automático, comprobado)», el enlace ha sido validado en servidor (YouTube oembed); puedes citarlo tal cual en respuestas.',
     '',
   ]
 
@@ -67,7 +71,17 @@ export function buildGeneratorLibraryBlock(rows) {
       const lv = GENERATOR_LEVEL_LABELS[r.level] || r.level || ''
       const nu = r.is_new ? ' [NUEVO]' : ''
       const note = r.notes?.trim() ? ` — ${String(r.notes).trim().slice(0, 120)}${String(r.notes).length > 120 ? '…' : ''}` : ''
-      const vid = r.video_url?.trim() ? ` | vídeo: ${r.video_url.trim()}` : ''
+      const trustedVid = getTrustedLibraryVideoUrl(r)
+      const nameKey = String(r.name || '').trim()
+      const autoVid =
+        !trustedVid && autoVideoByName && typeof autoVideoByName.get === 'function'
+          ? autoVideoByName.get(nameKey)
+          : null
+      const vid = trustedVid
+        ? ` | vídeo: ${trustedVid}`
+        : autoVid
+          ? ` | vídeo (automático, comprobado): ${autoVid}`
+          : ''
       lines.push(`• ${r.name}${nu} (${lv}; clases: ${cls || '—'})${note}${vid}`)
     }
     lines.push('')

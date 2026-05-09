@@ -1,5 +1,7 @@
 /** Espejo local de feedback de clase para resúmenes sin API (localStorage). */
 
+import { normalizeProgramDayKey } from './coachMadridDay.js'
+
 const KEY = 'programingevo_coach_feedback_local_v1'
 const MAX = 400
 const READ_KEY = 'programingevo_coach_feedback_reads_v1'
@@ -45,7 +47,7 @@ export function mergeServerFeedbackIntoLog(rows, weekId, mesociclo, semana) {
       week_id: weekId ?? null,
       mesociclo: r.mesociclo ?? mesociclo ?? null,
       semana: r.semana != null ? Number(r.semana) : semana != null ? Number(semana) : null,
-      day_key: r.day_key,
+      day_key: normalizeProgramDayKey(r.day_key) ?? r.day_key,
       class_label: r.class_label,
       coach_name: r.coach_name ?? null,
       session_how: r.session_how,
@@ -63,19 +65,19 @@ export function mergeServerFeedbackIntoLog(rows, weekId, mesociclo, semana) {
   writeFeedbackLog(log)
 }
 
-const HOW_KEYS = ['muy_bien', 'bien', 'regular', 'mal']
-
 /**
  * Resumen de feedback en log local solo para la publicación concreta (`week_id`).
  * Solo coincidencia exacta `week_id`; no se usa mesociclo+semana para incluir filas.
  * Entradas sin `week_id` se ignoran.
+ * @param {string|null|undefined} weekId
+ * @param {{ dayKey?: string|null }} [opts] — si `dayKey` (monday…saturday), solo entradas de ese día de programación
  */
-export function summarizeFeedbackForWeek(weekId) {
+export function summarizeFeedbackForWeek(weekId, opts = {}) {
+  const dayFilter = normalizeProgramDayKey(opts.dayKey)
   const { entries } = readFeedbackLog()
   if (weekId == null) {
     return {
       count: 0,
-      how: { muy_bien: 0, bien: 0, regular: 0, mal: 0 },
       timeSi: 0,
       timeNo: 0,
       timeJusto: 0,
@@ -84,17 +86,17 @@ export function summarizeFeedbackForWeek(weekId) {
     }
   }
   const wid = String(weekId)
-  const filtered = entries.filter((e) => e.week_id != null && String(e.week_id) === wid)
+  let filtered = entries.filter((e) => e.week_id != null && String(e.week_id) === wid)
+  if (dayFilter) {
+    filtered = filtered.filter((e) => normalizeProgramDayKey(e.day_key) === dayFilter)
+  }
 
-  const how = { muy_bien: 0, bien: 0, regular: 0, mal: 0 }
   let timeSi = 0
   let timeNo = 0
   let timeJusto = 0
   const recentNotes = []
 
   for (const e of filtered) {
-    const sh = e.session_how
-    if (sh && HOW_KEYS.includes(sh)) how[sh] += 1
     const te = e.time_for_explanation
     if (te === 'si') timeSi += 1
     else if (te === 'no') timeNo += 1
@@ -142,12 +144,11 @@ export function summarizeFeedbackForWeek(weekId) {
 
   return {
     count: filtered.length,
-    how,
     timeSi,
     timeNo,
     timeJusto,
-    recentNotes: recentNotes.slice(0, 10),
-    recentChanges: recentChanges.slice(0, 10),
+    recentNotes: recentNotes.slice(0, 12),
+    recentChanges: recentChanges.slice(0, 12),
   }
 }
 

@@ -21,8 +21,12 @@ import {
   updatePublishedWeekData,
   getPublishedWeekByMesocycleAndWeek,
   listPublishedWeeksForMesocycle,
+  upsertMissingExerciseVideos,
+  listMissingExerciseVideos,
+  updateMissingExerciseVideo,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
+import { fetchLibraryAutoVideoMap } from '../../utils/fetchLibraryAutoVideoMap.js'
 import {
   buildWeekSkeleton,
   mergeGeneratedDaysIntoAccumulator,
@@ -477,6 +481,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const lastPersistedDraftRef = useRef('')
   /** Aviso breve: borrador / guardado manual en localStorage. */
   const [draftNotice, setDraftNotice] = useState('')
+  /** Resumen de última importación Excel automática. */
+  const [lastImportReport, setLastImportReport] = useState(null)
+  const [missingVideoRows, setMissingVideoRows] = useState([])
+  const [missingVideoBusyId, setMissingVideoBusyId] = useState(null)
   const [weekGridSummaryMode, setWeekGridSummaryMode] = useState(true)
   const [weekGridColWidth, setWeekGridColWidth] = useState(190)
 
@@ -498,6 +506,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       String(weekData?.resumen?.foco || ''),
     )
   }, [weekData, selectedClassKeysForReview])
+
+  useEffect(() => {
+    if (status !== 'previewing') return
+    const meso = weekData?.mesociclo || weekState.mesocycle || null
+    const semana = Number(weekData?.semana || weekState.week || 0) || null
+    if (!meso || semana == null) return
+    refreshMissingVideosPanel(meso, semana)
+  }, [status, weekData?.mesociclo, weekData?.semana, weekState.mesocycle, weekState.week])
 
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
@@ -921,7 +937,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     try {
       const libRows = await getCoachExerciseLibrary()
-      const block = buildGeneratorLibraryBlock(libRows)
+      const autoMap = await fetchLibraryAutoVideoMap(libRows, { maxResolve: 28 })
+      const block = buildGeneratorLibraryBlock(libRows, autoMap)
       if (block) systemExcelFull += `\n\n${block}`
     } catch {
       /* sin biblioteca: generación igual */
@@ -1642,7 +1659,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       let systemFull = SYSTEM_PROMPT_DAY_EDIT
       try {
         const libRows = await getCoachExerciseLibrary()
-        const block = buildGeneratorLibraryBlock(libRows)
+        const autoMap = await fetchLibraryAutoVideoMap(libRows, { maxResolve: 28 })
+        const block = buildGeneratorLibraryBlock(libRows, autoMap)
         if (block) systemFull += `\n\n${block}`
       } catch {
         /* sin biblioteca */
@@ -1961,6 +1979,46 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
     }
   }
 
+  async function refreshMissingVideosPanel(mesociclo, semana) {
+    try {
+      const rows = await listMissingExerciseVideos({
+        mesociclo,
+        semana,
+        onlyUnresolved: true,
+        limit: 250,
+      })
+      setMissingVideoRows(rows || [])
+    } catch {
+      setMissingVideoRows([])
+    }
+  }
+
+  async function handleSaveMissingVideoUrl(rowId, suggestedUrl) {
+    if (!rowId) return
+    try {
+      setMissingVideoBusyId(rowId)
+      await updateMissingExerciseVideo(rowId, {
+        suggested_url: String(suggestedUrl || '').trim() || null,
+        resolved: /^https?:\/\//i.test(String(suggestedUrl || '').trim()),
+      })
+      setMissingVideoRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId
+            ? {
+                ...r,
+                suggested_url: String(suggestedUrl || '').trim(),
+                resolved: /^https?:\/\//i.test(String(suggestedUrl || '').trim()),
+              }
+            : r,
+        ),
+      )
+    } catch (e) {
+      setErrorMsg(`No se pudo guardar URL para ejercicio sin vídeo: ${formatClientError(e)}`)
+    } finally {
+      setMissingVideoBusyId(null)
+    }
+  }
+
   async function handleImportExcelChange(e) {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -1985,13 +2043,61 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         return
       }
       base.titulo = String(editTitle || base.titulo || '').trim() || base.titulo
-      const { data, warnings } = await importProgramingEvoWeekFromXlsxBuffer(buf, base)
+      const { data, warnings, importReport } = await importProgramingEvoWeekFromXlsxBuffer(buf, base)
       loadWeekDataIntoEditor(data, weekState.week, data.titulo || editTitle || '')
+      setLastImportReport(importReport || null)
+
+      const targetMeso = data?.mesociclo || weekState.mesocycle || null
+      const targetSemana = Number(data?.semana || weekState.week || 0) || null
+
+      // Persistencia automática e idempotente en Supabase: sobrescribe por semana+mesociclo.
+      try {
+        let targetRowId = editingPublishedRowId || null
+        if (!targetRowId && targetMeso && targetSemana != null) {
+          const latest = await getPublishedWeekByMesocycleAndWeek(targetMeso, targetSemana)
+          if (latest?.id) targetRowId = latest.id
+        }
+        if (!targetRowId) {
+          const active = await getActiveWeek()
+          if (active?.id && Number(active?.semana) === targetSemana && String(active?.mesociclo || '') === String(targetMeso || '')) {
+            targetRowId = active.id
+          }
+        }
+        if (targetRowId) {
+          await updatePublishedWeekData(targetRowId, data)
+          setEditingPublishedRowId(targetRowId)
+        }
+      } catch (syncErr) {
+        warnings.push(`No se pudo sincronizar automático a Supabase: ${formatClientError(syncErr)}`)
+      }
+
+      if (importReport?.missingExercises?.length && targetMeso && targetSemana != null) {
+        try {
+          await upsertMissingExerciseVideos(
+            importReport.missingExercises.map((m) => ({
+              mesociclo: targetMeso,
+              semana: targetSemana,
+              day_key: m.day_key || '',
+              day_name: m.day_name || null,
+              class_label: m.class_label,
+              exercise_name: m.exercise_name,
+              exercise_norm: m.exercise_norm,
+              resolved: false,
+            })),
+          )
+          await refreshMissingVideosPanel(targetMeso, targetSemana)
+        } catch (upErr) {
+          warnings.push(`No se pudo guardar lista de ejercicios sin vídeo: ${formatClientError(upErr)}`)
+        }
+      } else if (targetMeso && targetSemana != null) {
+        await refreshMissingVideosPanel(targetMeso, targetSemana)
+      }
+
       if (warnings.length) {
-        setDraftNotice(`Excel importado con avisos: ${warnings.join(' · ')}`)
+        setDraftNotice(`Excel importado y sincronizado. Avisos: ${warnings.join(' · ')}`)
         window.setTimeout(() => setDraftNotice(''), 9000)
       } else {
-        setDraftNotice('Excel importado: sesiones y feedbacks del archivo aplicados al borrador.')
+        setDraftNotice('Excel importado automáticamente en borrador + Supabase (idempotente por semana).')
         window.setTimeout(() => setDraftNotice(''), 5500)
       }
     } catch (err) {
@@ -2058,6 +2164,17 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 {draftNotice}
               </p>
             ) : null}
+            {lastImportReport ? (
+              <div className="mt-2 rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2 space-y-1">
+                <p className="text-[10px] font-bold text-indigo-900 uppercase tracking-widest">
+                  Importación automática aplicada
+                </p>
+                <p className="text-[10px] text-indigo-900/90">
+                  {lastImportReport.sessionsImported || 0} sesiones importadas · {lastImportReport.videosLinked || 0} vídeos enlazados ·{' '}
+                  {lastImportReport.missingCount || 0} ejercicios sin vídeo
+                </p>
+              </div>
+            ) : null}
           </div>
           <button onClick={handleCloseModal} className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-neutral-600 hover:text-red-500 transition-all shadow-sm border border-black/5">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -2065,6 +2182,51 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 py-4 space-y-4">
+          {status === 'previewing' && missingVideoRows.length > 0 ? (
+            <section className="rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                  Ejercicios sin vídeo ({missingVideoRows.length})
+                </p>
+                <p className="text-[10px] text-amber-900/80">
+                  Editables aquí (Marian): añade URL y guarda.
+                </p>
+              </div>
+              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                {missingVideoRows.map((r) => (
+                  <div key={r.id} className="rounded-lg border border-amber-300/70 bg-white/80 px-3 py-2">
+                    <p className="text-[11px] font-bold text-[#1A0A1A]">
+                      {r.exercise_name}{' '}
+                      <span className="font-medium text-neutral-600">
+                        · {r.day_name || r.day_key || '—'} · {r.class_label || '—'}
+                      </span>
+                    </p>
+                    <div className="mt-1.5 flex gap-2">
+                      <input
+                        type="url"
+                        value={r.suggested_url || ''}
+                        onChange={(e) =>
+                          setMissingVideoRows((prev) =>
+                            prev.map((x) => (x.id === r.id ? { ...x, suggested_url: e.target.value } : x)),
+                          )
+                        }
+                        placeholder="https://..."
+                        className="flex-1 h-9 rounded-lg border border-amber-300 px-2.5 text-[11px] text-[#1A0A1A] bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMissingVideoUrl(r.id, r.suggested_url)}
+                        disabled={missingVideoBusyId === r.id}
+                        className="h-9 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-[10px] font-bold uppercase tracking-wider"
+                      >
+                        {missingVideoBusyId === r.id ? 'Guardando…' : 'Guardar URL'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {/* IDLE / INPUT */}
           {(status === 'idle' || status === 'error') && (

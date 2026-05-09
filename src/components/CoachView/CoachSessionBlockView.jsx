@@ -4,6 +4,7 @@ import CoachScreenModeOverlay from './CoachScreenModeOverlay.jsx'
 import { parseTimedBlocks, classElapsedMinutes, findActiveTimedBlock } from '../../utils/parseSessionTimings.js'
 import { findLibraryRowsForLine } from '../../utils/coachLibraryLineMatch.js'
 import { resolveVideoUrlForExerciseLabel } from '../../constants/exerciseVideos.js'
+import { getTrustedLibraryVideoUrl } from '../../utils/coachLibraryVideoMatch.js'
 import { coachBorder, coachText, coachBg } from './coachTheme.js'
 import { getCoachExerciseNote } from '../../utils/coachLibraryCoachNotes.js'
 
@@ -25,7 +26,7 @@ function EscaladosDetails({ rows }) {
       </summary>
       <ul className="mt-2 space-y-2 text-xs">
         {rows.map((r) => {
-          const url = resolveVideoUrlForExerciseLabel(r.name, r.video_url)
+          const url = resolveVideoUrlForExerciseLabel(r.name, getTrustedLibraryVideoUrl(r))
           const coachNote = r.id != null ? getCoachExerciseNote(r.id).trim() : ''
           return (
             <li key={r.id || r.name} className={`${coachText.muted} leading-snug`}>

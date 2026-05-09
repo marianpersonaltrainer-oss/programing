@@ -122,6 +122,40 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
 }
 
 /**
+ * Upsert idempotente por slot lógico (mesociclo + semana).
+ * Si existe una fila publicada previa en ese slot, la actualiza; si no, inserta nueva fila no activa.
+ */
+export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana) {
+  if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
+  const prev = await getPublishedWeekByMesocycleAndWeek(mesociclo, semana)
+  if (prev?.id) {
+    await updatePublishedWeekData(prev.id, {
+      ...weekData,
+      mesociclo,
+      semana: Number(semana),
+    })
+    return { id: prev.id, mode: 'update' }
+  }
+  const { data, error } = await supabase
+    .from('published_weeks')
+    .insert({
+      mesociclo,
+      semana: Number(semana),
+      titulo: weekData?.titulo || `S${Number(semana)}`,
+      data: {
+        ...weekData,
+        mesociclo,
+        semana: Number(semana),
+      },
+      is_active: false,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return { id: data?.id || null, mode: 'insert' }
+}
+
+/**
  * Todas las semanas publicadas de un mesociclo (una fila por número de semana, la más reciente por `published_at`).
  * Útil para sincronizar el historial local del generador con el Hub.
  */
@@ -240,6 +274,74 @@ export async function getCoachGuideSettings() {
   return data
 }
 
+// ── Contexto asistente (Haiku) por semana ────────────────────────────────────
+
+export async function getAssistantWeekContext(mesociclo, semana) {
+  if (!mesociclo || semana == null) return null
+  const { data, error } = await supabase
+    .from('assistant_week_context')
+    .select('*')
+    .eq('mesociclo', String(mesociclo))
+    .eq('semana', Number(semana))
+    .maybeSingle()
+  if (error) {
+    if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      return null
+    }
+    throw error
+  }
+  return data || null
+}
+
+export async function upsertAssistantWeekContext(payload) {
+  const row = {
+    mesociclo: String(payload?.mesociclo || '').trim(),
+    semana: Number(payload?.semana),
+    global_notes: payload?.global_notes?.trim() || null,
+    qa_pairs: Array.isArray(payload?.qa_pairs) ? payload.qa_pairs : [],
+    adaptations: Array.isArray(payload?.adaptations) ? payload.adaptations : [],
+    updated_at: new Date().toISOString(),
+  }
+  const { data, error } = await supabase
+    .from('assistant_week_context')
+    .upsert(row, { onConflict: 'mesociclo,semana', ignoreDuplicates: false })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function insertAssistantQuestionHistory(payload) {
+  const row = {
+    week_id: payload?.week_id || null,
+    mesociclo: payload?.mesociclo || null,
+    semana: payload?.semana != null ? Number(payload.semana) : null,
+    day_key: payload?.day_key || null,
+    class_label: payload?.class_label || null,
+    coach_name: payload?.coach_name || null,
+    question: String(payload?.question || '').trim(),
+    answer: String(payload?.answer || '').trim(),
+  }
+  if (!row.question || !row.answer) return null
+  const { data, error } = await supabase.from('assistant_question_history').insert(row).select('id').single()
+  if (error) throw error
+  return data || null
+}
+
+export async function listAssistantQuestionHistory(filters = {}) {
+  let q = supabase.from('assistant_question_history').select('*').order('created_at', { ascending: false }).limit(filters.limit || 400)
+  if (filters.mesociclo) q = q.eq('mesociclo', String(filters.mesociclo))
+  if (filters.semana != null) q = q.eq('semana', Number(filters.semana))
+  const { data, error } = await q
+  if (error) {
+    if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      return []
+    }
+    throw error
+  }
+  return data || []
+}
+
 // ── Feedback de sesión (coaches → coach_session_feedback) ─────────────────────
 
 /**
@@ -343,7 +445,7 @@ export async function recordCoachHandoverRead(weekId, coachName) {
 export async function getCoachExerciseLibrary() {
   const { data, error } = await supabase
     .from('coach_exercise_library')
-    .select('id, name, category, classes, level, notes, is_new, active, video_url, created_at')
+    .select('id, name, category, classes, level, notes, is_new, active, video_url, video_url_verified, created_at')
     .eq('active', true)
     .order('category', { ascending: true })
     .order('name', { ascending: true })
@@ -388,8 +490,70 @@ export async function listDailyHandoffsHistory(filters = {}) {
   if (filters.classType) q = q.eq('class_type', filters.classType)
   if (filters.onlyIncident) q = q.eq('had_incident', true)
   const { data, error } = await q
+  if (error) {
+    const msg = String(error?.message || '').toLowerCase()
+    const missingTable =
+      error?.code === 'PGRST205' ||
+      msg.includes('could not find the table') ||
+      msg.includes('daily_handoffs') && msg.includes('schema cache')
+    if (missingTable) {
+      throw new Error(
+        'No existe la tabla daily_handoffs en este proyecto Supabase. Ejecuta la migración `20260417145500_coach_handoffs_and_weekly_checkins.sql` y vuelve a cargar.',
+      )
+    }
+    throw error
+  }
+  return data || []
+}
+
+// ── Ejercicios sin vídeo (pendientes de revisión manual) ─────────────────────
+
+/**
+ * Inserta o actualiza faltantes detectados al importar Excel.
+ * Idempotente por (mesociclo, semana, day_key, class_label, exercise_norm).
+ */
+export async function upsertMissingExerciseVideos(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  const { data, error } = await supabase
+    .from('ejercicios_sin_video')
+    .upsert(rows, {
+      onConflict: 'mesociclo,semana,day_key,class_label,exercise_norm',
+      ignoreDuplicates: false,
+    })
+    .select('*')
   if (error) throw error
   return data || []
+}
+
+export async function listMissingExerciseVideos(filters = {}) {
+  let q = supabase
+    .from('ejercicios_sin_video')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(filters.limit || 300)
+  if (filters.mesociclo) q = q.eq('mesociclo', filters.mesociclo)
+  if (filters.semana != null) q = q.eq('semana', Number(filters.semana))
+  if (filters.onlyUnresolved !== false) q = q.eq('resolved', false)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+export async function updateMissingExerciseVideo(id, patch) {
+  if (!id) throw new Error('Falta id')
+  const { data, error } = await supabase
+    .from('ejercicios_sin_video')
+    .update({
+      suggested_url: patch?.suggested_url ?? null,
+      resolved: patch?.resolved === true,
+      notes: patch?.notes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
 }
 
 export async function getCurrentCoachWeeklyCheckin(weekIso, coachName) {

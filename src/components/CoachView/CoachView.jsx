@@ -12,6 +12,8 @@ import {
   listTodayHandoffs,
   createDailyHandoff,
   createWeeklyCheckin,
+  getAssistantWeekContext,
+  insertAssistantQuestionHistory,
 } from '../../lib/supabase.js'
 import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
@@ -108,6 +110,73 @@ function buildCoachNoticeFingerprint(settings) {
   if (updated) return `coach_notice:${updated}`
   const title = 'Aviso del centro'
   return `coach_notice_hash:${stableSmallHash(`${title}::${msg}`)}`
+}
+
+function normalizeSupportToken(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+}
+
+function dayNameToDayKey(dayName) {
+  const n = normalizeSupportToken(dayName)
+  if (n.includes('lunes')) return 'monday'
+  if (n.includes('martes')) return 'tuesday'
+  if (n.includes('miercoles')) return 'wednesday'
+  if (n.includes('jueves')) return 'thursday'
+  if (n.includes('viernes')) return 'friday'
+  if (n.includes('sabado')) return 'saturday'
+  return null
+}
+
+function extractAssistantWeeklyContextBlock(userMsg, weekCtx) {
+  if (!weekCtx) return ''
+  const msg = normalizeSupportToken(userMsg)
+  const msgTokens = new Set(msg.split(/\W+/).filter((t) => t.length >= 4))
+  const lines = []
+  const global = String(weekCtx?.global_notes || '').trim()
+  if (global) {
+    lines.push('CONTEXTO SEMANAL (MARIAN):', global, '')
+  }
+
+  const qaRows = Array.isArray(weekCtx?.qa_pairs) ? weekCtx.qa_pairs : []
+  const qaMatches = qaRows.filter((r) => {
+    const q = normalizeSupportToken(r?.question || '')
+    if (!q) return false
+    const qTokens = q.split(/\W+/).filter((t) => t.length >= 4)
+    return qTokens.some((t) => msgTokens.has(t)) || msg.includes(q.slice(0, 30))
+  })
+  if (qaMatches.length) {
+    lines.push('Q&A DE ESTA SEMANA (RELACIONADO CON LA PREGUNTA):')
+    for (const r of qaMatches.slice(0, 4)) {
+      lines.push(`- P: ${String(r?.question || '').trim()}`)
+      lines.push(`  R: ${String(r?.answer || '').trim()}`)
+    }
+    lines.push('')
+  }
+
+  const triggerAdapt =
+    /\b(no puede|lesion|dolor|sin barra|sin material|adaptacion|adaptar|molestia)\b/i.test(msg)
+  const adRows = Array.isArray(weekCtx?.adaptations) ? weekCtx.adaptations : []
+  const adMatches = adRows.filter((r) => {
+    const kw = String(r?.keywords || '')
+      .split(',')
+      .map((x) => normalizeSupportToken(x).trim())
+      .filter(Boolean)
+    if (kw.some((k) => msg.includes(k))) return true
+    if (!triggerAdapt) return false
+    const title = normalizeSupportToken(r?.title || '')
+    return !!title && msg.includes(title)
+  })
+  if (adMatches.length) {
+    lines.push('ADAPTACIONES FRECUENTES DE ESTA SEMANA:')
+    for (const r of adMatches.slice(0, 4)) {
+      lines.push(`- ${String(r?.title || 'Adaptación').trim()}: ${String(r?.response || '').trim()}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n').trim()
 }
 
 function IconSemana(props) {
@@ -313,6 +382,7 @@ export default function CoachView() {
   const [peerFeedbackWeek, setPeerFeedbackWeek] = useState([])
   /** Desde Semana → Feedback: { token, dayKey, classLabel } */
   const [feedbackPrefill, setFeedbackPrefill] = useState(null)
+  const [assistantWeekContext, setAssistantWeekContext] = useState(null)
   /** Evita flash de datos antiguos mientras cambia la semana activa. */
   const [isWeekSwitching, setIsWeekSwitching] = useState(false)
   const [todayHandoffs, setTodayHandoffs] = useState([])
@@ -610,6 +680,24 @@ export default function CoachView() {
   }, [step, activeWeekRow?.id, mainTab])
 
   useEffect(() => {
+    if (step !== 'chat' || !activeWeekRow?.mesociclo || activeWeekRow?.semana == null) {
+      setAssistantWeekContext(null)
+      return
+    }
+    let cancelled = false
+    getAssistantWeekContext(activeWeekRow.mesociclo, Number(activeWeekRow.semana))
+      .then((ctx) => {
+        if (!cancelled) setAssistantWeekContext(ctx || null)
+      })
+      .catch(() => {
+        if (!cancelled) setAssistantWeekContext(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [step, activeWeekRow?.mesociclo, activeWeekRow?.semana])
+
+  useEffect(() => {
     if (!activeWeekRow?.id) return
     mergeServerFeedbackIntoLog(
       peerFeedbackWeek,
@@ -900,12 +988,30 @@ export default function CoachView() {
     const classSlug = supportSlug(activeSupportContext?.classLabel || '')
     const qNorm = normalizeText(userMsg).replace(/\s+/g, ' ').trim()
 
+    async function persistQuestionHistory(answerText) {
+      try {
+        await insertAssistantQuestionHistory({
+          week_id: activeWeekRow?.id || null,
+          mesociclo: activeWeekRow?.mesociclo || null,
+          semana: activeWeekRow?.semana != null ? Number(activeWeekRow.semana) : null,
+          day_key: dayNameToDayKey(activeSupportContext?.dayName) || null,
+          class_label: activeSupportContext?.classLabel || null,
+          coach_name: coachName || null,
+          question: userMsg,
+          answer: answerText,
+        })
+      } catch {
+        /* noop */
+      }
+    }
+
     const faqHit = matchCoachSupportFaq(qNorm)
     if (faqHit) {
       const reply = `Respuesta estándar · Sin IA\n\n${faqHit.answer}`
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
       try {
         await saveMessage(sessionId, 'assistant', reply)
+        await persistQuestionHistory(reply)
       } catch {
         /* noop */
       }
@@ -919,6 +1025,7 @@ export default function CoachView() {
       setMessages((prev) => [...prev, { role: 'assistant', content: cached }])
       try {
         await saveMessage(sessionId, 'assistant', cached)
+        await persistQuestionHistory(cached)
       } catch {
         /* noop */
       }
@@ -945,7 +1052,8 @@ export default function CoachView() {
 
     const hasSession = Boolean(supportContextBlock)
     const systemCore = buildCoachSupportSystemPrompt(hasSession)
-    const systemPrompt = supportContextBlock ? `${supportContextBlock}\n\n${systemCore}` : systemCore
+    const weeklyAssistantBlock = extractAssistantWeeklyContextBlock(userMsg, assistantWeekContext)
+    const systemPrompt = [weeklyAssistantBlock, supportContextBlock, systemCore].filter(Boolean).join('\n\n')
 
     supportInFlightAbortRef.current?.abort()
     const ac = new AbortController()
@@ -992,6 +1100,7 @@ export default function CoachView() {
       setSupportUsedToday(usedAfter)
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
       await saveMessage(sessionId, 'assistant', reply)
+      await persistQuestionHistory(reply)
     } catch (err) {
       if (err?.name === 'AbortError') return
       setError('Error al contactar con el asistente')

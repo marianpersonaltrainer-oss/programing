@@ -40,6 +40,11 @@ function sanitizeRow(input) {
   if (input.video_url === null || typeof input.video_url === 'string') {
     row.video_url = input.video_url === null ? null : input.video_url.trim() || null
   }
+  if (typeof input.video_url_verified === 'boolean') {
+    row.video_url_verified = input.video_url_verified
+  } else if (row.video_url === null || row.video_url === undefined || row.video_url === '') {
+    row.video_url_verified = true
+  }
   return row
 }
 
@@ -117,7 +122,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ data })
     }
 
-    const insertRow = { ...patch, is_new: patch.is_new ?? false, active: patch.active !== false }
+    const insertRow = {
+      ...patch,
+      is_new: patch.is_new ?? false,
+      active: patch.active !== false,
+      video_url_verified:
+        typeof patch.video_url_verified === 'boolean'
+          ? patch.video_url_verified
+          : patch.video_url
+            ? false
+            : true,
+    }
     const { data, error } = await supabase.from('coach_exercise_library').insert(insertRow).select().single()
 
     if (error) return res.status(500).json({ error: error.message })

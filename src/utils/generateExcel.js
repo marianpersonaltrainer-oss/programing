@@ -6,7 +6,7 @@ import {
   findExercisesWithVideos,
   resolveVideoUrlForExerciseLabel,
 } from '../constants/exerciseVideos.js'
-import { findExercisesWithVideosResolved } from './coachLibraryVideoMatch.js'
+import { findExercisesWithVideosResolved, getTrustedLibraryVideoUrl } from './coachLibraryVideoMatch.js'
 import {
   GENERATOR_CATEGORY_LABELS,
   GENERATOR_LEVEL_LABELS,
@@ -317,7 +317,7 @@ function writeBibliotecaSheet(workbook, libraryRows = null) {
       brd(clCell)
 
       const vCell = rr.getCell(5)
-      const resolved = resolveVideoUrlForExerciseLabel(name, r.video_url)
+      const resolved = resolveVideoUrlForExerciseLabel(name, getTrustedLibraryVideoUrl(r))
       const isSearch = /youtube\.com\/results/i.test(resolved)
       vCell.value = { text: isSearch ? '▶ Buscar en YouTube' : '▶ Ver vídeo', hyperlink: resolved }
       fill(vCell, 'FFEFF6FF')

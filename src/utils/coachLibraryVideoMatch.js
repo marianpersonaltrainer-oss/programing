@@ -7,6 +7,17 @@ import {
   shouldOfferAutoVideoForExercise,
 } from '../constants/exerciseVideos.js'
 
+/**
+ * URL guardada en Supabase solo si el admin la ha verificado (o legado sin columna).
+ * Si `video_url_verified === false`, no usamos esa URL (sí mapa estático / búsqueda).
+ */
+export function getTrustedLibraryVideoUrl(row) {
+  const u = String(row?.video_url || '').trim()
+  if (!u) return null
+  if (row?.video_url_verified === false) return null
+  return u
+}
+
 function shouldOfferVideoForLibraryRow(row) {
   const name = String(row?.name || '')
   const cat = String(row?.category || '').toLowerCase()
@@ -36,7 +47,8 @@ export function matchLibraryVideosInLowerText(
     if (specializedOnly && !shouldOfferVideoForLibraryRow(r)) continue
     if (out.length >= max) break
     if (!lt.includes(name.toLowerCase())) continue
-    const url = resolveVideoUrlForExerciseLabel(name, r.video_url, { allowSearchFallback: true })
+    const trusted = getTrustedLibraryVideoUrl(r)
+    const url = resolveVideoUrlForExerciseLabel(name, trusted, { allowSearchFallback: true })
     if (!url) continue
     if (dedupeByUrl && usedUrls.has(url)) continue
     if (dedupeByUrl) usedUrls.add(url)

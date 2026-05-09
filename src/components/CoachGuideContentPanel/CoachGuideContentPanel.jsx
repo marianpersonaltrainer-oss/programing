@@ -6,6 +6,8 @@ import CoachExerciseLibraryAdmin from './CoachExerciseLibraryAdmin.jsx'
 import CoachWeekExportAdmin from './CoachWeekExportAdmin.jsx'
 import AdminHandoffHistory from './AdminHandoffHistory.jsx'
 import AdminTeamPulse from './AdminTeamPulse.jsx'
+import AdminWeeklyProgramUpload from './AdminWeeklyProgramUpload.jsx'
+import AdminAssistantWeekContext from './AdminAssistantWeekContext.jsx'
 
 function normalizeRows(raw) {
   if (!Array.isArray(raw)) return []
@@ -145,7 +147,7 @@ export default function CoachGuideContentPanel({ onClose }) {
           </button>
         </div>
 
-        <div className={`flex gap-1 px-6 pt-4 border-b ${coachBorder}`}>
+        <div className={`flex flex-wrap gap-1 px-6 pt-4 border-b ${coachBorder}`}>
           <button
             type="button"
             onClick={() => setAdminTab('guide')}
@@ -200,6 +202,24 @@ export default function CoachGuideContentPanel({ onClose }) {
           >
             Pulso del equipo
           </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('upload_program')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'upload_program' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Subir programación semanal
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('assistant_context')}
+            className={`px-4 py-2 rounded-t-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+              adminTab === 'assistant_context' ? 'bg-[#A729AD] text-white' : 'text-[#5C4D5C] hover:bg-[#F3EAF8]'
+            }`}
+          >
+            Contexto asistente
+          </button>
         </div>
 
         {adminTab === 'export' ? (
@@ -219,6 +239,20 @@ export default function CoachGuideContentPanel({ onClose }) {
         ) : adminTab === 'pulse' ? (
           <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
             <AdminTeamPulse />
+            <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
+              Cerrar
+            </button>
+          </div>
+        ) : adminTab === 'upload_program' ? (
+          <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
+            <AdminWeeklyProgramUpload />
+            <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
+              Cerrar
+            </button>
+          </div>
+        ) : adminTab === 'assistant_context' ? (
+          <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
+            <AdminAssistantWeekContext />
             <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
               Cerrar
             </button>

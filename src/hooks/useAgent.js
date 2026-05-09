@@ -10,6 +10,7 @@ import { getMethodText } from '../components/MethodPanel/MethodPanel.jsx'
 import { AI_CONFIG, PROGRAMMING_MODEL } from '../constants/config.js'
 import { getCoachExerciseLibrary, supabase } from '../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../utils/buildGeneratorLibraryContext.js'
+import { fetchLibraryAutoVideoMap } from '../utils/fetchLibraryAutoVideoMap.js'
 import { explainAnthropicFetchFailure } from '../utils/explainAnthropicFetchFailure.js'
 import {
   parseAnthropicProxyBody,
@@ -34,8 +35,16 @@ export function useAgent(weekState) {
   useEffect(() => {
     let cancelled = false
     getCoachExerciseLibrary()
-      .then((rows) => {
-        if (!cancelled) setLibraryAppend(buildGeneratorLibraryBlock(rows))
+      .then(async (rows) => {
+        if (cancelled) return
+        setLibraryAppend(buildGeneratorLibraryBlock(rows))
+        try {
+          const auto = await fetchLibraryAutoVideoMap(rows, { maxResolve: 18 })
+          if (cancelled) return
+          setLibraryAppend(buildGeneratorLibraryBlock(rows, auto))
+        } catch {
+          /* se mantiene el bloque sin URLs automáticas */
+        }
       })
       .catch(() => {
         if (!cancelled) setLibraryAppend('')

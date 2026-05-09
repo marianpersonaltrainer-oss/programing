@@ -47,6 +47,116 @@ function normalizeSessionCell(raw) {
   return t
 }
 
+function normalizeExerciseName(raw) {
+  return String(raw || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/@\s*[\w.,+-/:%]+/g, ' ')
+    .replace(/\b\d+\s*(kg|kgs|lb|lbs|m|s|seg|min|reps?)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function parseBibliotecaVideoMap(workbook) {
+  const ws = workbook.getWorksheet('Biblioteca EVO')
+  if (!ws) return new Map()
+
+  const maxR = ws.lastRow?.number || 0
+  if (maxR < 2) return new Map()
+
+  // Intenta localizar columnas por cabecera; fallback al formato generado (B=ejercicio, E=video).
+  let headerRowIdx = 2
+  let nameCol = 2
+  let videoCol = 5
+  for (let r = 1; r <= Math.min(maxR, 6); r += 1) {
+    const row = ws.getRow(r)
+    const cols = [1, 2, 3, 4, 5, 6, 7].map((c) => cellToPlainString(row.getCell(c)).trim().toLowerCase())
+    const idxName = cols.findIndex((x) => x.includes('ejercicio') || x.includes('exercise'))
+    const idxVid = cols.findIndex((x) => x.includes('video') || x.includes('vídeo') || x.includes('url'))
+    if (idxName >= 0 && idxVid >= 0) {
+      headerRowIdx = r
+      nameCol = idxName + 1
+      videoCol = idxVid + 1
+      break
+    }
+  }
+
+  const map = new Map()
+  for (let r = headerRowIdx + 1; r <= maxR; r += 1) {
+    const rr = ws.getRow(r)
+    const name = cellToPlainString(rr.getCell(nameCol)).trim()
+    const video = cellToPlainString(rr.getCell(videoCol)).trim()
+    if (!name || !/^https?:\/\//i.test(video)) continue
+    const norm = normalizeExerciseName(name)
+    if (norm) map.set(norm, video)
+  }
+  return map
+}
+
+function extractExerciseCandidates(text) {
+  const raw = String(text || '').trim()
+  if (!raw) return []
+  const stripped = raw
+    .replace(/\r/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/PARTE\s+[AB]\s*:?\s*/gi, '\n')
+    .replace(/FEEDBACK\s*:?\s*/gi, '\n')
+  const chunks = stripped
+    .split(/\n|•|·|,|;/g)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  const out = []
+  const seen = new Set()
+  for (const ch of chunks) {
+    const clean = ch
+      .replace(/^[\-\d.)\s]+/, '')
+      .replace(/@\s*[\w.,+-/:%]+/g, '')
+      .replace(/\([^)]*\)/g, '')
+      .trim()
+    if (clean.length < 3) continue
+    if (/^(calentamiento|movilidad|bloque|for time|amrap|emom|cap|descanso|tiempo|round|rondas?)$/i.test(clean)) continue
+    const norm = normalizeExerciseName(clean)
+    if (!norm || norm.length < 3 || seen.has(norm)) continue
+    seen.add(norm)
+    out.push({ raw: clean, norm })
+  }
+  return out
+}
+
+function bestVideoForExercise(normName, bibMap) {
+  if (!normName) return null
+  if (bibMap.has(normName)) return bibMap.get(normName)
+  let best = null
+  let bestLen = 0
+  for (const [k, url] of bibMap.entries()) {
+    if (!k) continue
+    if (normName.includes(k) || k.includes(normName)) {
+      if (k.length > bestLen) {
+        bestLen = k.length
+        best = url
+      }
+    }
+  }
+  return best
+}
+
+function stripVideoAppendix(sessionText) {
+  return String(sessionText || '')
+    .replace(/\n{0,2}VIDEOS DE REFERENCIA:[\s\S]*$/i, '')
+    .trim()
+}
+
+function attachVideoAppendix(sessionText, refs) {
+  const base = stripVideoAppendix(sessionText)
+  if (!refs || refs.length === 0) return base
+  const lines = ['VIDEOS DE REFERENCIA:']
+  for (const r of refs) lines.push(`- ${r.exercise} — ${r.url}`)
+  return `${base}\n\n${lines.join('\n')}`.trim()
+}
+
 /**
  * Lee un .xlsx generado por ProgramingEvo (`generateExcel` / `buildWeekExportWorkbook`): hoja de semana
  * (no "Biblioteca EVO") y fusiona sesiones + feedbacks en `baseWeekData` por nombre de día.
@@ -74,6 +184,8 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
 
   const titulo = cellToPlainString(sheet.getRow(1).getCell(1)).trim()
   const byDay = new Map()
+  const classByCol = new Map(ALL_CLASSES.map((cls, i) => [i + 1, cls]))
+  const bibVideoMap = parseBibliotecaVideoMap(wb)
 
   let r = 1
   while (r <= maxR) {
@@ -103,6 +215,44 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       feedback[cls.feedbackKey] = ''
     })
 
+    // Soporta layout "PARTE A / PARTE B / FEEDBACK" con col A etiquetas y B-H clases.
+    const block = { ...session, ...feedback, nombre: dayCanon }
+    const candidateRows = [sheet.getRow(r + 2), sheet.getRow(r + 3), sheet.getRow(r + 4), sheet.getRow(r + 5)]
+    const hasPartLabels = candidateRows.some((rw) => /PARTE\s*A|PARTE\s*B|FEEDBACK/i.test(cellToPlainString(rw.getCell(1))))
+    if (hasPartLabels) {
+      const partsA = {}
+      const partsB = {}
+      const fbs = {}
+      let rrScan = r + 1
+      while (rrScan <= Math.min(maxR, r + 14)) {
+        const label = cellToPlainString(sheet.getRow(rrScan).getCell(1)).trim().toUpperCase()
+        if (rrScan > r + 1 && canonDayFromRow(label)) break
+        if (!/(PARTE\s*A|PARTE\s*B|FEEDBACK)/i.test(label)) {
+          rrScan += 1
+          continue
+        }
+        for (let c = 2; c <= 8; c += 1) {
+          const cls = classByCol.get(c - 1)
+          if (!cls) continue
+          const text = normalizeSessionCell(cellToPlainString(sheet.getRow(rrScan).getCell(c)))
+          if (/PARTE\s*A/i.test(label)) partsA[cls.key] = text
+          if (/PARTE\s*B/i.test(label)) partsB[cls.key] = text
+          if (/FEEDBACK/i.test(label)) fbs[cls.feedbackKey] = text
+        }
+        rrScan += 1
+      }
+      ALL_CLASSES.forEach((cls) => {
+        const pa = String(partsA[cls.key] || '').trim()
+        const pb = String(partsB[cls.key] || '').trim()
+        const fb = String(fbs[cls.feedbackKey] || '').trim()
+        if (pa || pb) {
+          const merged = [pa ? `PARTE A\n${pa}` : '', pb ? `PARTE B\n${pb}` : ''].filter(Boolean).join('\n\n')
+          block[cls.key] = merged || block[cls.key] || '(no programada esta semana)'
+        }
+        if (fb) block[cls.feedbackKey] = fb
+      })
+    }
+
     let rr = r + 3
     const fbRow = rr <= maxR ? sheet.getRow(rr) : null
     let hasFeedbackRow = false
@@ -126,7 +276,7 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       }
     }
 
-    byDay.set(dayCanon, { ...session, ...feedback, nombre: dayCanon })
+    byDay.set(dayCanon, block)
     r = rr
   }
 
@@ -136,6 +286,10 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     )
   }
 
+  const missingOut = []
+  let linkedCount = 0
+  const missingSeen = new Set()
+
   const dias = (baseWeekData?.dias || []).map((dia) => {
     const name = normalizeDayName(dia?.nombre)
     const hit = [...byDay.entries()].find(([k]) => normalizeDayName(k) === name)
@@ -144,7 +298,29 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     const next = { ...dia }
     for (const cls of ALL_CLASSES) {
       if (Object.prototype.hasOwnProperty.call(patch, cls.key)) {
-        next[cls.key] = patch[cls.key] || '(no programada esta semana)'
+        const baseText = patch[cls.key] || '(no programada esta semana)'
+        const candidates = extractExerciseCandidates(baseText)
+        const refs = []
+        for (const cand of candidates) {
+          const url = bestVideoForExercise(cand.norm, bibVideoMap)
+          if (url) {
+            refs.push({ exercise: cand.raw, url })
+          } else {
+            const missKey = `${normalizeDayName(dia?.nombre)}::${cls.label}::${cand.norm}`
+            if (!missingSeen.has(missKey)) {
+              missingSeen.add(missKey)
+              missingOut.push({
+                exercise_name: cand.raw,
+                exercise_norm: cand.norm,
+                day_name: String(dia?.nombre || '').trim(),
+                day_key: canonDayFromRow(dia?.nombre) || null,
+                class_label: cls.label,
+              })
+            }
+          }
+        }
+        linkedCount += refs.length
+        next[cls.key] = attachVideoAppendix(baseText, refs) || '(no programada esta semana)'
       }
       if (Object.prototype.hasOwnProperty.call(patch, cls.feedbackKey)) {
         next[cls.feedbackKey] = patch[cls.feedbackKey] || ''
@@ -159,5 +335,15 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     ...(titulo ? { titulo } : {}),
   }
 
-  return { data, warnings }
+  return {
+    data,
+    warnings,
+    importReport: {
+      sessionsImported: dias.length * ALL_CLASSES.length,
+      videosLinked: linkedCount,
+      bibliotecaMatches: bibVideoMap.size,
+      missingExercises: missingOut,
+      missingCount: missingOut.length,
+    },
+  }
 }

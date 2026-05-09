@@ -11,6 +11,19 @@ createRoot(document.getElementById('root')).render(
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        reg.addEventListener('updatefound', () => {
+          const w = reg.installing
+          if (!w) return
+          w.addEventListener('statechange', () => {
+            if (w.state === 'installed' && navigator.serviceWorker.controller) {
+              window.location.reload()
+            }
+          })
+        })
+      })
+      .catch(() => {})
   })
 }

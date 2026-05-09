@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { resolveVideoUrlForExerciseLabel } from '../../constants/exerciseVideos.js'
+import { getTrustedLibraryVideoUrl } from '../../utils/coachLibraryVideoMatch.js'
 import { coachBg, coachBorder, coachText, coachUi, CLASS_BADGE_CLASS } from './coachTheme.js'
 import { getAllCoachExerciseNotes, setCoachExerciseNote } from '../../utils/coachLibraryCoachNotes.js'
 
@@ -182,7 +183,7 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                     <p className={`text-sm leading-relaxed ${coachText.muted}`}>{e.notes.trim()}</p>
                   ) : null}
                   {(() => {
-                    const url = resolveVideoUrlForExerciseLabel(e.name, e.video_url)
+                    const url = resolveVideoUrlForExerciseLabel(e.name, getTrustedLibraryVideoUrl(e))
                     if (!url) {
                       return <span className="inline-flex text-xs font-semibold text-zinc-500">Sin vídeo asignado</span>
                     }

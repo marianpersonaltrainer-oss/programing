@@ -5,6 +5,17 @@ import { importProgramingEvoWeekFromXlsxBuffer } from './importProgramingEvoWeek
 
 const CORE_CLASS_KEYS = ['evofuncional', 'evobasics', 'evofit']
 const CLASS_BY_KEY = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((c) => [c.key, c]))
+const ALL_SESSION_KEYS = EVO_SESSION_CLASS_DEFS.map((c) => c.key)
+const LM_TAGS = [
+  'lm',
+  'landmine',
+  'rotational press',
+  'deadbug press',
+  'landmine twist',
+  'russian twist',
+  'offset carry',
+  'cross carry offset',
+]
 
 function normalize(s) {
   return String(s || '')
@@ -103,6 +114,15 @@ function sessionStructureKind(text) {
 function isIntentionalOffDay(text) {
   const s = normalize(text)
   return /\b(off|rest|descanso|no programad|open gym|evento|competicion|holiday|festivo)\b/.test(s)
+}
+
+function hasLmSignal(text) {
+  const s = normalize(text)
+  if (!s) return false
+  return LM_TAGS.some((tag) => {
+    if (tag === 'lm') return /\blm\b/.test(s)
+    return s.includes(tag)
+  })
 }
 
 function movementPattern(text) {
@@ -262,7 +282,7 @@ export async function analyzeWeeklyProgramXlsx({
   } else {
     const realMissing = missingRowsDays.filter((d) => {
       const p = dayProfiles.find((x) => x.day === d)
-      return p && !p.off
+      return p && !p.off && p.realCount > 0
     })
     if (realMissing.length) {
       failed.push(`Estructura: días con bloque ambiguo (${realMissing.join(', ')})`)
@@ -281,8 +301,8 @@ export async function analyzeWeeklyProgramXlsx({
     points.estructura += 9
     passed.push('Estructura: semana parcial válida (no se penaliza por plantilla incompleta)')
   } else {
-    points.estructura += 3
-    failed.push('Estructura: muy pocas sesiones programadas para analizar con confianza')
+    points.estructura += 6
+    failed.push('Estructura: alcance de programación muy reducido (activa modo parcial para evaluación más precisa)')
   }
 
   let structureValid = 0
@@ -347,11 +367,9 @@ export async function analyzeWeeklyProgramXlsx({
 
   const lmDays = new Set()
   let lmCount = 0
-  const LM_RE =
-    /\b(lm|landmine|rotational press|deadbug press|russian twist|landmine press|landmine rotational)\b/i
-  for (const key of CORE_CLASS_KEYS) {
+  for (const key of ALL_SESSION_KEYS) {
     for (const d of data.dias || []) {
-      if (LM_RE.test(String(d[key] || ''))) {
+      if (hasLmSignal(String(d[key] || ''))) {
         lmCount += 1
         lmDays.add(d.nombre)
       }

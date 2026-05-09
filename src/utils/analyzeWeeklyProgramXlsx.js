@@ -125,19 +125,33 @@ async function scanStructureFromWorkbook(buffer) {
   const maxR = sheet.lastRow?.number || 0
   const daysFound = new Map()
   for (let r = 1; r <= maxR; r += 1) {
-    const first = normalize(sheet.getRow(r).getCell(1).value?.text || sheet.getRow(r).getCell(1).value || '')
-    if (!first) continue
-    const day = EXCEL_DAY_ORDER.find((d) => normalize(d) === first)
+    let day = null
+    const row = sheet.getRow(r)
+    for (let c = 1; c <= Math.max(12, row.cellCount || 0); c += 1) {
+      const t = normalize(row.getCell(c).value?.text || row.getCell(c).value || '')
+      if (!t) continue
+      const hit = EXCEL_DAY_ORDER.find((d) => normalize(d) === t)
+      if (hit) {
+        day = hit
+        break
+      }
+    }
     if (!day) continue
     let hasA = false
     let hasB = false
     let hasF = false
     for (let rr = r + 1; rr <= Math.min(maxR, r + 12); rr += 1) {
-      const l = normalize(sheet.getRow(rr).getCell(1).value?.text || sheet.getRow(rr).getCell(1).value || '')
-      if (EXCEL_DAY_ORDER.some((d) => normalize(d) === l)) break
-      if (l.includes('parte a')) hasA = true
-      if (l.includes('parte b')) hasB = true
-      if (l.includes('feedback')) hasF = true
+      const rw = sheet.getRow(rr)
+      let all = ''
+      for (let c = 1; c <= Math.max(12, rw.cellCount || 0); c += 1) {
+        const t = normalize(rw.getCell(c).value?.text || rw.getCell(c).value || '')
+        if (!t) continue
+        all += ` ${t}`
+      }
+      if (EXCEL_DAY_ORDER.some((d) => all.includes(normalize(d)))) break
+      if (all.includes('PARTE A')) hasA = true
+      if (all.includes('PARTE B')) hasB = true
+      if (all.includes('FEEDBACK')) hasF = true
     }
     daysFound.set(day, { hasA, hasB, hasF })
   }

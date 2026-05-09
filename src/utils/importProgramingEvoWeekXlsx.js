@@ -31,6 +31,40 @@ function canonDayFromRow(s) {
   return null
 }
 
+function normalizeText(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toUpperCase()
+    .trim()
+}
+
+function dayFromAnyCell(row) {
+  if (!row) return null
+  for (let c = 1; c <= Math.max(10, row.cellCount || 0); c += 1) {
+    const v = cellToPlainString(row.getCell(c)).trim()
+    const d = canonDayFromRow(v)
+    if (d) return d
+  }
+  return null
+}
+
+function detectClassHeaderMap(sheet, maxR) {
+  for (let r = 1; r <= Math.min(maxR, 80); r += 1) {
+    const row = sheet.getRow(r)
+    const map = new Map()
+    for (let c = 1; c <= Math.max(12, row.cellCount || 0); c += 1) {
+      const t = normalizeText(cellToPlainString(row.getCell(c)))
+      if (!t) continue
+      for (const cls of ALL_CLASSES) {
+        if (normalizeText(cls.label) === t) map.set(cls.key, c)
+      }
+    }
+    if (map.size >= 3) return { rowIdx: r, byClassKey: map }
+  }
+  return null
+}
+
 /** Quita cabecera "FEEDBACK EvoFuncional\n" del texto plano de la celda. */
 function stripFeedbackHeader(plain, classLabel) {
   let t = plain.trim()
@@ -280,9 +314,80 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     r = rr
   }
 
+  // Fallback tolerante para excels con layout distinto (día/etiquetas fuera de col A).
+  if (byDay.size === 0) {
+    const hdr = detectClassHeaderMap(sheet, maxR)
+    if (hdr) {
+      const dayRows = []
+      for (let rr = 1; rr <= maxR; rr += 1) {
+        const d = dayFromAnyCell(sheet.getRow(rr))
+        if (d) dayRows.push({ row: rr, day: d })
+      }
+      for (let i = 0; i < dayRows.length; i += 1) {
+        const start = dayRows[i].row
+        const dayCanon = dayRows[i].day
+        const end = i + 1 < dayRows.length ? dayRows[i + 1].row - 1 : Math.min(maxR, start + 26)
+        const block = { nombre: dayCanon }
+        for (const cls of ALL_CLASSES) {
+          block[cls.key] = ''
+          block[cls.feedbackKey] = ''
+        }
+
+        // Intento A/B/Feedback por filas etiqueta (en cualquier columna)
+        let gotLabeledRows = false
+        for (let rr = start + 1; rr <= end; rr += 1) {
+          const row = sheet.getRow(rr)
+          let label = ''
+          for (let c = 1; c <= Math.max(10, row.cellCount || 0); c += 1) {
+            const t = normalizeText(cellToPlainString(row.getCell(c)))
+            if (/PARTE\s*A/.test(t)) label = 'A'
+            if (/PARTE\s*B/.test(t)) label = 'B'
+            if (/FEEDBACK/.test(t)) label = 'F'
+            if (label) break
+          }
+          if (!label) continue
+          gotLabeledRows = true
+          for (const cls of ALL_CLASSES) {
+            const col = hdr.byClassKey.get(cls.key)
+            if (!col) continue
+            const txt = normalizeSessionCell(cellToPlainString(row.getCell(col)))
+            if (!txt) continue
+            if (label === 'A') {
+              block[cls.key] = [block[cls.key], `PARTE A\n${txt}`].filter(Boolean).join('\n\n')
+            } else if (label === 'B') {
+              block[cls.key] = [block[cls.key], `PARTE B\n${txt}`].filter(Boolean).join('\n\n')
+            } else if (label === 'F') {
+              block[cls.feedbackKey] = txt
+            }
+          }
+        }
+
+        // Intento legacy: una fila de contenido + una de feedback (si no hubo A/B explícitos)
+        if (!gotLabeledRows) {
+          const contentRowIdx = Math.min(end, hdr.rowIdx + 1 > start ? hdr.rowIdx + 1 : start + 1)
+          const feedbackRowIdx = Math.min(end, contentRowIdx + 1)
+          const contentRow = sheet.getRow(contentRowIdx)
+          const feedbackRow = sheet.getRow(feedbackRowIdx)
+          for (const cls of ALL_CLASSES) {
+            const col = hdr.byClassKey.get(cls.key)
+            if (!col) continue
+            const txt = normalizeSessionCell(cellToPlainString(contentRow.getCell(col)))
+            if (txt) block[cls.key] = txt
+            const fb = stripFeedbackHeader(cellToPlainString(feedbackRow.getCell(col)), cls.label)
+            if (/FEEDBACK/i.test(cellToPlainString(feedbackRow.getCell(col))) || fb) {
+              block[cls.feedbackKey] = fb
+            }
+          }
+        }
+
+        byDay.set(dayCanon, block)
+      }
+    }
+  }
+
   if (byDay.size === 0) {
     throw new Error(
-      'No se encontraron bloques LUNES…SÁBADO con el formato del export. ¿Es el Excel descargado desde esta app?',
+      'No se pudo detectar la estructura de días/clases en el Excel. Revisa que incluya LUNES-SÁBADO y columnas de clases EVO.',
     )
   }
 

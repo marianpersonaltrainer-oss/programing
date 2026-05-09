@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { EVO_SESSION_CLASS_DEFS } from '../constants/evoClasses.js'
 import { EXCEL_DAY_ORDER, buildWeekSkeleton } from './excelGenerationPlan.js'
+import { excelCellPlainString, pickPrimaryProgrammingWeekSheet } from './excelWorkbookRead.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from './importProgramingEvoWeekXlsx.js'
 
 const CORE_CLASS_KEYS = ['evofuncional', 'evobasics', 'evofit']
@@ -71,9 +72,17 @@ function extractMinutesSmart(text) {
   const s = String(text || '')
   let objective = 0
 
-  // AMRAP / cap explícito: tiempo objetivo real.
-  const caps = [...s.matchAll(/\b(?:amrap|for\s*time|time\s*cap)\s*(\d{1,2})\s*['’m]?\b/gi)]
+  const caps = [...s.matchAll(/\b(?:amrap|for\s*time|time\s*cap)\s*(\d{1,3})\s*['’m]?\b/gi)]
   for (const m of caps) objective += Number(m[1] || 0)
+
+  const tcStandalone = [...s.matchAll(/\b(?:^|[\s(,.])tc\b\s*[:\.]?\s*(\d{1,3})\s*['’m]?\b/gi)]
+  for (const m of tcStandalone) objective += Number(m[1] || 0)
+
+  const capColon = [...s.matchAll(/\bcap(?:\s*de)?\s*[:.]?\s*(\d{1,3})\s*['’m]?\b/gi)]
+  for (const m of capColon) objective += Number(m[1] || 0)
+
+  const tiempoEsp = [...s.matchAll(/\b(?:tiempo|objetivo)\s*(?:cap|total)\b\s*[:\.]?\s*(\d{1,3})\s*(?:min|')\b/gi)]
+  for (const m of tiempoEsp) objective += Number(m[1] || 0)
 
   // Every x rounds: tiempo fijo.
   const every = [...s.matchAll(/\bevery\s+(\d{1,2})[:.]?(\d{0,2})?\s*(?:x|por)\s*(\d{1,2})\b/gi)]
@@ -84,12 +93,16 @@ function extractMinutesSmart(text) {
   }
 
   // EMOM suele ser duración íntegra.
-  const emom = [...s.matchAll(/\bemom\s*(\d{1,2})\b/gi)]
+  const emom = [...s.matchAll(/\bemom\b\s*[:\.]?\s*(\d{1,3})\b/gi)]
   for (const m of emom) objective += Number(m[1] || 0)
 
   // Bloques técnicos: no contar 1:1 como trabajo denso; factor 0.65.
   const technicalHints = /\b(tecnica|skill|drill|progresion|learning|control motor|activation|activacion)\b/i.test(s)
   if (technicalHints) objective *= 0.65
+
+  if (objective < 10 && /\b(chipper|relay|(?:team|partner)s?)\b/i.test(s) && s.length > 72) {
+    objective = Math.max(objective, 16)
+  }
 
   // Fallback: minutos sueltos, evitando doble conteo agresivo.
   if (objective < 8) {
@@ -182,6 +195,15 @@ function movementPattern(text) {
   return 'other'
 }
 
+/** Líneas de plantilla / caliente que repiten día a día y no son ejercicios. */
+function isBoilerExerciseToken(normalizedChunk) {
+  const c = String(normalizedChunk || '').trim()
+  if (c.length < 8) return true
+  return /^(calentamiento|movilidad|estiramiento|vuelta|cooldown|primer bloque|segundo bloque|bloque tecnico|cierre)$/i.test(
+    c.split(/\s+/)[0],
+  )
+}
+
 function extractExercises(text) {
   const s = String(text || '')
   const lines = s
@@ -199,8 +221,13 @@ function extractExercises(text) {
         .replace(/\s+/g, ' ')
         .trim(),
     )
-    if (c.length < 4) continue
-    if (/^(parte a|parte b|feedback|amrap|for time|emom|every)$/.test(c)) continue
+    if (c.length < 10) continue
+    if (isBoilerExerciseToken(c)) continue
+    const head3 = c.split(/\s+/).slice(0, 3).join(' ')
+    if (
+      /^(parte\s*a|parte\s*b|feedback|amrap|for time|emom|every|time cap)$/i.test(head3)
+    )
+      continue
     out.add(c)
   }
   return out
@@ -858,18 +885,38 @@ function buildClaudeReport({
   return lines.join('\n')
 }
 
+/** Si ya tenemos contenido bien importado por JSON, no marcar día como “ambiguo” por discrepancia del segundo scan Excel. */
+function importedDayShowsStructureFromJson(day) {
+  if (!day || typeof day !== 'object') return false
+  for (const def of EVO_SESSION_CLASS_DEFS) {
+    const fb = String(day[def.feedbackKey] || '').trim()
+    if (fb.length >= 10) return true
+  }
+  for (const key of CORE_CLASS_KEYS) {
+    const t = String(day[key] || '').trim()
+    if (!t || /\(no programada esta semana\)/i.test(t)) continue
+    if (/\bparte\s*a\b/i.test(t) || /\bparte\s*b\b/i.test(t)) return true
+    if (detectWodFormat(t) !== 'OTRO') return true
+    if (/\b(flow|chipper|partner|relay|teams?)\b/i.test(normalize(t))) return true
+    const lines = t.split(/\n/).filter(Boolean)
+    if (lines.length >= 6 && t.length > 140) return true
+  }
+  return false
+}
+
 async function scanStructureFromWorkbook(buffer) {
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(buffer)
-  const sheet = wb.worksheets.find((w) => /^s\d+$/i.test(String(w.name || '').trim())) || wb.worksheets[0]
+  const sheet = pickPrimaryProgrammingWeekSheet(wb)
   if (!sheet) throw new Error('No se detectó hoja principal S1/S2...')
   const maxR = sheet.lastRow?.number || 0
   const daysFound = new Map()
+  const structureTrace = [`scanStructure usa hoja «${sheet.name || ''}» lastRow=${maxR}`]
   for (let r = 1; r <= maxR; r += 1) {
     let day = null
     const row = sheet.getRow(r)
     for (let c = 1; c <= Math.max(12, row.cellCount || 0); c += 1) {
-      const t = normalize(row.getCell(c).value?.text || row.getCell(c).value || '')
+      const t = normalize(excelCellPlainString(row.getCell(c)))
       if (!t) continue
       let hit = EXCEL_DAY_ORDER.find((d) => normalize(d) === t)
       if (!hit) {
@@ -890,11 +937,12 @@ async function scanStructureFromWorkbook(buffer) {
     let hasA = false
     let hasB = false
     let hasF = false
+    if (day) structureTrace.push(`fila día ${r}=${day}`)
     for (let rr = r + 1; rr <= Math.min(maxR, r + 12); rr += 1) {
       const rw = sheet.getRow(rr)
       let all = ''
       for (let c = 1; c <= Math.max(12, rw.cellCount || 0); c += 1) {
-        const t = normalize(rw.getCell(c).value?.text || rw.getCell(c).value || '')
+        const t = normalize(excelCellPlainString(rw.getCell(c)))
         if (!t) continue
         all += ` ${t}`
       }
@@ -905,7 +953,8 @@ async function scanStructureFromWorkbook(buffer) {
     }
     daysFound.set(day, { hasA, hasB, hasF })
   }
-  return { daysFound }
+  if (structureTrace.length > 40) structureTrace.length = 40
+  return { daysFound, structureTrace }
 }
 
 export async function analyzeWeeklyProgramXlsx({
@@ -918,8 +967,9 @@ export async function analyzeWeeklyProgramXlsx({
   scope = {},
 }) {
   const base = buildWeekSkeleton(week, mesocycle)
-  const { data } = await importProgramingEvoWeekFromXlsxBuffer(buffer, base)
-  const { daysFound } = await scanStructureFromWorkbook(buffer)
+  const importPkg = await importProgramingEvoWeekFromXlsxBuffer(buffer, base)
+  const { data, warnings: importWarnings = [], parseTrace: importParseTrace = [] } = importPkg
+  const { daysFound, structureTrace: structureScanTrace = [] } = await scanStructureFromWorkbook(buffer)
   const alerts = []
   const passed = []
   /** Errores que deberían corregirse antes de considerar la semana “lista”. */
@@ -974,10 +1024,16 @@ export async function analyzeWeeklyProgramXlsx({
   })
 
   // ESTRUCTURA
-  const missingRowsDays = EXCEL_DAY_ORDER.filter((d) => {
+  const ambiguousExcelScanOnly = EXCEL_DAY_ORDER.filter((d) => {
     const x = daysFound.get(d)
-    // Solo marca si hay día presente y no hay indicio de estructura básica.
     return !!x && !(x?.hasA || x?.hasB || x?.hasF)
+  })
+  const missingRowsDays = ambiguousExcelScanOnly.filter((canon) => {
+    const dayObj = (data.dias || []).find((x) => normalize(x?.nombre || '') === normalize(canon))
+    const p = dayProfiles.find((x) => normalize(x.day || '') === normalize(canon))
+    if (!p || p.off || p.realCount === 0) return false
+    if (dayObj && importedDayShowsStructureFromJson(dayObj)) return false
+    return true
   })
   if (missingRowsDays.length === 0) {
     points.estructura += 5
@@ -1146,7 +1202,7 @@ export async function analyzeWeeklyProgramXlsx({
       noRepeatChecks += 1
       const a = extractExercises(data.dias[i - 1][key])
       const b = extractExercises(data.dias[i][key])
-      const overlap = [...a].filter((x) => b.has(x))
+      const overlap = [...a].filter((x) => b.has(x) && normalize(x).replace(/\s/g, '').length >= 14)
       if (overlap.length <= 1) noRepeatPass += 1
       else alerts.push(`${data.dias[i].nombre} ${CLASS_BY_KEY[key].label}: repite demasiados ejercicios (${overlap.slice(0, 3).join(', ')})`)
     }
@@ -1387,6 +1443,29 @@ export async function analyzeWeeklyProgramXlsx({
           scopeReduced,
         })
 
+  const inferredTimesPreview = programmedSlots.slice(0, 48).map((s) => ({
+    dia: String(s.day),
+    clase: s.label,
+    minInferidos: extractMinutesSmart(s.text),
+    formato: detectWodFormat(s.text),
+    longitudChars: String(s.text || '').length,
+  }))
+
+  const parseDiagnostics = {
+    importWarnings,
+    diasMarcadosAmbiguosSoloExcelScan: ambiguousExcelScanOnly,
+    diasAmbiguosFinales: missingRowsDays,
+    excelImportParseTrace: [...importParseTrace].slice(0, 380),
+    structureScanTrace: [...structureScanTrace].slice(0, 60),
+    diasFlagsEscaneadas: [...daysFound.entries()].map(([dn, flags]) => ({
+      dia: dn,
+      tieneParteAExcel: flags.hasA,
+      tieneParteBExcel: flags.hasB,
+      tieneFeedbackEtiquetaExcel: flags.hasF,
+    })),
+    tiemposInferidosSesionNuCoreSample: inferredTimesPreview,
+  }
+
   const reportText = buildClaudeReport({
     week,
     mesocycle,
@@ -1451,6 +1530,8 @@ export async function analyzeWeeklyProgramXlsx({
       : null,
     experienciaEvo,
     reportText,
+    /** Depuración import + segunda pasada Excel (admin / troubleshooting). */
+    parseDiagnostics,
   }
 }
 

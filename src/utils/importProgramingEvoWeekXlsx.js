@@ -1,19 +1,9 @@
 import ExcelJS from 'exceljs'
 import { ALL_CLASSES } from '../constants/evoClasses.js'
 import { EXCEL_DAY_ORDER } from './excelGenerationPlan.js'
+import { excelCellPlainString, pickPrimaryProgrammingWeekSheet } from './excelWorkbookRead.js'
 
-function cellToPlainString(cell) {
-  if (!cell) return ''
-  const v = cell.value
-  if (v == null || v === '') return ''
-  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v)
-  if (typeof v === 'object' && Array.isArray(v.richText)) {
-    return v.richText.map((t) => (t && t.text) || '').join('')
-  }
-  if (typeof v === 'object' && v.text != null) return String(v.text)
-  if (typeof v === 'object' && v.result != null) return String(v.result)
-  return ''
-}
+const cellToPlainString = excelCellPlainString
 
 function normalizeDayName(s) {
   return String(s || '')
@@ -229,12 +219,18 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(buffer)
 
-  const sheet =
-    wb.worksheets.find((w) => w && w.name && !/^biblioteca/i.test(String(w.name).trim())) ||
-    wb.worksheets[0]
+  const sheet = pickPrimaryProgrammingWeekSheet(wb)
   if (!sheet) {
     throw new Error('El archivo no tiene ninguna hoja legible.')
   }
+
+  /** Traza opcional lectura celda/clase para depuración en UI (limitada). */
+  const parseTrace = []
+  function trace(msg) {
+    if (parseTrace.length >= 320) return
+    parseTrace.push(`${String(sheet?.name || '?')}: ${msg}`)
+  }
+  trace(`Hoja seleccionada «${sheet.name || ''}» (lastRow=${sheet.lastRow?.number || 0})`)
 
   const maxR = sheet.lastRow?.number || 0
   if (maxR < 8) {
@@ -258,9 +254,11 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       continue
     }
 
+    trace(`Día fila ${r}: «${cellToPlainString(row.getCell(1)).slice(0, 80)}» → canon ${dayCanon}`)
     const headerRow = sheet.getRow(r + 1)
     if (!rowLooksLikeClassHeader(headerRow)) {
       warnings.push(`Fila ${r}: se leyó «${dayCanon}» pero la siguiente no parece cabecera de clases; se omite.`)
+      trace(`  Cabecera clases rechazada en fila ${r + 1}`)
       r += 1
       continue
     }
@@ -270,8 +268,10 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     const feedback = {}
     ALL_CLASSES.forEach((cls, i) => {
       const c = i + 1
-      session[cls.key] = normalizeSessionCell(cellToPlainString(contentRow.getCell(c)))
+      const raw = normalizeSessionCell(cellToPlainString(contentRow.getCell(c)))
+      session[cls.key] = raw
       feedback[cls.feedbackKey] = ''
+      trace(`  Fila contenido inicial ${r + 2} col ${c} ${cls.label}: ${raw ? `${raw.length} caracteres` : '(vacío)'}`)
     })
 
     // Soporta layout "PARTE A / PARTE B / FEEDBACK" con col A etiquetas y B-H clases.
@@ -296,7 +296,10 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
           const text = normalizeSessionCell(cellToPlainString(sheet.getRow(rrScan).getCell(c)))
           if (/PARTE\s*A/i.test(label)) partsA[cls.key] = text
           if (/PARTE\s*B/i.test(label)) partsB[cls.key] = text
-          if (/FEEDBACK/i.test(label)) fbs[cls.feedbackKey] = text
+          if (/FEEDBACK/i.test(label)) {
+            fbs[cls.feedbackKey] = text
+            if (text.trim()) trace(`    FEEDBACK→${cls.label} (f.${rrScan} col.${c}) ${text.length} chars`)
+          }
         }
         rrScan += 1
       }
@@ -312,6 +315,36 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       })
     }
 
+    /** Incorpora texto leído en filas legacy de feedback dentro del bloque (antes faltaba el merge en `block`). */
+    function mergeFeedbackDictInto(src) {
+      for (const cls of ALL_CLASSES) {
+        const v = String(src[cls.feedbackKey] || '').trim()
+        if (v) block[cls.feedbackKey] = v
+      }
+    }
+
+    /** Busca filas etiqueta FEEDBACK en cols 2–8 aunque col A solo diga Evo… (layouts variados). */
+    function absorbLabeledFeedbackRows(fromR, untilR) {
+      for (let rrf = fromR; rrf <= Math.min(untilR, maxR); rrf += 1) {
+        const rw = sheet.getRow(rrf)
+        const c1 = cellToPlainString(rw.getCell(1)).trim()
+        const rowJoin = [...Array(10)].map((_, i) => cellToPlainString(rw.getCell(i + 1))).join(' | ')
+        if (!/FEEDBACK/i.test(`${c1} ${rowJoin}`)) continue
+        const rowMarkedFeedback = /^FEEDBACK/i.test(c1)
+        for (let c = 2; c <= 8; c += 1) {
+          const cls = classByCol.get(c - 1)
+          if (!cls) continue
+          const plain = cellToPlainString(rw.getCell(c))
+          if (!plain.trim()) continue
+          if (!rowMarkedFeedback && !/\bFEEDBACK\b/i.test(plain)) continue
+          let inner = stripFeedbackHeader(plain, cls.label)
+          if (!inner.trim()) inner = plain.trim()
+          feedback[cls.feedbackKey] = inner
+          trace(`  FEEDBACK fila ${rrf} col ${c} (${cls.label}) → ${inner.length} chars`)
+        }
+      }
+    }
+
     let rr = r + 3
     const fbRow = rr <= maxR ? sheet.getRow(rr) : null
     let hasFeedbackRow = false
@@ -323,9 +356,27 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
           const plain = cellToPlainString(fbRow.getCell(i + 1))
           const inner = stripFeedbackHeader(plain, cls.label)
           feedback[cls.feedbackKey] = inner
+          if (inner.trim()) trace(`  Fila feedback legacy ${rr} ${cls.label} → ${inner.length} chars`)
         })
         rr += 1
       }
+    }
+    absorbLabeledFeedbackRows(r + 1, r + 16)
+    mergeFeedbackDictInto(feedback)
+
+    for (let rrf = r + 4; rrf <= Math.min(r + 14, maxR); rrf += 1) {
+      const lbl = cellToPlainString(sheet.getRow(rrf).getCell(1)).trim()
+      if (canonDayFromRowLoose(lbl)) break
+      if (!/^FEEDBACK/i.test(lbl)) continue
+      ALL_CLASSES.forEach((cls, i) => {
+        const c = i + 1
+        const plain = cellToPlainString(sheet.getRow(rrf).getCell(c))
+        if (!plain.trim()) return
+        let inner = stripFeedbackHeader(plain, cls.label)
+        if (!inner.trim()) inner = plain.trim()
+        feedback[cls.feedbackKey] = inner
+        trace(`  Fila FEEDBACK col A f.${rrf} ${cls.label} → ${inner.length} chars`)
+      })
     }
 
     if (rr <= maxR) {
@@ -335,7 +386,9 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       }
     }
 
+    mergeFeedbackDictInto(feedback)
     byDay.set(dayCanon, block)
+    trace(`  Bloque día ${dayCanon} guardado (sesiones/feeds según lectura anterior).`)
     r = rr
   }
 
@@ -343,6 +396,7 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
   if (byDay.size === 0) {
     const hdr = detectClassHeaderMap(sheet, maxR)
     if (hdr) {
+      trace('Fallback detectClassHeaderMap: cabeceras por etiqueta Evo')
       const dayRows = []
       for (let rr = 1; rr <= maxR; rr += 1) {
         const d = dayFromAnyCell(sheet.getRow(rr))
@@ -468,6 +522,7 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
   return {
     data,
     warnings,
+    parseTrace,
     importReport: {
       sessionsImported: dias.length * ALL_CLASSES.length,
       videosLinked: linkedCount,

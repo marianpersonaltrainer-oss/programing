@@ -659,6 +659,128 @@ function AdminWeeklyProgramUploadInner() {
               Feedback: {pointsSafe.feedback ?? 0}/25
             </p>
           </div>
+          {result.parseDiagnostics ? (
+            <details className="rounded-lg border border-violet-500/40 bg-[#1a1428] px-3 py-2">
+              <summary className="cursor-pointer select-none text-[10px] font-evo-display uppercase tracking-widest text-violet-200/95">
+                Depuración lectura Excel (hoja, trazas import, A/B/feedback, tiempos inferidos)
+              </summary>
+              <div className="mt-3 space-y-3 text-xs text-[#F0E8FF]/90">
+                <p className="text-[10px] text-violet-200/75 leading-relaxed">
+                  Útil para comprobar qué celda interpreta el parser y por qué un día aparece como ambiguo o el feedback sigue vacío en el modelo interno antes de cambiar la programación.
+                </p>
+                {Array.isArray(result.parseDiagnostics.importWarnings) &&
+                result.parseDiagnostics.importWarnings.length ? (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-violet-300 mb-1">Avisos del import</p>
+                    <ul className="max-h-32 overflow-y-auto space-y-0.5 font-mono text-[11px] text-amber-100/90">
+                      {result.parseDiagnostics.importWarnings.map((w, i) => (
+                        <li key={`iw-${i}`}>- {stringifyRow(w)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {(result.parseDiagnostics.diasMarcadosAmbiguosSoloExcelScan?.length ||
+                  result.parseDiagnostics.diasAmbiguosFinales?.length) ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="rounded border border-violet-600/30 px-2 py-1">
+                      <p className="text-[10px] uppercase text-violet-300 mb-0.5">Solo barrido Excel (ambiguo)</p>
+                      <p className="font-mono text-[11px]">
+                        {(result.parseDiagnostics.diasMarcadosAmbiguosSoloExcelScan || []).join(', ') || '—'}
+                      </p>
+                    </div>
+                    <div className="rounded border border-violet-600/30 px-2 py-1">
+                      <p className="text-[10px] uppercase text-violet-300 mb-0.5">Tras fusionar JSON importado</p>
+                      <p className="font-mono text-[11px]">
+                        {(result.parseDiagnostics.diasAmbiguosFinales || []).join(', ') || '—'}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(result.parseDiagnostics.structureScanTrace) &&
+                result.parseDiagnostics.structureScanTrace.length ? (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-violet-300 mb-1">Segunda pasada · estructura (hoja/rango)</p>
+                    <ul className="max-h-36 overflow-y-auto space-y-0.5 font-mono text-[11px]">
+                      {result.parseDiagnostics.structureScanTrace.map((line, i) => (
+                        <li key={`st-${i}`}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {Array.isArray(result.parseDiagnostics.excelImportParseTrace) &&
+                result.parseDiagnostics.excelImportParseTrace.length ? (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-violet-300 mb-1">Trazas import (celda / clase / feedback / tiempo)</p>
+                    <ul className="max-h-52 overflow-y-auto space-y-0.5 font-mono text-[10px] leading-snug text-[#E9D5FF]/85">
+                      {result.parseDiagnostics.excelImportParseTrace.map((line, i) => (
+                        <li key={`pt-${i}`}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {Array.isArray(result.parseDiagnostics.diasFlagsEscaneadas) &&
+                result.parseDiagnostics.diasFlagsEscaneadas.length ? (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-violet-300 mb-1">Flags por día (Parte A / B / feedback en Excel)</p>
+                    <div className="max-h-40 overflow-y-auto rounded border border-violet-600/25">
+                      <table className="w-full text-left text-[10px] font-mono">
+                        <thead>
+                          <tr className="text-violet-200/80 border-b border-violet-600/30">
+                            <th className="px-2 py-1">Día</th>
+                            <th className="px-2 py-1">A</th>
+                            <th className="px-2 py-1">B</th>
+                            <th className="px-2 py-1">FB</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.parseDiagnostics.diasFlagsEscaneadas.map((row, i) => (
+                            <tr key={`df-${i}`} className="border-b border-violet-800/20">
+                              <td className="px-2 py-0.5">{row.dia}</td>
+                              <td className="px-2 py-0.5">{row.tieneParteAExcel ? 'sí' : '—'}</td>
+                              <td className="px-2 py-0.5">{row.tieneParteBExcel ? 'sí' : '—'}</td>
+                              <td className="px-2 py-0.5">{row.tieneFeedbackEtiquetaExcel ? 'sí' : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(result.parseDiagnostics.tiemposInferidosSesionNuCoreSample) &&
+                result.parseDiagnostics.tiemposInferidosSesionNuCoreSample.length ? (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-violet-300 mb-1">
+                      Muestra tiempos inferidos (TC / EMOM / Every / …)
+                    </p>
+                    <div className="max-h-44 overflow-y-auto rounded border border-violet-600/25">
+                      <table className="w-full text-left text-[10px] font-mono">
+                        <thead>
+                          <tr className="text-violet-200/80 border-b border-violet-600/30">
+                            <th className="px-2 py-1">Día</th>
+                            <th className="px-2 py-1">Clase</th>
+                            <th className="px-2 py-1">Min</th>
+                            <th className="px-2 py-1">Formato</th>
+                            <th className="px-2 py-1">Chars</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.parseDiagnostics.tiemposInferidosSesionNuCoreSample.map((row, i) => (
+                            <tr key={`tt-${i}`} className="border-b border-violet-800/20">
+                              <td className="px-2 py-0.5">{row.dia}</td>
+                              <td className="px-2 py-0.5">{row.clase}</td>
+                              <td className="px-2 py-0.5">{row.minInferidos}</td>
+                              <td className="px-2 py-0.5">{row.formato ?? '—'}</td>
+                              <td className="px-2 py-0.5">{row.longitudChars ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
           {result.coachReview ? (
             <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
               <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Lectura Head Coach · scoring cualitativo</p>

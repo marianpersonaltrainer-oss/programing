@@ -116,6 +116,7 @@ function AdminWeeklyProgramUploadInner() {
   }, [result])
 
   const alertsSafe = Array.isArray(result?.alerts) ? result.alerts : []
+  const observationsSafe = Array.isArray(result?.reviewObservations) ? result.reviewObservations : []
   const blockingSafe = Array.isArray(result?.blockingReasons) ? result.blockingReasons : []
   const pendingSafe = Array.isArray(result?.pendingCorrections)
     ? result.pendingCorrections
@@ -619,13 +620,16 @@ function AdminWeeklyProgramUploadInner() {
           {result.experienciaEvo?.enabled ? (
             <div className="rounded-lg border border-cyan-700/35 bg-[#0f1729] px-3 py-2 space-y-2">
               <p className="text-[10px] uppercase tracking-widest text-cyan-300/90">Experiencia EVO (cualitativa)</p>
+              <p className="text-[10px] text-[#93C5FD]/80">
+                Ritmo/pacing en texto y riqueza motriz están calculados como señales suaves peso reducido; no marcan errores que deban modificarse sí o sí.
+              </p>
               <p className="text-xs text-[#E0F2FE]">{result.experienciaEvo.queHaceEspecialLaSemana}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-[#BAE6FD]">
                 <p>Día más memorable: {result.experienciaEvo.diaMasMemorable || '—'}</p>
                 <p>Día más plano: {result.experienciaEvo.diaMasPlano || '—'}</p>
               </div>
               <p className="text-xs text-amber-100/95">
-                <span className="font-semibold text-amber-200">Mejora prioritaria: </span>
+                <span className="font-semibold text-amber-200">Opcional (pulir lectura clase): </span>
                 {result.experienciaEvo.mejoraPrioritaria}
               </p>
               <div>
@@ -657,43 +661,17 @@ function AdminWeeklyProgramUploadInner() {
           </div>
           {result.coachReview ? (
             <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
-              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Lectura Head Coach</p>
-              <p className="text-xs text-red-200">Riesgo principal: {result.coachReview.risk}</p>
-              <p className="text-xs text-amber-200">Mejora prioritaria: {result.coachReview.priority}</p>
-              <p className="text-xs text-emerald-200">Qué hace especial esta semana: {result.coachReview.special}</p>
-              <p className="text-xs text-[#F6E8F9]">Qué podría hacerla más memorable: {result.coachReview.memorable}</p>
-              <p className="text-xs text-[#F6E8F9]">Recomendación de Head Coach: {result.coachReview.headCoach}</p>
-            </div>
-          ) : null}
-          {result.historicalInsights ? (
-            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
-              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Memoria del mesociclo</p>
-              <p className="text-xs text-[#F6E8F9]">{result.historicalInsights.summary}</p>
-              {(result.historicalInsights.bullets || []).map((b, i) => (
-                <p key={`hist-${i}`} className="text-xs text-[#F6E8F9CC]">
-                  - {b}
-                </p>
-              ))}
-            </div>
-          ) : null}
-          {Array.isArray(result.smartRecommendations) && result.smartRecommendations.length ? (
-            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
-              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Sugerencias inteligentes</p>
-              {result.smartRecommendations.map((r, i) => (
-                <p key={`rec-${i}`} className="text-xs text-emerald-200">
-                  - {r}
-                </p>
-              ))}
-            </div>
-          ) : null}
-          {Array.isArray(creativeIdeas) && creativeIdeas.length ? (
-            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
-              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Assistant creativo ({creativeGoal})</p>
-              {creativeIdeas.map((idea, i) => (
-                <p key={`idea-${i}`} className="text-xs text-[#F6E8F9]">
-                  - {idea}
-                </p>
-              ))}
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Lectura Head Coach · scoring cualitativo</p>
+              <p className="text-[10px] text-[#F6E8F9]/60">
+                Sesgo asistente (no tribunal): enlaza mejor con lo verde/rojo después de usar la app varias semanas.
+              </p>
+              <p className="text-xs text-red-200/95">Contraste técnico: {result.coachReview.risk}</p>
+              <p className="text-xs text-amber-200/90">
+                Opcional técnico: {result.coachReview.priority}
+              </p>
+              <p className="text-xs text-emerald-200">Fortalezas perceptibles: {result.coachReview.special}</p>
+              <p className="text-xs text-[#F6E8F9]">Memorabilidad: {result.coachReview.memorable}</p>
+              <p className="text-xs text-[#F6E8F9]">{result.coachReview.headCoach}</p>
             </div>
           ) : null}
           {blockingSafe.length ? (
@@ -710,7 +688,12 @@ function AdminWeeklyProgramUploadInner() {
           ) : null}
           {pendingSafe.length ? (
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-orange-300/90 mb-1">Pendiente de corrección</p>
+              <p className="text-[10px] uppercase tracking-widest text-orange-300/90 mb-1">
+                Correcciones / validaciones operativas
+              </p>
+              <p className="text-[10px] text-[#F6E8F9]/55 mb-1">
+                Lista concreta; prioriza discrepancias reales sobre el box frente al Excel.
+              </p>
               <ul className="space-y-1 max-h-40 overflow-y-auto">
                 {pendingSafe.slice(0, 80).map((f, i) => (
                   <li key={`pend-${i}`} className="text-xs text-orange-100">
@@ -720,17 +703,72 @@ function AdminWeeklyProgramUploadInner() {
               </ul>
             </div>
           ) : null}
+          {observationsSafe.length ? (
+            <div className="rounded-lg border border-sky-500/25 bg-sky-950/20 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-widest text-sky-200/90 mb-1">Observaciones contextuales</p>
+              <p className="text-[10px] text-[#BAE6FD]/80 mb-1.5">
+                Heurísticas (A/B, tiempos estimados, pacing leído desde texto…): puedes ignorarlas si ya confías en la
+                sesión tal cual está planteada.
+              </p>
+              <ul className="space-y-1 max-h-52 overflow-y-auto">
+                {observationsSafe.slice(0, 140).map((o, i) => (
+                  <li key={`obs-${i}-${stringifyRow(o).slice(0, 80)}`} className="text-xs text-sky-50/95">
+                    - {stringifyRow(o)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA] mb-1">Alertas</p>
+            <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA] mb-1">
+              Avisos rápidos (checklist clase / publicación)
+            </p>
             <ul className="space-y-1 max-h-44 overflow-y-auto">
               {alertsSafe.slice(0, 120).map((a, i) => (
                 <li key={`${i}-${stringifyRow(a).slice(0, 120)}`} className="text-xs text-amber-200/95">
                   - {stringifyRow(a)}
                 </li>
               ))}
-              {!alertsSafe.length ? <li className="text-xs text-emerald-200">- Sin alertas</li> : null}
+              {!alertsSafe.length ? (
+                <li className="text-xs text-emerald-200">- Sin avisos en esta categoría</li>
+              ) : null}
             </ul>
           </div>
+          {result.historicalInsights ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Memoria del mesociclo</p>
+              <p className="text-xs text-[#F6E8F9]">{result.historicalInsights.summary}</p>
+              {(result.historicalInsights.bullets || []).map((b, i) => (
+                <p key={`hist-${i}`} className="text-xs text-[#F6E8F9CC]">
+                  - {b}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {Array.isArray(result.smartRecommendations) && result.smartRecommendations.length ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">
+                Sugerencias Head Coach (opcionales · no son fallos)
+              </p>
+              {result.smartRecommendations.map((r, i) => (
+                <p key={`rec-${i}`} className="text-xs text-emerald-200">
+                  - {r}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {Array.isArray(creativeIdeas) && creativeIdeas.length ? (
+            <div className="rounded-lg border border-[#6A1F6D]/30 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">
+                Inspiración · assistant creativo ({creativeGoal})
+              </p>
+              {creativeIdeas.map((idea, i) => (
+                <p key={`idea-${i}`} className="text-xs text-[#F6E8F9]">
+                  - {idea}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>

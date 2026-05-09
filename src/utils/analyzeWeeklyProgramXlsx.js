@@ -476,7 +476,9 @@ export function buildExperienciaEvoLayer({
       const p = movementPattern(t)
       if (p !== 'other') pats.add(p)
     }
-    const riquezaMotriz = clamp01(Math.min(1, pats.size * 0.22 + (extractExercises(raw).size > 8 ? 0.15 : 0)))
+    const riquezaMotriz = clamp01(
+      Math.min(1, pats.size * 0.13 + (extractExercises(raw).size > 12 ? 0.08 : 0)),
+    )
 
     const personalidadEvo = clamp01(
       (/\b(cue|adapt|regres|escal|objetivo|control|respir|tecnica|progresion|intencion)\b/i.test(raw) ? 0.55 : 0) +
@@ -485,9 +487,9 @@ export function buildExperienciaEvoLayer({
 
     const fmtWod = detectWodFormat(raw)
     const ritmoClase = clamp01(
-      (fmtWod !== 'OTRO' ? 0.32 : 0.08) +
-        (/\b(cap|interval|descans|min\s*-off|minuto)\b/i.test(raw) ? 0.35 : 0) +
-        (extractMinutesSmart(raw) >= 18 && extractMinutesSmart(raw) <= 40 ? 0.32 : 0),
+      (fmtWod !== 'OTRO' ? 0.24 : 0.08) +
+        (/\b(cap|interval|descans|min\s*-off|minuto)\b/i.test(raw) ? 0.22 : 0) +
+        (extractMinutesSmart(raw) >= 16 && extractMinutesSmart(raw) <= 45 ? 0.18 : 0),
     )
 
     const sensacionGimnastico = clamp01(
@@ -538,14 +540,14 @@ export function buildExperienciaEvoLayer({
       })()
 
     const weights = {
-      locomocion: 0.09,
-      flowAtletico: 0.1,
+      locomocion: 0.1,
+      flowAtletico: 0.11,
       carries: 0.08,
       contralateral: 0.08,
-      memorable: 0.1,
-      riquezaMotriz: 0.09,
-      personalidadEvo: 0.1,
-      ritmoClase: 0.08,
+      memorable: 0.11,
+      riquezaMotriz: 0.06,
+      personalidadEvo: 0.12,
+      ritmoClase: 0.06,
       sensacionGimnastico: 0.07,
       diversionControlada: 0.06,
       cargaLogisticaBaja: 0.08,
@@ -677,9 +679,9 @@ export function buildExperienciaEvoLayer({
   const mejoraPrioritaria =
     activeDays.length === 0
       ? 'Completa al menos un día programado en Funcional/Basics/Fit para valorar experiencia.'
-      : `Prioridad suavizada: reforzar ${EXP_DIMENSION_LABELS[bottom1] || bottom1} (${
-        dimensionesPromedio[bottom1] ?? 0
-      }/100 heurístico) con pequeños toques (1 bloque o 1 transición memorable) sin complicar logística.`
+      : `Solo si quieres pulir sensación (${dimensionesPromedio[bottom1] ?? 0}/100 orientativo): ${
+          EXP_DIMENSION_LABELS[bottom1] || bottom1
+      }. Ignora esta línea si la semana ya encaja bien en box.`
 
   return {
     enabled: true,
@@ -722,30 +724,30 @@ function buildCoachReviewSummary({ qualityPoints, realDayProfiles, alerts }) {
   const weakest = ordered[0]?.[0] || 'fluidez_operativa'
   const strongest = [...ordered].sort((a, b) => b[1] - a[1])[0]?.[0] || 'intencion'
   const riskMap = {
-    intencion: 'Riesgo de sesiones “correctas” pero sin estímulo nítido.',
-    contraste: 'Riesgo de monotonía percibida entre días consecutivos.',
-    coherencia_mesociclo: 'Riesgo de desviación del foco real del mesociclo.',
-    densidad_real: 'Riesgo de fatiga acumulada o sesión plana por densidad mal calibrada.',
-    fluidez_operativa: 'Riesgo de cuellos de botella de material/transiciones en box.',
-    carga_cognitiva_coach: 'Riesgo de sobrecargar al coach en briefing y control de clase.',
-    experiencia_alumno: 'Riesgo de semana poco memorable para adherencia del alumno.',
-    progresion_bloque: 'Riesgo de semana sin narrativa progresiva clara.',
-    fatiga_acumulada: 'Riesgo de recuperación insuficiente entre sesiones.',
-    equilibrio_tecnico_intenso_divertido: 'Riesgo de semana desequilibrada en sensación global.',
-    personalidad_evo: 'Riesgo de perder identidad EVO en el diseño diario.',
+    intencion: 'Ángulo a vigilar · estímulo podría leerse poco definido fuera del contexto de clase.',
+    contraste: 'Ángulo a vigilar · monotonía perceptual entre días consecutivos.',
+    coherencia_mesociclo: 'Ángulo a vigilar · alineación con foco declarado del mesociclo.',
+    densidad_real: 'Ángulo a vigilar · densidad o pacing denso-plano fuera del rango que suele funcionar mejor.',
+    fluidez_operativa: 'Ángulo a vigilar · transiciones/material podrían atascar en box muy concurridos.',
+    carga_cognitiva_coach: 'Ángulo a vigilar · bastantes consignas en paralelo.',
+    experiencia_alumno: 'Ángulo a vigilar · recuerdo de semana ante el alumno (no implica clase mala).',
+    progresion_bloque: 'Ángulo a vigilar · narrativa macro semanal menos explícita en texto.',
+    fatiga_acumulada: 'Ángulo a vigilar · acumulación de estímulo duro encadenado.',
+    equilibrio_tecnico_intenso_divertido: 'Ángulo a vigilar · equilibrio sensación técnico/intenso/divertido.',
+    personalidad_evo: 'Ángulo a vigilar · señales de identidad pedagógica EVO menos explícitas en texto.',
   }
   const improveMap = {
-    intencion: 'Declarar intención dominante por sesión (1 frase) y alinear bloques a esa intención.',
-    contraste: 'Forzar contraste en al menos 2 días (ritmo/estímulo/densidad).',
-    coherencia_mesociclo: 'Revisar que los bloques respeten el objetivo del mesociclo actual.',
-    densidad_real: 'Ajustar time cap y descansos para sostener calidad sin sobrecarga.',
-    fluidez_operativa: 'Reducir material simultáneo por sesión y simplificar transiciones.',
-    carga_cognitiva_coach: 'Bajar número de consignas activas por bloque; priorizar 1-2 cues.',
-    experiencia_alumno: 'Introducir componente de juego/logro visible en 1-2 días.',
-    progresion_bloque: 'Definir microprogresión lunes→sábado con hilo conductor.',
-    fatiga_acumulada: 'Alternar días de alta densidad con control técnico/recuperación activa.',
-    equilibrio_tecnico_intenso_divertido: 'Subir contraste entre técnico, intenso y divertido.',
-    personalidad_evo: 'Reforzar señales EVO: control técnico, adaptaciones y coaching cues claros.',
+    intencion: 'Si quieres pulir · una frase de intención por sesión suele bastar.',
+    contraste: 'Si quieres pulir · abrir más contraste en 1–2 días suele mejorar frescura percibida.',
+    coherencia_mesociclo: 'Si quieres pulir · re-alinear wording con objetivo declarado del mesociclo.',
+    densidad_real: 'Si quieres pulir · revisar caps y descansos con ojo práctico de sala.',
+    fluidez_operativa: 'Si quieres pulir · menos implementos cambiantes mismo bloque.',
+    carga_cognitiva_coach: 'Si quieres pulir · menos cues simultáneas; 1 cue dominante suele suficiente.',
+    experiencia_alumno: 'Si quieres pulir · un micro formato memorable sin subir caos suele suficiente.',
+    progresion_bloque: 'Si quieres pulir · un hilo fino lunes→sábado a veces marca diferencia storytelling.',
+    fatiga_acumulada: 'Si quieres pulir · intercalar día más contenido después de cargas muy densas.',
+    equilibrio_tecnico_intenso_divertido: 'Si quieres pulir · un bloque divertido muy simple ya cambia lectura.',
+    personalidad_evo: 'Si quieres pulir · re-forzar cues EVO muy concretos en texto coach.',
   }
   const specialMap = {
     intencion: 'Intención de trabajo clara en varios bloques.',
@@ -765,8 +767,8 @@ function buildCoachReviewSummary({ qualityPoints, realDayProfiles, alerts }) {
     ? 'Potenciar un cierre de semana con reto visible (benchmark corto o challenge por equipos).'
     : 'Añadir 1 sesión con componente partner/relay para elevar recuerdo y adherencia.'
   const recHeadCoach = alerts.length
-    ? 'Mantén esta base y corrige solo las alertas de mayor impacto operativo antes de publicar.'
-    : 'Semana publicable: conserva estructura y documenta cues clave para ejecución homogénea.'
+    ? 'Usa las alertas como checklist suave: prioriza operación real en box; no hace falta “limpiar” todo lo que marque el validador si la semana ya funciona.'
+    : 'Semana con buena señal operativa: conserva estructura y documenta cues clave para ejecución homogénea.'
 
   return {
     risk: riskMap[weakest],
@@ -792,6 +794,7 @@ function buildClaudeReport({
   passed,
   blockingReasons,
   pendingCorrections,
+  reviewObservations = [],
   coachReview,
   historicalInsights,
   smartRecommendations,
@@ -806,20 +809,23 @@ function buildClaudeReport({
     `Validación básica: ${basicScoreDisplay}/100`,
     `Calidad de programación: ${qualityScoreDisplay}/100`,
     '',
-    'BLOQUEANTES:',
+    'BLOQUEANTES (resolver antes de dar por buena semana incompleta o inválida):',
     ...(blockingReasons.length ? blockingReasons.map((b) => `- ${b}`) : ['- Ninguno']),
     '',
-    'PENDIENTE DE CORRECCIÓN:',
-    ...(pendingCorrections.length ? pendingCorrections.map((f) => `- ${f}`) : ['- Ninguno']),
+    'CORRECCIONES / VALIDACIONES OPERATIVAS (revisión concreta, no solo «ideas»):',
+    ...(pendingCorrections.length ? pendingCorrections.map((f) => `- ${f}`) : ['- Ninguna']),
     '',
-    'ALERTAS (no críticas / revisión rápida):',
-    ...(alerts.length ? alerts.map((a) => `- ${a}`) : ['- Sin alertas']),
+    'OBSERVACIONES CONTEXTUALES (heurísticas; válido ignorarlas si tu criterio Head Coach discrepa):',
+    ...(reviewObservations.length ? reviewObservations.map((o) => `- ${o}`) : ['- Ninguna']),
+    '',
+    'AVISOS DE REVISIÓN RÁPIDA (rápido vistazo antes de clase / publicación):',
+    ...(alerts.length ? alerts.map((a) => `- ${a}`) : ['- Sin avisos']),
     '',
     'APROBADO:',
     ...(passed.length ? passed.map((p) => `- ${p}`) : ['- (vacío)']),
     '',
-    `Riesgo principal de la semana: ${coachReview.risk}`,
-    `Mejora prioritaria: ${coachReview.priority}`,
+    `Contraste / área a vigilar (lente scoring): ${coachReview.risk}`,
+    `Opcional técnico: ${coachReview.priority}`,
     `Qué hace especial esta semana: ${coachReview.special}`,
     `Qué podría hacerla más memorable: ${coachReview.memorable}`,
     `Recomendación de Head Coach: ${coachReview.headCoach}`,
@@ -828,10 +834,10 @@ function buildClaudeReport({
     `- ${historicalInsights.summary}`,
     ...historicalInsights.bullets.map((x) => `- ${x}`),
     '',
-    'RECOMENDACIONES INTELIGENTES:',
+    'SUGERENCIAS HEAD COACH (opcionales; no implican error):',
     ...smartRecommendations.map((x) => `- ${x}`),
     '',
-    'IDEAS CREATIVAS (equilibrio):',
+    'IDEAS CREATIVAS / ASISTENTE (inspiración, no auditoría):',
     ...(creativeSuggestions.length ? creativeSuggestions.map((x) => `- ${x}`) : ['- (vacío)']),
     '',
     '— EXPERIENCIA EVO (cualitativa, no sustituye al score técnico) —',
@@ -918,6 +924,8 @@ export async function analyzeWeeklyProgramXlsx({
   const passed = []
   /** Errores que deberían corregirse antes de considerar la semana “lista”. */
   const pendingCorrections = []
+  /** Lecturas heurísticas (A/B, tiempos estimados, pacing…): no son fallos automáticos. */
+  const reviewObservations = []
   /** Casos graves: publicación / importación no recomendados hasta resolver. */
   const blockingReasons = []
 
@@ -1008,7 +1016,11 @@ export async function analyzeWeeklyProgramXlsx({
   for (const slot of programmedSlots) {
     const kind = sessionStructureKind(slot.text)
     if (kind !== 'empty') structureValid += 1
-    if (kind === 'bloques') alerts.push(`${slot.day} ${slot.label}: estructura poco explícita; añade señal de bloques/objetivo`)
+    if (kind === 'bloques') {
+      reviewObservations.push(
+        `${slot.day} ${slot.label}: formato leído como “bloques” sin marca explícita; si ya es claro en cabecera/coach briefing, puede ignorarse.`,
+      )
+    }
   }
   const stRatio = totalProgrammed ? structureValid / totalProgrammed : 1
   points.estructura += Math.round(10 * stRatio)
@@ -1016,14 +1028,29 @@ export async function analyzeWeeklyProgramXlsx({
   let timeOk = 0
   for (const slot of programmedSlots) {
     const mins = extractMinutesSmart(slot.text)
-    if (mins >= 20 && mins <= 38) timeOk += 1
-    else if (mins > 0) alerts.push(`${slot.day} ${slot.label}: tiempo estimado ${mins} min (revisar flow real)`)
-    else alerts.push(`${slot.day} ${slot.label}: no se pudo inferir duración`)
+    if (mins >= 18 && mins <= 42) timeOk += 1
+    else if (mins > 0) {
+      reviewObservations.push(
+        `${slot.day} ${slot.label}: tiempo inferido ~${mins} min (orientativo; formatos chipper/mixtos suelen equivocarse).`,
+      )
+    } else {
+      reviewObservations.push(
+        `${slot.day} ${slot.label}: duración no inferida por el parser; no implica falta de diseño.`,
+      )
+    }
   }
   const timeRatio = totalProgrammed ? timeOk / totalProgrammed : 1
   points.estructura += Math.round(10 * timeRatio)
-  if (timeRatio >= 0.8) passed.push('Estructura: tiempos mayormente en rango operativo')
-  else pendingCorrections.push(`Estructura: tiempos fuera de rango en varias sesiones (${timeOk}/${totalProgrammed} en rango)`)
+  if (timeRatio >= 0.72) passed.push('Estructura: tiempos razonablemente alineados con la referencia 18–42 min')
+  else if (timeRatio >= 0.38) {
+    reviewObservations.push(
+      `[Tiempo semanal] Solo ${timeOk}/${totalProgrammed} sesiones entran en la ventana heurística 18–42 min; válido si el pacing real está acordado en box.`,
+    )
+  } else if (totalProgrammed >= 4) {
+    pendingCorrections.push(
+      `Estructura: muchas sesiones fuera de la referencia de tiempo del validador (${timeOk}/${totalProgrammed} en 18–42 min); revisar si el Excel refleja duración real.`,
+    )
+  }
 
   // VARIEDAD
   let variedPairs = 0
@@ -1035,12 +1062,20 @@ export async function analyzeWeeklyProgramXlsx({
     totalPairs += 1
     const similar = prev.fmt === cur.fmt && prev.stim === cur.stim && prev.densityBucket === cur.densityBucket
     if (!similar) variedPairs += 1
-    else alerts.push(`${cur.day}: formato+estímulo+density muy parecido a ${prev.day} (${cur.fmt}/${cur.stim}/${cur.densityBucket})`)
+    else {
+      reviewObservations.push(
+        `${cur.day}: muy parecido a ${prev.day} en formato/estímulo/densidad (${cur.fmt}/${cur.stim}/${cur.densityBucket}); puede ser intencional en microciclo.`,
+      )
+    }
   }
   const fmtRatio = totalPairs ? variedPairs / totalPairs : 1
   points.variedad += Math.round(10 * fmtRatio)
   if (fmtRatio === 1) passed.push('Variedad: formato WOD varía entre días')
-  else pendingCorrections.push('Variedad: hay días consecutivos con formato WOD repetido')
+  else {
+    reviewObservations.push(
+      'Variedad: varios pares de días consecutivos se leen parecidos; contrastar con intención del mesociclo antes de cambiar nada.',
+    )
+  }
 
   const prevMonday = previousWeekData?.dias?.find((d) => normalize(d?.nombre) === normalize('LUNES')) || null
   const curMonday = data?.dias?.find((d) => normalize(d?.nombre) === normalize('LUNES')) || null
@@ -1056,11 +1091,13 @@ export async function analyzeWeeklyProgramXlsx({
       passed.push('Variedad: arranque semanal diferenciado frente a semana anterior')
     } else {
       points.variedad += 2
-      alerts.push(`Variedad: arranque del lunes muy parecido a la semana anterior (${curP} / ${curFmt}; revisar contraste)`)
+      reviewObservations.push(
+        `Lunes vs semana anterior: patrón/formato parecidos (${curP} / ${curFmt}); útil solo si buscas más contraste entre semanas.`,
+      )
     }
   } else {
     points.variedad += 3
-    alerts.push('Variedad: no hay semana anterior publicada para comparar arranque del lunes')
+    reviewObservations.push('No hay semana anterior en Hub para contrastar el lunes; publica S-1 cuando puedas para activar memoria.')
   }
 
   const lmDays = new Set()
@@ -1080,7 +1117,7 @@ export async function analyzeWeeklyProgramXlsx({
   if (lmCount === 0) {
     if (scopeReduced) {
       points.variedad += 6
-      alerts.push('Semana parcial/draft: no se detecta LM/landmine; revisa al completar la planificación')
+      reviewObservations.push('Semana parcial/draft: no se detecta LM/landmine; revisar al cerrar plantilla si aplica a tu mesociclo.')
     } else {
       pendingCorrections.push('Variedad: ausencia total de LM en semana')
       alerts.push('Semana: no aparece LM/landmine en bloques programados')
@@ -1096,7 +1133,9 @@ export async function analyzeWeeklyProgramXlsx({
     )
   } else {
     points.variedad += 6
-    alerts.push('Variedad: LM poco repartido en la semana (todo en un día); considera distribuir')
+    reviewObservations.push(
+      'LM/landmine concentrado en pocos bloques; distribuir más es opcional si la carga ya encaja.',
+    )
   }
 
   // COHERENCIA
@@ -1135,13 +1174,21 @@ export async function analyzeWeeklyProgramXlsx({
         (pa === 'squat' && (pb === 'hinge' || pb === 'pull')) ||
         (pa !== 'push' && pa !== 'squat')
       if (ok) compPass += 1
-      else alerts.push(`${day.nombre} ${CLASS_BY_KEY[key].label}: PARTE B no complementa PARTE A`)
+      else {
+        reviewObservations.push(
+          `${day.nombre} ${CLASS_BY_KEY[key].label}: lectura A→B no encaja en regla simple push/pull/hinge; si el bloque es híbrido o intencional, ignorar.`,
+        )
+      }
     }
   }
   const compRatio = compChecks ? compPass / compChecks : 1
   points.coherencia += Math.round(15 * compRatio)
   if (compRatio === 1) passed.push('Coherencia: PARTE B complementa patrón de PARTE A')
-  else pendingCorrections.push('Coherencia: hay clases donde PARTE B no complementa PARTE A')
+  else {
+    reviewObservations.push(
+      'Varias sesiones con PARTE A/B que el parser no califica como “complementarias”; criterio Head Coach manda sobre esta heurística.',
+    )
+  }
 
   // FEEDBACK
   let fbTotal = 0
@@ -1289,6 +1336,7 @@ export async function analyzeWeeklyProgramXlsx({
       blocking: blockingReasons.length,
       pending: pendingCorrections.length,
       alerts: alerts.length,
+      observations: reviewObservations.length,
     },
     importRecommended,
   }
@@ -1338,6 +1386,7 @@ export async function analyzeWeeklyProgramXlsx({
     passed,
     blockingReasons,
     pendingCorrections,
+    reviewObservations,
     coachReview,
     historicalInsights,
     smartRecommendations,
@@ -1360,6 +1409,8 @@ export async function analyzeWeeklyProgramXlsx({
     historicalInsights,
     smartRecommendations,
     creativeSuggestions,
+    /** Contexto Head Coach · heurísticas suaves (no son fallos). */
+    reviewObservations,
     alerts,
     passed,
     pendingCorrections,

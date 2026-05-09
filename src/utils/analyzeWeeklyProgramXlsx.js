@@ -6,24 +6,46 @@ import { importProgramingEvoWeekFromXlsxBuffer } from './importProgramingEvoWeek
 const CORE_CLASS_KEYS = ['evofuncional', 'evobasics', 'evofit']
 const CLASS_BY_KEY = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((c) => [c.key, c]))
 const ALL_SESSION_KEYS = EVO_SESSION_CLASS_DEFS.map((c) => c.key)
-const LM_TAGS = [
-  'lm',
-  'landmine',
-  'rotational press',
-  'press rotacional',
-  'prensa rotacional',
-  'deadbug press',
-  'dead bug press',
-  'landmine twist',
-  'russian twist',
-  'twist ruso',
-  'antirotacion',
-  'anti rotacion',
-  'anti-rotacion',
-  'offset carry',
-  'cross carry offset',
-  'carry offset',
-]
+const MOVEMENT_TAGS = {
+  LM_CORE: [
+    'lm deadbug press',
+    'deadbug press',
+    'dead bug press',
+    'lm russian twist',
+    'russian twist',
+    'twist ruso',
+    'landmine core',
+  ],
+  LM_ROTATIONAL: [
+    'lm rotational press',
+    'rotational press',
+    'press rotacional',
+    'prensa rotacional',
+    'landmine rotational',
+    'landmine twist',
+    'twist landmine',
+    'antirotacion',
+    'anti rotacion',
+    'anti-rotacion',
+  ],
+  LM_CARRY: [
+    'offset carry',
+    'cross carry',
+    'cross carry offset',
+    'carry offset',
+    'landmine carry',
+  ],
+  LM_STRENGTH: [
+    'landmine press',
+    'landmine squat',
+    'landmine lunge',
+    'landmine rdl',
+    'landmine row',
+    'lm press',
+    'lm squat',
+    'lm lunge',
+  ],
+}
 
 function normalize(s) {
   return String(s || '')
@@ -125,17 +147,30 @@ function isIntentionalOffDay(text) {
 }
 
 function hasLmSignal(text) {
+  return detectMovementTags(text).some((t) => t.startsWith('LM_'))
+}
+
+function detectMovementTags(text) {
   const s = normalize(text)
-  if (!s) return false
-  const direct = LM_TAGS.some((tag) => {
-    if (tag === 'lm') return /\blm\b/.test(s)
-    return s.includes(tag)
-  })
-  if (direct) return true
-  // Señales semánticas compuestas (sin keyword exacta "landmine")
-  const rotationalPressLike = /(rotacional|rotacion|antirotacion|anti rotacion)/.test(s) && /(press|prensa|push)/.test(s)
-  const coreCarryLike = /(offset|carry|carga asimetrica|asimetrico)/.test(s) && /(walk|marcha|carry|farmer|cross)/.test(s)
-  return rotationalPressLike || coreCarryLike
+  if (!s) return []
+  const tags = new Set()
+
+  // Match por diccionario explícito.
+  for (const [tag, patterns] of Object.entries(MOVEMENT_TAGS)) {
+    if (patterns.some((p) => s.includes(normalize(p)))) tags.add(tag)
+  }
+
+  // Heurísticas compuestas (sin necesidad de keyword "landmine" literal).
+  const rotationalPressLike =
+    /(rotacional|rotacion|antirotacion|anti rotacion)/.test(s) && /(press|prensa|push)/.test(s)
+  const coreCarryLike =
+    /(offset|carry|carga asimetrica|asimetrico)/.test(s) && /(walk|marcha|carry|farmer|cross)/.test(s)
+  const lmShortLike = /\blm\b/.test(s) && /(press|twist|carry|squat|lunge|rdl|row|deadbug)/.test(s)
+  if (rotationalPressLike) tags.add('LM_ROTATIONAL')
+  if (coreCarryLike) tags.add('LM_CARRY')
+  if (lmShortLike) tags.add('LM_STRENGTH')
+
+  return [...tags]
 }
 
 function movementPattern(text) {
@@ -386,11 +421,15 @@ export async function analyzeWeeklyProgramXlsx({
 
   const lmDays = new Set()
   let lmCount = 0
+  const lmBuckets = new Set()
   for (const key of ALL_SESSION_KEYS) {
     for (const d of data.dias || []) {
-      if (hasLmSignal(String(d[key] || ''))) {
+      const text = String(d[key] || '')
+      const tags = detectMovementTags(text)
+      if (tags.some((t) => t.startsWith('LM_'))) {
         lmCount += 1
         lmDays.add(d.nombre)
+        for (const t of tags) if (t.startsWith('LM_')) lmBuckets.add(t)
       }
     }
   }
@@ -405,7 +444,13 @@ export async function analyzeWeeklyProgramXlsx({
     }
   } else if (lmDays.size >= 2) {
     points.variedad += 10
-    passed.push('Variedad: LM presente y distribuido de forma razonable')
+    passed.push(
+      `Variedad: LM presente y distribuido (${lmDays.size} días, ${lmBuckets.size} intenciones: ${[
+        ...lmBuckets,
+      ]
+        .map((x) => x.replace('LM_', '').toLowerCase())
+        .join(', ')})`,
+    )
   } else {
     points.variedad += 6
     failed.push('Variedad: LM poco distribuido (concentrado en un día)')

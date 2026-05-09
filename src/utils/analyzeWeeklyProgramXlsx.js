@@ -541,12 +541,12 @@ export function buildExperienciaEvoLayer({
 
     const weights = {
       locomocion: 0.1,
-      flowAtletico: 0.11,
+      flowAtletico: 0.085,
       carries: 0.08,
       contralateral: 0.08,
       memorable: 0.11,
-      riquezaMotriz: 0.06,
-      personalidadEvo: 0.12,
+      riquezaMotriz: 0.045,
+      personalidadEvo: 0.16,
       ritmoClase: 0.06,
       sensacionGimnastico: 0.07,
       diversionControlada: 0.06,
@@ -618,7 +618,7 @@ export function buildExperienciaEvoLayer({
     activeDays.length === 0
       ? 0
       : Math.round(
-          (activeDays.reduce((a, b) => a + b.indiceDia, 0) / activeDays.length * 0.88 + contrasteSemanaActual * 0.12) *
+          (activeDays.reduce((a, b) => a + b.indiceDia, 0) / activeDays.length * 0.93 + contrasteSemanaActual * 0.07) *
             100,
         )
 
@@ -1182,8 +1182,8 @@ export async function analyzeWeeklyProgramXlsx({
     }
   }
   const compRatio = compChecks ? compPass / compChecks : 1
-  /** Lectura A→B cualitativa: no debe hundir el score básico; suelo para programaciones híbridas válidas. */
-  const compRatioForPoints = Math.max(compRatio, 0.72)
+  /** Complemento A/B es heurística dura sobre texto; apenas debe restar cuando el programa es usable. */
+  const compRatioForPoints = Math.max(compRatio, 0.92)
   points.coherencia += Math.round(15 * compRatioForPoints)
   if (compRatio === 1) passed.push('Coherencia: PARTE B complementa patrón de PARTE A')
   else {
@@ -1257,8 +1257,8 @@ export async function analyzeWeeklyProgramXlsx({
   const hasTech = intentions.includes('tecnica')
   const hasIntense = intentions.includes('potencia') || intentions.includes('resistencia')
   const equilibrio = clamp01((Number(hasFun) + Number(hasTech) + Number(hasIntense)) / 3)
-  /** Contrast textual es heurística fina; el equilibrio de estímulos pesa más que “contraste día a día”. */
-  const experienciaAlumno = clamp01(equilibrio * 0.72 + contrastRatio * 0.28 + 0.04)
+  /** Pacing/contraste leídos aquí solo guían — equilibrio de estímulos domina fuerte. */
+  const experienciaAlumno = clamp01(equilibrio * 0.86 + contrastRatio * 0.1 + 0.06)
 
   const fatigueSeq = realDayProfiles.map((d) => (d.densityBucket === 'alta' ? 1 : 0))
   let maxHighStreak = 0
@@ -1280,13 +1280,14 @@ export async function analyzeWeeklyProgramXlsx({
   const evoSignals = sessions.filter((t) => /\b(control|adapt|regresion|carry|antirotacion|cue|tecnica)\b/i.test(t)).length
   const personalidadEvo = clamp01(evoSignals / Math.max(1, sessions.length))
 
-  /** Capa “calidad” guía pero no debe castigar semanas operativamente sólidas (suma pesos = 100). */
+  /**
+   * Ponderación cualitativa: lo subjetivo pesa pocas décimas cada una para no desmentir un informe sólido.
+   * Sumatorio de pesos = 100.
+   */
   const qualityRaw = {
     intencion: intentionClearRatio,
-    /** Monotonía / contraste día a día: feedback Head Coach más que métrica dura */
     contraste: contrastRatio,
     coherencia_mesociclo: mesoCoherence,
-    /** Pacing / densidad mediada desde etiquetas densidad_bucket: uso bajo peso */
     densidad_real: densidadReal,
     fluidez_operativa: fluidezOperativa,
     carga_cognitiva_coach: cargaCoach,
@@ -1297,17 +1298,17 @@ export async function analyzeWeeklyProgramXlsx({
     personalidad_evo: personalidadEvo,
   }
   const qualityWeights = {
-    intencion: 18,
-    contraste: 3,
-    coherencia_mesociclo: 17,
-    densidad_real: 4,
-    fluidez_operativa: 7,
+    intencion: 22,
+    contraste: 1,
+    coherencia_mesociclo: 21,
+    densidad_real: 2,
+    fluidez_operativa: 6,
     carga_cognitiva_coach: 6,
-    experiencia_alumno: 4,
-    progresion_bloque: 9,
+    experiencia_alumno: 1,
+    progresion_bloque: 8,
     fatiga_acumulada: 13,
-    equilibrio_tecnico_intenso_divertido: 5,
-    personalidad_evo: 14,
+    equilibrio_tecnico_intenso_divertido: 4,
+    personalidad_evo: 16,
   }
   let qualityScore = 0
   const qualityPoints = {}
@@ -1318,15 +1319,19 @@ export async function analyzeWeeklyProgramXlsx({
   }
   qualityScore = Math.max(0, Math.min(100, qualityScore))
   const basicScoreCapped = Math.min(100, Math.max(0, basicScore))
-  /**
-   * Más peso al score básico (validación/checklist): la capa cualitativa acompaña
-   * sin arrastrar tanto el número final cuando hay buena ejecución operativa.
-   */
-  const BASIC_BLEND = 0.74
-  const scoreRaw = Math.round(basicScoreCapped * BASIC_BLEND + qualityScore * (1 - BASIC_BLEND))
+  /** Si checklist es alto, las heurísticas no deben dejar la «calidad» ~20–30 puntos por debajo (incoherencia con el texto). */
+  let qualityAdjusted = qualityScore
+  if (basicScoreCapped >= 62) {
+    const qualityFloor = Math.max(qualityScore, Math.min(96, Math.round(basicScoreCapped - 12)))
+    qualityAdjusted = qualityFloor
+  }
+  qualityAdjusted = Math.min(100, Math.max(0, qualityAdjusted))
+  /** Checklist tiene prioridad mayor que lecturas sutiles pacing/contraste/flow. */
+  const BASIC_BLEND = 0.81
+  const scoreRaw = Math.round(basicScoreCapped * BASIC_BLEND + qualityAdjusted * (1 - BASIC_BLEND))
   const scoreDisplay = Math.min(100, Math.max(0, scoreRaw))
   const basicScoreDisplay = Math.min(100, Math.max(0, basicScoreCapped))
-  const qualityScoreDisplay = Math.min(100, Math.max(0, qualityScore))
+  const qualityScoreDisplay = Math.min(100, Math.max(0, qualityAdjusted))
 
   const validationOutcome = deriveProgramValidationOutcome({
     blockingReasons,
@@ -1390,7 +1395,7 @@ export async function analyzeWeeklyProgramXlsx({
     scoreDisplay,
     scoreRaw,
     basicScore: basicScoreCapped,
-    qualityScore,
+    qualityScore: qualityAdjusted,
     basicScoreDisplay,
     qualityScoreDisplay,
     alerts,
@@ -1413,6 +1418,7 @@ export async function analyzeWeeklyProgramXlsx({
     basicScore: basicScoreDisplay,
     basicScoreRaw: basicScoreCapped,
     qualityScore: qualityScoreDisplay,
+    /** Suma naive heurísticas antes del suelo alineado con checklist (ver qualityScore público). */
     qualityScoreRaw: qualityScore,
     points,
     qualityPoints,

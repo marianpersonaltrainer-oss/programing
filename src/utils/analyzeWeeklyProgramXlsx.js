@@ -10,11 +10,19 @@ const LM_TAGS = [
   'lm',
   'landmine',
   'rotational press',
+  'press rotacional',
+  'prensa rotacional',
   'deadbug press',
+  'dead bug press',
   'landmine twist',
   'russian twist',
+  'twist ruso',
+  'antirotacion',
+  'anti rotacion',
+  'anti-rotacion',
   'offset carry',
   'cross carry offset',
+  'carry offset',
 ]
 
 function normalize(s) {
@@ -119,10 +127,15 @@ function isIntentionalOffDay(text) {
 function hasLmSignal(text) {
   const s = normalize(text)
   if (!s) return false
-  return LM_TAGS.some((tag) => {
+  const direct = LM_TAGS.some((tag) => {
     if (tag === 'lm') return /\blm\b/.test(s)
     return s.includes(tag)
   })
+  if (direct) return true
+  // Señales semánticas compuestas (sin keyword exacta "landmine")
+  const rotationalPressLike = /(rotacional|rotacion|antirotacion|anti rotacion)/.test(s) && /(press|prensa|push)/.test(s)
+  const coreCarryLike = /(offset|carry|carga asimetrica|asimetrico)/.test(s) && /(walk|marcha|carry|farmer|cross)/.test(s)
+  return rotationalPressLike || coreCarryLike
 }
 
 function movementPattern(text) {
@@ -222,6 +235,7 @@ export async function analyzeWeeklyProgramXlsx({
   week,
   phase = '',
   previousWeekData = null,
+  scope = {},
 }) {
   const base = buildWeekSkeleton(week, mesocycle)
   const { data } = await importProgramingEvoWeekFromXlsxBuffer(buffer, base)
@@ -236,6 +250,7 @@ export async function analyzeWeeklyProgramXlsx({
     coherencia: 0,
     feedback: 0,
   }
+  const scopeReduced = !!(scope?.partialWeek || scope?.activeClassesOnly || scope?.draftMode)
 
   const programmedSlots = []
   for (const day of data.dias || []) {
@@ -301,8 +316,12 @@ export async function analyzeWeeklyProgramXlsx({
     points.estructura += 9
     passed.push('Estructura: semana parcial válida (no se penaliza por plantilla incompleta)')
   } else {
-    points.estructura += 6
-    failed.push('Estructura: alcance de programación muy reducido (activa modo parcial para evaluación más precisa)')
+    points.estructura += scopeReduced ? 9 : 6
+    if (scopeReduced) {
+      passed.push('Estructura: alcance reducido validado en modo parcial/draft')
+    } else {
+      failed.push('Estructura: alcance de programación muy reducido (activa modo parcial para evaluación más precisa)')
+    }
   }
 
   let structureValid = 0
@@ -376,8 +395,14 @@ export async function analyzeWeeklyProgramXlsx({
     }
   }
   if (lmCount === 0) {
-    failed.push('Variedad: ausencia total de LM en semana')
-    alerts.push('Semana: no aparece LM/landmine en ningún bloque core')
+    if (scopeReduced) {
+      points.variedad += 6
+      alerts.push('Semana parcial: no se detecta LM; revisar al completar la planificación')
+      failed.push('Variedad: LM no detectado en alcance actual (modo parcial)')
+    } else {
+      failed.push('Variedad: ausencia total de LM en semana')
+      alerts.push('Semana: no aparece LM/landmine en bloques programados')
+    }
   } else if (lmDays.size >= 2) {
     points.variedad += 10
     passed.push('Variedad: LM presente y distribuido de forma razonable')

@@ -18,6 +18,7 @@ export default function AdminWeeklyProgramUpload() {
   const [result, setResult] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
+  const [partialWeekMode, setPartialWeekMode] = useState(true)
 
   const canAnalyze = !!file && !busy
   const canImport = result?.score > 70 && !importing
@@ -47,6 +48,11 @@ export default function AdminWeeklyProgramUpload() {
         week: Number(week),
         phase,
         previousWeekData,
+        scope: {
+          partialWeek: partialWeekMode,
+          activeClassesOnly: partialWeekMode,
+          draftMode: partialWeekMode,
+        },
       })
       setResult(out)
     } catch (e) {
@@ -143,6 +149,15 @@ export default function AdminWeeklyProgramUpload() {
           placeholder="Ej.: Volumen mixto"
           className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
         />
+      </label>
+
+      <label className="inline-flex items-center gap-2 text-xs text-[#F6E8F9CC]">
+        <input
+          type="checkbox"
+          checked={partialWeekMode}
+          onChange={(e) => setPartialWeekMode(e.target.checked)}
+        />
+        Modo semana parcial / draft (no penaliza plantilla incompleta)
       </label>
 
       <div className="flex flex-wrap gap-2">

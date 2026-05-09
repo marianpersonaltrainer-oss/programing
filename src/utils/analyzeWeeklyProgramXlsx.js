@@ -100,6 +100,11 @@ function sessionStructureKind(text) {
   return 'bloques'
 }
 
+function isIntentionalOffDay(text) {
+  const s = normalize(text)
+  return /\b(off|rest|descanso|no programad|open gym|evento|competicion|holiday|festivo)\b/.test(s)
+}
+
 function movementPattern(text) {
   const s = normalize(text)
   if (/\b(push|press|flexion|fondos)\b/.test(s)) return 'push'
@@ -226,6 +231,24 @@ export async function analyzeWeeklyProgramXlsx({
     }
   }
   const totalProgrammed = programmedSlots.length
+  const dayProfiles = (data.dias || []).map((d) => {
+    const coreTexts = CORE_CLASS_KEYS.map((k) => String(d[k] || ''))
+    const realCore = coreTexts.filter((t) => isRealSessionText(t))
+    const off = coreTexts.some((t) => isIntentionalOffDay(t))
+    const merged = realCore.join(' \n ')
+    const mins = realCore.map((t) => extractMinutesSmart(t)).filter((n) => n > 0)
+    const avgMinutes = mins.length ? Math.round(mins.reduce((a, b) => a + b, 0) / mins.length) : 0
+    return {
+      day: d.nombre,
+      off,
+      realCount: realCore.length,
+      merged,
+      fmt: detectWodFormat(merged),
+      stim: detectStimulus(merged),
+      pattern: movementPattern(merged),
+      densityBucket: avgMinutes >= 33 ? 'alta' : avgMinutes >= 24 ? 'media' : avgMinutes > 0 ? 'baja' : 'na',
+    }
+  })
 
   // ESTRUCTURA
   const missingRowsDays = EXCEL_DAY_ORDER.filter((d) => {
@@ -237,8 +260,17 @@ export async function analyzeWeeklyProgramXlsx({
     points.estructura += 5
     passed.push('Estructura: se detecta estructura base en los días presentes')
   } else {
-    failed.push(`Estructura: días con bloque ambiguo (${missingRowsDays.join(', ')})`)
-    for (const d of missingRowsDays) alerts.push(`${d}: no se detecta estructura clara (A/B/feedback o sesión equivalente)`)
+    const realMissing = missingRowsDays.filter((d) => {
+      const p = dayProfiles.find((x) => x.day === d)
+      return p && !p.off
+    })
+    if (realMissing.length) {
+      failed.push(`Estructura: días con bloque ambiguo (${realMissing.join(', ')})`)
+      for (const d of realMissing) alerts.push(`${d}: no se detecta estructura clara (A/B/feedback o sesión equivalente)`)
+    } else {
+      points.estructura += 5
+      passed.push('Estructura: días ambiguos marcados como OFF/descanso (sin penalización)')
+    }
   }
 
   // No penalizar clases/días vacíos por defecto. Valorar consistencia de lo programado.
@@ -246,8 +278,8 @@ export async function analyzeWeeklyProgramXlsx({
     points.estructura += 10
     passed.push('Estructura: volumen semanal programado suficiente (sin forzar clases vacías)')
   } else if (totalProgrammed >= 3) {
-    points.estructura += 7
-    failed.push('Estructura: semana parcial (válida), revisar cobertura global')
+    points.estructura += 9
+    passed.push('Estructura: semana parcial válida (no se penaliza por plantilla incompleta)')
   } else {
     points.estructura += 3
     failed.push('Estructura: muy pocas sesiones programadas para analizar con confianza')
@@ -277,18 +309,14 @@ export async function analyzeWeeklyProgramXlsx({
   // VARIEDAD
   let variedPairs = 0
   let totalPairs = 0
-  for (let i = 1; i < (data.dias?.length || 0); i++) {
-    const prevDay = data.dias[i - 1]
-    const curDay = data.dias[i]
-    const prevTxt = `${prevDay.evofuncional} ${prevDay.evobasics} ${prevDay.evofit}`
-    const curTxt = `${curDay.evofuncional} ${curDay.evobasics} ${curDay.evofit}`
-    const prevFmt = detectWodFormat(prevTxt)
-    const curFmt = detectWodFormat(curTxt)
-    const prevStim = detectStimulus(prevTxt)
-    const curStim = detectStimulus(curTxt)
+  const realDayProfiles = dayProfiles.filter((d) => d.realCount > 0 && !d.off)
+  for (let i = 1; i < realDayProfiles.length; i++) {
+    const prev = realDayProfiles[i - 1]
+    const cur = realDayProfiles[i]
     totalPairs += 1
-    if (prevFmt !== curFmt || prevStim !== curStim) variedPairs += 1
-    else alerts.push(`${curDay.nombre}: formato+estímulo muy parecido a ${prevDay.nombre} (${curFmt}/${curStim})`)
+    const similar = prev.fmt === cur.fmt && prev.stim === cur.stim && prev.densityBucket === cur.densityBucket
+    if (!similar) variedPairs += 1
+    else alerts.push(`${cur.day}: formato+estímulo+density muy parecido a ${prev.day} (${cur.fmt}/${cur.stim}/${cur.densityBucket})`)
   }
   const fmtRatio = totalPairs ? variedPairs / totalPairs : 1
   points.variedad += Math.round(10 * fmtRatio)
@@ -319,9 +347,11 @@ export async function analyzeWeeklyProgramXlsx({
 
   const lmDays = new Set()
   let lmCount = 0
+  const LM_RE =
+    /\b(lm|landmine|rotational press|deadbug press|russian twist|landmine press|landmine rotational)\b/i
   for (const key of CORE_CLASS_KEYS) {
     for (const d of data.dias || []) {
-      if (/\b(lm|landmine)\b/i.test(String(d[key] || ''))) {
+      if (LM_RE.test(String(d[key] || ''))) {
         lmCount += 1
         lmDays.add(d.nombre)
       }
@@ -388,26 +418,27 @@ export async function analyzeWeeklyProgramXlsx({
   let fbUseful = 0
   for (const day of data.dias || []) {
     for (const cls of EVO_SESSION_CLASS_DEFS) {
+      const sessionTxt = String(day[cls.key] || '')
+      if (!isRealSessionText(sessionTxt) || isIntentionalOffDay(sessionTxt)) continue
       fbTotal += 1
       const t = String(day[cls.feedbackKey] || '').trim()
       if (t) fbFilled += 1
       else alerts.push(`${day.nombre} ${cls.label}: feedback vacío`)
       const wc = wordCount(t)
       const useful =
-        wc >= 18 &&
+        wc >= 10 &&
         /\b(cue|clave|ritmo|transicion|adapt|regresion|escal|objetivo|respira|control)\b/i.test(normalize(t))
       if (useful) fbUseful += 1
-      else if (t) alerts.push(`${day.nombre} ${cls.label}: feedback poco accionable (añade cue/gestión/adaptación)`)
+      else if (t && wc < 8) alerts.push(`${day.nombre} ${cls.label}: feedback muy corto (${wc} palabras)`)
     }
   }
-  const fbFillRatio = fbTotal ? fbFilled / fbTotal : 0
-  const fbUsefulRatio = fbTotal ? fbUseful / fbTotal : 0
-  points.feedback += Math.round(10 * fbFillRatio)
-  points.feedback += Math.round(15 * fbUsefulRatio)
-  if (fbFillRatio === 1) passed.push('Feedback: todas las celdas tienen contenido')
+  const fbFillRatio = fbTotal ? fbFilled / fbTotal : 1
+  const fbUsefulRatio = fbTotal ? fbUseful / fbTotal : 1
+  points.feedback += Math.round(20 * fbFillRatio)
+  points.feedback += Math.round(5 * fbUsefulRatio)
+  if (fbFillRatio === 1) passed.push('Feedback: todas las clases programadas tienen contenido')
   else failed.push(`Feedback: faltan celdas (${fbFilled}/${fbTotal})`)
-  if (fbUsefulRatio >= 0.75) passed.push('Feedback: mayoría de celdas con contenido útil de coaching')
-  else failed.push(`Feedback: contenido poco accionable en varias celdas (${fbUseful}/${fbTotal})`)
+  if (fbUsefulRatio >= 0.6) passed.push('Feedback: contenido con señales de coaching útil')
 
   const score = points.estructura + points.variedad + points.coherencia + points.feedback
   const reportText = buildClaudeReport({

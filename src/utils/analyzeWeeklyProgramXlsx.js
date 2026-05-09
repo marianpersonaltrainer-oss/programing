@@ -5,9 +5,6 @@ import { importProgramingEvoWeekFromXlsxBuffer } from './importProgramingEvoWeek
 
 const CORE_CLASS_KEYS = ['evofuncional', 'evobasics', 'evofit']
 const CLASS_BY_KEY = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((c) => [c.key, c]))
-const CLASS_BY_LABEL_NORM = Object.fromEntries(
-  EVO_SESSION_CLASS_DEFS.map((c) => [normalize(c.label), c]),
-)
 
 function normalize(s) {
   return String(s || '')
@@ -29,22 +26,37 @@ function isRealSessionText(text) {
   return !!t && !/\(no programada esta semana\)/i.test(t)
 }
 
-function extractMinutes(text) {
+function extractMinutesSmart(text) {
   const s = String(text || '')
-  let total = 0
-  const aps = [...s.matchAll(/\b(amrap|for\s*time)\s*(\d{1,2})\s*['’m]?\b/gi)]
-  for (const m of aps) total += Number(m[2] || 0)
+  let objective = 0
+
+  // AMRAP / cap explícito: tiempo objetivo real.
+  const caps = [...s.matchAll(/\b(?:amrap|for\s*time|time\s*cap)\s*(\d{1,2})\s*['’m]?\b/gi)]
+  for (const m of caps) objective += Number(m[1] || 0)
+
+  // Every x rounds: tiempo fijo.
   const every = [...s.matchAll(/\bevery\s+(\d{1,2})[:.]?(\d{0,2})?\s*(?:x|por)\s*(\d{1,2})\b/gi)]
   for (const m of every) {
     const mins = Number(m[1] || 0) + Number(m[2] || 0) / 60
     const rounds = Number(m[3] || 0)
-    total += mins * rounds
+    objective += mins * rounds
   }
+
+  // EMOM suele ser duración íntegra.
   const emom = [...s.matchAll(/\bemom\s*(\d{1,2})\b/gi)]
-  for (const m of emom) total += Number(m[1] || 0)
-  const minTok = [...s.matchAll(/\b(\d{1,2})\s*(?:min|')\b/gi)]
-  for (const m of minTok) total += Number(m[1] || 0)
-  return total
+  for (const m of emom) objective += Number(m[1] || 0)
+
+  // Bloques técnicos: no contar 1:1 como trabajo denso; factor 0.65.
+  const technicalHints = /\b(tecnica|skill|drill|progresion|learning|control motor|activation|activacion)\b/i.test(s)
+  if (technicalHints) objective *= 0.65
+
+  // Fallback: minutos sueltos, evitando doble conteo agresivo.
+  if (objective < 8) {
+    const mins = [...s.matchAll(/\b(\d{1,2})\s*(?:min|')\b/gi)].map((m) => Number(m[1] || 0))
+    if (mins.length) objective += Math.max(...mins)
+  }
+
+  return Math.round(objective)
 }
 
 function detectWodFormat(text) {
@@ -57,6 +69,15 @@ function detectWodFormat(text) {
   return 'OTRO'
 }
 
+function detectStimulus(text) {
+  const s = normalize(text)
+  if (/\b(fuerza|strength|5x|3x|heavy|rm)\b/.test(s)) return 'fuerza'
+  if (/\b(potencia|power|sprint|explosiv)\b/.test(s)) return 'potencia'
+  if (/\b(aerob|engine|resistencia|endurance)\b/.test(s)) return 'resistencia'
+  if (/\b(tecnica|skill|drill|progresion)\b/.test(s)) return 'tecnica'
+  return 'mixto'
+}
+
 function splitPartAB(text) {
   const s = String(text || '')
   const mA = s.match(/parte\s*a[\s\S]*?(?=parte\s*b|$)/i)
@@ -65,6 +86,18 @@ function splitPartAB(text) {
     a: (mA ? mA[0] : '').replace(/parte\s*a[:\s]*/i, '').trim(),
     b: (mB ? mB[0] : '').replace(/parte\s*b[:\s]*/i, '').trim(),
   }
+}
+
+function sessionStructureKind(text) {
+  const s = String(text || '')
+  if (!isRealSessionText(s)) return 'empty'
+  const hasA = /parte\s*a/i.test(s)
+  const hasB = /parte\s*b/i.test(s)
+  if (hasA && hasB) return 'AB'
+  if (/\b(flow|chipper|partner|teams?)\b/i.test(s)) return 'flow'
+  if (/\b(tecnica|skill|drill)\b/i.test(s) && /\b(amrap|for time|emom|every|cap)\b/i.test(s)) return 'tecnica+wod'
+  if (/\b(amrap|for time|emom|every|ladder|cap)\b/i.test(s)) return 'single_wod'
+  return 'bloques'
 }
 
 function movementPattern(text) {
@@ -179,44 +212,67 @@ export async function analyzeWeeklyProgramXlsx({
     feedback: 0,
   }
 
+  const programmedSlots = []
+  for (const day of data.dias || []) {
+    for (const key of CORE_CLASS_KEYS) {
+      const text = String(day[key] || '')
+      if (!isRealSessionText(text)) continue
+      programmedSlots.push({
+        day: day.nombre,
+        key,
+        label: CLASS_BY_KEY[key].label,
+        text,
+      })
+    }
+  }
+  const totalProgrammed = programmedSlots.length
+
   // ESTRUCTURA
   const missingRowsDays = EXCEL_DAY_ORDER.filter((d) => {
     const x = daysFound.get(d)
-    return !(x?.hasA && x?.hasB && x?.hasF)
+    // Solo marca si hay día presente y no hay indicio de estructura básica.
+    return !!x && !(x?.hasA || x?.hasB || x?.hasF)
   })
   if (missingRowsDays.length === 0) {
     points.estructura += 5
-    passed.push('Estructura: todos los días contienen PARTE A, PARTE B y FEEDBACK')
+    passed.push('Estructura: se detecta estructura base en los días presentes')
   } else {
-    failed.push(`Estructura filas A/B/FEEDBACK incompleta en: ${missingRowsDays.join(', ')}`)
-    for (const d of missingRowsDays) alerts.push(`${d}: faltan filas PARTE A/PARTE B/FEEDBACK`)
+    failed.push(`Estructura: días con bloque ambiguo (${missingRowsDays.join(', ')})`)
+    for (const d of missingRowsDays) alerts.push(`${d}: no se detecta estructura clara (A/B/feedback o sesión equivalente)`)
   }
 
-  let coreFilled = 0
-  for (const day of data.dias || []) {
-    for (const key of CORE_CLASS_KEYS) {
-      if (isRealSessionText(day[key])) coreFilled += 1
-      else alerts.push(`${day.nombre} ${CLASS_BY_KEY[key].label}: sin contenido de sesión`)
-    }
+  // No penalizar clases/días vacíos por defecto. Valorar consistencia de lo programado.
+  if (totalProgrammed >= 6) {
+    points.estructura += 10
+    passed.push('Estructura: volumen semanal programado suficiente (sin forzar clases vacías)')
+  } else if (totalProgrammed >= 3) {
+    points.estructura += 7
+    failed.push('Estructura: semana parcial (válida), revisar cobertura global')
+  } else {
+    points.estructura += 3
+    failed.push('Estructura: muy pocas sesiones programadas para analizar con confianza')
   }
-  const coreTotal = (data.dias?.length || 0) * CORE_CLASS_KEYS.length
-  const fillRatio = coreTotal ? coreFilled / coreTotal : 0
-  points.estructura += Math.round(10 * fillRatio)
-  if (fillRatio === 1) passed.push('Estructura: EvoFuncional/EvoBasics/EvoFit completos todos los días')
-  else failed.push(`Estructura: faltan celdas core (${coreFilled}/${coreTotal})`)
+
+  let structureValid = 0
+  for (const slot of programmedSlots) {
+    const kind = sessionStructureKind(slot.text)
+    if (kind !== 'empty') structureValid += 1
+    if (kind === 'bloques') alerts.push(`${slot.day} ${slot.label}: estructura poco explícita; añade señal de bloques/objetivo`)
+  }
+  const stRatio = totalProgrammed ? structureValid / totalProgrammed : 1
+  points.estructura += Math.round(10 * stRatio)
 
   let timeOk = 0
-  for (const day of data.dias || []) {
-    for (const key of CORE_CLASS_KEYS) {
-      const mins = extractMinutes(day[key])
-      if (mins >= 24 && mins <= 35) timeOk += 1
-      else alerts.push(`${day.nombre} ${CLASS_BY_KEY[key].label}: tiempo estimado ${mins || 0} min (fuera de 24-35)`)
-    }
+  for (const slot of programmedSlots) {
+    const mins = extractMinutesSmart(slot.text)
+    if (mins >= 20 && mins <= 38) timeOk += 1
+    else if (mins > 0) alerts.push(`${slot.day} ${slot.label}: tiempo estimado ${mins} min (revisar flow real)`)
+    else alerts.push(`${slot.day} ${slot.label}: no se pudo inferir duración`)
   }
-  const timeRatio = coreTotal ? timeOk / coreTotal : 0
+  const timeRatio = totalProgrammed ? timeOk / totalProgrammed : 1
   points.estructura += Math.round(10 * timeRatio)
-  if (timeRatio === 1) passed.push('Estructura: tiempos estimados en rango 24-35 min')
-  else failed.push(`Estructura: tiempos fuera de rango (${timeOk}/${coreTotal} en rango)`)
+  if (timeRatio >= 0.8) passed.push('Estructura: tiempos mayormente en rango operativo')
+  else failed.push(`Estructura: tiempos fuera de rango en varias sesiones (${timeOk}/${totalProgrammed} en rango)`)
 
   // VARIEDAD
   let variedPairs = 0
@@ -224,11 +280,15 @@ export async function analyzeWeeklyProgramXlsx({
   for (let i = 1; i < (data.dias?.length || 0); i++) {
     const prevDay = data.dias[i - 1]
     const curDay = data.dias[i]
-    const prevFmt = detectWodFormat(`${prevDay.evofuncional} ${prevDay.evobasics} ${prevDay.evofit}`)
-    const curFmt = detectWodFormat(`${curDay.evofuncional} ${curDay.evobasics} ${curDay.evofit}`)
+    const prevTxt = `${prevDay.evofuncional} ${prevDay.evobasics} ${prevDay.evofit}`
+    const curTxt = `${curDay.evofuncional} ${curDay.evobasics} ${curDay.evofit}`
+    const prevFmt = detectWodFormat(prevTxt)
+    const curFmt = detectWodFormat(curTxt)
+    const prevStim = detectStimulus(prevTxt)
+    const curStim = detectStimulus(curTxt)
     totalPairs += 1
-    if (prevFmt !== curFmt) variedPairs += 1
-    else alerts.push(`${curDay.nombre} EvoFit: formato WOD igual que ${prevDay.nombre} (${curFmt})`)
+    if (prevFmt !== curFmt || prevStim !== curStim) variedPairs += 1
+    else alerts.push(`${curDay.nombre}: formato+estímulo muy parecido a ${prevDay.nombre} (${curFmt}/${curStim})`)
   }
   const fmtRatio = totalPairs ? variedPairs / totalPairs : 1
   points.variedad += Math.round(10 * fmtRatio)
@@ -238,14 +298,19 @@ export async function analyzeWeeklyProgramXlsx({
   const prevMonday = previousWeekData?.dias?.find((d) => normalize(d?.nombre) === normalize('LUNES')) || null
   const curMonday = data?.dias?.find((d) => normalize(d?.nombre) === normalize('LUNES')) || null
   if (prevMonday && curMonday) {
-    const prevP = movementPattern(`${prevMonday.evofuncional} ${prevMonday.evobasics} ${prevMonday.evofit}`)
-    const curP = movementPattern(`${curMonday.evofuncional} ${curMonday.evobasics} ${curMonday.evofit}`)
-    if (prevP !== curP) {
+    const prevTxt = `${prevMonday.evofuncional} ${prevMonday.evobasics} ${prevMonday.evofit}`
+    const curTxt = `${curMonday.evofuncional} ${curMonday.evobasics} ${curMonday.evofit}`
+    const prevP = movementPattern(prevTxt)
+    const curP = movementPattern(curTxt)
+    const prevFmt = detectWodFormat(prevTxt)
+    const curFmt = detectWodFormat(curTxt)
+    if (prevP !== curP || prevFmt !== curFmt) {
       points.variedad += 5
-      passed.push('Variedad: patrón muscular inicial distinto a la semana anterior')
+      passed.push('Variedad: arranque semanal diferenciado frente a semana anterior')
     } else {
-      failed.push('Variedad: la semana empieza con patrón muscular igual a la anterior')
-      alerts.push(`LUNES: patrón inicial repetido (${curP}) respecto a semana anterior`)
+      points.variedad += 2
+      failed.push('Variedad: arranque semanal muy parecido a la semana anterior')
+      alerts.push(`LUNES: patrón/formato inicial repetido (${curP}/${curFmt})`)
     }
   } else {
     points.variedad += 3
@@ -253,22 +318,24 @@ export async function analyzeWeeklyProgramXlsx({
   }
 
   const lmDays = new Set()
-  let lmOk = 0
+  let lmCount = 0
   for (const key of CORE_CLASS_KEYS) {
-    const dayHit = (data.dias || []).find((d) => /\b(lm|landmine)\b/i.test(String(d[key] || '')))
-    if (dayHit) {
-      lmOk += 1
-      lmDays.add(dayHit.nombre)
-    } else {
-      alerts.push(`Semana ${CLASS_BY_KEY[key].label}: sin trabajo LM/landmine`)
+    for (const d of data.dias || []) {
+      if (/\b(lm|landmine)\b/i.test(String(d[key] || ''))) {
+        lmCount += 1
+        lmDays.add(d.nombre)
+      }
     }
   }
-  if (lmOk === 3 && lmDays.size >= 3) {
+  if (lmCount === 0) {
+    failed.push('Variedad: ausencia total de LM en semana')
+    alerts.push('Semana: no aparece LM/landmine en ningún bloque core')
+  } else if (lmDays.size >= 2) {
     points.variedad += 10
-    passed.push('Variedad: hay LM por clase core en días distintos')
+    passed.push('Variedad: LM presente y distribuido de forma razonable')
   } else {
-    points.variedad += Math.round((Math.min(lmOk, 3) / 3) * 10)
-    failed.push('Variedad: LM insuficiente por clase/día (core)')
+    points.variedad += 6
+    failed.push('Variedad: LM poco distribuido (concentrado en un día)')
   }
 
   // COHERENCIA
@@ -280,8 +347,8 @@ export async function analyzeWeeklyProgramXlsx({
       const a = extractExercises(data.dias[i - 1][key])
       const b = extractExercises(data.dias[i][key])
       const overlap = [...a].filter((x) => b.has(x))
-      if (overlap.length === 0) noRepeatPass += 1
-      else alerts.push(`${data.dias[i].nombre} ${CLASS_BY_KEY[key].label}: repite ejercicios de día previo (${overlap.slice(0, 3).join(', ')})`)
+      if (overlap.length <= 1) noRepeatPass += 1
+      else alerts.push(`${data.dias[i].nombre} ${CLASS_BY_KEY[key].label}: repite demasiados ejercicios (${overlap.slice(0, 3).join(', ')})`)
     }
   }
   const repRatio = noRepeatChecks ? noRepeatPass / noRepeatChecks : 1
@@ -293,8 +360,12 @@ export async function analyzeWeeklyProgramXlsx({
   let compPass = 0
   for (const day of data.dias || []) {
     for (const key of CORE_CLASS_KEYS) {
-      const { a, b } = splitPartAB(day[key])
-      if (!a && !b) continue
+      const txt = String(day[key] || '')
+      const { a, b } = splitPartAB(txt)
+      if (!a && !b) {
+        // Si es single/flow no exigir complementariedad A/B.
+        if (sessionStructureKind(txt) !== 'AB') continue
+      }
       compChecks += 1
       const pa = movementPattern(a)
       const pb = movementPattern(b)
@@ -314,7 +385,7 @@ export async function analyzeWeeklyProgramXlsx({
   // FEEDBACK
   let fbTotal = 0
   let fbFilled = 0
-  let fbLong = 0
+  let fbUseful = 0
   for (const day of data.dias || []) {
     for (const cls of EVO_SESSION_CLASS_DEFS) {
       fbTotal += 1
@@ -322,18 +393,21 @@ export async function analyzeWeeklyProgramXlsx({
       if (t) fbFilled += 1
       else alerts.push(`${day.nombre} ${cls.label}: feedback vacío`)
       const wc = wordCount(t)
-      if (wc >= 50) fbLong += 1
-      else if (t) alerts.push(`${day.nombre} ${cls.label}: feedback de ${wc} palabras, muy corto`)
+      const useful =
+        wc >= 18 &&
+        /\b(cue|clave|ritmo|transicion|adapt|regresion|escal|objetivo|respira|control)\b/i.test(normalize(t))
+      if (useful) fbUseful += 1
+      else if (t) alerts.push(`${day.nombre} ${cls.label}: feedback poco accionable (añade cue/gestión/adaptación)`)
     }
   }
   const fbFillRatio = fbTotal ? fbFilled / fbTotal : 0
-  const fbLongRatio = fbTotal ? fbLong / fbTotal : 0
+  const fbUsefulRatio = fbTotal ? fbUseful / fbTotal : 0
   points.feedback += Math.round(10 * fbFillRatio)
-  points.feedback += Math.round(15 * fbLongRatio)
+  points.feedback += Math.round(15 * fbUsefulRatio)
   if (fbFillRatio === 1) passed.push('Feedback: todas las celdas tienen contenido')
   else failed.push(`Feedback: faltan celdas (${fbFilled}/${fbTotal})`)
-  if (fbLongRatio === 1) passed.push('Feedback: todas las celdas superan 50 palabras')
-  else failed.push(`Feedback: celdas con texto corto (${fbLong}/${fbTotal} cumplen >50 palabras)`)
+  if (fbUsefulRatio >= 0.75) passed.push('Feedback: mayoría de celdas con contenido útil de coaching')
+  else failed.push(`Feedback: contenido poco accionable en varias celdas (${fbUseful}/${fbTotal})`)
 
   const score = points.estructura + points.variedad + points.coherencia + points.feedback
   const reportText = buildClaudeReport({

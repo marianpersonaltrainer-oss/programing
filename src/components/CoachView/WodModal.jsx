@@ -28,7 +28,6 @@ export default function WodModal({
   exerciseLibrary,
   onConsultAssistant,
 }) {
-  const [videosOpen, setVideosOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -37,7 +36,6 @@ export default function WodModal({
 
   useEffect(() => {
     if (!open) {
-      setVideosOpen(false)
       return
     }
     const prev = document.body.style.overflow
@@ -56,16 +54,15 @@ export default function WodModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  const videoSourceText =
-    videosOpen && sessionText
-      ? [sessionText, sessionFeedback].map((s) => String(s || '').trim()).filter(Boolean).join('\n')
-      : ''
-  const videos =
-    videoSourceText
-      ? findVideosInProgramTextResolved(videoSourceText, exerciseLibrary || [], {
-          specializedOnly: false,
-        })
-      : []
+  const videoLookupText = [sessionText, sessionFeedback]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join('\n')
+  const videos = videoLookupText
+    ? findVideosInProgramTextResolved(videoLookupText, exerciseLibrary || [], {
+        specializedOnly: false,
+      })
+    : []
   const inlineExerciseLinks = findVideosInProgramTextResolved(String(sessionText || ''), exerciseLibrary || [], {
     specializedOnly: false,
   }).slice(0, 24)
@@ -118,67 +115,96 @@ export default function WodModal({
           linkifyExerciseNames
         />
 
+        <div className="mt-5 rounded-2xl border-2 border-[#A729AD]/35 bg-gradient-to-b from-[#FAF5FC] to-white shadow-md shadow-[#6A1F6D]/10 overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-[#A729AD]/15 bg-white/80">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#6A1F6D]">Ayuda en esta sesión</p>
+            <p className="text-[13px] text-neutral-600 mt-1 leading-snug">
+              Vídeos de la biblioteca y asistente, sin bajar al final del texto.
+            </p>
+          </div>
+
+          <div className="px-4 py-4 space-y-4">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <p className="text-[13px] sm:text-[15px] font-evo-display font-bold uppercase tracking-wide text-[#1a1a1a]">
+                  🎬 Vídeos de referencia
+                </p>
+                {videos.length ? (
+                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#A729AD]/15 text-[#6A1F6D]">
+                    {videos.length} vídeo{videos.length === 1 ? '' : 's'}
+                  </span>
+                ) : null}
+              </div>
+              {!videos.length ? (
+                <p className="text-sm text-neutral-600 rounded-xl border border-dashed border-neutral-300 bg-neutral-50/80 px-3 py-3">
+                  No hay vídeos enlazados para este bloque (revisa la biblioteca o los nombres en programación).
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-1">
+                  {videos.map(({ name, url }) => {
+                    const id = youtubeVideoId(url)
+                    return (
+                      <a
+                        key={`${name}-${url}`}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex gap-4 rounded-xl border-2 border-neutral-200 hover:border-[#A729AD]/50 hover:shadow-md overflow-hidden bg-white transition-all active:scale-[0.99]"
+                      >
+                        {id ? (
+                          <img
+                            src={`https://img.youtube.com/vi/${id}/mqdefault.jpg`}
+                            alt=""
+                            className="w-36 h-24 sm:w-40 sm:h-28 object-cover shrink-0 bg-neutral-100"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-36 h-24 sm:w-40 sm:h-28 shrink-0 bg-gradient-to-br from-[#6A1F6D] to-[#A729AD] flex items-center justify-center text-white text-2xl">
+                            ▶
+                          </div>
+                        )}
+                        <span className="py-3 pr-3 text-[15px] sm:text-base font-semibold text-[#1a1a1a] leading-snug self-center min-w-0">
+                          {name}
+                        </span>
+                      </a>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-[#A729AD]/12">
+              <p className="text-[13px] sm:text-[15px] font-evo-display font-bold uppercase tracking-wide text-[#1a1a1a] mb-2">
+                🤖 Asistente EVO
+              </p>
+              <p className="text-xs text-neutral-600 mb-3">
+                Dudas sobre el WOD de hoy; enviamos el día, clase y texto programado automáticamente.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onConsultAssistant({
+                    dayName,
+                    classLabel,
+                    sessionText: String(sessionText || ''),
+                    sessionFeedbackText: String(sessionFeedback || '').trim() || undefined,
+                  })
+                }}
+                className="w-full py-4 px-4 rounded-xl text-[15px] sm:text-[16px] font-bold uppercase tracking-wide text-white shadow-lg shadow-[#6A1F6D]/30 transition-all hover:brightness-110 hover:shadow-xl active:scale-[0.99]"
+                style={{ backgroundColor: accentColor || '#6A1F6D' }}
+              >
+                Consultar al asistente
+              </button>
+            </div>
+          </div>
+        </div>
+
         {String(sessionFeedback || '').trim() ? (
-          <div className="mt-4 rounded-lg border border-[#A729AD]/28 bg-[#F8F1FB] px-3 py-3">
+          <div className="mt-5 rounded-lg border border-[#A729AD]/28 bg-[#F8F1FB] px-3 py-3">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#6A1F6D] mb-1.5">Briefing programación</p>
             <CoachSessionBriefingModalBody text={sessionFeedback} accentColor={accentColor} />
           </div>
         ) : null}
-
-        <button
-          type="button"
-          onClick={() => {
-            onConsultAssistant({
-              dayName,
-              classLabel,
-              sessionText: String(sessionText || ''),
-              sessionFeedbackText: String(sessionFeedback || '').trim() || undefined,
-            })
-          }}
-          className="mt-4 mb-1 w-full max-w-xs mx-auto block py-2 px-3 rounded-lg text-[12px] font-semibold border bg-white transition-colors hover:bg-neutral-50"
-          style={{ borderColor: accentColor, color: accentColor }}
-        >
-          Consultar al asistente
-        </button>
-
-        <details className="mt-5 border-t border-neutral-200 pt-3" onToggle={(e) => setVideosOpen(e.currentTarget.open)}>
-          <summary className="cursor-pointer list-none text-[13px] font-semibold text-[#444444] flex items-center gap-2 [&::-webkit-details-marker]:hidden">
-            <span aria-hidden>▸</span>
-            <span>Vídeos de referencia</span>
-          </summary>
-          <div className="mt-3 space-y-3 pl-1">
-            {!videos.length ? (
-              <p className="text-sm text-[#666666]">No hay vídeos enlazados para esta sesión.</p>
-            ) : (
-              videos.map(({ name, url }) => {
-                const id = youtubeVideoId(url)
-                return (
-                  <a
-                    key={`${name}-${url}`}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex gap-3 rounded-lg border border-neutral-200 overflow-hidden hover:border-neutral-400 transition-colors"
-                  >
-                    {id ? (
-                      <img
-                        src={`https://img.youtube.com/vi/${id}/mqdefault.jpg`}
-                        alt=""
-                        className="w-28 h-20 object-cover shrink-0 bg-neutral-100"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-28 h-20 shrink-0 bg-neutral-100 flex items-center justify-center text-xs text-neutral-500">
-                        ▶
-                      </div>
-                    )}
-                    <span className="py-2 pr-2 text-sm font-semibold text-[#1a1a1a] leading-snug self-center">{name}</span>
-                  </a>
-                )
-              })
-            )}
-          </div>
-        </details>
       </div>
     </div>
   )

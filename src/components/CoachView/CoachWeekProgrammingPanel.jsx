@@ -87,43 +87,100 @@ function CoachVideoChips({ videos, title = 'Vídeos rápidos', subtitle }) {
   )
 }
 
-function ClassVideoCollapse({ sessionKey, videos, open, onToggle }) {
+function youtubeVideoId(url) {
+  const s = String(url || '')
+  const m = s.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?#]+)/i)
+  return m ? m[1] : null
+}
+
+/** Vídeos + asistente visibles sin desplegable al final del bloque. */
+function CoachClassHelpSection({
+  accentColor,
+  videos,
+  dayName,
+  classLabel,
+  sessionBodyText,
+  onConsultAssistant,
+}) {
+  const list = videos || []
   return (
-    <div className={`border-t ${coachBorder} pt-4`}>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className={`flex w-full items-center justify-between gap-2 text-left text-sm font-bold ${coachText.accent} py-1`}
-      >
-        <span>🎬 Ver vídeos de esta clase</span>
-        <span className="text-xs opacity-80">{open ? '▲' : '▼'}</span>
-      </button>
-      {open ? (
-        <div className="mt-3">
-          {videos.length ? (
-            <div className="flex flex-wrap gap-2">
-              {videos.map(({ name, url }) => (
+    <div
+      className={`rounded-2xl border-2 border-[#A729AD]/55 p-4 sm:p-5 space-y-4 bg-gradient-to-br from-[#241028] via-[#1a0f1b] to-[#120a14] shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)]`}
+      style={{ boxShadow: `0 16px 48px -14px rgba(0,0,0,0.55), 0 0 0 1px ${accentColor}33 inset` }}
+    >
+      <div>
+        <p className={`text-[10px] font-black uppercase tracking-[0.14em] ${coachText.accent}`}>Ayuda en esta clase</p>
+        <p className={`text-xs ${coachText.muted} mt-1 leading-snug max-w-xl`}>
+          Vídeos de referencia de la biblioteca y asistente; no hace falta buscar abajo del todo.
+        </p>
+      </div>
+
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-sm sm:text-[15px] font-black uppercase tracking-wide text-white">🎬 Vídeos de referencia</p>
+          {list.length ? (
+            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#A729AD]/35 text-[#F6BCFF] border border-[#A729AD]/40">
+              {list.length} vídeo{list.length === 1 ? '' : 's'}
+            </span>
+          ) : null}
+        </div>
+        {!list.length ? (
+          <p className={`text-sm ${coachText.muted} rounded-xl border border-dashed ${coachBorder} px-3 py-3 bg-black/25`}>
+            Nada enlazado en la biblioteca para el texto de esta clase.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {list.map(({ name, url }) => {
+              const id = youtubeVideoId(url)
+              return (
                 <a
                   key={`${name}-${url}`}
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Abrir vídeo: ${name} (nueva pestaña)`}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide px-3 py-2.5 rounded-xl bg-[#A729AD] text-white hover:bg-[#6A1F6D] border border-[#6A1F6D]/40 shadow-sm active:scale-[0.98] transition-all"
+                  className="flex gap-3 rounded-xl overflow-hidden border-2 border-[#6A1F6D]/55 bg-black/25 hover:border-[#A729AD]/80 hover:bg-[#A729AD]/10 active:scale-[0.995] transition-all min-h-[5.25rem]"
                 >
-                  <span className="text-sm leading-none opacity-95" aria-hidden>
-                    ▶
-                  </span>
-                  <span className="max-w-[12rem] truncate normal-case">{name}</span>
+                  {id ? (
+                    <img
+                      src={`https://img.youtube.com/vi/${id}/mqdefault.jpg`}
+                      alt=""
+                      className="w-28 sm:w-32 h-full min-h-[5.25rem] object-cover shrink-0 bg-neutral-900"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-28 sm:w-32 shrink-0 min-h-[5.25rem] flex items-center justify-center bg-gradient-to-br from-[#6A1F6D] to-[#A729AD] text-2xl text-white">
+                      ▶
+                    </div>
+                  )}
+                  <span className="py-3 pr-3 text-sm sm:text-[15px] font-bold text-white leading-snug self-center min-w-0">{name}</span>
                 </a>
-              ))}
-            </div>
-          ) : (
-            <p className={`text-sm ${coachText.muted} mt-1`}>Nada en la biblioteca para el texto de esta clase.</p>
-          )}
-        </div>
-      ) : null}
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className={`pt-3 border-t ${coachBorder}`}>
+        <p className="text-sm sm:text-[15px] font-black uppercase tracking-wide text-white mb-1">🤖 Asistente EVO</p>
+        <p className={`text-xs ${coachText.muted} mb-3 leading-relaxed`}>
+          El asistente recibe día, clase y texto programado al abrir el chat.
+        </p>
+        <button
+          type="button"
+          onClick={() =>
+            onConsultAssistant({
+              dayName,
+              classLabel,
+              sessionText: String(sessionBodyText || ''),
+            })
+          }
+          className="w-full text-center py-4 px-4 rounded-xl text-[15px] sm:text-[16px] bg-[#6A1F6D] text-[#FFFF4C] font-evo-display font-black uppercase tracking-wide border-2 border-[#FFFF4C]/25 shadow-lg shadow-black/40 hover:bg-[#A729AD] hover:border-[#FFFF4C]/40 active:scale-[0.99] transition-all"
+          style={{ boxShadow: `0 12px 32px -8px rgba(106,31,109,0.55)` }}
+        >
+          Consultar al asistente
+        </button>
+      </div>
     </div>
   )
 }
@@ -163,7 +220,6 @@ export default function CoachWeekProgrammingPanel({
   FeedbackCardComponent = null,
 }) {
   const dias = weekData?.dias || []
-  const [openClassVideos, setOpenClassVideos] = useState({})
   const [copiedKey, setCopiedKey] = useState(null)
   const [prepDayName, setPrepDayName] = useState(null)
   const todayWeekday = new Date().getDay()
@@ -172,10 +228,6 @@ export default function CoachWeekProgrammingPanel({
     onOpenSupport(text, context)
     setActiveDay('show')
     setWeekTab('dias')
-  }
-
-  const toggleClassVideos = (key) => {
-    setOpenClassVideos((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
   return (
@@ -644,6 +696,21 @@ export default function CoachWeekProgrammingPanel({
                         exerciseLibrary={exerciseLibrary}
                       />
 
+                      <CoachClassHelpSection
+                        accentColor={color}
+                        videos={classVideos}
+                        dayName={dayName}
+                        classLabel={label}
+                        sessionBodyText={dia[key] || ''}
+                        onConsultAssistant={(payload) =>
+                          ask('', {
+                            dayName: payload.dayName,
+                            classLabel: payload.classLabel,
+                            sessionText: payload.sessionText,
+                          })
+                        }
+                      />
+
                       {fbText ? (
                         <div className="space-y-2">
                           <p className={`text-xs font-bold uppercase tracking-widest ${coachText.title}`}>Feedback del día</p>
@@ -656,37 +723,6 @@ export default function CoachWeekProgrammingPanel({
                           )}
                         </div>
                       ) : null}
-
-                      <ClassVideoCollapse
-                        sessionKey={key}
-                        videos={classVideos}
-                        open={!!openClassVideos[key]}
-                        onToggle={() => toggleClassVideos(key)}
-                      />
-
-                      <div className={`space-y-3 pt-4 border-t ${coachBorder}`}>
-                        <div className={`rounded-xl p-4 border ${coachBorder} ${coachBg.cardMuted}`}>
-                          <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent}`}>
-                            Asistente EVO
-                          </p>
-                          <p className={`text-sm ${coachText.muted} mt-1.5 leading-relaxed`}>
-                            Tengo una duda sobre esta sesión. El asistente ya ve el día, la clase y el texto programado.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              ask('', {
-                                dayName,
-                                classLabel: label,
-                                sessionText: dia[key] || '',
-                              })
-                            }
-                            className="mt-4 w-full text-center text-sm px-4 py-3.5 rounded-xl bg-[#6A1F6D] text-[#FFFF4C] font-evo-display font-bold uppercase tracking-wide border border-[#A729AD]/60 shadow-sm hover:bg-[#A729AD] active:scale-[0.99] transition-colors"
-                          >
-                            Consultar al asistente
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   )
                 })}

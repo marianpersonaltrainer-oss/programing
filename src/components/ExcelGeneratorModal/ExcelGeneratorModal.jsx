@@ -1693,7 +1693,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const userMsg = [
         `Clase: ${classLabel}. Día: ${dayName || '—'}.`,
         '',
-        'Briefing Marian: 8–12 viñetas con «- », primero intención global del día, luego comentarios de A), B) y C) por separado (no mezcles tramos en una línea). Tono oral head coach — qué sí, qué no, si→entonces, sala corta sólo si hace falta. Sin markdown, sin etiquetas tipo Logística/Calidad.',
+        'Salida: exactamente 3 o 4 líneas con «- ». Solo: dónde romperá el grupo hoy, qué quieres ver, qué no, y al menos un si→entonces. 40–95 palabras. Prohibido montaje material, describir el entreno, checklist de monitor. Tono Marian humana. Sin markdown.',
         '',
         'SESIÓN COMPLETA DE LA CLASE:',
         sessionText || '(vacía)',
@@ -3355,7 +3355,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                 )}
                                 <label className="block">
                                   <textarea
-                                    rows={11}
+                                    rows={5}
                                     value={dia[feedbackKey] || ''}
                                     onChange={(e) =>
                                       handleFeedbackFieldChange(
@@ -3365,7 +3365,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="8–12 viñetas: intención del día · luego A, B y C por separado. Qué sí, qué no, si ocurre→haz tal. Sala solo si evita lío gordo. Tono Marian, sin manual. Sin markdown."
+                                    placeholder="3–4 líneas: dónde romperá el grupo · quiero ver · no quiero · si pasa X→haz Y. Sin montaje ni resumir el entreno. ~40–95 palabras."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

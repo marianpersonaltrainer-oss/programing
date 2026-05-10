@@ -162,6 +162,42 @@ function sliceText(s, max) {
   return t.length <= max ? t : `${t.slice(0, Math.max(0, max - 1)).trim()}…`
 }
 
+/** Post-proceso si el modelo repite plantillas viejas (markdown / Logística: / cabecera «Clase | Día»). */
+function sanitizeRegeneratedCoachFeedback(text) {
+  let t = String(text || '').trim()
+  if (!t) return t
+  const lines = t.split(/\r?\n/)
+  while (lines.length) {
+    const head = lines[0].trim()
+    if (!head) {
+      lines.shift()
+      continue
+    }
+    const noAst = head.replace(/\*+/g, '').trim()
+    // Cabecera tipo **EvoFuncional | Lunes** o EvoFuncional | Lunes (sin viñeta)
+    const looksLikeClassDayTitle =
+      !head.startsWith('-') &&
+      head.length < 120 &&
+      /\|/.test(noAst) &&
+      /\b(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|funcional|basics|fit|hybrix|fuerza|gimnastica|gimnástica|todos)\b/i.test(
+        noAst,
+      )
+    const looksLikeMdTitle = /^\*+[^*\n]+\*+$/.test(head.trim()) && !head.trim().startsWith('-')
+    if (looksLikeClassDayTitle || looksLikeMdTitle) {
+      lines.shift()
+      continue
+    }
+    break
+  }
+  t = lines
+    .map((line) =>
+      line.replace(/^(-\s*)(Logística|Calidad|Fluidez|Técnica|Objetivo|Nota|Recordatorio)\s*:\s*/i, '$1'),
+    )
+    .join('\n')
+    .trim()
+  return t
+}
+
 /**
  * Trozos de días consecutivos (orden LUN→SÁ) por llamada.
  * Con `chunkSize` 1 se reduce mucho el JSON por petición (útil si el prompt es muy largo).
@@ -1655,9 +1691,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     setErrorMsg('')
     try {
       const userMsg = [
-        `La clase es: ${classLabel}. Usa en la salida los tres prefijos que corresponden a esta clase según las instrucciones del sistema.`,
+        `Clase: ${classLabel}. Día: ${dayName || '—'}.`,
         '',
-        `Día: ${dayName || '—'}`,
+        'Escribe solo el briefing al coach según el system: texto plano, sin título de cabecera, sin markdown (nada de ** ni ##), sin las palabras Logística, Calidad ni Fluidez como etiquetas.',
         '',
         'SESIÓN COMPLETA DE LA CLASE:',
         sessionText || '(vacía)',
@@ -1691,7 +1727,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         throw new Error(getAnthropicProxyErrorMessage(data, responseText, response.status))
       }
       const raw = extractAnthropicTextBlocks(data)
-      const feedback = stripCodeFences(raw)
+      const feedback = sanitizeRegeneratedCoachFeedback(stripCodeFences(raw))
       if (!feedback.trim()) throw new Error('La API no devolvió texto de feedback.')
 
       updateWeekData((prev) => {
@@ -3319,7 +3355,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                 )}
                                 <label className="block">
                                   <textarea
-                                    rows={4}
+                                    rows={5}
                                     value={dia[feedbackKey] || ''}
                                     onChange={(e) =>
                                       handleFeedbackFieldChange(
@@ -3329,7 +3365,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="2 líneas con «-»: 1) A/B — qué trabajo es, qué buscáis, ojo con…  2) WOD (C) — sala, cuidado con…, pendientes, cómo debería sentirse. ~50–90 palabras, tono hablado."
+                                    placeholder="3 líneas con «-»: 1) clave técnica/ejercicio · 2) fluidez, sala, parejas… · 3) intención, cómo debería sentirse. ~65–120 palabras. Sin markdown ni títulos."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

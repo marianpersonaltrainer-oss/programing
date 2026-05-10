@@ -36,10 +36,10 @@ REGLAS DE EDICIÓN
 7) "wodbuster": actualízala solo si el usuario lo pide explícitamente o si los cambios de sesión hacen obsoleto
    el texto; si no se menciona WodBuster, copia el valor actual verbatim.
 8) Feedbacks (feedback_funcional, feedback_basics, …): si el usuario pide regenerarlos o alinearlos con el
-   nuevo entreno, reescríbelos como en generación semanal: voz Marian, **exactamente 2 líneas** que empiezan por "-",
-   50–90 palabras; línea 1 = A)/B) técnica-fuerza; línea 2 = C) WOD (sala, cuidados, pendientes, sensación/objetivo);
-   tono hablado, sin riesgos inventados. Opcional una sola vez ⚠️ o ⏱ o ✅ si aporta. Si NO pide tocar feedbacks,
-   copia los textos actuales verbatim.
+   nuevo entreno, reescríbelos como en generación semanal: briefing fluido, exactamente 3 líneas que empiezan por "-",
+   65–120 palabras; orden: (1) clave técnica/ejercicio, (2) fluidez-sala-parejas, (3) intención; texto plano sin markdown
+   ni cabeceras tipo «Clase | Día»; sin líneas que empiecen por Logística/Calidad/Fluidez; sin riesgos inventados.
+   Opcional una sola vez ⚠️ o ⏱ o ✅ si aporta. Si NO pide tocar feedbacks, copia los textos actuales verbatim.
 
 ════════════════════════════════════════
 SEGURIDAD

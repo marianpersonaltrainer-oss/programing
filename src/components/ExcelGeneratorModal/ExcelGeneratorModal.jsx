@@ -3329,7 +3329,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="Briefing Marian (~40–70 palabras): foco; línea - con org | pista calent/explicación corta; ⚠️; ⏱ solo si crítico; ✅ tarea…"
+                                    placeholder="2 líneas con «-»: 1) A/B — qué trabajo es, qué buscáis, ojo con…  2) WOD (C) — sala, cuidado con…, pendientes, cómo debería sentirse. ~50–90 palabras, tono hablado."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

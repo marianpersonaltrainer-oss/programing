@@ -1693,7 +1693,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const userMsg = [
         `Clase: ${classLabel}. Día: ${dayName || '—'}.`,
         '',
-        'Salida: exactamente 9 líneas con viñeta: tres «- En A:», tres «- En B:», tres «- En C:». En cada bloque: técnica/ejercicio, fluidez, intención. Sin markdown ni cabeceras. Sin etiquetas Logística/Calidad/Fluidez sueltas.',
+        'Briefing Marian: 8–12 viñetas con «- », primero intención global del día, luego comentarios de A), B) y C) por separado (no mezcles tramos en una línea). Tono oral head coach — qué sí, qué no, si→entonces, sala corta sólo si hace falta. Sin markdown, sin etiquetas tipo Logística/Calidad.',
         '',
         'SESIÓN COMPLETA DE LA CLASE:',
         sessionText || '(vacía)',
@@ -3365,7 +3365,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="9 líneas: «- En A:» x3 (técnica · fluidez · intención), luego «- En B:» x3, luego «- En C:» x3. ~130–230 palabras. Sin markdown."
+                                    placeholder="8–12 viñetas: intención del día · luego A, B y C por separado. Qué sí, qué no, si ocurre→haz tal. Sala solo si evita lío gordo. Tono Marian, sin manual. Sin markdown."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

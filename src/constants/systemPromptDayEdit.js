@@ -36,10 +36,11 @@ REGLAS DE EDICIÓN
 7) "wodbuster": actualízala solo si el usuario lo pide explícitamente o si los cambios de sesión hacen obsoleto
    el texto; si no se menciona WodBuster, copia el valor actual verbatim.
 8) Feedbacks (feedback_funcional, feedback_basics, …): si el usuario pide regenerarlos o alinearlos con el
-   nuevo entreno, reescríbelos como generación semanal: exactamente 9 líneas con prefijos «- En A:» (x3), «- En B:» (x3),
-   «- En C:» (x3); dentro de cada bloque orden técnica-ejercicio, fluidez, intención; primero todo A, luego todo B, luego todo C;
-   130–230 palabras; texto plano sin markdown ni cabeceras tipo «Clase | Día»; sin viñetas sueltas Logística/Calidad/Fluidez;
-   sin riesgos inventados. Opcional una sola vez ⚠️ o ⏱ o ✅ si aporta. Si NO pide tocar feedbacks, copia verbatim.
+   nuevo entreno, reescríbelos como generación semanal: voz Marian head coach oral (ver TONO DEL FEEDBACK), 8–12 viñetas «-»
+   con primero intención global del día y luego A, B y C como en vista alumno sin cruzar tramos en una misma línea; prioridades
+   intención real, qué sí ver, qué no ver, adaptaciones rápidas tipo si→entonces, sala solo si evitas caos; 120–210 palabras sin
+   markdown ni cabeceras; sin el vocabulario IA prohibido en «TONO DEL FEEDBACK» del sistema. Opcional una sola vez ⚠️ ⏱ o ✅. Si NO pide feedbacks,
+   copia verbatim.
 
 ════════════════════════════════════════
 SEGURIDAD

@@ -1693,7 +1693,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const userMsg = [
         `Clase: ${classLabel}. Día: ${dayName || '—'}.`,
         '',
-        'Salida: exactamente 3 o 4 líneas con «- ». Solo: dónde romperá el grupo hoy, qué quieres ver, qué no, y al menos un si→entonces. 40–95 palabras. Prohibido montaje material, describir el entreno, checklist de monitor. Tono Marian humana. Sin markdown.',
+        'Salida: 3–4 líneas «- ». Voz EVO: español natural, cercana, humana; sin inglés de moda ni tono militar/competición. Intención del día, ritmo/cadencia, errores probables, quiero/no quiero, si ves X→Y, energía del grupo. 40–95 palabras. CERO logística salvo caos grave (nada de zonas, material, parejas, estaciones). No expliques la clase. Sin markdown.',
         '',
         'SESIÓN COMPLETA DE LA CLASE:',
         sessionText || '(vacía)',
@@ -3365,7 +3365,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="3–4 líneas: dónde romperá el grupo · quiero ver · no quiero · si pasa X→haz Y. Sin montaje ni resumir el entreno. ~40–95 palabras."
+                                    placeholder="3–4 líneas voz EVO (español): intención · ritmo · errores probables · quiero/no quiero · si ves X→Y · energía. Sin anglicismos ni tono competición. Sin logística salvo caos grave. ~40–95 palabras."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

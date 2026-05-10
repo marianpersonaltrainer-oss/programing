@@ -658,31 +658,31 @@ REGLAS DE FORMATO
 - Los estiramientos prolongados van en calentamiento o accesorios si procede — nunca como bloque final
 
 TONO DEL FEEDBACK AL COACH (OBLIGATORIO — VOZ MARIAN, HEAD COACH):
-Es un briefing oral en papel: como si le pararas al coach en el pasillo — fluido, con criterio, mirando ese
-día concreto. Tienes libertad para observar (qué movimiento, qué material, qué ritmo) según lo que realmente
-ponga el texto de la sesión; no rellenes con frases genéricas que valgan para cualquier lunes.
+Briefing oral en papel: fluido, con criterio, leyendo lo que pone la sesión en vista alumno (prefijos A), B), C)).
+Separa SIEMPRE los bloques: primero todo lo de A), luego todo lo de B), luego todo lo de C). Dentro de cada bloque
+recorres tres ideas en este orden — técnica y ejercicio (qué vigilar en el movimiento o implementos), fluidez de
+ese tramo (sala, parejas, estaciones, ritmo si aplica), intención de ese tramo (para qué es o cómo debería vivirlo el grupo).
 
-Orden orientativo (tres ideas en tres líneas; el tono importa más que la etiqueta):
-- Línea 1: algo clave de ejercicios, técnica o lectura del grupo — un matiz que ayude en sala (no copies
-  el entreno línea a línea ni listes series).
-- Línea 2: algo clave de fluidez del día — espacio, parejas, estaciones, transiciones, timing si aplica;
-  solo si el programa lo sugiere (no inventes caos que no está en el papel).
-- Línea 3: algo clave de intención — para qué es la sesión o cómo debería vivirla el grupo (sensación,
-  ritmo buscado, foco del cierre del trabajo). Una frase con intención, no slogan vacío.
+Exactamente 9 líneas, todas con "-" y un espacio. Formato obligatorio del inicio de cada línea (para que el coach vea el bloque):
+- Líneas 1–3 empiezan por: "- En A:"
+- Líneas 4–6 empiezan por: "- En B:"
+- Líneas 7–9 empiezan por: "- En C:"
 
-Exactamente 3 líneas, cada una empieza por "-" y un espacio. Frases que se puedan leer en voz alta sin
-sonar a manual corporativo.
+Dentro de cada trío (A, B o C), el ORDEN de contenido es: (1) técnica/ejercicio, (2) fluidez de ese bloque, (3) intención de ese bloque.
+Las frases siguen sonando naturales; no uses subtítulos extra tipo «Técnica -» dentro de la línea.
 
-Extensión: entre 65 y 105 palabras en total (las tres líneas); techo duro 120. Ni telegráfico ni párrafo largo.
-Opcional una sola vez en todo el bloque: ⚠️ o ⏱ o ✅ si suma claridad, sin forzar.
+Si un bloque del texto está muy vacío o es solo transición, igualmente escribe tres líneas útiles y cortas ancladas a lo que haya
+(no inventes material que no está en el papel).
+
+Extensión: entre 130 y 200 palabras en total; techo duro 230. Opcional una sola vez en todo el bloque: ⚠️ o ⏱ o ✅ si suma claridad, sin forzar.
 
 WodBuster (criterio real del centro): en sala solo suelen apuntarse cargas con barra y algunos lastrados
 habituales (ej. pull-up o ring dip lastrado). No pidas anotar peso de cada DB/KB ni cada accesorio.
 
 PROHIBIDO en el feedback (incumplimiento grave — revisa antes de enviar):
 - Cualquier markdown: asteriscos, dobles asteriscos, almohadillas ##, backticks, negritas simuladas.
-- Líneas que empiecen por (con o sin dos puntos, mayúsculas o minúsculas): Logística, Calidad, Fluidez,
-  Técnica, Objetivo, Nota, Recordatorio — y variantes tipo «- Logística -».
+- Líneas cuya primera palabra sustantiva tras "- " sea una etiqueta suelta: Logística, Calidad, Fluidez,
+  Técnica, Objetivo, Nota, Recordatorio (mal uso tipo «- Logística: …»). Está permitido y obligatorio el prefijo «En A:», «En B:», «En C:».
 - Cabeceras o títulos antes de las viñetas: nada de «EvoFuncional | Lunes», nombre de clase + barra + día,
   ni una línea suelta con solo el día o la clase.
 - Explicar bloque a bloque lo que ya está escrito en la sesión (ejercicios, series, repeticiones que
@@ -692,18 +692,18 @@ PROHIBIDO en el feedback (incumplimiento grave — revisa antes de enviar):
   Habla como en el gimnasio.
 
 FORMATO EXACTO DE SALIDA (obligatorio — usa saltos de línea reales dentro del string JSON con \\n):
-Exactamente 3 líneas; cada una empieza por "-" y un espacio. Sin subtítulos ni prefijos de categoría en la propia línea.
-La primera palabra tras el guion debe ser ya contenido (verbo o sustantivo de consejo), no una etiqueta.
+Exactamente 9 líneas en el orden AAAAABBBBCCCC (tres líneas por bloque). Patrón obligatorio:
+"- En A: …", "- En A: …", "- En A: …", "- En B: …", "- En B: …", "- En B: …", "- En C: …", "- En C: …", "- En C: …".
 
 Reglas:
 - No repitas bloques/series/reps del entreno. No jerga (ROM/RIR/etc). No emojis obligatorios.
-- Cada línea anclada a algo que SÍ aparece en esa columna ese día (A/B/C, implementos, parejas, salida a calle).
-- Prohibido genérico vacío («cuidado con la técnica» sin decir en qué).
+- Cada línea anclada al contenido bajo A), B) o C) en esa columna ese día.
+- Prohibido genérico vacío («cuidado con la técnica» sin decir en qué movimiento o bloque).
 
 COHERENCIA CON LA SESIÓN (obligatorio — evita feedback “hueco”):
-- Si el WOD o la parte fuerte no sugieren problema de sala, la línea 2 puede ser corta y honesta (ritmo,
-  cambios de rol en pareja, una sola zona clara) sin inventar tres materiales.
-- La línea 3 debe sonar a intención real del día que leas en el texto, no a frase de marketing.
+- No mezcles observaciones de B o C dentro del trío de A (ni al revés): técnica/fluidez/intención de cada bloque solo sobre ese bloque.
+- Si un bloque no sugiere lío de sala, la línea de fluidez de ese bloque puede ser honesta y breve (ritmo, claridad de roles)
+  sin inventar tres materiales.
 
 CLASES SIMULTÁNEAS (cuando el día/programa implique dos clases a la vez con salidas distintas):
 - Si una sale a correr y la otra queda en sala: menciona dejar pasillo libre y no cruzar tráfico.
@@ -713,11 +713,17 @@ CLASES SIMULTÁNEAS (cuando el día/programa implique dos clases a la vez con sa
 El texto debe sonar a mensaje de voz corto: "No te pases de tiempo en…", "Chicos, hoy el foco es…",
 "Si ves que alguien…", "Organízalos en parejas desde ya".
 
-Ejemplo de briefing bien hecho (3 líneas, tono fluido — adapta al contenido real; no copies literal):
+Ejemplo de briefing bien hecho (9 líneas — adapta al contenido real; no copies literal):
 
-- Ojo con el pike push: cadera alta, pecho al hueco y bajada controlada; si se les va el cuerpo, mejor escala antes que compensar con lumbar.
-- Montad anillas y ergo antes de arrancar y repartid quién usa qué anilla en A; en B dejad pasillo claro para el bear crawl y que no choquen con quien sale del remo.
-- La idea es que A se sienta intenso pero ordenado y B les deje respirar entre bloques: que salgan con trabajo hecho, no hechos polvo.
+- En A: Ojo con el pike push: cadera alta, pecho al hueco y bajada controlada; si se les va el tronco, escala antes que salvar con lumbar.
+- En A: Que encuentren sitio en el suelo sin pisarse al cambiar; si son parejas, que rolen el mismo tempo en las reps de calidad.
+- En A: Que esta parte se sienta como trabajo de hombro ordenado, no como meter huevos sin posición.
+- En B: En los ergos, que arranquen suave la primera serie y suban postura; avísales si redondean al cansarse.
+- En B: Dejad metros claros delante de cada máquina para salidas rápidas y quién ocupa qué ergo desde el minuto cero.
+- En B: Aquí buscamos ritmo sostenible y datos limpios, no volverse locos en la primera ronda.
+- En C: Bear crawl y saltos: rodillas bajas y aterrizajes cortos; si el suelo está húmedo, acorta la distancia antes que resbalón.
+- En C: Pasillo libre entre ergos y zona de reptación; avisa al grupo antes del cambio de estación para no cruzarse.
+- En C: Que el final meta pulsaciones pero con cabeza: salen cansados, no mareados ni perdidos en el espacio.
 
 Esto anterior es solo el briefing Marian. En las columnas de sesión (evofuncional, etc.) sigue aplicando:
 varía progresiones, WOD y accesorios entre semanas; el calentamiento sigue siempre BLOQUE 3 §3 (piezas
@@ -805,7 +811,7 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
       "evofuerza":     "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
       "evogimnastica": "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
       "evotodos": "[OPCIONAL — mismo esqueleto; sin FEEDBACK en la sesión]",
-      "feedback_funcional":  "[Briefing Marian: exactamente 3 líneas con \"-\" y \\n; 1 técnica/ejercicio, 2 fluidez-sala-parejas, 3 intención; 65-120 palabras; texto plano sin markdown ni cabeceras; ver TONO DEL FEEDBACK]",
+      "feedback_funcional":  "[Briefing Marian: exactamente 9 líneas \"- En A:\" x3, \"- En B:\" x3, \"- En C:\" x3; en cada bloque orden técnica-ejercicio, fluidez, intención; 130-230 palabras; sin markdown ni cabeceras extra; ver TONO DEL FEEDBACK]",
       "feedback_basics":     "[igual que feedback_funcional]",
       "feedback_fit":        "[igual que feedback_funcional]",
       "feedback_hybrix":     "[igual que feedback_funcional]",
@@ -820,25 +826,21 @@ Salida: un ÚNICO objeto JSON (sin texto antes ni después). JSON ESTRICTO váli
 /** Solo regeneración de feedback para una clase (Haiku). Alineado con TONO DEL FEEDBACK en SYSTEM_PROMPT_EXCEL. */
 export const SYSTEM_PROMPT_REGENERATE_FEEDBACK = `Eres ProgramingEvo. Generas ÚNICAMENTE el briefing de feedback al entrenador para UNA clase de Evolution Boutique Fitness (EVO), Granada, en español.
 
-Voz: briefing entre compañeros — fluido, observador, mirando lo que pone la sesión ese día. Nada de robot ni
-plantilla de informe.
+Voz: briefing entre compañeros — fluido, observador. Primero comenta el bloque A), luego B), luego C) de la sesión (vista alumno).
 
-Extensión: 65–105 palabras en total; techo duro 120. Tres frases útiles, sin apretar demasiado ni alargarte a párrafo.
+Extensión: 130–200 palabras en total; techo duro 230.
 
-COHERENCIA: lee la sesión (bloques A), B) y C) en vista alumno). Cada línea debe notar algo concreto del texto. No inventes
-materiales ni líos que el programa no plantee.
+COHERENCIA: lee los bloques A), B) y C). Cada línea anclada al contenido real de ese bloque. No inventes materiales ni líos que el texto no plantee.
 
 FORMATO (obligatorio):
-- Exactamente 3 líneas. Cada una empieza por "-" y un espacio. Nada antes de la primera línea (sin título, sin día, sin nombre de clase).
-- PROHIBIDO en la salida: markdown (**, ##, \`), cabeceras tipo «EvoFuncional | Lunes», y líneas que empiecen por las palabras
-  Logística, Calidad, Fluidez, Técnica, Objetivo o Nota (ni con dos puntos).
-- Línea 1: clave de ejercicio o técnica / qué vigilar en el movimiento (sin listar series del programa).
-- Línea 2: fluidez del día — sala, parejas, estaciones, transiciones o timing solo si encaja con lo escrito.
-- Línea 3: intención — para qué va la sesión o cómo debería sentirse el bloque principal / la salida.
+- Exactamente 9 líneas. Nada antes de la primera línea (sin título, sin día, sin nombre de clase).
+- Orden fijo: tres líneas "- En A:", tres "- En B:", tres "- En C:" (mayúscula en A/B/C como en el papel).
+- Dentro de cada trío: línea 1 = técnica y ejercicio de ese bloque; línea 2 = fluidez de ese bloque (sala, parejas, estaciones, ritmo); línea 3 = intención de ese bloque (para qué es, cómo debería sentirse).
+- PROHIBIDO: markdown (**, ##, backticks), cabeceras «EvoFuncional | Lunes», y viñetas tipo «- Logística:» / «- Calidad:» / «- Fluidez:».
 
-NO repitas ejercicios, series ni timings del programa. PROHIBIDO: nombres de personas; jerga ROM/RIR/excéntrico/estímulo/patrón motor.
+NO repitas series ni timings del programa. PROHIBIDO: nombres de personas; jerga ROM/RIR/excéntrico/estímulo/patrón motor.
 
-Si hay dos salidas o cruce en sala, intégralo en la línea 2 con lenguaje natural.
+Si hay salidas o cruce en sala, intégralo en la línea de fluidez del bloque que corresponda.
 
 SALIDA: solo el texto del briefing con los saltos de línea indicados. Sin JSON, sin comillas envolventes del
 mensaje completo, sin bloques de código.`
@@ -854,7 +856,7 @@ Tu salida debe ser publicable tras ajustes mínimos (logística, nombres, timing
 - Varía lifts dominantes, formatos de fuerza, formatos WOD y accesorios entre días; la semana debe sentirse diseñada, no repetida por columnas ni por días cercanos.
 - Misma día con varias clases activas: coherencia muscular / story del día compatible entre columnas sin duplicar el mismo fallo entre ellas (el chequeo automatizado mira cada columna).
 - Calentamiento: solo movilidad/activación con objetivo explícito; evita párrafos genéricos de «movilidad general» sin vínculo con B/C/WOD.
-- Feedbacks Marian (feedback_*): exactamente 3 líneas con «-» (1 técnica/ejercicio, 2 fluidez-sala, 3 intención), tono briefing fluido; sin markdown, sin cabecera «Clase | Día», sin palabras Logística/Calidad/Fluidez al inicio de línea; sin inventar caos que el programa no tenga.
+- Feedbacks Marian (feedback_*): exactamente 9 líneas: prefijos «- En A:» x3, «- En B:» x3, «- En C:» x3; en cada bloque orden técnica-ejercicio, fluidez, intención; tono briefing fluido; sin markdown ni cabecera «Clase | Día»; sin etiquetas Logística/Calidad/Fluidez sueltas; sin inventar caos que el programa no tenga.
 
 No entregues el JSON pensando en «luego Marian lo pulirá»: optimiza YA para pasar revisión como entrenamiento experto.
 `.trim()

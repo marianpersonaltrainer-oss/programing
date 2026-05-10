@@ -1693,7 +1693,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const userMsg = [
         `Clase: ${classLabel}. Día: ${dayName || '—'}.`,
         '',
-        'Escribe solo el briefing al coach según el system: texto plano, sin título de cabecera, sin markdown (nada de ** ni ##), sin las palabras Logística, Calidad ni Fluidez como etiquetas.',
+        'Salida: exactamente 9 líneas con viñeta: tres «- En A:», tres «- En B:», tres «- En C:». En cada bloque: técnica/ejercicio, fluidez, intención. Sin markdown ni cabeceras. Sin etiquetas Logística/Calidad/Fluidez sueltas.',
         '',
         'SESIÓN COMPLETA DE LA CLASE:',
         sessionText || '(vacía)',
@@ -3355,7 +3355,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                 )}
                                 <label className="block">
                                   <textarea
-                                    rows={5}
+                                    rows={11}
                                     value={dia[feedbackKey] || ''}
                                     onChange={(e) =>
                                       handleFeedbackFieldChange(
@@ -3365,7 +3365,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="3 líneas con «-»: 1) clave técnica/ejercicio · 2) fluidez, sala, parejas… · 3) intención, cómo debería sentirse. ~65–120 palabras. Sin markdown ni títulos."
+                                    placeholder="9 líneas: «- En A:» x3 (técnica · fluidez · intención), luego «- En B:» x3, luego «- En C:» x3. ~130–230 palabras. Sin markdown."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />

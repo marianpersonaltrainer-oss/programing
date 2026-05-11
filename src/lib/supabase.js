@@ -122,10 +122,6 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
 }
 
 /**
- * Upsert idempotente por slot lógico (mesociclo + semana).
- * Si existe una fila publicada previa en ese slot, la actualiza; si no, inserta nueva fila no activa.
- */
-/**
  * Una sola semana visible en el Hub para coaches: desactiva el resto y activa la del slot (mesociclo + semana).
  * Debe ejecutarse tras guardar datos con `upsertPublishedWeekBySlot` si quieres que `getActiveWeek()` devuelva esta semana.
  */
@@ -152,6 +148,13 @@ export async function activatePublishedWeekForHub(mesociclo, semana) {
   return { id: row.id, mesociclo: row.mesociclo, semana: row.semana }
 }
 
+/**
+ * Upsert idempotente por slot lógico (mesociclo + semana).
+ * Si existe fila previa en ese slot, actualiza `data`; si no, inserta fila con `is_active: false` hasta que actives.
+ *
+ * @param {boolean} [options.activateForHub=true] — Si es false, solo guarda JSON: los coaches siguen viendo la semana activa actual.
+ *   Pon false para preparar la siguiente semana sin cambiar el Hub; true cuando quieras que ?coach=1 pase a esta semana.
+ */
 export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, options = {}) {
   const { activateForHub = true } = options
   if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')

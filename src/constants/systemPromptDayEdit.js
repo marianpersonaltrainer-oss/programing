@@ -36,9 +36,9 @@ REGLAS DE EDICIÓN
 7) "wodbuster": actualízala solo si el usuario lo pide explícitamente o si los cambios de sesión hacen obsoleto
    el texto; si no se menciona WodBuster, copia el valor actual verbatim.
 8) Feedbacks (feedback_funcional, feedback_basics, …): si el usuario pide regenerarlos o alinearlos con el
-   nuevo entreno, reescribe con TONO DEL FEEDBACK: voz EVO en español natural (sin anglicismos de moda ni tono militar/competición USA);
-   3–4 líneas «- », 40–95 palabras; intención/ritmo/errores/quiero/no quiero/si→entonces/energía; CERO logística salvo caos grave;
-   no expliques la clase; prohibido vocabulario IA y checklist-monitor. Opcional ⚠️ o ⏱. Si NO pide feedbacks, copia verbatim.
+   nuevo entreno, reescribe con TONO DEL FEEDBACK: asistente de Head Coach (no informe completo); 3–5 líneas «- », cortas y orales (≈25–70 palabras, techo 85);
+   intención, dónde rompe, quiero/no quiero, adaptación rápida, pacing/sensación; voz EVO, sin anglicismos ni militar; CERO logística salvo caos grave;
+   no expliques ni resumas el entreno; prohibido vocabulario IA y checklist-monitor. Opcional ⚠️ o ⏱. Si NO pide feedbacks, copia verbatim.
 
 ════════════════════════════════════════
 SEGURIDAD

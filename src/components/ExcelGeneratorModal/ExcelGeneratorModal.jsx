@@ -15,7 +15,6 @@ import {
   getAllMesocycleSummaries,
 } from '../../hooks/useWeekHistory.js'
 import {
-  publishWeek,
   getActiveWeek,
   getCoachExerciseLibrary,
   updatePublishedWeekData,
@@ -24,6 +23,7 @@ import {
   upsertMissingExerciseVideos,
   listMissingExerciseVideos,
   updateMissingExerciseVideo,
+  upsertPublishedWeekBySlot,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import { fetchLibraryAutoVideoMap } from '../../utils/fetchLibraryAutoVideoMap.js'
@@ -487,6 +487,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [showHistory, setShowHistory] = useState(false)
   const [isEditingExistingWeek, setIsEditingExistingWeek] = useState(false)
   const [publishing, setPublishing]   = useState(false)
+  const [savingHubDraft, setSavingHubDraft] = useState(false)
   const [published, setPublished]     = useState(false)
   const [editingPublishedRowId, setEditingPublishedRowId] = useState(null)
   const [editingPublishedIsActive, setEditingPublishedIsActive] = useState(false)
@@ -1557,7 +1558,17 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           `Publicación bloqueada: calentamiento claramente genérico (titulado + texto tipo «movilidad general», etc.). Ajusta esos casos y vuelve a publicar. ${top}`,
         )
       }
-      await publishWeek(data, weekState.mesocycle, weekState.week)
+      const normalized = normalizeWeekDataForEditor(
+        { ...data, mesociclo: weekState.mesocycle, semana: Number(weekState.week) },
+        { semana: Number(weekState.week), mesociclo: weekState.mesocycle },
+      )
+      const r = await upsertPublishedWeekBySlot(normalized, weekState.mesocycle, Number(weekState.week), {
+        activateForHub: true,
+      })
+      if (r?.id) {
+        setEditingPublishedRowId(r.id)
+        setEditingPublishedIsActive(true)
+      }
       setPublished(true)
       try {
         window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'publish' } }))
@@ -1568,6 +1579,46 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setErrorMsg('Error publicando: ' + formatClientError(err))
     } finally {
       setPublishing(false)
+    }
+  }
+
+  async function handleSaveHubDraft() {
+    if (!weekState.mesocycle || weekState.week == null) {
+      setErrorMsg('Falta mesociclo o número de semana en el panel izquierdo.')
+      return
+    }
+    try {
+      setSavingHubDraft(true)
+      setErrorMsg('')
+      let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
+      data.titulo = editTitle || data.titulo
+      const normalized = normalizeWeekDataForEditor(
+        { ...data, mesociclo: weekState.mesocycle, semana: Number(weekState.week) },
+        { semana: Number(weekState.week), mesociclo: weekState.mesocycle },
+      )
+      const r = await upsertPublishedWeekBySlot(normalized, weekState.mesocycle, Number(weekState.week), {
+        activateForHub: false,
+      })
+      if (r?.id) {
+        setEditingPublishedRowId(r.id)
+        setEditingPublishedIsActive(false)
+      }
+      saveWeekToHistory(weekState.mesocycle, weekState.week, normalized)
+      lastPersistedDraftRef.current = JSON.stringify(normalized)
+      setHistory(getHistoryForMesocycle(weekState.mesocycle))
+      setWeekData(normalized)
+      setRawJson(JSON.stringify(normalized, null, 2))
+      setDraftNotice('Borrador guardado en Supabase (la semana visible para coaches no cambia).')
+      setTimeout(() => setDraftNotice(''), 4200)
+      try {
+        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'excel-modal-hub-draft' } }))
+      } catch {
+        /* noop */
+      }
+    } catch (err) {
+      setErrorMsg('Error guardando borrador en Supabase: ' + formatClientError(err))
+    } finally {
+      setSavingHubDraft(false)
     }
   }
 
@@ -1693,7 +1744,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const userMsg = [
         `Clase: ${classLabel}. Día: ${dayName || '—'}.`,
         '',
-        'Salida: 3–4 líneas «- ». Voz EVO: español natural, cercana, humana; sin inglés de moda ni tono militar/competición. Intención del día, ritmo/cadencia, errores probables, quiero/no quiero, si ves X→Y, energía del grupo. 40–95 palabras. CERO logística salvo caos grave (nada de zonas, material, parejas, estaciones). No expliques la clase. Sin markdown.',
+        'Rol: asistente de coaching (no informe). Salida: 3–5 líneas «- », muy cortas y humanas. Intención, dónde rompe el grupo, quiero/no quiero, si ves X→Y, pacing/sensación. ~25–70 palabras (máx. 85). Sin resumir el entreno ni describir ejercicios. Voz EVO; sin inglés de moda ni militar. CERO logística salvo caos grave. Sin markdown.',
         '',
         'SESIÓN COMPLETA DE LA CLASE:',
         sessionText || '(vacía)',
@@ -2161,8 +2212,12 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       const targetMeso = data?.mesociclo || weekState.mesocycle || null
       const targetSemana = Number(data?.semana || weekState.week || 0) || null
 
-      // Persistencia automática e idempotente en Supabase: sobrescribe por semana+mesociclo.
+      // Persistencia en Supabase por mesociclo+semana (borrador: no activa el Hub al crear fila nueva).
       try {
+        const normalized = normalizeWeekDataForEditor(
+          { ...data, mesociclo: targetMeso, semana: targetSemana },
+          { semana: targetSemana, mesociclo: targetMeso },
+        )
         let targetRowId = editingPublishedRowId || null
         if (!targetRowId && targetMeso && targetSemana != null) {
           const latest = await getPublishedWeekByMesocycleAndWeek(targetMeso, targetSemana)
@@ -2175,8 +2230,16 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           }
         }
         if (targetRowId) {
-          await updatePublishedWeekData(targetRowId, data)
+          await updatePublishedWeekData(targetRowId, normalized)
           setEditingPublishedRowId(targetRowId)
+          const latestAfter = await getPublishedWeekByMesocycleAndWeek(targetMeso, targetSemana)
+          setEditingPublishedIsActive(!!latestAfter?.is_active)
+        } else if (targetMeso && targetSemana != null) {
+          const r = await upsertPublishedWeekBySlot(normalized, targetMeso, targetSemana, { activateForHub: false })
+          if (r?.id) {
+            setEditingPublishedRowId(r.id)
+            setEditingPublishedIsActive(false)
+          }
         }
       } catch (syncErr) {
         warnings.push(`No se pudo sincronizar automático a Supabase: ${formatClientError(syncErr)}`)
@@ -2208,7 +2271,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         setDraftNotice(`Excel importado y sincronizado. Avisos: ${warnings.join(' · ')}`)
         window.setTimeout(() => setDraftNotice(''), 9000)
       } else {
-        setDraftNotice('Excel importado automáticamente en borrador + Supabase (idempotente por semana).')
+        setDraftNotice('Excel importado y guardado en Supabase como borrador (coaches siguen con la semana activa).')
         window.setTimeout(() => setDraftNotice(''), 5500)
       }
     } catch (err) {
@@ -2259,13 +2322,15 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
             </div>
             {status === 'previewing' && weekData && (
               <p className="text-[9px] text-neutral-500 font-medium mt-2 max-w-xl leading-relaxed">
-                Borrador: se guarda en este navegador (historial del mesociclo) al pulsar «Guardar borrador», al bajar el
-                Excel, al cerrar el modal o unos segundos después de editar. «Publicar Hub» sigue siendo lo único que
-                activa la semana en la app. Si editaste el Excel descargado desde aquí, usa «Importar Excel» en vista previa
-                para volcar sesiones y feedbacks al JSON antes de publicar o regenerar con la IA.
+                Borrador local: se guarda en este navegador (historial del mesociclo) al pulsar «Guardar borrador», al bajar el
+                Excel, al cerrar el modal o unos segundos después de editar. «Guardar borrador en Hub» sube el JSON a Supabase para este
+                meso/S <span className="font-semibold">sin</span> cambiar la semana que los coaches ven. «Publicar Hub» activa esta semana
+                en la app. Si editaste el Excel descargado desde aquí, usa «Importar Excel» en vista previa para volcar sesiones y feedbacks al JSON.
                 {editingPublishedRowId ? (
                   <span className="block text-indigo-700/90 mt-0.5">
-                    Semana ya en Supabase: usa «Guardar cambios» para actualizar el Hub sin publicar de nuevo.
+                    {editingPublishedIsActive
+                      ? 'Esta fila es la semana activa en el Hub: «Guardar cambios» actualiza lo que ven los coaches.'
+                      : 'Esta fila está en Supabase como borrador: «Guardar cambios» o «Guardar borrador en Hub» actualizan datos; «Publicar Hub» la hace visible para coaches.'}
                   </span>
                 ) : null}
               </p>
@@ -2939,7 +3004,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   <p className={`text-[10px] font-bold uppercase tracking-widest ${
                     editingPublishedIsActive ? 'text-indigo-700' : 'text-amber-800'
                   }`}>
-                    {editingPublishedIsActive ? 'Editando semana publicada activa' : 'Editando semana publicada'}
+                    {editingPublishedIsActive ? 'Editando semana activa en Hub' : 'Editando borrador en Hub (no visible aún)'}
                   </p>
                 </div>
               )}
@@ -3365,7 +3430,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="3–4 líneas voz EVO (español): intención · ritmo · errores probables · quiero/no quiero · si ves X→Y · energía. Sin anglicismos ni tono competición. Sin logística salvo caos grave. ~40–95 palabras."
+                                    placeholder="Asistente Marian: 3–5 bullets cortos (-): intención · dónde rompe · quiero/no · si falla→qué haces · sensación/ritmo. Sin resumir el entreno. ~25–70 palabras."
                                     spellCheck={false}
                                     className={`${secondaryTextareaClass} border-indigo-100 focus:border-indigo-300 bg-indigo-50/20 min-h-[5.5rem]`}
                                   />
@@ -3537,6 +3602,17 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 Guardar borrador
               </button>
             )}
+            {status === 'previewing' && weekData && (
+              <button
+                type="button"
+                onClick={handleSaveHubDraft}
+                disabled={savingHubDraft || publishing || !weekState.mesocycle || weekState.week == null}
+                className="px-5 py-2.5 rounded-xl border border-sky-200 bg-sky-50/90 text-sky-900 hover:bg-sky-100 disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                title="Guarda en Supabase para este mesociclo y semana sin cambiar la semana activa para coaches."
+              >
+                {savingHubDraft ? 'Guardando en Hub…' : 'Guardar borrador en Hub'}
+              </button>
+            )}
             {status === 'previewing' && (
               <>
                 {editingPublishedRowId && (
@@ -3550,8 +3626,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 )}
                 <button
                   onClick={handlePublish}
-                  disabled={publishing || published}
+                  disabled={publishing || published || savingHubDraft}
                   className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-evo-accent/20 bg-evo-accent/5 hover:bg-evo-accent/10 disabled:opacity-50 text-evo-accent text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                  title="Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub."
                 >
                   {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}
                 </button>

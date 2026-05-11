@@ -64,6 +64,26 @@ function dayFromAnyCell(row) {
   return null
 }
 
+/**
+ * Primera fila donde empieza otro día (cabecera LUNES… distinta del día actual + fila siguiente = cabecera de clases).
+ * Evita que el import absorba FEEDBACK o texto del día siguiente dentro del bloque actual.
+ */
+function findNextDayStartRow(sheet, fromR, maxR, currentDayCanon) {
+  if (!currentDayCanon) return null
+  const cur = normalizeDayName(currentDayCanon)
+  for (let rr = fromR; rr <= maxR; rr += 1) {
+    const row = sheet.getRow(rr)
+    const v1 = cellToPlainString(row.getCell(1)).trim()
+    const dLoose = canonDayFromRowLoose(v1) || dayFromAnyCell(row)
+    if (!dLoose) continue
+    const dNorm = normalizeDayName(dLoose)
+    if (dNorm === cur) continue
+    const nextRow = sheet.getRow(rr + 1)
+    if (rowLooksLikeClassHeader(nextRow)) return rr
+  }
+  return null
+}
+
 function detectClassHeaderMap(sheet, maxR) {
   for (let r = 1; r <= Math.min(maxR, 80); r += 1) {
     const row = sheet.getRow(r)
@@ -315,6 +335,10 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       })
     }
 
+    const nextDayR = findNextDayStartRow(sheet, r + 2, maxR, dayCanon) ?? maxR + 1
+    const dayBlockEnd = Math.min(nextDayR - 1, maxR)
+    trace(`  Fin bloque día (excl.): fila ${nextDayR <= maxR ? nextDayR : '(EOF)'} · absorber feedback hasta fila ${dayBlockEnd}`)
+
     /** Incorpora texto leído en filas legacy de feedback dentro del bloque (antes faltaba el merge en `block`). */
     function mergeFeedbackDictInto(src) {
       for (const cls of ALL_CLASSES) {
@@ -346,27 +370,31 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
     }
 
     let rr = r + 3
-    const fbRow = rr <= maxR ? sheet.getRow(rr) : null
-    let hasFeedbackRow = false
-    if (fbRow) {
-      const sample = ALL_CLASSES.map((cls, i) => cellToPlainString(fbRow.getCell(i + 1))).join(' ')
-      if (/FEEDBACK/i.test(sample)) {
-        hasFeedbackRow = true
-        ALL_CLASSES.forEach((cls, i) => {
-          const plain = cellToPlainString(fbRow.getCell(i + 1))
-          const inner = stripFeedbackHeader(plain, cls.label)
-          feedback[cls.feedbackKey] = inner
-          if (inner.trim()) trace(`  Fila feedback legacy ${rr} ${cls.label} → ${inner.length} chars`)
-        })
-        rr += 1
+    if (!hasPartLabels) {
+      const fbRow = rr <= maxR ? sheet.getRow(rr) : null
+      let hasFeedbackRow = false
+      if (fbRow) {
+        const sample = ALL_CLASSES.map((cls, i) => cellToPlainString(fbRow.getCell(i + 1))).join(' ')
+        if (/FEEDBACK/i.test(sample)) {
+          hasFeedbackRow = true
+          ALL_CLASSES.forEach((cls, i) => {
+            const plain = cellToPlainString(fbRow.getCell(i + 1))
+            const inner = stripFeedbackHeader(plain, cls.label)
+            feedback[cls.feedbackKey] = inner
+            if (inner.trim()) trace(`  Fila feedback legacy ${rr} ${cls.label} → ${inner.length} chars`)
+          })
+          rr += 1
+        }
       }
     }
-    absorbLabeledFeedbackRows(r + 1, r + 16)
+
+    absorbLabeledFeedbackRows(r + 1, dayBlockEnd)
     mergeFeedbackDictInto(feedback)
 
-    for (let rrf = r + 4; rrf <= Math.min(r + 14, maxR); rrf += 1) {
+    for (let rrf = r + 4; rrf <= dayBlockEnd; rrf += 1) {
       const lbl = cellToPlainString(sheet.getRow(rrf).getCell(1)).trim()
-      if (canonDayFromRowLoose(lbl)) break
+      const lblDay = canonDayFromRowLoose(lbl)
+      if (lblDay && normalizeDayName(lblDay) !== normalizeDayName(dayCanon)) break
       if (!/^FEEDBACK/i.test(lbl)) continue
       ALL_CLASSES.forEach((cls, i) => {
         const c = i + 1
@@ -379,17 +407,24 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
       })
     }
 
-    if (rr <= maxR) {
-      const vid = cellToPlainString(sheet.getRow(rr).getCell(1))
+    if (!hasPartLabels) {
+      if (rr <= maxR) {
+        const vid = cellToPlainString(sheet.getRow(rr).getCell(1))
+        if (vid.includes('📎') || /vídeo de referencia/i.test(vid)) {
+          rr += 1
+        }
+      }
+    } else if (dayBlockEnd >= r + 2) {
+      const vid = cellToPlainString(sheet.getRow(dayBlockEnd).getCell(1))
       if (vid.includes('📎') || /vídeo de referencia/i.test(vid)) {
-        rr += 1
+        trace(`  Fila vídeo referencia antes del siguiente día (f.${dayBlockEnd})`)
       }
     }
 
     mergeFeedbackDictInto(feedback)
     byDay.set(dayCanon, block)
     trace(`  Bloque día ${dayCanon} guardado (sesiones/feeds según lectura anterior).`)
-    r = rr
+    r = nextDayR <= maxR ? nextDayR : maxR + 1
   }
 
   // Fallback tolerante para excels con layout distinto (día/etiquetas fuera de col A).

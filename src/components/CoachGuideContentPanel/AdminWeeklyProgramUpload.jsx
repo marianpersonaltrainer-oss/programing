@@ -13,6 +13,26 @@ import {
 
 const MESO_OPTS = ['fuerza', 'autocarga', 'mixto']
 
+/**
+ * Lee un File a ArrayBuffer. Si la referencia del input se ha quedado obsoleta (el archivo se
+ * movió o se volvió a guardar tras seleccionarlo), el navegador lanza un NotFoundError con un
+ * mensaje críptico; aquí lo traducimos a algo accionable.
+ */
+async function readFileAsArrayBuffer(file) {
+  try {
+    return await file.arrayBuffer()
+  } catch (e) {
+    const name = e?.name || ''
+    const msg = String(e?.message || '')
+    if (name === 'NotFoundError' || /could not be found|no longer be read|not be found/i.test(msg)) {
+      throw new Error(
+        'El archivo seleccionado ya no está disponible (se ha movido o se volvió a guardar tras elegirlo). Vuelve a pulsar «Seleccionar archivo», elígelo de nuevo y reintenta.',
+      )
+    }
+    throw e
+  }
+}
+
 /** Convierte un ArrayBuffer a base64 sin reventar la pila con archivos grandes. */
 function arrayBufferToBase64(ab) {
   const bytes = new Uint8Array(ab)
@@ -184,7 +204,7 @@ function AdminWeeklyProgramUploadInner() {
     setError('')
     setImportMsg('')
     try {
-      const buf = await file.arrayBuffer()
+      const buf = await readFileAsArrayBuffer(file)
       let previousWeekData = null
       if (Number(week) > 1) {
         const prev = await getPublishedWeekByMesocycleAndWeek(mesocycle, Number(week) - 1)
@@ -291,7 +311,7 @@ function AdminWeeklyProgramUploadInner() {
       for (let i = 0; i < filesSorted.length; i += 1) {
         const f = filesSorted[i]
         const detectedWeek = inferWeekFromFileName(f.name, i + 1)
-        const buf = await f.arrayBuffer()
+        const buf = await readFileAsArrayBuffer(f)
         const out = await analyzeViaApi({
           buffer: buf,
           mesocycle,

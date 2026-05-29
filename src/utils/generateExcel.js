@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
+import { normalizeXlsxBuffer } from './normalizeXlsxBuffer.js'
 import {
   EXERCISE_VIDEOS,
   EXERCISE_CATEGORIES,
@@ -410,7 +411,7 @@ export async function generateWeekExcel(weekData, existingBuffer = null, library
   workbook.created = new Date()
 
   if (existingBuffer) {
-    await workbook.xlsx.load(existingBuffer)
+    await workbook.xlsx.load(await normalizeXlsxBuffer(existingBuffer))
   }
 
   const sheetName = weekData.sheetName || `S${weekData.semana || 'X'}`

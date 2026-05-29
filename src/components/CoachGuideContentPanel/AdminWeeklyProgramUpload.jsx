@@ -5,13 +5,60 @@ import {
   upsertPublishedWeekBySlot,
   activatePublishedWeekForHub,
 } from '../../lib/supabase.js'
-import { analyzeWeeklyProgramXlsx, generateCreativeProgrammingSuggestions } from '../../utils/analyzeWeeklyProgramXlsx.js'
+import { generateCreativeProgrammingSuggestions } from '../../utils/analyzeWeeklyProgramXlsx.js'
 import {
   normalizeWeekDataForEditor,
   weekHasMeaningfulSessionContent,
 } from '../../utils/normalizeWeekDataForEditor.js'
 
 const MESO_OPTS = ['fuerza', 'autocarga', 'mixto']
+
+/** Convierte un ArrayBuffer a base64 sin reventar la pila con archivos grandes. */
+function arrayBufferToBase64(ab) {
+  const bytes = new Uint8Array(ab)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+/**
+ * Analiza el .xlsx en el servidor (api/analyze-weekly-program). ExcelJS no parsea de forma
+ * fiable en el navegador, así que subimos el archivo en base64 y devolvemos el informe ya
+ * calculado en Node.
+ */
+async function analyzeViaApi({ buffer, mesocycle, week, phase, previousWeekData, historicalWeeksData, scope }) {
+  const fileBase64 = arrayBufferToBase64(buffer)
+  const res = await fetch('/api/analyze-weekly-program', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileBase64,
+      mesocycle,
+      week,
+      phase,
+      previousWeekData,
+      historicalWeeksData,
+      scope,
+    }),
+  })
+  let json = null
+  try {
+    json = await res.json()
+  } catch {
+    json = null
+  }
+  if (!res.ok) {
+    const msg = json?.error || `Error del servidor al analizar (HTTP ${res.status}).`
+    throw new Error(msg)
+  }
+  if (!json || typeof json !== 'object') {
+    throw new Error('El servidor no devolvió un informe válido.')
+  }
+  return json
+}
 const WEEK_OPTS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 const SAFE_POINTS_FALLBACK = { estructura: 0, variedad: 0, coherencia: 0, feedback: 0 }
@@ -149,7 +196,7 @@ function AdminWeeklyProgramUploadInner() {
         .slice(-4)
         .map((row) => row?.data)
         .filter(Boolean)
-      const out = await analyzeWeeklyProgramXlsx({
+      const out = await analyzeViaApi({
         buffer: buf,
         mesocycle,
         week: Number(week),
@@ -245,7 +292,7 @@ function AdminWeeklyProgramUploadInner() {
         const f = filesSorted[i]
         const detectedWeek = inferWeekFromFileName(f.name, i + 1)
         const buf = await f.arrayBuffer()
-        const out = await analyzeWeeklyProgramXlsx({
+        const out = await analyzeViaApi({
           buffer: buf,
           mesocycle,
           week: detectedWeek,

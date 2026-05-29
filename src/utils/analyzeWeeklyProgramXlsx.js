@@ -3,6 +3,7 @@ import { EVO_SESSION_CLASS_DEFS } from '../constants/evoClasses.js'
 import { EXCEL_DAY_ORDER, buildWeekSkeleton } from './excelGenerationPlan.js'
 import { excelCellPlainString, pickPrimaryProgrammingWeekSheet } from './excelWorkbookRead.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from './importProgramingEvoWeekXlsx.js'
+import { normalizeXlsxBuffer } from './normalizeXlsxBuffer.js'
 
 const CORE_CLASS_KEYS = ['evofuncional', 'evobasics', 'evofit']
 const CLASS_BY_KEY = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((c) => [c.key, c]))
@@ -1084,7 +1085,7 @@ function importedDayShowsStructureFromJson(day) {
 
 async function scanStructureFromWorkbook(buffer) {
   const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(buffer)
+  await wb.xlsx.load(await normalizeXlsxBuffer(buffer))
   const sheet = pickPrimaryProgrammingWeekSheet(wb)
   if (!sheet) throw new Error('No se detectó hoja principal S1/S2...')
   const maxR = sheet.lastRow?.number || 0

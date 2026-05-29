@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs'
 import { ALL_CLASSES } from '../constants/evoClasses.js'
 import { EXCEL_DAY_ORDER } from './excelGenerationPlan.js'
 import { excelCellPlainString, pickPrimaryProgrammingWeekSheet } from './excelWorkbookRead.js'
+import { normalizeXlsxBuffer } from './normalizeXlsxBuffer.js'
 
 const cellToPlainString = excelCellPlainString
 
@@ -239,7 +240,7 @@ function attachVideoAppendix(sessionText, refs) {
 export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData) {
   const warnings = []
   const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(buffer)
+  await wb.xlsx.load(await normalizeXlsxBuffer(buffer))
 
   const sheet = pickPrimaryProgrammingWeekSheet(wb)
   if (!sheet) {

@@ -769,6 +769,43 @@ function AdminWeeklyProgramUploadInner() {
               <p className="text-[10px] text-[#93C5FD]/90">{result.experienciaEvo.nota}</p>
             </div>
           ) : null}
+          {result.evoExperienceScoring?.enabled ? (
+            <div className="rounded-lg border border-fuchsia-600/40 bg-[#1a1024] px-3 py-2 space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-fuchsia-300/90">
+                Experiencia EVO · Scoring (factor más importante — sí mueve el score)
+              </p>
+              <p className="text-sm font-extrabold text-fuchsia-100">
+                {result.evoExperienceScoring.score}/100
+                <span className="ml-2 text-[10px] font-normal text-fuchsia-200/70">
+                  base {result.evoExperienceScoring.base} · +{result.evoExperienceScoring.rewardSum} · −{result.evoExperienceScoring.penaltySum}
+                </span>
+              </p>
+              {(result.evoExperienceScoring.rewards || []).length ? (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-400/80 mb-1">Premia</p>
+                  <ul className="space-y-0.5">
+                    {result.evoExperienceScoring.rewards.map((r, i) => (
+                      <li key={`evo-rw-${i}`} className="text-xs text-emerald-100/95">
+                        + {r.points} · {r.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {(result.evoExperienceScoring.penalties || []).length ? (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-rose-400/80 mb-1">Penaliza</p>
+                  <ul className="space-y-0.5">
+                    {result.evoExperienceScoring.penalties.map((p, i) => (
+                      <li key={`evo-pn-${i}`} className="text-xs text-rose-100/95">
+                        − {p.points} · {p.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
             <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
               Estructura: {pointsSafe.estructura ?? 0}/25

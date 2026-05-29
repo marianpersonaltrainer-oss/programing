@@ -78,8 +78,10 @@ function findNextDayStartRow(sheet, fromR, maxR, currentDayCanon) {
     if (!dLoose) continue
     const dNorm = normalizeDayName(dLoose)
     if (dNorm === cur) continue
-    const nextRow = sheet.getRow(rr + 1)
-    if (rowLooksLikeClassHeader(nextRow)) return rr
+    for (let peek = 1; peek <= 4; peek += 1) {
+      const nextRow = sheet.getRow(rr + peek)
+      if (rowLooksLikeClassHeader(nextRow)) return rr
+    }
   }
   return null
 }
@@ -310,8 +312,8 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
           rrScan += 1
           continue
         }
-        for (let c = 2; c <= 8; c += 1) {
-          const cls = classByCol.get(c - 1)
+        for (let c = 1; c <= ALL_CLASSES.length; c += 1) {
+          const cls = classByCol.get(c)
           if (!cls) continue
           const text = normalizeSessionCell(cellToPlainString(sheet.getRow(rrScan).getCell(c)))
           if (/PARTE\s*A/i.test(label)) partsA[cls.key] = text
@@ -355,8 +357,8 @@ export async function importProgramingEvoWeekFromXlsxBuffer(buffer, baseWeekData
         const rowJoin = [...Array(10)].map((_, i) => cellToPlainString(rw.getCell(i + 1))).join(' | ')
         if (!/FEEDBACK/i.test(`${c1} ${rowJoin}`)) continue
         const rowMarkedFeedback = /^FEEDBACK/i.test(c1)
-        for (let c = 2; c <= 8; c += 1) {
-          const cls = classByCol.get(c - 1)
+        for (let c = 1; c <= ALL_CLASSES.length; c += 1) {
+          const cls = classByCol.get(c)
           if (!cls) continue
           const plain = cellToPlainString(rw.getCell(c))
           if (!plain.trim()) continue

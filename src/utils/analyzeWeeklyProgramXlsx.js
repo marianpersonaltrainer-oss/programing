@@ -735,6 +735,168 @@ export function buildExperienciaEvoLayer({
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+ * EXPERIENCIA EVO — SCORING (factor más importante: "memorable EVO Real Box")
+ * Penaliza/premia según locomoción, día memorable, partner/team, contraste,
+ * variedad de formatos y patrones motores. Sí modifica el score final.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+const EVO_LOCOMOTION_RE = /\b(run|carrera|correr|sprint|shuttle|carry|farmer|suitcase|waiter walk|crawl|bear crawl|oso|drag|sled|trineo|arrastr|broad jump|salto largo|salto de longitud|walking lunge|zancada caminando|sandbag carry|ski|row erg|rowing)\b/i
+const EVO_MEMORABLE_RE = /\b(partner relay|team chipper|you ?go ?i ?go|i ?go ?you ?go|igyg|ygig|benchmark|relay|relevo|chipper|en equipos|por equipos|teams?|partner|en parejas|por parejas|challenge|reto por|finisher)\b/i
+const EVO_PARTNER_TEAM_RE = /\b(partner|teams?|en parejas|por parejas|parejas|equipos|relay|relevo|sincro|sync|you ?go ?i ?go|igyg|ygig|uno trabaja|uno descansa|a y b alternan|alternando)\b/i
+const EVO_GYMNASTIC_RE = /\b(handstand|hspu|pull ?up|dominad|toes ?to ?bar|t2b|ttb|muscle ?up|kipping|anillas|rings?|gimnast|pino|wall walk|wall ?walk|hollow|arch|l-?sit|pike|hand ?stand|ring row|ring dip)\b/i
+const EVO_CONTROL_RE = /\b(pallof|antirotacion|anti ?rotacion|dead ?bug|bird ?dog|plank|plancha|copenhagen|control corporal|isometr|hollow hold|side plank|tensión|tension)\b/i
+const EVO_UNILATERAL_RE = /\b(unilateral|single ?(arm|leg)|una ?(mano|pierna)|split squat|bulgarian|zancada|lunge|step ?up|pistol|offset|suitcase|single leg rdl|cossack)\b/i
+const EVO_POWER_RE = /\b(potencia|power|clean|snatch|jerk|box jump|broad jump|sprint|salto|salt|explosiv|wall ball|thruster|kb swing|swing|slam)\b/i
+
+const EVO_CLASSIC_FORMATS = new Set(['AMRAP', 'FOR TIME', 'EMOM'])
+
+/**
+ * Capa de scoring "Experiencia EVO". Devuelve score 0–100 (base 70 ± ajustes),
+ * el desglose de premios/penalizaciones y las métricas semanales clave.
+ */
+export function evaluateEvoExperienceScore({ data }) {
+  const dias = Array.isArray(data?.dias) ? data.dias : []
+
+  const activeDays = []
+  for (const d of dias) {
+    const coreTexts = CORE_CLASS_KEYS.map((k) => String(d?.[k] || ''))
+    const realCore = coreTexts.filter((t) => isRealSessionText(t) && !isIntentionalOffDay(t))
+    if (!realCore.length) continue
+    const merged = realCore.join(' \n ')
+    activeDays.push({
+      day: d?.nombre || '',
+      merged,
+      fmt: detectWodFormat(merged),
+      stim: detectStimulus(merged),
+      pattern: movementPattern(merged),
+      structure: sessionStructureKind(merged),
+      densityBucket: (() => {
+        const mins = realCore.map((t) => extractMinutesSmart(t)).filter((n) => n > 0)
+        const avg = mins.length ? mins.reduce((a, b) => a + b, 0) / mins.length : 0
+        return avg >= 33 ? 'alta' : avg >= 24 ? 'media' : avg > 0 ? 'baja' : 'na'
+      })(),
+    })
+  }
+
+  // Texto de TODA la semana (todas las clases) para detectar señales globales.
+  const wholeWeek = dias
+    .flatMap((d) => ALL_SESSION_KEYS.map((k) => String(d?.[k] || '')))
+    .filter((t) => isRealSessionText(t) && !isIntentionalOffDay(t))
+    .join(' \n ')
+
+  // --- MÉTRICAS SEMANALES ---
+  // Locomoción: contar bloques (sesiones núcleo) con locomoción real.
+  let bloquesLocomocion = 0
+  const diasConLocomocion = []
+  for (const d of dias) {
+    for (const key of CORE_CLASS_KEYS) {
+      const t = String(d?.[key] || '')
+      if (!isRealSessionText(t) || isIntentionalOffDay(t)) continue
+      if (EVO_LOCOMOTION_RE.test(t)) {
+        bloquesLocomocion += 1
+        if (!diasConLocomocion.includes(d?.nombre)) diasConLocomocion.push(d?.nombre)
+      }
+    }
+  }
+  const tieneLocomocion = bloquesLocomocion >= 2
+
+  const tieneDiaMemorable = EVO_MEMORABLE_RE.test(wholeWeek)
+  const tieneFormatoPartnerTeam = EVO_PARTNER_TEAM_RE.test(wholeWeek)
+
+  // Contraste / narrativa entre días.
+  const combos = new Set(activeDays.map((x) => `${x.stim}|${x.fmt}|${x.densityBucket}`))
+  const narrativaIdentica = activeDays.length >= 3 && combos.size === 1
+  const contrasteReal =
+    activeDays.length >= 2 && combos.size >= Math.max(2, Math.ceil(activeDays.length * 0.6))
+
+  // Racha del mismo patrón muscular dominante (3+ días seguidos).
+  let maxPatronStreak = 0
+  let curStreak = 0
+  let prevPat = null
+  for (const x of activeDays) {
+    if (x.pattern !== 'other' && x.pattern === prevPat) {
+      curStreak += 1
+    } else {
+      curStreak = x.pattern !== 'other' ? 1 : 0
+    }
+    if (curStreak > maxPatronStreak) maxPatronStreak = curStreak
+    prevPat = x.pattern
+  }
+  const racha3MismoPatron = maxPatronStreak >= 3
+
+  // Variedad de formatos clásicos sin variación.
+  const fmts = activeDays.map((x) => x.fmt)
+  const distinctFmt = new Set(fmts).size
+  const classicCount = fmts.filter((f) => EVO_CLASSIC_FORMATS.has(f)).length
+  const classicRatio = activeDays.length ? classicCount / activeDays.length : 0
+  const repiteFormatosClasicos = activeDays.length >= 4 && distinctFmt <= 2 && classicRatio >= 0.75
+  const evitaFormatosIdenticos = activeDays.length >= 3 && distinctFmt >= 3
+
+  // Patrones motores variados (gimnástica, control corporal, unilateral, potencia).
+  const patronesPresentes = []
+  if (EVO_GYMNASTIC_RE.test(wholeWeek)) patronesPresentes.push('gimnastica')
+  if (EVO_CONTROL_RE.test(wholeWeek)) patronesPresentes.push('control')
+  if (EVO_UNILATERAL_RE.test(wholeWeek)) patronesPresentes.push('unilateral')
+  if (EVO_POWER_RE.test(wholeWeek)) patronesPresentes.push('potencia')
+  const patronesVariados = patronesPresentes.length >= 3
+
+  // --- PREMIOS / PENALIZACIONES ---
+  const rewards = []
+  const penalties = []
+  const add = (arr, points, label) => arr.push({ points, label })
+
+  if (tieneLocomocion) add(rewards, 10, `Locomoción clara (${bloquesLocomocion} bloques: run/shuttle/carry/crawl)`)
+  else add(penalties, 20, 'No hay locomoción real (run/shuttle/carry/crawl) o solo 1 bloque')
+
+  if (tieneDiaMemorable) add(rewards, 25, 'Al menos 1 día memorable (Partner/Team/Relay/Chipper/Benchmark)')
+  else add(penalties, 25, 'No hay ningún formato memorable semanal')
+
+  if (tieneFormatoPartnerTeam) add(rewards, 15, 'Hay formato partner/team')
+  else add(penalties, 15, 'No hay ningún formato partner/team')
+
+  if (patronesVariados) add(rewards, 15, `Patrones motores variados (${patronesPresentes.join(', ')})`)
+  if (contrasteReal) add(rewards, 10, 'Contraste real entre días (estructura/estímulo/densidad)')
+  if (evitaFormatosIdenticos) add(rewards, 10, 'Evita repetir formatos idénticos (variedad de formatos)')
+
+  if (repiteFormatosClasicos) add(penalties, 10, 'Repite demasiados formatos clásicos sin variación (EMOM/AMRAP/For Time)')
+  if (narrativaIdentica) add(penalties, 15, 'Estructura narrativa idéntica todos los días')
+  if (racha3MismoPatron) add(penalties, 20, `Acumula ${maxPatronStreak} días seguidos con el mismo patrón dominante`)
+
+  const BASE = 70
+  const rewardSum = rewards.reduce((a, b) => a + b.points, 0)
+  const penaltySum = penalties.reduce((a, b) => a + b.points, 0)
+  const score = Math.max(0, Math.min(100, BASE + rewardSum - penaltySum))
+
+  return {
+    enabled: true,
+    score,
+    base: BASE,
+    rewardSum,
+    penaltySum,
+    rewards,
+    penalties,
+    metrics: {
+      bloquesLocomocion,
+      diasConLocomocion,
+      tieneLocomocion,
+      tieneDiaMemorable,
+      tieneFormatoPartnerTeam,
+      contrasteReal,
+      narrativaIdentica,
+      maxPatronStreak,
+      racha3MismoPatron,
+      distinctFmt,
+      classicRatio: Math.round(classicRatio * 100) / 100,
+      repiteFormatosClasicos,
+      evitaFormatosIdenticos,
+      patronesPresentes,
+      patronesVariados,
+      activeDays: activeDays.length,
+    },
+  }
+}
+
 /** Estados de validación para UI / informe / futuros KPI (rol programación). */
 export function deriveProgramValidationOutcome({ blockingReasons, pendingCorrections, alerts }) {
   const blocking = Array.isArray(blockingReasons) ? blockingReasons.filter(Boolean) : []
@@ -827,6 +989,7 @@ function buildClaudeReport({
   smartRecommendations,
   creativeSuggestions = [],
   experienciaEvo = { enabled: false },
+  evoExperienceScoring = null,
 }) {
   const lines = [
     `INFORME SCORING S${week} – ${String(mesocycle || '').toUpperCase()} – ${String(phase || 'SIN FASE').toUpperCase()}`,
@@ -866,6 +1029,21 @@ function buildClaudeReport({
     '',
     'IDEAS CREATIVAS / ASISTENTE (inspiración, no auditoría):',
     ...(creativeSuggestions.length ? creativeSuggestions.map((x) => `- ${x}`) : ['- (vacío)']),
+    '',
+    '— EXPERIENCIA EVO · SCORING (factor más importante; SÍ afecta al score final) —',
+    ...(evoExperienceScoring?.enabled
+      ? [
+          `Score Experiencia EVO: ${evoExperienceScoring.score}/100 (base ${evoExperienceScoring.base} +${evoExperienceScoring.rewardSum} −${evoExperienceScoring.penaltySum})`,
+          'PREMIA:',
+          ...(evoExperienceScoring.rewards.length
+            ? evoExperienceScoring.rewards.map((r) => `+ ${r.points} · ${r.label}`)
+            : ['- (sin premios)']),
+          'PENALIZA:',
+          ...(evoExperienceScoring.penalties.length
+            ? evoExperienceScoring.penalties.map((p) => `− ${p.points} · ${p.label}`)
+            : ['- (sin penalizaciones)']),
+        ]
+      : ['- (no disponible)']),
     '',
     '— EXPERIENCIA EVO (cualitativa, no sustituye al score técnico) —',
     ...(experienciaEvo?.enabled
@@ -1384,7 +1562,16 @@ export async function analyzeWeeklyProgramXlsx({
   qualityAdjusted = Math.min(100, Math.max(0, qualityAdjusted))
   /** Checklist tiene prioridad mayor que lecturas sutiles pacing/contraste/flow. */
   const BASIC_BLEND = 0.81
-  const scoreRaw = Math.round(basicScoreCapped * BASIC_BLEND + qualityAdjusted * (1 - BASIC_BLEND))
+  const baseBlendScore = Math.round(basicScoreCapped * BASIC_BLEND + qualityAdjusted * (1 - BASIC_BLEND))
+
+  /**
+   * Experiencia EVO es el factor más importante: pesa fuerte sobre el score final
+   * para que una semana «memorable EVO» suba a 85–95 y una sin locomoción/memorable
+   * baje de forma automática.
+   */
+  const evoExperienceScoring = evaluateEvoExperienceScore({ data })
+  const EVO_EXP_WEIGHT = 0.4
+  const scoreRaw = Math.round(baseBlendScore * (1 - EVO_EXP_WEIGHT) + evoExperienceScoring.score * EVO_EXP_WEIGHT)
   const scoreDisplay = Math.min(100, Math.max(0, scoreRaw))
   const basicScoreDisplay = Math.min(100, Math.max(0, basicScoreCapped))
   const qualityScoreDisplay = Math.min(100, Math.max(0, qualityAdjusted))
@@ -1487,6 +1674,7 @@ export async function analyzeWeeklyProgramXlsx({
     smartRecommendations,
     creativeSuggestions,
     experienciaEvo,
+    evoExperienceScoring,
   })
 
   return {
@@ -1529,6 +1717,8 @@ export async function analyzeWeeklyProgramXlsx({
         }
       : null,
     experienciaEvo,
+    /** Scoring Experiencia EVO (premios/penalizaciones, factor que SÍ mueve el score final). */
+    evoExperienceScoring,
     reportText,
     /** Depuración import + segunda pasada Excel (admin / troubleshooting). */
     parseDiagnostics,

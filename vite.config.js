@@ -12,21 +12,17 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
  */
 export default defineConfig({
   plugins: [
+    // ExcelJS en navegador necesita process/Buffer (su carga comprueba `process.browser` para elegir
+    // el parser correcto; sin ello `xlsx.load` falla con «reading 'sheets'»). Usamos el build de
+    // navegador propio de ExcelJS (auto-contenido) + estos polyfills.
     nodePolyfills({
-      include: ['buffer', 'stream', 'util', 'process', 'events'],
       globals: { Buffer: true, global: true, process: true },
     }),
     react(),
   ],
-  resolve: {
-    alias: {
-      // El campo "browser" de ExcelJS apunta a dist/exceljs.min.js (bundle UMD prefabricado) que
-      // falla al parsear el workbook en navegador («reading 'sheets'»). Forzamos el build de Node,
-      // que funciona con los polyfills de arriba.
-      exceljs: 'exceljs/lib/exceljs.nodejs.js',
-    },
-  },
-  optimizeDeps: {
-    include: ['exceljs'],
+  // ExcelJS elige el parser de navegador (TextDecoder) cuando `process.browser` es true; fijarlo evita
+  // el fallo «reading 'sheets'» al cargar el .xlsx en el navegador.
+  define: {
+    'process.browser': 'true',
   },
 })

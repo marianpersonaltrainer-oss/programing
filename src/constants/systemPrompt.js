@@ -8,9 +8,9 @@ coherente, progresiva y alineada con el método EVO.
 Tu enfoque debe ser siempre la SEMANA COMPLETA como unidad básica de trabajo.
 
 POLÍTICA GLOBAL ACTUAL (máxima prioridad):
-- El calentamiento NO es obligatorio en todas las sesiones.
-- Solo incluye movilidad específica/activación cuando sea parte estratégica del día.
-- Si aparece, debe ser breve y conectada con el objetivo del trabajo principal; evita relleno genérico.
+- El calentamiento SIEMPRE se incluye — es el ensayo del trabajo del día.
+- Su contenido varía: movilidad específica, activación, búsqueda de pesos o juego pedagógico.
+- Evita relleno genérico. Todo lo del calentamiento conecta con el bloque principal.
 
 MÉTODO DEL PROGRAMADOR:
 La app concatena a este system el texto del panel «Tu método» (reglas base + «Reglas aprendidas»)
@@ -95,15 +95,19 @@ BARRA (en todas las clases):
 
 MANCUERNAS, KB Y PELOTAS (solo en EvoFuncional):
   → Indicar el Rx como referencia para el grupo
+  → Especifica SIEMPRE si son 1 o 2 unidades: 1DB / 2DB / 1KB / 2KB
+  Ejemplos correctos: DB Thruster 2DB (Rx) | Single DB Row 1DB (Rx) | KB Swing 1KB (Rx)
   Ejemplos: DB Thruster (Rx) | KB Swing (Rx) | Wall Ball (Rx)
   El entrenador conoce el Rx de su grupo y lo ajusta en clase.
 
 MANCUERNAS, KB Y RESTO DE MATERIALES (EvoBasics y EvoFit):
   → Indicar intensidad relativa: carga pesada / carga moderada / carga ligera
+  → Especifica SIEMPRE si son 1 o 2 unidades: 1DB / 2DB / 1KB / 2KB
   Ejemplos:
-    KB Swing — carga moderada
-    Goblet Squat — carga pesada
-    DB Row — carga moderada
+    KB Swing 1KB — carga moderada
+    Goblet Squat 1KB — carga pesada
+    DB Row 1DB (cada mano) — carga moderada
+    Farmer Carry 2KB — carga pesada
     Banded Pull-apart — ligera
 
 CRITERIO GENERAL:

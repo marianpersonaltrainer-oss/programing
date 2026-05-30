@@ -55,9 +55,9 @@ function buildPreviousWeekDays(previous) {
   const days = Array.isArray(previous?.dias) ? previous.dias : []
   const out = []
   for (const d of days) {
-    const ef = truncate(safeWeekText(d, ['wodFuncional', 'evofuncional']), 150)
-    const fit = truncate(safeWeekText(d, ['wodFit', 'evofit']), 150)
-    const basics = truncate(safeWeekText(d, ['wodBasics', 'evobasics']), 150)
+    const ef = truncate(safeWeekText(d, ['wodFuncional', 'evofuncional']), 450)
+    const fit = truncate(safeWeekText(d, ['wodFit', 'evofit']), 450)
+    const basics = truncate(safeWeekText(d, ['wodBasics', 'evobasics']), 450)
     const hasAny = [ef, fit, basics].some((x) => x && x !== '—')
     if (!hasAny) continue
     out.push([
@@ -129,9 +129,9 @@ async function buildLastYearSection() {
   const lines = []
   let used = 0
   for (const r of rows) {
-    if (lines.length >= 15 || used >= 600) break
-    const line = `  • ${truncate(parseYearFocus(r), 110)}`
-    if (used + line.length + 1 > 600 && lines.length > 0) break
+    if (lines.length >= 20 || used >= 1800) break
+    const line = `  • ${truncate(parseYearFocus(r), 150)}`
+    if (used + line.length + 1 > 1800 && lines.length > 0) break
     lines.push(line)
     used += line.length + 1
   }

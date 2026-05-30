@@ -4,53 +4,7 @@
  * GET …&format=json → { ok, url? } sin redirección (para agente / enriquecimiento de biblioteca).
  */
 
-import { youtubeWatchUrlOembedOk } from './lib/youtubeOembedOk.js'
-
-const BLOCKED_IDS = new Set(['5ZT-GeYND9g', 'OiYhXnGncY8', 'i953czRec9Q'])
-
-const YT_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
-
-function buildSearchUrl(query) {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${query} exercise tutorial`)}`
-}
-
-async function scrapeYoutubeCandidateIds(query) {
-  const searchUrl = buildSearchUrl(query)
-  const scrapeSignal = AbortSignal.timeout(14000)
-  const yt = await fetch(searchUrl, {
-    signal: scrapeSignal,
-    headers: {
-      'User-Agent': YT_UA,
-      Accept: 'text/html,application/xhtml+xml',
-    },
-  })
-  const html = await yt.text()
-  const all = [...html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)].map((m) => m[1])
-  const seen = new Set()
-  const ids = []
-  for (const id of all) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    ids.push(id)
-  }
-  return { ids, searchUrl }
-}
-
-async function firstVerifiedWatchUrl(ids, { maxAttempts = 12 } = {}) {
-  const slice = ids.slice(0, maxAttempts)
-  for (const id of slice) {
-    if (BLOCKED_IDS.has(id)) continue
-    const watch = `https://www.youtube.com/watch?v=${id}`
-    try {
-      const per = AbortSignal.timeout(5000)
-      if (await youtubeWatchUrlOembedOk(watch, per)) return watch
-    } catch {
-      /* siguiente candidato */
-    }
-  }
-  return null
-}
+import { buildYoutubeSearchUrl, resolveVerifiedWatchUrl } from './lib/youtubeResolve.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -65,11 +19,10 @@ export default async function handler(req, res) {
   }
 
   const query = raw.replace(/\s+/g, ' ').slice(0, 180)
-  const searchUrl = buildSearchUrl(query)
+  const searchUrl = buildYoutubeSearchUrl(query)
 
   try {
-    const { ids } = await scrapeYoutubeCandidateIds(query)
-    const verified = await firstVerifiedWatchUrl(ids, { maxAttempts: 12 })
+    const { url: verified } = await resolveVerifiedWatchUrl(query, { maxAttempts: 12 })
 
     if (wantJson) {
       if (verified) {

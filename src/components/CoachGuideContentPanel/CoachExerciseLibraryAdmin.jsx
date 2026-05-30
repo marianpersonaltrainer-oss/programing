@@ -6,6 +6,16 @@ function trimVideoUrl(s) {
   return String(s || '').trim()
 }
 
+function arrayBufferToBase64(ab) {
+  const bytes = new Uint8Array(ab)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
 /** @returns {string | null} */
 function youtubeEmbedSrcFromUrl(raw) {
   try {
@@ -74,6 +84,9 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
   const [editingId, setEditingId] = useState(null)
   const [videoCheck, setVideoCheck] = useState({ status: 'idle', message: '' })
   const [finding, setFinding] = useState(false)
+  const [importFiles, setImportFiles] = useState([])
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState(null)
   const baselineRef = useRef({ video_url: '', video_url_verified: true })
 
   const load = useCallback(async () => {
@@ -191,6 +204,41 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
     }
   }
 
+  async function handleImportXlsx() {
+    if (!adminSecret?.trim()) {
+      setError('Falta la clave de administración.')
+      return
+    }
+    if (!importFiles.length) {
+      setError('Elige uno o varios archivos .xlsx primero.')
+      return
+    }
+    setImporting(true)
+    setError('')
+    setImportResult(null)
+    try {
+      const payloadFiles = []
+      for (const f of importFiles) {
+        const ab = await f.arrayBuffer()
+        payloadFiles.push({ name: f.name, base64: arrayBufferToBase64(ab) })
+      }
+      const res = await fetch('/api/import-exercise-library-xlsx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: adminSecret.trim(), files: payloadFiles, maxResolve: 80 }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+      setImportResult(json)
+      setImportFiles([])
+      await load()
+    } catch (e) {
+      setError(e?.message || 'No se pudo importar')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   function toggleClass(key) {
     setForm((f) => {
       const set = new Set(f.classes)
@@ -290,6 +338,61 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
         >
           + Nuevo ejercicio
         </button>
+      </div>
+
+      <div className={`rounded-xl border ${coachBorder} p-4 space-y-3 bg-[#F3EAF8]/40`}>
+        <p className="font-evo-display text-sm font-bold uppercase text-[#6A1F6D]">
+          Importar ejercicios desde Excel
+        </p>
+        <p className={`text-xs ${coachText.muted}`}>
+          Sube uno o varios .xlsx de programación semanal. El sistema detecta los ejercicios, descarta los que ya
+          existen, busca un vídeo verificado en YouTube y los da de alta (categoría/nivel automáticos, revísalos
+          luego). Los que no encuentre vídeo igual se crean y el coach verá un vídeo automático al abrir la sesión.
+        </p>
+        <input
+          type="file"
+          accept=".xlsx"
+          multiple
+          onChange={(e) => {
+            setImportResult(null)
+            setImportFiles(Array.from(e.target.files || []))
+          }}
+          className="block w-full text-sm"
+          disabled={importing}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleImportXlsx}
+            disabled={importing || !importFiles.length || !adminSecret?.trim()}
+            className="text-xs font-bold uppercase px-4 py-2 rounded-xl bg-[#A729AD] text-white hover:bg-[#6A1F6D] disabled:opacity-40"
+          >
+            {importing ? 'Importando… (puede tardar un poco)' : `Importar ${importFiles.length || ''} archivo(s)`}
+          </button>
+          {importing ? (
+            <span className={`text-xs ${coachText.muted}`}>Buscando vídeos en YouTube; no cierres esta pestaña.</span>
+          ) : null}
+        </div>
+        {importResult?.summary ? (
+          <div className="text-xs bg-white border border-[#6A1F6D]/20 rounded-lg px-3 py-2 space-y-1">
+            <p className="font-semibold text-[#1A0A1A]">{importResult.message}</p>
+            <p className={coachText.muted}>
+              Detectados {importResult.summary.extracted} · Nuevos {importResult.summary.newCandidates} · Añadidos{' '}
+              {importResult.summary.added} · Con vídeo {importResult.summary.withVideo} · Ya existían{' '}
+              {importResult.summary.alreadyExisting}
+            </p>
+            {Array.isArray(importResult.sampleAdded) && importResult.sampleAdded.length ? (
+              <p className={coachText.muted}>
+                Ej.: {importResult.sampleAdded.map((s) => `${s.name}${s.hasVideo ? ' ▶' : ''}`).join(', ')}
+              </p>
+            ) : null}
+            {Array.isArray(importResult.fileErrors) && importResult.fileErrors.length ? (
+              <p className="text-amber-800">
+                Archivos con problema: {importResult.fileErrors.map((f) => f.name).join(', ')}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {(editingId === 'new' || (editingId && form.id)) && (

@@ -183,11 +183,14 @@ export default function CoachExerciseLibraryPanel({ exercises, loading, error })
                     <p className={`text-sm leading-relaxed ${coachText.muted}`}>{e.notes.trim()}</p>
                   ) : null}
                   {(() => {
-                    const url = resolveVideoUrlForExerciseLabel(e.name, getTrustedLibraryVideoUrl(e))
+                    const url = resolveVideoUrlForExerciseLabel(e.name, getTrustedLibraryVideoUrl(e), {
+                      allowSearchFallback: true,
+                    })
                     if (!url) {
                       return <span className="inline-flex text-xs font-semibold text-zinc-500">Sin vídeo asignado</span>
                     }
-                    const isSearch = /youtube\.com\/results/i.test(String(url))
+                    const isSearch =
+                      /youtube\.com\/results/i.test(String(url)) || /\/api\/video-resolve\?/i.test(String(url))
                     return (
                       <a
                         href={url}

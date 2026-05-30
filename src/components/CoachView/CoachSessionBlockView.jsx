@@ -26,7 +26,9 @@ function EscaladosDetails({ rows }) {
       </summary>
       <ul className="mt-2 space-y-2 text-xs">
         {rows.map((r) => {
-          const url = resolveVideoUrlForExerciseLabel(r.name, getTrustedLibraryVideoUrl(r))
+          const url = resolveVideoUrlForExerciseLabel(r.name, getTrustedLibraryVideoUrl(r), {
+            allowSearchFallback: true,
+          })
           const coachNote = r.id != null ? getCoachExerciseNote(r.id).trim() : ''
           return (
             <li key={r.id || r.name} className={`${coachText.muted} leading-snug`}>

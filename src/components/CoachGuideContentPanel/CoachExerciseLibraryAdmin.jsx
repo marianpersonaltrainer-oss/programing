@@ -73,6 +73,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
   const [form, setForm] = useState(emptyForm())
   const [editingId, setEditingId] = useState(null)
   const [videoCheck, setVideoCheck] = useState({ status: 'idle', message: '' })
+  const [finding, setFinding] = useState(false)
   const baselineRef = useRef({ video_url: '', video_url_verified: true })
 
   const load = useCallback(async () => {
@@ -153,6 +154,40 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
       }
     } catch (e) {
       setVideoCheck({ status: 'error', message: e?.message || 'No se pudo comprobar' })
+    }
+  }
+
+  async function handleAutoFindVideo() {
+    const name = trimVideoUrl(form.name)
+    if (!name) {
+      setError('Escribe el nombre del ejercicio antes de buscar el vídeo.')
+      return
+    }
+    setFinding(true)
+    setError('')
+    setVideoCheck({ status: 'loading', message: 'Buscando en YouTube…' })
+    try {
+      const res = await fetch(`/api/video-resolve?exercise=${encodeURIComponent(name)}&format=json`)
+      const json = await res.json().catch(() => ({}))
+      if (res.ok && json.ok && typeof json.url === 'string' && json.url.startsWith('https://')) {
+        baselineRef.current = { video_url: json.url, video_url_verified: true }
+        setForm((f) => ({ ...f, video_url: json.url, video_url_verified: true }))
+        setVideoCheck({
+          status: 'ok',
+          message: 'Vídeo encontrado y verificado en YouTube. Revisa la vista previa y pulsa Guardar para fijarlo.',
+        })
+      } else {
+        const fb =
+          json.fallbackUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} exercise`)}`
+        setVideoCheck({
+          status: 'error',
+          message: `No se encontró un vídeo verificable automáticamente. Búscalo a mano aquí y pega la URL: ${fb}`,
+        })
+      }
+    } catch (e) {
+      setVideoCheck({ status: 'error', message: e?.message || 'No se pudo buscar el vídeo.' })
+    } finally {
+      setFinding(false)
     }
   }
 
@@ -352,6 +387,15 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
               placeholder="https://..."
             />
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAutoFindVideo}
+                disabled={saving || finding || !trimVideoUrl(form.name)}
+                className="text-xs font-bold uppercase px-3 py-2 rounded-lg bg-[#A729AD] text-white hover:bg-[#6A1F6D] disabled:opacity-40"
+                title="Busca un vídeo en YouTube por el nombre del ejercicio y lo verifica automáticamente"
+              >
+                {finding ? 'Buscando…' : '▶ Buscar en YouTube'}
+              </button>
               <button
                 type="button"
                 onClick={handleCheckVideoUrl}

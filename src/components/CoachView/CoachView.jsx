@@ -10,7 +10,6 @@ import {
   coachHasReadHandoverForWeek,
   recordCoachHandoverRead,
   listTodayHandoffs,
-  createDailyHandoff,
   createWeeklyCheckin,
   getAssistantWeekContext,
   insertAssistantQuestionHistory,
@@ -48,7 +47,6 @@ import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { DAYS_ES } from '../../constants/evoColors.js'
 import { buildCoachNewWeekToastBody } from '../../utils/coachSessionPrep.js'
 import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
-import HandoffTimeline from './HandoffTimeline.jsx'
 import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
 import { isoWeekString, madridCheckinGateParts, madridDateParts, defaultActiveDayNameFromWeek } from '../../utils/coachTime.js'
 import { normalizePublishedWeekForConsumers } from '../../utils/normalizeWeekDataForEditor.js'
@@ -607,15 +605,6 @@ export default function CoachView() {
   useEffect(() => {
     if (showWeeklyCheckin) setWeeklyCheckinSubmitError('')
   }, [showWeeklyCheckin])
-
-  async function handleCreateHandoff(row) {
-    try {
-      const saved = await createDailyHandoff(row)
-      setTodayHandoffs((prev) => [saved, ...prev])
-    } catch (e) {
-      setError(e?.message || 'No se pudo guardar el feedback')
-    }
-  }
 
   async function handleSubmitWeeklyCheckin() {
     const weekIso = isoWeekString(new Date())
@@ -1482,18 +1471,15 @@ export default function CoachView() {
                   />
                 )}
                 {mainTab === 'pase' && (
-                  <div className="space-y-4 p-4">
-                    <HandoffTimeline entries={todayHandoffs} coachName={coachName} onCreate={handleCreateHandoff} />
-                    <CoachSessionFeedbackForm
-                      coachName={coachName}
-                      sessionId={sessionId}
-                      weekRow={activeWeekRow}
-                      weekData={weekData}
-                      peerEntries={peerFeedbackWeek}
-                      onAfterSave={refreshPeerFeedbackWeek}
-                      prefill={feedbackPrefill}
-                    />
-                  </div>
+                  <CoachSessionFeedbackForm
+                    coachName={coachName}
+                    sessionId={sessionId}
+                    weekRow={activeWeekRow}
+                    weekData={weekData}
+                    peerEntries={peerFeedbackWeek}
+                    onAfterSave={refreshPeerFeedbackWeek}
+                    prefill={feedbackPrefill}
+                  />
                 )}
                 {mainTab === 'perfil' && (
                   <CoachProfilePanel

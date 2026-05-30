@@ -21,24 +21,20 @@ import {
 } from '../../utils/coachMadridDay.js'
 import { feedbackClassChrome } from '../../utils/coachFeedbackClassChrome.js'
 
-const SESSION_HOW = [
-  { value: 'muy_bien', label: 'Muy bien' },
-  { value: 'bien', label: 'Bien' },
-  { value: 'regular', label: 'Regular' },
-  { value: 'mal', label: 'Mal' },
-]
-
 const TIME_EXPLAIN = [
-  { value: 'si', label: 'Sí, sobró' },
-  { value: 'no', label: 'Corto / faltó' },
-  { value: 'justo', label: 'Justo' },
+  { value: 'si', label: 'Bien de tiempo' },
+  { value: 'justo', label: 'Justa' },
+  { value: 'no', label: 'Se me fue de tiempo' },
 ]
 
 const TIME_EXPLAIN_SHORT = {
-  si: 'Explicación: sobró tiempo',
-  no: 'Explicación: faltó tiempo',
-  justo: 'Explicación: justo',
+  si: 'Tiempo: bien',
+  justo: 'Tiempo: justo',
+  no: 'Tiempo: se fue',
 }
+
+/** La valoración (columna session_how) se deriva del tiempo para mantener el informe del admin. */
+const SESSION_HOW_FROM_TIME = { si: 'bien', justo: 'regular', no: 'mal' }
 
 function formatFeedbackTime(iso) {
   if (!iso) return ''
@@ -97,7 +93,6 @@ export default function CoachSessionFeedbackForm({
 }) {
   const [dayKey, setDayKey] = useState('monday')
   const [classLabel, setClassLabel] = useState(ALL_CLASS_LABELS[0] || 'EvoFuncional')
-  const [sessionHow, setSessionHow] = useState('bien')
   const [timeExplain, setTimeExplain] = useState('si')
   const [changedSomething, setChangedSomething] = useState(false)
   const [changedDetails, setChangedDetails] = useState('')
@@ -154,7 +149,7 @@ export default function CoachSessionFeedbackForm({
         semana: weekRow.semana != null ? Number(weekRow.semana) : null,
         day_key: dayKey,
         class_label: classLabel,
-        session_how: sessionHow,
+        session_how: SESSION_HOW_FROM_TIME[timeExplain] || 'bien',
         time_for_explanation: timeExplain,
         changed_something: changedSomething,
         changed_details: changedSomething ? changedDetails.trim() || null : null,
@@ -168,7 +163,7 @@ export default function CoachSessionFeedbackForm({
         day_key: dayKey,
         class_label: classLabel,
         coach_name: coachName.trim(),
-        session_how: sessionHow,
+        session_how: SESSION_HOW_FROM_TIME[timeExplain] || 'bien',
         time_for_explanation: timeExplain,
         changed_something: changedSomething,
         changed_details: changedSomething ? changedDetails.trim() : null,
@@ -250,8 +245,8 @@ export default function CoachSessionFeedbackForm({
           !madridProgramDayKey && !isMadridCalendarSunday() ? 'mb-2' : 'mb-8'
         }`}
       >
-        Una entrada por día y clase al enviar. La nota para el siguiente coach aparece en el detalle de esa clase cuando
-        vuelvas a impartirla.
+        Una entrada por día y clase al enviar. Lo que marques en «¿Algo a vigilar?» aparece en el detalle de esa clase
+        cuando vuelvas a impartirla.
       </p>
       {!madridProgramDayKey && !isMadridCalendarSunday() ? (
         <p className="text-xs text-amber-100 bg-amber-900/35 border border-amber-400/40 rounded-xl px-3 py-2 mb-8 leading-relaxed">
@@ -362,13 +357,13 @@ export default function CoachSessionFeedbackForm({
                   ) : null}
                   {!changed && row.group_feelings?.trim() ? (
                     <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
-                      <span className="font-semibold text-[#1A0A1A]/80">Sensaciones:</span>{' '}
+                      <span className="font-semibold text-[#1A0A1A]/80">Cómo fue:</span>{' '}
                       {row.group_feelings.trim()}
                     </p>
                   ) : null}
-                  {!changed && row.notes_next_week?.trim() ? (
+                  {row.notes_next_week?.trim() ? (
                     <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
-                      <span className="font-semibold text-[#1A0A1A]/80">Nota siguiente coach:</span>{' '}
+                      <span className="font-semibold text-[#1A0A1A]/80">A vigilar:</span>{' '}
                       {row.notes_next_week.trim()}
                     </p>
                   ) : null}
@@ -453,11 +448,21 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Dio tiempo a explicar todo?
+            ¿Cómo ha ido?
           </label>
-          <p className={`text-[11px] ${coachText.muted} mb-2 leading-relaxed`}>
-            Es la señal que más usamos en resumen diario; elige la opción que mejor encaje.
-          </p>
+          <textarea
+            value={groupFeelings}
+            onChange={(e) => setGroupFeelings(e.target.value)}
+            rows={3}
+            className={coachField}
+            placeholder="Cómo fue la clase: energía del grupo, qué tal salió, sensaciones…"
+          />
+        </div>
+
+        <div>
+          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+            ¿Qué tal de tiempo?
+          </label>
           <div className="flex flex-wrap gap-2">
             {TIME_EXPLAIN.map(({ value, label }) => (
               <button
@@ -477,32 +482,7 @@ export default function CoachSessionFeedbackForm({
         </div>
 
         <div>
-          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Valoración general de la sesión
-          </label>
-          <p className={`text-[11px] ${coachText.muted} mb-2 leading-relaxed`}>
-            Opcional en pantalla; se guarda para seguimiento interno y no aparece en el resumen diario simplificado.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SESSION_HOW.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setSessionHow(value)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                  sessionHow === value
-                    ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
-                    : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>¿Cambiaste algo?</label>
+          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>¿Modificaste algo?</label>
           <div className="flex gap-3 mb-3">
             <button
               type="button"
@@ -529,7 +509,7 @@ export default function CoachSessionFeedbackForm({
           {changedSomething ? (
             <div>
               <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-                ¿Qué cambiaste?
+                ¿Qué modificaste?
               </label>
               <textarea
                 value={changedDetails}
@@ -544,30 +524,17 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Sensaciones del grupo
-          </label>
-          <textarea
-            value={groupFeelings}
-            onChange={(e) => setGroupFeelings(e.target.value)}
-            rows={3}
-            className={coachField}
-            placeholder="Energía, dudas recurrentes, nivel general…"
-          />
-        </div>
-
-        <div>
-          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Nota para el siguiente coach
+            ¿Algo a vigilar?
           </label>
           <p className={`text-xs ${coachText.muted} mb-2 leading-relaxed`}>
-            Visible en el detalle de esta clase el próximo día que la impartas (día + tipo de clase).
+            Lo que el siguiente coach debería tener en cuenta. Aparece en el detalle de esta clase la próxima vez que se imparta.
           </p>
           <textarea
             value={notesNextWeek}
             onChange={(e) => setNotesNextWeek(e.target.value)}
             rows={3}
             className={coachField}
-            placeholder="Ej.: el AMRAP se quedó corto, quitar una ronda la próxima vez…"
+            placeholder="Ej.: el AMRAP se quedó corto, ojo con la técnica del peso muerto…"
           />
         </div>
 

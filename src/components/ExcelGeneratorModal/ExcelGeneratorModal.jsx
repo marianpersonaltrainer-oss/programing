@@ -1029,7 +1029,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     throw new Error('API saturada después de varios intentos. Inténtalo de nuevo en unos minutos.')
   }
 
-  async function handleGenerate() {
+  async function handleGenerate(opts) {
+    const correctionNote =
+      opts && typeof opts.correctionNote === 'string' ? opts.correctionNote.trim() : ''
     if (!weekState.mesocycle) {
       setErrorMsg('Primero selecciona el tipo de Mesociclo y la Semana en el panel de la izquierda (aparece como "Configuración pendiente").')
       setStatus('error')
@@ -1152,12 +1154,18 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA (prioridad sobre preferencias genéricas):\n${addendumClean}\n———`
       : ''
 
+    // Correcciones del scoring (al pulsar «Regenerar con estas correcciones»): máxima prioridad.
+    const correctionBlock = correctionNote
+      ? `EL SCORING DETECTÓ ESTOS PROBLEMAS — corrígelos en la nueva versión:\n${correctionNote}\n———`
+      : ''
+
     const packForGeneration =
       pack.length > EXCEL_GENERATION_PACK_MAX_CHARS
         ? `${pack.slice(0, EXCEL_GENERATION_PACK_MAX_CHARS).trimEnd()}\n\n[…Paquete truncado por límite técnico (${pack.length} caracteres en origen). Prioriza coherencia con el texto visible.]`
         : pack
 
     const baseContext = [
+      correctionBlock,
       weekInstructionsBlock,
       mesoInfo,
       pack
@@ -1509,6 +1517,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setSavedPublishedEdit(false)
       setGenStep('')
       setStatus('previewing')
+      // PASO 2 — Scoring automático tras generar (sin intervención de la usuaria).
+      runScoring(combined)
     } catch (err) {
       setErrorMsg(humanizeNetworkLikeError(err, 'No se pudo generar la semana.'))
       setGenStep('')
@@ -2185,19 +2195,28 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
   }
 
   /**
-   * Evalúa la semana actual con /api/analyze-weekly-program.
-   * El análisis del servidor SOLO acepta un .xlsx, así que construimos el archivo
-   * en memoria desde el estado del modal (sin descargar ni subir nada).
+   * Evalúa una semana con /api/analyze-weekly-program (scoring real del servidor).
+   * El análisis SOLO acepta un .xlsx, así que construimos el archivo en memoria
+   * desde los datos pasados (sin descargar ni subir nada). Devuelve el JSON o null.
    */
-  async function handleEvaluateWeek() {
-    if (evaluating) return
+  async function runScoring(weekDataForScore) {
+    if (!weekDataForScore) return null
     setEvaluating(true)
     setEvalError('')
     setShowFullAnalysis(false)
     try {
-      let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
+      const data = { ...weekDataForScore }
       data.titulo = editTitle || data.titulo
       data.sheetName = editSheetName || `S${weekState.week || 1}`
+
+      const realDays = Array.isArray(data.dias)
+        ? data.dias.filter((dia) =>
+            EVO_SESSION_CLASS_DEFS.some(({ key }) => {
+              const t = String(dia?.[key] || '').trim()
+              return t && !/no programada esta semana/i.test(t) && !/^FESTIVO\b/i.test(t)
+            }),
+          ).length
+        : 0
 
       let libRows = []
       try {
@@ -2217,7 +2236,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           mesocycle: weekState.mesocycle,
           week: weekState.week,
           phase: weekState.phase || '',
-          scope: { experienciaEvo: true, draftMode: true, partialWeek: generatedDaysCount < 6 },
+          scope: { experienciaEvo: true, draftMode: true, partialWeek: realDays < 6 },
         }),
       })
       const text = await res.text()
@@ -2231,12 +2250,34 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         throw new Error(json?.error || `Error ${res.status} al evaluar la semana.`)
       }
       setEvalResult(json)
+      return json
     } catch (err) {
       setEvalError(`No se pudo evaluar la semana: ${err?.message || err}`)
       setEvalResult(null)
+      return null
     } finally {
       setEvaluating(false)
     }
+  }
+
+  /** Botón manual «Re-evaluar»: puntúa la semana actual del estado del modal. */
+  function handleEvaluateWeek() {
+    if (evaluating) return
+    let data
+    try {
+      data = editingJson ? JSON.parse(rawJson) : weekData
+    } catch {
+      setEvalError('El JSON en modo edición no es válido; corrígelo antes de evaluar.')
+      return
+    }
+    runScoring(data)
+  }
+
+  /** Regenera toda la semana añadiendo las correcciones del scoring y vuelve a puntuar (una vez). */
+  function handleRegenerateWithCorrections() {
+    const reasons = Array.isArray(evalResult?.blockingReasons) ? evalResult.blockingReasons : []
+    const correctionNote = reasons.map((r) => `- ${r}`).join('\n')
+    handleGenerate({ correctionNote })
   }
 
   async function refreshMissingVideosPanel(mesociclo, semana) {
@@ -3038,6 +3079,105 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           {/* PREVIEW */}
           {status === 'previewing' && weekData && (
             <div className="space-y-5">
+              {/* Scoring automático — resultado encima de la tabla */}
+              {(evaluating || evalError || evalResult) && (
+                <div className="space-y-2">
+                  {evaluating && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      <p className="text-[12px] font-bold text-amber-800 uppercase tracking-wide">Evaluando calidad…</p>
+                    </div>
+                  )}
+                  {evalError && !evaluating && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-[11px] font-medium text-red-700">{evalError}</p>
+                      <button
+                        type="button"
+                        onClick={handleEvaluateWeek}
+                        className="px-3 py-1.5 rounded-lg border border-red-300 bg-white text-red-700 text-[10px] font-bold uppercase tracking-wide hover:bg-red-100"
+                      >
+                        Reintentar evaluación
+                      </button>
+                    </div>
+                  )}
+                  {evalResult && !evaluating && typeof evalResult.scoreDisplay === 'number' && (
+                    <div
+                      className={`rounded-xl border px-4 py-3 space-y-2 ${
+                        evalResult.scoreDisplay >= 80
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : evalResult.scoreDisplay >= 60
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <span
+                          className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wide ${
+                            evalResult.scoreDisplay >= 80
+                              ? 'bg-emerald-600 text-white'
+                              : evalResult.scoreDisplay >= 60
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-red-600 text-white'
+                          }`}
+                        >
+                          {evalResult.scoreDisplay >= 80
+                            ? `Semana aprobada · ${evalResult.scoreDisplay}/100`
+                            : evalResult.scoreDisplay >= 60
+                              ? `Revisar antes de publicar · ${evalResult.scoreDisplay}/100`
+                              : `Semana bloqueada · ${evalResult.scoreDisplay}/100`}
+                        </span>
+                        {String(evalResult.reportText || '').trim() && (
+                          <button
+                            type="button"
+                            onClick={() => setShowFullAnalysis((v) => !v)}
+                            className="text-[10px] font-bold uppercase tracking-wide text-evo-accent hover:underline"
+                          >
+                            {showFullAnalysis ? 'Ocultar análisis' : 'Ver análisis completo'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Amarillo (60-79): alerts */}
+                      {evalResult.scoreDisplay >= 60 &&
+                        evalResult.scoreDisplay < 80 &&
+                        Array.isArray(evalResult.alerts) &&
+                        evalResult.alerts.length > 0 && (
+                          <ul className="list-disc pl-5 space-y-0.5">
+                            {evalResult.alerts.slice(0, 8).map((a, i) => (
+                              <li key={i} className="text-[11px] text-amber-900 leading-snug">{a}</li>
+                            ))}
+                          </ul>
+                        )}
+
+                      {/* Rojo (<60): blockingReasons + regenerar con correcciones */}
+                      {evalResult.scoreDisplay < 60 && (
+                        <>
+                          {Array.isArray(evalResult.blockingReasons) && evalResult.blockingReasons.length > 0 && (
+                            <ul className="list-disc pl-5 space-y-0.5">
+                              {evalResult.blockingReasons.slice(0, 10).map((b, i) => (
+                                <li key={i} className="text-[11px] text-red-900 leading-snug">{b}</li>
+                              ))}
+                            </ul>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleRegenerateWithCorrections}
+                            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold uppercase tracking-wide shadow-sm"
+                          >
+                            Regenerar con estas correcciones
+                          </button>
+                        </>
+                      )}
+
+                      {showFullAnalysis && String(evalResult.reportText || '').trim() && (
+                        <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-white/70 border border-black/10 p-3 text-[10px] leading-relaxed text-neutral-800">
+                          {evalResult.reportText}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-black/5">
                   {[
@@ -3683,68 +3823,6 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           )}
         </div>
 
-        {/* Resultado de «Evaluar semana» (scoring real del servidor) — inline, sin modal */}
-        {status === 'previewing' && (evaluating || evalError || evalResult) && (
-          <div className="px-8 pt-3 pb-0 flex-shrink-0">
-            {evaluating && (
-              <p className="text-xs font-semibold text-amber-700">Evaluando…</p>
-            )}
-            {evalError && !evaluating && (
-              <p className="text-xs font-medium text-red-700">{evalError}</p>
-            )}
-            {evalResult && !evaluating && (
-              <div className="rounded-xl border border-black/10 bg-white p-3 space-y-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                  {typeof evalResult.scoreDisplay === 'number' && (
-                    <span
-                      className={`px-3 py-1 rounded-lg text-[12px] font-bold ${
-                        evalResult.scoreDisplay >= 80
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : evalResult.scoreDisplay >= 60
-                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                            : 'bg-red-100 text-red-800 border border-red-300'
-                      }`}
-                    >
-                      Puntuación: {evalResult.scoreDisplay}/100
-                    </span>
-                  )}
-                  {evalResult.statusLabel && (
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
-                      {evalResult.statusLabel}
-                    </span>
-                  )}
-                </div>
-                {(() => {
-                  const lines = String(evalResult.reportText || '')
-                    .split('\n')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                    .slice(0, 3)
-                  return lines.length ? (
-                    <p className="text-[11px] text-neutral-700 leading-snug whitespace-pre-line">
-                      {lines.join('\n')}
-                    </p>
-                  ) : null
-                })()}
-                {String(evalResult.reportText || '').trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setShowFullAnalysis((v) => !v)}
-                    className="text-[10px] font-bold uppercase tracking-wide text-evo-accent hover:underline"
-                  >
-                    {showFullAnalysis ? 'Ocultar análisis' : 'Ver análisis completo'}
-                  </button>
-                )}
-                {showFullAnalysis && String(evalResult.reportText || '').trim() && (
-                  <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-gray-50 border border-black/10 p-3 text-[10px] leading-relaxed text-neutral-800">
-                    {evalResult.reportText}
-                  </pre>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Footer */}
         <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50 backdrop-blur-md">
           <button onClick={handleCloseModal} className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest hover:text-[#1A0A1A] transition-all">
@@ -3782,9 +3860,22 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               <>
                 <button
                   onClick={handlePublish}
-                  disabled={publishing || published || savingHubDraft}
+                  disabled={
+                    publishing ||
+                    published ||
+                    savingHubDraft ||
+                    (!!evalResult &&
+                      typeof evalResult.scoreDisplay === 'number' &&
+                      evalResult.scoreDisplay < 60)
+                  }
                   className="flex items-center gap-2 px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-50 text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-evo-accent/20 active:scale-95"
-                  title="Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub."
+                  title={
+                    !!evalResult &&
+                    typeof evalResult.scoreDisplay === 'number' &&
+                    evalResult.scoreDisplay < 60
+                      ? 'Corrige los problemas antes de publicar'
+                      : 'Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub.'
+                  }
                 >
                   {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}
                 </button>

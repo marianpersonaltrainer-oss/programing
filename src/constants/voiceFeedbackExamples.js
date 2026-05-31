@@ -21,6 +21,17 @@ export const VOICE_FEEDBACK_EXAMPLES = [
   'Buscar bien el trabajo de la parte A para que puedan mantenerlo las 4 series. En la parte B que se apreten: el paso del oso es exigente porque son bastantes metros, así que organiza los cajones al fondo y deja media sala para hacerlo.',
   'Se tienen que apretar en el for time, una sola ronda.',
   'En la parte A, retarles con el trabajo de pino. Ojo con los wall walks de la B: que los hagan de uno en uno y solo el mejor, sobre todo los que van muy justos.',
+  // Variantes alternativas de los mismos días (otro fraseo, misma voz)
+  'Hoy quiero que el KB Clean se vea limpio, pero que la clase no se quede demasiado técnica. En el partner IGYG que se piquen un poco, pero sin perder la recepción del clean. El farmer hold tiene que molestar, no ser relleno. Si ves que alguien va muy justo, baja carga y que siga moviéndose.',
+  'El sled tiene que ser el protagonista, pero sin marearlos con demasiada explicación. Que prueben dos cargas y rápido a trabajar. En el team flow quiero que se muevan y se ayuden, no que uno haga todo y los demás miren. Si se atasca el trineo, baja peso y seguimos.',
+  'Clase para sudar y disfrutar. Deja equipos claros desde el principio y controla que nadie se quede parado esperando máquina. Si hay atasco, cambia una estación a RUN y listo. En el finisher, que se animen entre ellos y acaben con sensación de equipo.',
+  'Este es el día más memorable de la semana. Quiero que se note el ambiente de partner relay. En la fuerza, carga real pero sin romper postura. En el WOD que salgan ordenados: uno trabaja, otro recupera, y cuando toca correr se corre de verdad. Mucha energía aquí.',
+  'Hoy el RDL va con intención: bajada controlada y espalda fuerte. Pero en la parte B quiero que cambie la sensación, más atlética y menos de quedarse clavados en la barra. Los broad jumps y el bear crawl son los que van a darle vida al día. Que no se duerman entre bloques.',
+  'En el hip thrust, que no se queden con el peso cómodo. Si al acabar la serie no notan glúteo, seguramente iban ligeros. En el for time, que empiecen con cabeza porque los burpees se pagan rápido. La carrera después de cada ronda es para soltar y seguir, no para pasear.',
+  'Hoy es el día más técnico y controlado. No hace falta que salgan reventados, pero sí que trabajen bien. En el strict press, que no compensen con la espalda. En el EMOM, si los nordic no salen, cambia rápido a glute bridge y no pierdas tiempo. La carrera del minuto 4 tiene que darle aire al bloque.',
+  'Viernes tiene que sentirse como cierre de semana. En el complex, que no se vuelvan locos subiendo peso; quiero barra rápida y controlada. En el team chipper, que repartan bien desde el inicio. El bonus final es para acabar con risas y ambiente, pero que sigan trabajando.',
+  'Hoy la clase tiene que sentirse especial desde que entran. Mucho ambiente de equipo, ritmo constante y cabeza al principio: que no se vuelvan locos en las primeras rondas porque luego el volumen pasa factura. En las flexiones, mejor partir pronto o adaptar desde el inicio para que no lleguen al fallo.',
+  'Buscar bien el trabajo de la parte A para que puedan mantenerlo las 4 series. En la parte B que se apreten: el paso del oso es exigente porque son bastantes metros, así que organiza los cajones al fondo y deja media sala para hacerlo.',
 ]
 
 /**

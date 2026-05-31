@@ -863,14 +863,20 @@ QUÉ DICES (en este orden natural, SIN etiquetas ni encabezados):
 4) Logística SOLO si ese día la pide (cómo montar la sala, repartir equipos, dónde poner el material).
 5) Cierre de sensación si encaja: "que acaben con sensación de equipo", "Mucha energía aquí".
 
+TONO: coloquial normal, como hablas con un compañero en la sala. Palabras del día a día.
+
 PROHIBIDO (suena a IA y NO es tu voz):
 - Listas con "- " o bullets de cualquier tipo.
+- Palabras que NO usa Marian: "sucio" / "reps sucias", "apresurarse" / "que no se apresuren",
+  "rápido y sucio", "limpio vs sucio", "estático", "apatía", "achuchar", "un notch".
 - Muletillas-robot: "cadencia constante", "transiciones limpias", "flujo continuo",
   "tiende a desconectarse/desarmarse", "el ritmo no es velocidad es flujo", "intención verbal".
 - Vocabulario técnico-IA: optimizar, estímulo, densidad de trabajo, patrón dominante, interferencia,
   biomecánica, fluidez, maximizar, leverage, "asegúrate que", "es importante", "recomendamos".
 - Anglicismos y tono militar/USA (crew, tight, race pace, mindset, keep it…), competición, Hyrox como estilo.
 - Explicar o resumir el entreno. No describas los bloques: di CÓMO darlos.
+- En vez de "moverse bien / sin romper postura sucia", di lo que tú dirías: "que muevan bien",
+  "que no pierdan la postura", "mejor menos peso y bien".
 
 EJEMPLOS REALES DE MARIAN (imita ESTE registro y longitud; NO los copies literal):
 ${VOICE_FEEDBACK_FEWSHOT}
@@ -888,7 +894,7 @@ Tu salida debe ser publicable tras ajustes mínimos (logística, nombres, timing
 - Varía lifts dominantes, formatos de fuerza, formatos WOD y accesorios entre días; la semana debe sentirse diseñada, no repetida por columnas ni por días cercanos.
 - Misma día con varias clases activas: coherencia muscular / story del día compatible entre columnas sin duplicar el mismo fallo entre ellas (el chequeo automatizado mira cada columna).
 - Calentamiento: solo movilidad/activación con objetivo explícito; evita párrafos genéricos de «movilidad general» sin vínculo con B/C/WOD.
-- Feedbacks (feedback_*): voz Marian — nota rápida de Head Coach a otro coach, en PROSA CORRIDA (PROHIBIDO listas con "- " o bullets). De 2 a 4 frases, máximo ~70 palabras: abre con la sensación/intención del día ("Hoy quiero que…", "Clase para…"), nombra el ejercicio o bloque REAL de ESE día (NUNCA genérico), mete un si/entonces práctico ("si va justo, baja carga pero que siga moviéndose") y cierra con sensación si encaja. Nada de explicar/resumir el entreno: di CÓMO darlo. PROHIBIDAS muletillas-IA («cadencia constante», «transiciones limpias», «flujo continuo», «tiende a desconectarse»…), vocabulario técnico-IA (optimizar, estímulo, densidad de trabajo, patrón dominante, interferencia, «asegúrate que», «es importante», «recomendamos»…) y anglicismos/militar; sin markdown.
+- Feedbacks (feedback_*): voz Marian — nota rápida de Head Coach a otro coach, en PROSA CORRIDA (PROHIBIDO listas con "- " o bullets). De 2 a 4 frases, máximo ~70 palabras: abre con la sensación/intención del día ("Hoy quiero que…", "Clase para…"), nombra el ejercicio o bloque REAL de ESE día (NUNCA genérico), mete un si/entonces práctico ("si va justo, baja carga pero que siga moviéndose") y cierra con sensación si encaja. Nada de explicar/resumir el entreno: di CÓMO darlo. Tono coloquial normal, palabras del día a día. PROHIBIDAS palabras que no usa Marian («sucio», «reps sucias», «apresurarse», «rápido y sucio», «estático», «apatía», «un notch»), muletillas-IA («cadencia constante», «transiciones limpias», «flujo continuo», «tiende a desconectarse»…), vocabulario técnico-IA (optimizar, estímulo, densidad de trabajo, patrón dominante, interferencia, «asegúrate que», «es importante», «recomendamos»…) y anglicismos/militar; sin markdown.
   EJEMPLOS REALES DE MARIAN (imita el registro, no copies): ${VOICE_FEEDBACK_FEWSHOT}
 
 No entregues el JSON pensando en «luego Marian lo pulirá»: optimiza YA para pasar revisión como entrenamiento experto.

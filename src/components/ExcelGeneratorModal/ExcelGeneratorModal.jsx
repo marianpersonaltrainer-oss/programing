@@ -6,7 +6,7 @@ import {
   EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK,
 } from '../../constants/systemPromptExcel.js'
 import { SYSTEM_PROMPT_DAY_EDIT } from '../../constants/systemPromptDayEdit.js'
-import { generateWeekExcel } from '../../utils/generateExcel.js'
+import { generateWeekExcel, buildWeekExcelBuffer } from '../../utils/generateExcel.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from '../../utils/importProgramingEvoWeekXlsx.js'
 import {
   saveWeekToHistory,
@@ -482,6 +482,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [status, setStatus]     = useState('idle')
   const [genStep, setGenStep]   = useState('')
   const [weekData, setWeekData] = useState(null)
+  // Footer: menú "Más opciones" (acciones secundarias) y evaluación de calidad (API real).
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [evaluating, setEvaluating] = useState(false)
+  const [evalResult, setEvalResult] = useState(null)
+  const [evalError, setEvalError] = useState('')
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [editingJson, setEditingJson] = useState(false)
   const [previewTab, setPreviewTab]   = useState('resumen') // 'resumen' | 'wodbuster'
@@ -556,6 +562,17 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       String(weekData?.resumen?.foco || ''),
     )
   }, [weekData, selectedClassKeysForReview])
+
+  // Nº de días con contenido real generado (para habilitar «Evaluar semana»).
+  const generatedDaysCount = useMemo(() => {
+    if (!Array.isArray(weekData?.dias)) return 0
+    return weekData.dias.filter((dia) =>
+      EVO_SESSION_CLASS_DEFS.some(({ key }) => {
+        const t = String(dia?.[key] || '').trim()
+        return t && !/no programada esta semana/i.test(t) && !/^FESTIVO\b/i.test(t)
+      }),
+    ).length
+  }, [weekData])
 
   useEffect(() => {
     try {
@@ -2158,6 +2175,70 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
     }
   }
 
+  function uint8ToBase64(bytes) {
+    let binary = ''
+    const chunk = 0x8000
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+    }
+    return btoa(binary)
+  }
+
+  /**
+   * Evalúa la semana actual con /api/analyze-weekly-program.
+   * El análisis del servidor SOLO acepta un .xlsx, así que construimos el archivo
+   * en memoria desde el estado del modal (sin descargar ni subir nada).
+   */
+  async function handleEvaluateWeek() {
+    if (evaluating) return
+    setEvaluating(true)
+    setEvalError('')
+    setShowFullAnalysis(false)
+    try {
+      let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
+      data.titulo = editTitle || data.titulo
+      data.sheetName = editSheetName || `S${weekState.week || 1}`
+
+      let libRows = []
+      try {
+        libRows = await getCoachExerciseLibrary()
+      } catch {
+        /* sin biblioteca: evaluación igual */
+      }
+
+      const { bytes } = await buildWeekExcelBuffer(data, isExcelFile ? existingBuffer : null, libRows)
+      const fileBase64 = uint8ToBase64(bytes)
+
+      const res = await fetch('/api/analyze-weekly-program', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileBase64,
+          mesocycle: weekState.mesocycle,
+          week: weekState.week,
+          phase: weekState.phase || '',
+          scope: { experienciaEvo: true, draftMode: true, partialWeek: generatedDaysCount < 6 },
+        }),
+      })
+      const text = await res.text()
+      let json
+      try {
+        json = JSON.parse(text)
+      } catch {
+        throw new Error('La respuesta del análisis no es JSON válido.')
+      }
+      if (!res.ok || json?.error) {
+        throw new Error(json?.error || `Error ${res.status} al evaluar la semana.`)
+      }
+      setEvalResult(json)
+    } catch (err) {
+      setEvalError(`No se pudo evaluar la semana: ${err?.message || err}`)
+      setEvalResult(null)
+    } finally {
+      setEvaluating(false)
+    }
+  }
+
   async function refreshMissingVideosPanel(mesociclo, semana) {
     try {
       const rows = await listMissingExerciseVideos({
@@ -2519,20 +2600,21 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   </div>
                   {proposalAccepted && proposalStep === 'addons' ? (
                     <div className="space-y-3 pt-2 border-t border-black/10">
-                      <label className="block text-[11px] font-bold text-[#1A0A1A]">
-                        Instrucciones para esta semana (opcional){' '}
-                        <span className="text-neutral-500 font-normal">
-                          — énfasis, material, restricciones… máx. {ADDENDUM_MAX_CHARS} caracteres
-                        </span>
+                      <label className="block text-[11px] font-medium text-evo-accent">
+                        Instrucciones para esta semana
                       </label>
                       <textarea
                         value={addendum}
                         onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
-                        rows={2}
+                        rows={3}
                         maxLength={ADDENDUM_MAX_CHARS}
-                        placeholder="Ej: más trabajo de piernas, menos empuje de hombro, incluye Turkish Get-Up en Funcional, sin sentadilla frontal esta semana"
+                        placeholder="Ej: más trabajo de pierna, menos empuje de hombro, incluye KB Swing en Basics el miércoles, sin sentadilla frontal"
+                        style={{ minHeight: '72px' }}
                         className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
                       />
+                      <p className="text-[9px] text-neutral-400 leading-snug">
+                        Se aplica a todos los días que generes esta semana. Se guarda automáticamente.
+                      </p>
                       <button
                         type="button"
                         onClick={handleGenerate}
@@ -2618,20 +2700,21 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   )}
                   {proposalStep === 'addons' && (
                     <div className="space-y-3 pt-2 border-t border-black/10">
-                      <label className="block text-[11px] font-bold text-[#1A0A1A]">
-                        Instrucciones para esta semana (opcional){' '}
-                        <span className="text-neutral-500 font-normal">
-                          — énfasis, material, restricciones… máx. {ADDENDUM_MAX_CHARS} caracteres
-                        </span>
+                      <label className="block text-[11px] font-medium text-evo-accent">
+                        Instrucciones para esta semana
                       </label>
                       <textarea
                         value={addendum}
                         onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
-                        rows={2}
+                        rows={3}
                         maxLength={ADDENDUM_MAX_CHARS}
-                        placeholder="Ej: más trabajo de piernas, menos empuje de hombro, incluye Turkish Get-Up en Funcional, sin sentadilla frontal esta semana"
+                        placeholder="Ej: más trabajo de pierna, menos empuje de hombro, incluye KB Swing en Basics el miércoles, sin sentadilla frontal"
+                        style={{ minHeight: '72px' }}
                         className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
                       />
+                      <p className="text-[9px] text-neutral-400 leading-snug">
+                        Se aplica a todos los días que generes esta semana. Se guarda automáticamente.
+                      </p>
                       <button
                         type="button"
                         onClick={handleGenerate}
@@ -3600,12 +3683,82 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           )}
         </div>
 
+        {/* Resultado de «Evaluar semana» (scoring real del servidor) — inline, sin modal */}
+        {status === 'previewing' && (evaluating || evalError || evalResult) && (
+          <div className="px-8 pt-3 pb-0 flex-shrink-0">
+            {evaluating && (
+              <p className="text-xs font-semibold text-amber-700">Evaluando…</p>
+            )}
+            {evalError && !evaluating && (
+              <p className="text-xs font-medium text-red-700">{evalError}</p>
+            )}
+            {evalResult && !evaluating && (
+              <div className="rounded-xl border border-black/10 bg-white p-3 space-y-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {typeof evalResult.scoreDisplay === 'number' && (
+                    <span
+                      className={`px-3 py-1 rounded-lg text-[12px] font-bold ${
+                        evalResult.scoreDisplay >= 80
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : evalResult.scoreDisplay >= 60
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-red-100 text-red-800 border border-red-300'
+                      }`}
+                    >
+                      Puntuación: {evalResult.scoreDisplay}/100
+                    </span>
+                  )}
+                  {evalResult.statusLabel && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+                      {evalResult.statusLabel}
+                    </span>
+                  )}
+                </div>
+                {(() => {
+                  const lines = String(evalResult.reportText || '')
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                    .slice(0, 3)
+                  return lines.length ? (
+                    <p className="text-[11px] text-neutral-700 leading-snug whitespace-pre-line">
+                      {lines.join('\n')}
+                    </p>
+                  ) : null
+                })()}
+                {String(evalResult.reportText || '').trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullAnalysis((v) => !v)}
+                    className="text-[10px] font-bold uppercase tracking-wide text-evo-accent hover:underline"
+                  >
+                    {showFullAnalysis ? 'Ocultar análisis' : 'Ver análisis completo'}
+                  </button>
+                )}
+                {showFullAnalysis && String(evalResult.reportText || '').trim() && (
+                  <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-gray-50 border border-black/10 p-3 text-[10px] leading-relaxed text-neutral-800">
+                    {evalResult.reportText}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50 backdrop-blur-md">
           <button onClick={handleCloseModal} className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest hover:text-[#1A0A1A] transition-all">
             Cancelar
           </button>
-          <div className="flex flex-wrap justify-end gap-3">
+          <div className="flex flex-wrap justify-end items-center gap-3">
+            {/* Input oculto para Importar Excel (acción secundaria del menú «Más opciones»). */}
+            <input
+              ref={excelImportInputRef}
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={handleImportExcelChange}
+            />
             {status === 'previewing' && (
               <button
                 onClick={handleGenerate}
@@ -3614,66 +3767,30 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 Regenerar
               </button>
             )}
-            {status === 'previewing' && weekData && (
+            {status === 'previewing' && weekData && generatedDaysCount >= 3 && (
               <button
                 type="button"
-                onClick={handleSaveDraft}
-                className="px-5 py-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/80 text-emerald-900 hover:bg-emerald-100 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                onClick={handleEvaluateWeek}
+                disabled={evaluating}
+                className="px-5 py-2.5 rounded-xl border border-amber-200 bg-amber-50/90 text-amber-900 hover:bg-amber-100 disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                title="Analiza la calidad de la semana con el scoring automático del servidor."
               >
-                Guardar borrador
-              </button>
-            )}
-            {status === 'previewing' && weekData && (
-              <button
-                type="button"
-                onClick={handleSaveHubDraft}
-                disabled={savingHubDraft || publishing || !weekState.mesocycle || weekState.week == null}
-                className="px-5 py-2.5 rounded-xl border border-sky-200 bg-sky-50/90 text-sky-900 hover:bg-sky-100 disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
-                title="Guarda en Supabase para este mesociclo y semana sin cambiar la semana activa para coaches."
-              >
-                {savingHubDraft ? 'Guardando en Hub…' : 'Guardar borrador en Hub'}
+                {evaluating ? 'Evaluando…' : evalResult ? 'Re-evaluar' : 'Evaluar semana'}
               </button>
             )}
             {status === 'previewing' && (
               <>
-                {editingPublishedRowId && (
-                  <button
-                    onClick={handleSavePublishedEdit}
-                    disabled={savingPublishedEdit}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 text-indigo-700 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
-                  >
-                    {savedPublishedEdit ? '✓ Cambios guardados' : savingPublishedEdit ? 'Guardando...' : 'Guardar cambios'}
-                  </button>
-                )}
                 <button
                   onClick={handlePublish}
                   disabled={publishing || published || savingHubDraft}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-evo-accent/20 bg-evo-accent/5 hover:bg-evo-accent/10 disabled:opacity-50 text-evo-accent text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                  className="flex items-center gap-2 px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-50 text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-evo-accent/20 active:scale-95"
                   title="Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub."
                 >
                   {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}
                 </button>
-                <input
-                  ref={excelImportInputRef}
-                  type="file"
-                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  className="hidden"
-                  onChange={handleImportExcelChange}
-                />
-                <button
-                  type="button"
-                  title="Solo el Excel descargado desde aquí (mismo orden de columnas). Recupera ediciones hechas en Excel al JSON del modal."
-                  onClick={() => excelImportInputRef.current?.click()}
-                  disabled={
-                    importingExcel || !weekState.mesocycle || weekState.week == null
-                  }
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-violet-200 bg-violet-50/90 hover:bg-violet-100 disabled:opacity-50 text-violet-900 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
-                >
-                  {importingExcel ? 'Importando…' : 'Importar Excel'}
-                </button>
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-2 px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -3682,6 +3799,64 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   </svg>
                   Descargar Excel
                 </button>
+
+                {/* Más opciones (acciones secundarias) — el menú se abre hacia arriba */}
+                {weekData && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMoreMenuOpen((o) => !o)}
+                      className="px-4 py-2.5 rounded-xl border border-black/10 bg-white text-neutral-600 hover:text-[#1A0A1A] hover:bg-gray-50 text-[13px] font-bold tracking-widest transition-all shadow-sm leading-none"
+                      title="Más opciones"
+                      aria-haspopup="menu"
+                      aria-expanded={moreMenuOpen}
+                    >
+                      ···
+                    </button>
+                    {moreMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setMoreMenuOpen(false)} />
+                        <div className="absolute right-0 bottom-full mb-2 z-20 w-60 rounded-xl border border-black/10 bg-white shadow-xl p-1.5 flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => { setMoreMenuOpen(false); handleSaveDraft() }}
+                            className="text-left px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-900 text-[11px] font-bold uppercase tracking-wide"
+                          >
+                            Guardar borrador
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setMoreMenuOpen(false); handleSaveHubDraft() }}
+                            disabled={savingHubDraft || publishing || !weekState.mesocycle || weekState.week == null}
+                            className="text-left px-3 py-2 rounded-lg hover:bg-sky-50 disabled:opacity-50 text-sky-900 text-[11px] font-bold uppercase tracking-wide"
+                            title="Guarda en Supabase para este mesociclo y semana sin cambiar la semana activa para coaches."
+                          >
+                            {savingHubDraft ? 'Guardando en Hub…' : 'Guardar borrador en Hub'}
+                          </button>
+                          {editingPublishedRowId && (
+                            <button
+                              type="button"
+                              onClick={() => { setMoreMenuOpen(false); handleSavePublishedEdit() }}
+                              disabled={savingPublishedEdit}
+                              className="text-left px-3 py-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50 text-indigo-700 text-[11px] font-bold uppercase tracking-wide"
+                            >
+                              {savedPublishedEdit ? '✓ Cambios guardados' : savingPublishedEdit ? 'Guardando...' : 'Guardar cambios'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setMoreMenuOpen(false); excelImportInputRef.current?.click() }}
+                            disabled={importingExcel || !weekState.mesocycle || weekState.week == null}
+                            className="text-left px-3 py-2 rounded-lg hover:bg-violet-50 disabled:opacity-50 text-violet-900 text-[11px] font-bold uppercase tracking-wide"
+                            title="Solo el Excel descargado desde aquí (mismo orden de columnas). Recupera ediciones hechas en Excel al JSON del modal."
+                          >
+                            {importingExcel ? 'Importando…' : 'Importar Excel'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>

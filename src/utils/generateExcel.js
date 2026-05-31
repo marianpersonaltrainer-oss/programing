@@ -405,7 +405,12 @@ function writeBibliotecaSheet(workbook, libraryRows = null) {
   }
 }
 
-export async function generateWeekExcel(weekData, existingBuffer = null, libraryRows = null) {
+/**
+ * Construye el .xlsx de la semana EN MEMORIA y devuelve los bytes + nombre sugerido.
+ * No descarga nada (eso lo hace generateWeekExcel). Útil para enviar el archivo a
+ * /api/analyze-weekly-program (scoring) sin pasar por descarga/subida.
+ */
+export async function buildWeekExcelBuffer(weekData, existingBuffer = null, libraryRows = null) {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'ProgramingEvo'
   workbook.created = new Date()
@@ -435,13 +440,18 @@ export async function generateWeekExcel(weekData, existingBuffer = null, library
       : buffer instanceof ArrayBuffer
         ? new Uint8Array(buffer)
         : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-  const blob = new Blob([bytes], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  })
 
   const filename = existingBuffer
     ? `ProgramingEvo_Mesociclo_${weekData.mesociclo || 'EVO'}.xlsx`
     : `ProgramingEvo_${finalName}_${weekData.mesociclo || 'EVO'}.xlsx`
 
+  return { bytes, filename }
+}
+
+export async function generateWeekExcel(weekData, existingBuffer = null, libraryRows = null) {
+  const { bytes, filename } = await buildWeekExcelBuffer(weekData, existingBuffer, libraryRows)
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
   saveAs(blob, filename)
 }

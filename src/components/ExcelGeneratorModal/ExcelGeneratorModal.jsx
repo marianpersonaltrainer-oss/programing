@@ -81,6 +81,7 @@ const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
 const EXCEL_COHERENCE_JSON_MAX_CHARS = 45_000
 
 const ADDENDUM_MAX_CHARS = 3000
+const WEEK_INSTRUCTIONS_KEY = 'programingevo_week_instructions'
 const QA_AUTO_FIX_MAX_PASSES = 5
 const QA_TARGET_SCORE = 8.2
 
@@ -468,7 +469,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   /** review | refine | addons */
   const [proposalStep, setProposalStep] = useState('review')
   const [proposalAccepted, setProposalAccepted] = useState(false)
-  const [addendum, setAddendum] = useState('')
+  const [addendum, setAddendum] = useState(() => {
+    try {
+      return localStorage.getItem(WEEK_INSTRUCTIONS_KEY) || ''
+    } catch {
+      return ''
+    }
+  })
   const [refineDraft, setRefineDraft] = useState('')
   const [refineBusy, setRefineBusy] = useState(false)
 
@@ -549,6 +556,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       String(weekData?.resumen?.foco || ''),
     )
   }, [weekData, selectedClassKeysForReview])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WEEK_INSTRUCTIONS_KEY, addendum || '')
+    } catch {
+      /* localStorage no disponible: no es crítico */
+    }
+  }, [addendum])
 
   useEffect(() => {
     if (status !== 'previewing') return
@@ -1110,10 +1125,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
             proposalNarrative,
             '',
             `Enfoque sugerido: ${proposalSuggestedFocus}`,
-            addendumClean ? `\nNotas adicionales al generar:\n${addendumClean}` : '',
           ]
             .filter(Boolean)
             .join('\n')
+
+    // Instrucciones libres de la semana: máxima prioridad, se aplican a TODOS los días generados
+    // (incluso al regenerar sin propuesta aprobada).
+    const weekInstructionsBlock = addendumClean
+      ? `INSTRUCCIONES ESPECÍFICAS PARA ESTA SEMANA (prioridad sobre preferencias genéricas):\n${addendumClean}\n———`
+      : ''
 
     const packForGeneration =
       pack.length > EXCEL_GENERATION_PACK_MAX_CHARS
@@ -1121,6 +1141,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         : pack
 
     const baseContext = [
+      weekInstructionsBlock,
       mesoInfo,
       pack
         ? 'DATOS CONSOLIDADOS (Supabase, briefing del mesociclo): están en la sección «CONTEXTO DE LA SEMANA» del system de esta petición (no se repiten aquí para aligerar la petición). Léelos antes de generar.'
@@ -2499,9 +2520,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {proposalAccepted && proposalStep === 'addons' ? (
                     <div className="space-y-3 pt-2 border-t border-black/10">
                       <label className="block text-[11px] font-bold text-[#1A0A1A]">
-                        Solo para esta semana (opcional){' '}
+                        Instrucciones para esta semana (opcional){' '}
                         <span className="text-neutral-500 font-normal">
-                          — lesiones, material, énfasis… máx. {ADDENDUM_MAX_CHARS} caracteres
+                          — énfasis, material, restricciones… máx. {ADDENDUM_MAX_CHARS} caracteres
                         </span>
                       </label>
                       <textarea
@@ -2509,7 +2530,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                         onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
                         rows={2}
                         maxLength={ADDENDUM_MAX_CHARS}
-                        placeholder="Lesiones, material, restricción especial…"
+                        placeholder="Ej: más trabajo de piernas, menos empuje de hombro, incluye Turkish Get-Up en Funcional, sin sentadilla frontal esta semana"
                         className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
                       />
                       <button
@@ -2598,9 +2619,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {proposalStep === 'addons' && (
                     <div className="space-y-3 pt-2 border-t border-black/10">
                       <label className="block text-[11px] font-bold text-[#1A0A1A]">
-                        Solo para esta semana (opcional){' '}
+                        Instrucciones para esta semana (opcional){' '}
                         <span className="text-neutral-500 font-normal">
-                          — lesiones, material, énfasis… máx. {ADDENDUM_MAX_CHARS} caracteres
+                          — énfasis, material, restricciones… máx. {ADDENDUM_MAX_CHARS} caracteres
                         </span>
                       </label>
                       <textarea
@@ -2608,7 +2629,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                         onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
                         rows={2}
                         maxLength={ADDENDUM_MAX_CHARS}
-                        placeholder="Lesiones, material, restricción especial…"
+                        placeholder="Ej: más trabajo de piernas, menos empuje de hombro, incluye Turkish Get-Up en Funcional, sin sentadilla frontal esta semana"
                         className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
                       />
                       <button

@@ -72,17 +72,20 @@ import {
 } from '../../utils/normalizeWeekDataForEditor.js'
 
 /** Máximo de caracteres de ejemplos reales en el system (evita prompts enormes y timeouts). */
-const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 12000
-/** Techo por POST (1 día por llamada; JSON de 6 columnas puede ser largo). */
-const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 6500
-/** Límite de caracteres del pack de briefing por petición (el mismo bloque va en weekContext → system). */
-const EXCEL_GENERATION_PACK_MAX_CHARS = 42_000
-/** Tope del JSON «días ya generados» en el user (POST muy grande → timeouts / conexión cortada). */
-const EXCEL_COHERENCE_JSON_MAX_CHARS = 45_000
+const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 8000
+/** Techo de salida por POST (1 día; bajar reduce coste sin cortar un día completo). */
+const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 5500
+/** Límite del pack de briefing (va en weekContext → system; solo en la 1ª llamada de la generación). */
+const EXCEL_GENERATION_PACK_MAX_CHARS = 28_000
+/** Tope del bloque «días ya generados» en el user (extracto compacto, no JSON completo). */
+const EXCEL_COHERENCE_JSON_MAX_CHARS = 22_000
+/** Ejercicios listados en biblioteca dentro del system (el resto sigue en Supabase). */
+const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 100
 
 const ADDENDUM_MAX_CHARS = 3000
 const WEEK_INSTRUCTIONS_KEY = 'programingevo_week_instructions'
-const QA_AUTO_FIX_MAX_PASSES = 5
+/** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
+const QA_AUTO_FIX_MAX_PASSES = 2
 const QA_TARGET_SCORE = 8.2
 
 function buildAllClassesSelection() {
@@ -155,6 +158,75 @@ function trimWeekContextForAnthropicRetry(weekContext, attempt) {
   const t = String(weekContext || '')
   if (attempt < 2 || t.length <= 24_000) return t
   return `${t.slice(0, 21_000).trimEnd()}\n\n[…contexto recortado en reintento por tamaño]`
+}
+
+/** System más ligero en días 2+ de la misma generación (no repetir briefing/ejemplos enteros). */
+function buildExcelSystemForGenerationCall(systemFull, generationCallIndex, retryAttempt) {
+  let s = String(systemFull || '')
+  if (generationCallIndex >= 1 || retryAttempt >= 1) {
+    const cutAt = (marker) => {
+      const i = s.indexOf(marker)
+      if (i >= 0) s = s.slice(0, i)
+    }
+    cutAt('\n\nEJEMPLOS REALES DE ESTILO EVO')
+    cutAt('\n\n════════════════════════════════════════\nCONTEXTO DE REFERENCIA (OTROS MESOCICLOS')
+    cutAt('\n\nREGLAS INFERIDAS DESDE REFERENCIA')
+    if (generationCallIndex >= 1) {
+      s +=
+        '\n\n[Generación en curso: ejemplos Drive y contexto de referencia omitidos en esta llamada para reducir tokens; reglas del system base siguen vigentes.]'
+    }
+  }
+  if (generationCallIndex >= 2 || retryAttempt >= 2) {
+    const cutAt = (marker) => {
+      const i = s.indexOf(marker)
+      if (i >= 0) s = s.slice(0, i)
+    }
+    cutAt('\n\n════════════════════════════════════════\nBIBLIOTECA OFICIAL DE EJERCICIOS EVO')
+    if (generationCallIndex >= 2) {
+      s += '\n\n[Biblioteca completa omitida en esta llamada; usa nombres ya vistos en días anteriores de esta semana.]'
+    }
+  }
+  return trimExcelSystemForAnthropicRetry(s, retryAttempt)
+}
+
+/** Briefing Supabase solo en la primera llamada; el resto confía en coherencia del user. */
+function buildWeekContextForGenerationCall(weekContextFull, generationCallIndex) {
+  const t = String(weekContextFull || '').trim()
+  if (!t) return ''
+  if (generationCallIndex === 0) return t
+  return (
+    'CONTEXTO DE BRIEFING: ya enviado en la primera llamada de esta generación (no se repite para ahorrar tokens). ' +
+    'Usa el bloque CONTEXTO YA GENERADO del mensaje de usuario y las reglas del system.'
+  )
+}
+
+/** Extracto legible de la semana parcial (mucho más barato que JSON completo). */
+function buildCompactAccumulatorCoherence(acc) {
+  const lines = []
+  if (acc?.titulo) lines.push(`titulo: ${acc.titulo}`)
+  const r = acc?.resumen
+  if (r && typeof r === 'object') {
+    lines.push(
+      `resumen: estimulo=${r.estimulo || '—'}; intensidad=${r.intensidad || '—'}; foco=${sliceText(r.foco, 200)}`,
+    )
+  }
+  for (const d of acc?.dias || []) {
+    const bits = []
+    for (const { key, label, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+      const t = String(d[key] || '').trim()
+      if (t && !/no programada esta semana/i.test(t) && !/^FESTIVO\b/i.test(t)) {
+        bits.push(`${label}:${t.replace(/\s+/g, ' ').slice(0, 200)}`)
+      }
+      const fb = String(d[feedbackKey] || '').trim()
+      if (fb) bits.push(`${label} FB:${fb.replace(/\s+/g, ' ').slice(0, 100)}`)
+    }
+    if (bits.length) lines.push(`${d.nombre || 'DÍA'}: ${bits.join(' | ')}`)
+  }
+  let s = lines.join('\n')
+  if (s.length > EXCEL_COHERENCE_JSON_MAX_CHARS) {
+    s = `${s.slice(0, EXCEL_COHERENCE_JSON_MAX_CHARS).trimEnd()}…`
+  }
+  return s
 }
 
 function sliceText(s, max) {
@@ -920,15 +992,30 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   /**
    * Una llamada API = un POST. La semana se parte en tramos de 1 día (varias llamadas)
    * para evitar timeouts con briefing + system largos en serverless.
-   * Modelo: PROGRAMMING_MODEL (Sonnet u homólogo), max_tokens: `AI_CONFIG.maxTokens`.
+   * @param {{ model?: string, maxTokens?: number, generationCallIndex?: number }} [apiOpts]
    */
-  async function callApi(userMessage, systemFull = SYSTEM_PROMPT_EXCEL, weekContext = '', retries = 5) {
+  async function callApi(
+    userMessage,
+    systemFull = SYSTEM_PROMPT_EXCEL,
+    weekContext = '',
+    retries = 5,
+    apiOpts = {},
+  ) {
+    const generationCallIndex = Number(apiOpts.generationCallIndex) || 0
+    const model = apiOpts.model || PROGRAMMING_MODEL
+    const maxTokens =
+      apiOpts.maxTokens ??
+      Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL)
+
     for (let attempt = 0; attempt <= retries; attempt++) {
       const body = {
-        model: PROGRAMMING_MODEL,
-        max_tokens: Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL),
-        system: trimExcelSystemForAnthropicRetry(systemFull, attempt),
-        weekContext: trimWeekContextForAnthropicRetry(weekContext, attempt),
+        model,
+        max_tokens: maxTokens,
+        system: buildExcelSystemForGenerationCall(systemFull, generationCallIndex, attempt),
+        weekContext: trimWeekContextForAnthropicRetry(
+          buildWeekContextForGenerationCall(weekContext, generationCallIndex),
+          attempt,
+        ),
         messages: [{ role: 'user', content: userMessage }],
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
@@ -1076,8 +1163,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     try {
       const libRows = await getCoachExerciseLibrary()
-      const autoMap = await fetchLibraryAutoVideoMap(libRows, { maxResolve: 28 })
-      const block = buildGeneratorLibraryBlock(libRows, autoMap)
+      const autoMap = await fetchLibraryAutoVideoMap(libRows, { maxResolve: 12 })
+      const block = buildGeneratorLibraryBlock(libRows, autoMap, {
+        maxExercises: EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT,
+      })
       if (block) systemExcelFull += `\n\n${block}`
     } catch {
       /* sin biblioteca: generación igual */
@@ -1284,9 +1373,12 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
         return false
       }
 
-      function buildChunkMessage(chunkDays, coherenceBlock) {
+      function buildChunkMessage(chunkDays, coherenceBlock, { isFirstApiCall = false } = {}) {
         const list = [...chunkDays].join(', ')
-        const core = `${baseContext}\n\n${planSummary}\n\n${EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE}\n\n${EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
+        const heavyRules = isFirstApiCall
+          ? `\n\n${EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE}\n\n${EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK}`
+          : '\n\n(Mismas reglas de calidad y anti-repetición que en la primera petición de esta generación; no repitas lift/formato/WOD entre días.)'
+        const core = `${baseContext}\n\n${planSummary}${heavyRules}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
 
 Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
 
@@ -1312,7 +1404,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       }
 
       function buildCoherenceBlockFromAccumulator() {
-        const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${stringifyAccumulatorForCoherence(acc)}`
+        const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${buildCompactAccumulatorCoherence(acc)}`
         const resumenFoco = (acc.resumen && acc.resumen.foco) || ''
         const heuristic = formatReviewHintsForGenerationPrompt(
           acc.dias,
@@ -1322,18 +1414,30 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return `${jsonBlock}\n\nCHEQUEO HEURÍSTICO (misma lógica que el panel del programador: rojo/naranja/amarillo; corrige en los días que generas EN ESTA petición, no asumas revisión manual después):\n${heuristic}`
       }
 
+      let generationApiCallIndex = 0
+
       async function generateChunkWithFallback(chunk, ci, total) {
         const chunkDaysText = [...chunk].join(' · ')
         const attachCoherence = ci > 0 || weekAccumulatorHasNonPlaceholderSessions(acc)
         const coherenceBlock = attachCoherence ? buildCoherenceBlockFromAccumulator() : ''
-        setGenStep(total > 1 ? `Generando ${chunkDaysText}… (${ci + 1}/${total})` : `Generando ${chunkDaysText}…`)
-        const userMessageForApi = buildChunkMessage(chunk, coherenceBlock)
+        const callIdx = generationApiCallIndex
+        const isFirstApiCall = callIdx === 0
+        setGenStep(
+          total > 1
+            ? `Generando ${chunkDaysText}… (${ci + 1}/${total})${callIdx > 0 ? ' · modo ligero' : ''}`
+            : `Generando ${chunkDaysText}…`,
+        )
+        const userMessageForApi = buildChunkMessage(chunk, coherenceBlock, { isFirstApiCall })
         console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
           diasEnEstePOST: [...chunk],
           juevesEnEstePOST: chunk.has('JUEVES'),
+          generationCallIndex: callIdx,
         })
         try {
-          const part = await callApi(userMessageForApi, systemExcelFull, weekContextText)
+          const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 5, {
+            generationCallIndex: callIdx,
+          })
+          generationApiCallIndex += 1
           mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
           const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
           if (ji >= 0 && chunk.has('JUEVES')) {
@@ -1391,7 +1495,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             `\n\nREINTENTO FORZADO (${d}): este día estaba marcado para generar por el selector del cliente. ` +
             `Devuelve contenido REAL para ${d} en las columnas seleccionadas; no uses «(no programada esta semana)» en esas columnas.`
           setGenStep(`Reintentando ${d} (faltaba contenido)…`)
-          const part = await callApi(forceMsg, systemExcelFull, weekContextText)
+          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 5, {
+            model: SUPPORT_MODEL,
+            maxTokens: 5000,
+            generationCallIndex: generationApiCallIndex,
+          })
+          generationApiCallIndex += 1
           mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
         }
       }
@@ -1468,7 +1577,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             `\nSi aparece calentamiento genérico, cámbialo por movilidad específica estratégica o elimínalo.` +
             `\nObjetivo global: subir score semanal hacia ${QA_TARGET_SCORE}/10 o más.` +
             `\n- ${dayHints || 'Evitar repetición dominante y mejorar coherencia de ese día.'}`
-          const part = await callApi(forceMsg, systemExcelFull, weekContextText)
+          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 5, {
+            model: SUPPORT_MODEL,
+            maxTokens: 5000,
+            generationCallIndex: generationApiCallIndex,
+          })
+          generationApiCallIndex += 1
           mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
         }
 
@@ -3049,8 +3163,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               <div className="flex items-center gap-2 text-[10px] text-indigo-600 font-bold bg-indigo-50/50 rounded-2xl px-5 py-4 border border-indigo-100/50 uppercase tracking-tight shadow-sm">
                 <span className="text-sm">💡</span>
                 <span>
-                  Generaremos Lunes→Sábado (Funcional + Basics + Fit). Tiempo real en servidor: ~1–5 min (varias
-                  llamadas a la IA, según días marcados); en Vercel hace falta plan Pro y redeploy para tiempos largos.
+                  Generaremos Lunes→Sábado (Funcional + Basics + Fit). ~1–5 min (una llamada por día; desde el día 2
+                  la IA recibe un prompt más ligero para gastar menos). En Vercel hace falta plan Pro para tiempos largos.
                 </span>
               </div>
             </>

@@ -37,9 +37,14 @@ export const GENERATOR_CLASS_LABELS = {
 /**
  * @param {Array<{ name: string, category?: string, classes?: string[], level?: string, notes?: string | null, is_new?: boolean, video_url?: string | null, video_url_verified?: boolean }>} rows
  * @param {Map<string, string> | null} [autoVideoByName] URLs ya resueltas (mapa estático o búsqueda + oembed en servidor) por nombre de ejercicio
+ * @param {{ maxExercises?: number }} [options] tope de ejercicios listados (reduce tokens en generación)
  * @returns {string}
  */
-export function buildGeneratorLibraryBlock(rows, autoVideoByName = null) {
+export function buildGeneratorLibraryBlock(rows, autoVideoByName = null, options = {}) {
+  const maxExercises =
+    typeof options.maxExercises === 'number' && options.maxExercises > 0
+      ? Math.floor(options.maxExercises)
+      : Infinity
   if (!Array.isArray(rows) || rows.length === 0) return ''
 
   const byCat = new Map()
@@ -61,12 +66,15 @@ export function buildGeneratorLibraryBlock(rows, autoVideoByName = null) {
   ]
 
   const sortedCats = [...byCat.keys()].sort((a, b) => String(a).localeCompare(String(b)))
+  let listed = 0
   for (const cat of sortedCats) {
+    if (listed >= maxExercises) break
     const label = GENERATOR_CATEGORY_LABELS[cat] || cat
     lines.push(`── ${label} ──`)
     const items = byCat.get(cat) || []
     items.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
     for (const r of items) {
+      if (listed >= maxExercises) break
       const cls = (r.classes || []).map((k) => GENERATOR_CLASS_LABELS[k] || k).join(', ')
       const lv = GENERATOR_LEVEL_LABELS[r.level] || r.level || ''
       const nu = r.is_new ? ' [NUEVO]' : ''
@@ -83,8 +91,12 @@ export function buildGeneratorLibraryBlock(rows, autoVideoByName = null) {
           ? ` | vídeo (automático, comprobado): ${autoVid}`
           : ''
       lines.push(`• ${r.name}${nu} (${lv}; clases: ${cls || '—'})${note}${vid}`)
+      listed += 1
     }
     lines.push('')
+  }
+  if (listed < rows.length && Number.isFinite(maxExercises)) {
+    lines.push(`[…${rows.length - listed} ejercicios más en Supabase; usa nombres alineados con la biblioteca.]`)
   }
 
   return lines.join('\n').trimEnd()

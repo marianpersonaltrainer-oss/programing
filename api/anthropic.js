@@ -15,6 +15,15 @@
 
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+  maxDuration: 300,
+}
+
 /** Traduce errores conocidos de Anthropic a mensaje útil en español. */
 function userFacingMessage(data, httpStatus) {
   const raw =
@@ -209,7 +218,7 @@ const ANTHROPIC_UPSTREAM_TIMEOUT_MS = (() => {
   return 293_000
 })()
 /** Bytes periódicos en el cuerpo de respuesta para que proxies no corten por inactividad (p. ej. Vercel). */
-const CLIENT_HEARTBEAT_MS = 5000
+const CLIENT_HEARTBEAT_MS = 2500
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

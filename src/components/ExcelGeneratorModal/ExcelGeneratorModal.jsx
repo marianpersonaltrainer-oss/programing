@@ -75,8 +75,8 @@ import {
 const EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS = 8000
 /** Techo de salida por POST (1 día; bajar reduce coste sin cortar un día completo). */
 const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 5500
-/** Límite del pack de briefing (va en weekContext → system; solo en la 1ª llamada de la generación). */
-const EXCEL_GENERATION_PACK_MAX_CHARS = 28_000
+/** Briefing en el mensaje de usuario (NO en weekContext→system: duplicaba ~30k y cortaba la conexión). */
+const EXCEL_GENERATION_PACK_MAX_CHARS = 14_000
 /** Tope del bloque «días ya generados» en el user (extracto compacto, no JSON completo). */
 const EXCEL_COHERENCE_JSON_MAX_CHARS = 22_000
 /** Ejercicios listados en biblioteca dentro del system (el resto sigue en Supabase). */
@@ -158,6 +158,19 @@ function trimWeekContextForAnthropicRetry(weekContext, attempt) {
   const t = String(weekContext || '')
   if (attempt < 2 || t.length <= 24_000) return t
   return `${t.slice(0, 21_000).trimEnd()}\n\n[…contexto recortado en reintento por tamaño]`
+}
+
+/** System base para generación Excel: sin ejemplos Drive ni referencia (van en briefing/propuesta). */
+function buildLeanSystemExcelForGeneration(systemFull) {
+  let s = String(systemFull || '')
+  const cutAt = (marker) => {
+    const i = s.indexOf(marker)
+    if (i >= 0) s = s.slice(0, i)
+  }
+  cutAt('\n\nEJEMPLOS REALES DE ESTILO EVO')
+  cutAt('\n\n════════════════════════════════════════\nCONTEXTO DE REFERENCIA (OTROS MESOCICLOS')
+  cutAt('\n\nREGLAS INFERIDAS DESDE REFERENCIA')
+  return s.trimEnd()
 }
 
 /** System más ligero en días 2+ de la misma generación (no repetir briefing/ejemplos enteros). */
@@ -1008,12 +1021,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL)
 
     for (let attempt = 0; attempt <= retries; attempt++) {
+      // Tras error de red, apretar más el prompt (evita repetir el fallo por petición gigante).
+      const effectiveGenIdx =
+        attempt === 0 ? generationCallIndex : Math.max(generationCallIndex, attempt)
       const body = {
         model,
         max_tokens: maxTokens,
-        system: buildExcelSystemForGenerationCall(systemFull, generationCallIndex, attempt),
+        system: buildExcelSystemForGenerationCall(systemFull, effectiveGenIdx, attempt),
         weekContext: trimWeekContextForAnthropicRetry(
-          buildWeekContextForGenerationCall(weekContext, generationCallIndex),
+          buildWeekContextForGenerationCall(weekContext, effectiveGenIdx),
           attempt,
         ),
         messages: [{ role: 'user', content: userMessage }],
@@ -1172,7 +1188,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       /* sin biblioteca: generación igual */
     }
 
-    const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
+    const methodText = sanitizePromptTextForLLM(getMethodText()).trim().slice(0, 5000)
     if (methodText) {
       systemExcelFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
     }
@@ -1187,35 +1203,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       systemExcelFull += `\n\n${mesoProgrammingBlock}`
     }
 
-    const realProgrammingExamples = await loadRealProgrammingContextForGenerator()
-    if (realProgrammingExamples) {
-      let block = realProgrammingExamples
-      if (block.length > EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS) {
-        block =
-          block.slice(0, EXCEL_REAL_PROGRAMMING_EXAMPLES_MAX_CHARS) +
-          '\n\n[…truncado por límite de tamaño del prompt para esta generación]'
-      }
-      systemExcelFull += `\n\nEJEMPLOS REALES DE ESTILO EVO — leer antes de programar:\n${block}`
-    }
+    // Ejemplos Drive y contexto de referencia omitidos aquí: el briefing + propuesta aprobada
+    // ya orientan la semana; meterlos en system duplicaba ~20k y provocaba timeouts / Failed to fetch.
 
-    let referenceBody = getReferenceMesocycleContextForLLM()
-    try {
-      const remoteReferenceRaw = await fetchServerReferenceContext()
-      if (remoteReferenceRaw) {
-        const mergedRaw = mergeReferenceMesocycleContexts(loadReferenceMesocycleContextRaw(), remoteReferenceRaw)
-        referenceBody = getReferenceMesocycleContextForLLMFromRaw(mergedRaw)
-      }
-    } catch {
-      /* fallback a referencia local */
-    }
-    const referenceAppendix = buildReferenceMesocycleSystemAppendix(referenceBody)
-    if (referenceAppendix) {
-      systemExcelFull += referenceAppendix
-      const inferredRules = buildInferredMethodFromReference(referenceBody)
-      if (inferredRules) {
-        systemExcelFull += `\n\n${inferredRules}`
-      }
-    }
+    systemExcelFull = buildLeanSystemExcelForGeneration(systemExcelFull)
 
     const mesoInfo = weekState.mesocycle
       ? `Mesociclo: ${weekState.mesocycle} | Semana: ${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` | Fase: ${weekState.phase}` : ''}`
@@ -1253,15 +1244,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         ? `${pack.slice(0, EXCEL_GENERATION_PACK_MAX_CHARS).trimEnd()}\n\n[…Paquete truncado por límite técnico (${pack.length} caracteres en origen). Prioriza coherencia con el texto visible.]`
         : pack
 
-    const baseContext = [
-      correctionBlock,
-      weekInstructionsBlock,
-      mesoInfo,
-      pack
-        ? 'DATOS CONSOLIDADOS (Supabase, briefing del mesociclo): están en la sección «CONTEXTO DE LA SEMANA» del system de esta petición (no se repiten aquí para aligerar la petición). Léelos antes de generar.'
-        : '',
-      approvedBlock,
-    ]
+    const briefingUserBlock = pack
+      ? `PAQUETE BRIEFING (Supabase — check-ins, handoffs, reglas, feedback; lee antes de programar):\n${packForGeneration}`
+      : ''
+
+    const baseContextCore = [correctionBlock, weekInstructionsBlock, mesoInfo, approvedBlock]
       .filter(Boolean)
       .join('\n\n')
 
@@ -1310,18 +1297,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
 
     try {
+      // NO enviar briefing en weekContext: injectWeekContext lo fusiona al system y duplica el tamaño
+      // del prompt (~50k system + ~30k briefing → conexión cortada en Vercel / Failed to fetch).
       let weekContextText = ''
-      if (pack) {
-        weekContextText = `PAQUETE BRIEFING (Supabase — mesociclo actual, check-ins, handoffs, reglas, feedback, historial de ediciones)\n\n${packForGeneration}`
-      } else {
+      if (!pack) {
         try {
-          weekContextText = await buildWeekContext(weekState)
+          const ctx = await buildWeekContext(weekState)
+          if (ctx && ctx.length <= 8000) {
+            weekContextText = ctx
+          } else if (ctx) {
+            weekContextText = `${ctx.slice(0, 7800).trimEnd()}…\n[contexto histórico recortado]`
+          }
         } catch (ctxErr) {
           console.warn('[ExcelGeneratorModal] buildWeekContext falló; se continúa sin ese bloque:', ctxErr?.message || ctxErr)
-          weekContextText =
-            'CONTEXTO DE LA SEMANA\n' +
-            'No se pudo cargar contexto histórico remoto en este intento (fallo de red o Supabase). ' +
-            'Genera con método + briefing actual y coherencia interna de la semana.'
         }
       }
       let overlay = null
@@ -1375,6 +1363,12 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
 
       function buildChunkMessage(chunkDays, coherenceBlock, { isFirstApiCall = false } = {}) {
         const list = [...chunkDays].join(', ')
+        const briefingPart = isFirstApiCall
+          ? briefingUserBlock
+          : briefingUserBlock
+            ? 'Briefing Supabase: ya enviado en la primera petición de esta generación (no se repite).'
+            : ''
+        const baseContext = [baseContextCore, briefingPart].filter(Boolean).join('\n\n')
         const heavyRules = isFirstApiCall
           ? `\n\n${EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE}\n\n${EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK}`
           : '\n\n(Mismas reglas de calidad y anti-repetición que en la primera petición de esta generación; no repitas lift/formato/WOD entre días.)'

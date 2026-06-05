@@ -16,10 +16,10 @@ export function explainAnthropicFetchFailure(err) {
   if (isLikelyNetworkAbort) {
     return (
       'No se pudo completar la llamada a la IA (conexión cortada antes de respuesta). ' +
-      'Si la respuesta tarda mucho, algunas redes o proxies cortan conexiones «en silencio» y el navegador muestra «Failed to fetch». ' +
-      'Tras el último deploy el servidor envía keep-alive durante la espera; prueba en otra red o sin VPN. ' +
-      'Mantén plan Pro, `maxDuration` alto en `vercel.json` y evita contextos enormes en una sola generación. ' +
-      'Revisa ANTHROPIC_API_KEY en Production y extensiones que bloqueen solicitudes.'
+      'Suele pasar cuando la petición tarda demasiado: en Vercel **Hobby** las funciones se cortan a ~10 s (hace falta **plan Pro** para generar semanas). ' +
+      'También puede ser red/VPN, o un prompt demasiado grande en el primer día. ' +
+      'Prueba sin VPN, recarga fuerte (Cmd+Shift+R) y vuelve a generar; el sistema reintenta con un prompt más ligero. ' +
+      'Revisa ANTHROPIC_API_KEY en Production si persiste.'
     )
   }
   return m || 'Error de red desconocido.'

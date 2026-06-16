@@ -12,14 +12,13 @@ import {
 import { appendAutoLearnedLines } from '../../utils/methodLearnedStorage.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
 import { coachBg, coachBorder, coachField, coachText, coachUi } from './coachTheme.js'
-import CoachFeedbackWeekSummary from './CoachFeedbackWeekSummary.jsx'
 import {
   getMadridCoachProgramDayKey,
   formatMadridDateShort,
   normalizeProgramDayKey,
   isMadridCalendarSunday,
 } from '../../utils/coachMadridDay.js'
-import { feedbackClassChrome } from '../../utils/coachFeedbackClassChrome.js'
+import { feedbackClassChrome, sortClassLabelsForFeedback } from '../../utils/coachFeedbackClassChrome.js'
 
 const TIME_EXPLAIN = [
   { value: 'si', label: 'Bien de tiempo' },
@@ -28,9 +27,154 @@ const TIME_EXPLAIN = [
 ]
 
 const TIME_EXPLAIN_SHORT = {
-  si: 'Tiempo: bien',
-  justo: 'Tiempo: justo',
-  no: 'Tiempo: se fue',
+  si: 'Bien de tiempo',
+  justo: 'Justa',
+  no: 'Se fue de tiempo',
+}
+
+const TIME_BADGE_CLASS = {
+  si: 'bg-emerald-900/50 text-emerald-200 border-emerald-500/40',
+  justo: 'bg-amber-900/50 text-amber-200 border-amber-500/40',
+  no: 'bg-rose-900/50 text-rose-200 border-rose-500/40',
+}
+
+function buildTimeSummaryLine({ si, justo, no }) {
+  const parts = []
+  if (si > 0) parts.push(`${si} bien`)
+  if (justo > 0) parts.push(`${justo} justa${justo === 1 ? '' : 's'}`)
+  if (no > 0) parts.push(`${no} corta${no === 1 ? '' : 's'}`)
+  return parts.join(' · ')
+}
+
+function peerRowVisible(row, selfNorm, readChangedIds) {
+  const changed = coachFeedbackRowIndicatesChange(row)
+  const isOwn = (row?.coach_name?.trim().toLowerCase() || '') === selfNorm
+  const rowId = String(row?.id ?? '')
+  const isRead = rowId ? readChangedIds.has(rowId) : false
+  if (changed && !isOwn && isRead) return false
+  return true
+}
+
+function normalizeFeedbackSnippet(text) {
+  return String(text || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+}
+
+/** Evita repetir el mismo texto en «cambió», sensaciones y a vigilar. */
+function buildFeedbackEntryContent(row) {
+  const changed = coachFeedbackRowIndicatesChange(row)
+  const changeText = row.changed_details?.trim() || ''
+  let feelings = row.group_feelings?.trim() || ''
+  let vigil = row.notes_next_week?.trim() || ''
+
+  const unique = (value, others) => {
+    const n = normalizeFeedbackSnippet(value)
+    if (!n) return ''
+    return others.some((o) => o && (o === n || o.includes(n) || n.includes(o))) ? '' : value
+  }
+
+  if (changed && changeText) {
+    feelings = unique(feelings, [normalizeFeedbackSnippet(changeText)])
+    vigil = unique(vigil, [normalizeFeedbackSnippet(changeText), normalizeFeedbackSnippet(feelings)])
+  } else {
+    vigil = unique(vigil, [normalizeFeedbackSnippet(feelings)])
+  }
+
+  return { changed, changeText, feelings, vigil }
+}
+
+function peerRowHasDisplayContent(row) {
+  const { changed, changeText, feelings, vigil } = buildFeedbackEntryContent(row)
+  return Boolean(changed || changeText || feelings || vigil || row.time_for_explanation)
+}
+
+function FeedbackEntryCard({
+  row,
+  selfNorm,
+  readChangedIds,
+  weekRow,
+  coachName,
+  onMarkRead,
+}) {
+  const changed = coachFeedbackRowIndicatesChange(row)
+  const isOwn = (row?.coach_name?.trim().toLowerCase() || '') === selfNorm
+  const rowId = String(row?.id ?? '')
+  const isRead = rowId ? readChangedIds.has(rowId) : false
+  const when = formatFeedbackTime(row.created_at)
+  const unreadChange = changed && !isOwn && !isRead
+  const { changeText, feelings, vigil } = buildFeedbackEntryContent(row)
+
+  return (
+    <article
+      className={`rounded-xl border p-3.5 text-sm ${
+        unreadChange
+          ? 'border-amber-400/70 bg-amber-950/35 ring-1 ring-amber-400/25'
+          : `border-white/10 ${coachBg.rowB}`
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {isOwn ? (
+          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#6A1F6D] text-white font-bold">
+            Tú
+          </span>
+        ) : null}
+        <span className="font-bold text-[#F3EAF8]">{row.coach_name?.trim() || 'Coach'}</span>
+        {when ? <span className={`text-xs ${coachText.muted}`}>{when}</span> : null}
+        {row.time_for_explanation && TIME_EXPLAIN_SHORT[row.time_for_explanation] ? (
+          <span
+            className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border ${
+              TIME_BADGE_CLASS[row.time_for_explanation] || 'border-white/20 text-white/70'
+            }`}
+          >
+            {TIME_EXPLAIN_SHORT[row.time_for_explanation]}
+          </span>
+        ) : null}
+      </div>
+
+      {changed ? (
+        <div className="mt-2.5 rounded-lg border border-orange-400/35 bg-orange-950/30 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-orange-300/90 mb-1">Cambió en sesión</p>
+          <p className="leading-snug whitespace-pre-wrap text-orange-50/95">
+            {changeText || 'Indicó cambios sin detalle.'}
+          </p>
+        </div>
+      ) : null}
+
+      {feelings ? (
+        <p className="mt-2.5 leading-relaxed whitespace-pre-wrap text-[#F3EAF8]/92">{feelings}</p>
+      ) : null}
+
+      {vigil ? (
+        <div className="mt-2.5 rounded-lg border border-yellow-500/30 bg-yellow-950/25 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-300/80 mb-1">A vigilar</p>
+          <p className="leading-snug whitespace-pre-wrap text-yellow-50/90">{vigil}</p>
+        </div>
+      ) : null}
+
+      {unreadChange && rowId ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => {
+              const scope = feedbackReadScopeKey(weekRow?.id ?? null, coachName)
+              markFeedbackRead(scope, rowId)
+              onMarkRead(rowId)
+            }}
+            className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-amber-400/60 bg-amber-900/40 text-amber-100 hover:bg-amber-900/60"
+          >
+            Marcar leído
+          </button>
+        </div>
+      ) : null}
+      {changed && !isOwn && isRead ? (
+        <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400/90">Leído ✓</p>
+      ) : null}
+    </article>
+  )
 }
 
 /** La valoración (columna session_how) se deriva del tiempo para mantener el informe del admin. */
@@ -104,6 +248,7 @@ export default function CoachSessionFeedbackForm({
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0)
   const [readChangedIds, setReadChangedIds] = useState(() => new Set())
   const [showWeekArchive, setShowWeekArchive] = useState(false)
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
 
   const madridProgramDayKey = useMemo(
     () => getMadridCoachProgramDayKey(),
@@ -120,6 +265,7 @@ export default function CoachSessionFeedbackForm({
     if (prefill?.token != null) {
       if (prefill.dayKey && DAYS_ORDER.includes(prefill.dayKey)) setDayKey(prefill.dayKey)
       if (prefill.classLabel && ALL_CLASS_LABELS.includes(prefill.classLabel)) setClassLabel(prefill.classLabel)
+      setShowFeedbackForm(true)
       return
     }
     const t = getMadridCoachProgramDayKey()
@@ -233,197 +379,191 @@ export default function CoachSessionFeedbackForm({
   )
   const unreadOthersWithChange = othersWithChange.filter((r) => !readChangedIds.has(String(r.id ?? '')))
 
+  const visibleTodayPeers = useMemo(
+    () =>
+      primaryPeerList.filter(
+        (row) => peerRowVisible(row, selfNorm, readChangedIds) && peerRowHasDisplayContent(row),
+      ),
+    [primaryPeerList, selfNorm, readChangedIds],
+  )
+
+  const timeStats = useMemo(() => {
+    let si = 0
+    let justo = 0
+    let no = 0
+    for (const row of primaryPeerList) {
+      if (row.time_for_explanation === 'si') si += 1
+      else if (row.time_for_explanation === 'justo') justo += 1
+      else if (row.time_for_explanation === 'no') no += 1
+    }
+    return { si, justo, no }
+  }, [primaryPeerList])
+
+  const todayByClass = useMemo(() => {
+    const m = new Map()
+    for (const row of visibleTodayPeers) {
+      const label = String(row.class_label || '—').trim() || '—'
+      if (!m.has(label)) m.set(label, [])
+      m.get(label).push(row)
+    }
+    return sortClassLabelsForFeedback([...m.keys()]).map((classLabel) => ({
+      classLabel,
+      rows: (m.get(classLabel) || []).sort((a, b) => {
+        const ta = a?.created_at ? new Date(a.created_at).getTime() : 0
+        const tb = b?.created_at ? new Date(b.created_at).getTime() : 0
+        return tb - ta
+      }),
+    }))
+  }, [visibleTodayPeers])
+
+  const timeSummaryLine = buildTimeSummaryLine(timeStats)
+  const dayTitle = madridProgramDayKey ? DAYS_ES[madridProgramDayKey] || madridProgramDayKey : 'Semana'
+
   return (
-    <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-xl mx-auto`}>
-      <h2 className={coachUi.h2}>Feedback de clase</h2>
-      <p className={`text-sm ${coachText.muted} mb-2 leading-relaxed`}>
-        Vista centrada en <span className="font-semibold text-[#F3EAF8]">hoy</span> ({formatMadridDateShort()} · Madrid).
-        Los demás días siguen guardados en el servidor y en el historial local para informes y aprendizaje.
-      </p>
-      <p
-        className={`text-xs ${coachText.muted} leading-relaxed ${
-          !madridProgramDayKey && !isMadridCalendarSunday() ? 'mb-2' : 'mb-8'
-        }`}
-      >
-        Una entrada por día y clase al enviar. Lo que marques en «¿Algo a vigilar?» aparece en el detalle de esa clase
-        cuando vuelvas a impartirla.
+    <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-2xl mx-auto`}>
+      <h2 className={coachUi.h2}>Feedback</h2>
+      <p className={`text-sm ${coachText.muted} mb-6 leading-relaxed`}>
+        {madridProgramDayKey ? (
+          <>
+            <span className="font-semibold text-[#F3EAF8]">{dayTitle}</span> · {formatMadridDateShort()}
+          </>
+        ) : (
+          <>Semana · {formatMadridDateShort()}</>
+        )}
       </p>
       {!madridProgramDayKey && !isMadridCalendarSunday() ? (
         <p className="text-xs text-amber-100 bg-amber-900/35 border border-amber-400/40 rounded-xl px-3 py-2 mb-8 leading-relaxed">
-          No se ha detectado el día de la semana en tu dispositivo; la lista de equipo muestra toda la semana. Recarga
-          la página o actualiza la app cuando puedas.
+          No se detectó el día en tu dispositivo. Recarga la página si la vista no coincide con hoy.
         </p>
       ) : null}
 
-      <CoachFeedbackWeekSummary
-        weekRow={weekRow}
-        refreshKey={summaryRefreshKey}
-        peerCount={peerEntries.length}
-        todayDayKey={madridProgramDayKey}
-      />
-
-      {primaryPeerList.length > 0 || archivePeerSorted.length > 0 ? (
-        <section
-          className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-3`}
-          aria-label="Feedback del equipo"
-        >
-          <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
-            {madridProgramDayKey
-              ? `Equipo · hoy (${DAYS_ES[madridProgramDayKey] || madridProgramDayKey})`
-              : 'Equipo · esta semana (domingo)'}
-          </h3>
-          <p className={`text-xs ${coachText.muted} leading-relaxed`}>
-            {madridProgramDayKey
-              ? 'Solo entradas del día de programación que coincide con hoy. Los avisos con cambios no leídos se resaltan.'
-              : 'Vista semanal: hoy no hay día de sala en la plantilla; se muestran todos los envíos de la semana.'}
-          </p>
-          {unreadOthersWithChange.length > 0 ? (
-            <div className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-orange-900">
-                Pendientes de leer: {unreadOthersWithChange.length}
+      <section
+        className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-4`}
+        aria-label="Feedback del equipo hoy"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className={`text-sm font-extrabold uppercase tracking-widest ${coachText.primary}`}>
+              {madridProgramDayKey ? `Hoy · ${dayTitle}` : 'Esta semana'}
+            </h3>
+            {visibleTodayPeers.length > 0 ? (
+              <p className={`text-xs ${coachText.muted} mt-1`}>
+                {visibleTodayPeers.length} envío{visibleTodayPeers.length === 1 ? '' : 's'}
+                {timeSummaryLine ? ` · Tiempo: ${timeSummaryLine}` : ''}
               </p>
-            </div>
+            ) : (
+              <p className={`text-xs ${coachText.muted} mt-1`}>
+                {madridProgramDayKey ? 'Aún no hay feedback de hoy.' : 'Sin envíos esta semana.'}
+              </p>
+            )}
+          </div>
+          {unreadOthersWithChange.length > 0 ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg border border-amber-400/50 bg-amber-950/40 text-amber-200">
+              {unreadOthersWithChange.length} cambio{unreadOthersWithChange.length === 1 ? '' : 's'} sin leer
+            </span>
           ) : null}
-          {primaryPeerList.length === 0 && madridProgramDayKey ? (
-            <p className={`text-xs ${coachText.muted} py-2`}>
-              Nadie del equipo ha enviado feedback para hoy todavía. Cuando lleguen entradas, aparecerán aquí con el
-              color de cada clase.
-            </p>
-          ) : null}
-          <ul className="space-y-3">
-            {primaryPeerList.map((row) => {
-              const changed = coachFeedbackRowIndicatesChange(row)
-              const isOwn = (row?.coach_name?.trim().toLowerCase() || '') === selfNorm
-              const rowId = String(row?.id ?? '')
-              const isRead = rowId ? readChangedIds.has(rowId) : false
-              if (changed && !isOwn && isRead) return null
-              const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
-              const when = formatFeedbackTime(row.created_at)
-              const clsChrome = feedbackClassChrome(row.class_label)
+        </div>
+
+        {todayByClass.length > 0 ? (
+          <div className="space-y-4">
+            {todayByClass.map(({ classLabel, rows }) => {
+              const chrome = feedbackClassChrome(classLabel)
               return (
-                <li
-                  key={row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}
-                  className={`rounded-xl border p-3 text-sm pl-3 ${
-                    changed
-                      ? isRead
-                        ? `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
-                        : 'border-orange-400/80 bg-orange-100 text-orange-950 ring-2 ring-orange-300/60'
-                      : `border-[#6A1F6D]/15 ${coachBg.cardAlt}`
-                  }`}
-                  style={{ borderLeftWidth: 4, borderLeftColor: clsChrome.bar }}
+                <div
+                  key={classLabel}
+                  className="rounded-xl overflow-hidden border"
+                  style={{ borderColor: chrome.border, backgroundColor: chrome.softBg }}
                 >
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold">
-                    {isOwn ? (
-                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#6A1F6D] text-white">
-                        Tú
-                      </span>
-                    ) : null}
-                    <span>{dayLabel}</span>
-                    <span className={coachText.muted}>·</span>
-                    <span style={{ color: clsChrome.text }}>{row.class_label || '—'}</span>
-                    <span className={`font-semibold ${coachText.muted}`}>
-                      · {row.coach_name?.trim() || 'Coach'}
-                      {when ? ` · ${when}` : ''}
+                  <div
+                    className="px-3 py-2.5 text-xs font-extrabold uppercase tracking-widest flex items-center gap-2"
+                    style={{ color: chrome.bar, borderLeft: `4px solid ${chrome.bar}` }}
+                  >
+                    {classLabel}
+                    <span className={`font-normal normal-case tracking-normal text-[11px] ${coachText.muted}`}>
+                      {rows.length} nota{rows.length === 1 ? '' : 's'}
                     </span>
                   </div>
-                  {row.time_for_explanation && TIME_EXPLAIN_SHORT[row.time_for_explanation] ? (
-                    <p className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${coachText.muted}`}>
-                      {TIME_EXPLAIN_SHORT[row.time_for_explanation]}
-                    </p>
-                  ) : null}
-                  {changed && row.changed_details?.trim() ? (
-                    <p className="mt-2 font-semibold leading-snug whitespace-pre-wrap">{row.changed_details.trim()}</p>
-                  ) : changed ? (
-                    <p className="mt-2 font-medium opacity-90">Indicó cambios sin detalle.</p>
-                  ) : null}
-                  {changed && !isOwn && rowId ? (
-                    <div className="mt-2">
-                      {isRead ? (
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Leído ✓</p>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const scope = feedbackReadScopeKey(weekRow?.id ?? null, coachName)
-                            markFeedbackRead(scope, rowId)
-                            setReadChangedIds((prev) => new Set([...prev, rowId]))
-                          }}
-                          className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-orange-400 bg-white text-orange-900 hover:bg-orange-50"
-                        >
-                          Marcar leído
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
-                  {!changed && row.group_feelings?.trim() ? (
-                    <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
-                      <span className="font-semibold text-[#1A0A1A]/80">Cómo fue:</span>{' '}
-                      {row.group_feelings.trim()}
-                    </p>
-                  ) : null}
-                  {row.notes_next_week?.trim() ? (
-                    <p className={`mt-2 leading-snug whitespace-pre-wrap ${coachText.muted}`}>
-                      <span className="font-semibold text-[#1A0A1A]/80">A vigilar:</span>{' '}
-                      {row.notes_next_week.trim()}
-                    </p>
-                  ) : null}
-                </li>
+                  <div className="px-3 pb-3 space-y-2.5">
+                    {rows.map((row) => (
+                      <FeedbackEntryCard
+                        key={row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}
+                        row={row}
+                        selfNorm={selfNorm}
+                        readChangedIds={readChangedIds}
+                        weekRow={weekRow}
+                        coachName={coachName}
+                        onMarkRead={(rowId) => setReadChangedIds((prev) => new Set([...prev, rowId]))}
+                      />
+                    ))}
+                  </div>
+                </div>
               )
             })}
-          </ul>
-          {othersWithChange.length === 0 && anyWithChange ? (
-            <p className={`text-xs ${coachText.muted}`}>
-              Solo constan tus avisos con cambios; cuando otro coach envíe feedback, aparecerá aquí.
-            </p>
-          ) : null}
+          </div>
+        ) : null}
 
-          {madridProgramDayKey && archivePeerSorted.length > 0 ? (
-            <div className="pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setShowWeekArchive((v) => !v)}
-                className={`w-full text-left text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.primary} hover:opacity-95`}
-              >
-                {showWeekArchive ? '▼' : '▶'} Otros días de esta semana ({archivePeerSorted.length}) — no se borran,
-                solo se apartan de la vista diaria
-              </button>
-              {showWeekArchive ? (
-                <ul className="mt-3 space-y-2 opacity-95">
-                  {archivePeerSorted.map((row) => {
-                    const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
-                    const when = formatFeedbackTime(row.created_at)
-                    const ch = feedbackClassChrome(row.class_label)
-                    return (
-                      <li
-                        key={`arc-${row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}`}
-                        className={`rounded-lg border p-2.5 text-xs ${coachBorder} ${coachBg.cardAlt}`}
-                        style={{ borderLeftWidth: 3, borderLeftColor: ch.bar }}
-                      >
-                        <span className="font-bold text-[#F3EAF8]/90">
-                          {dayLabel} · {row.class_label || '—'}
-                        </span>
-                        <span className={`${coachText.muted} font-medium`}>
-                          {' '}
-                          · {row.coach_name?.trim() || 'Coach'}
-                          {when ? ` · ${when}` : ''}
-                        </span>
-                        {row.changed_details?.trim() ? (
-                          <p className="mt-1 text-orange-950/90 whitespace-pre-wrap">{row.changed_details.trim()}</p>
-                        ) : null}
-                        {row.group_feelings?.trim() ? (
-                          <p className={`mt-1 ${coachText.muted} whitespace-pre-wrap`}>{row.group_feelings.trim()}</p>
-                        ) : null}
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+        {othersWithChange.length === 0 && anyWithChange && visibleTodayPeers.length > 0 ? (
+          <p className={`text-xs ${coachText.muted}`}>
+            Solo hay cambios tuyos por ahora; los de otros coaches se resaltan aquí cuando lleguen.
+          </p>
+        ) : null}
 
-      <form onSubmit={handleSubmit} className={`space-y-6 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-sm`}>
+        {madridProgramDayKey && archivePeerSorted.length > 0 ? (
+          <div className="pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => setShowWeekArchive((v) => !v)}
+              className={`w-full text-left text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-xl border ${coachBorder} ${coachBg.cardMuted} ${coachText.primary} hover:opacity-95`}
+            >
+              {showWeekArchive ? '▼' : '▶'} Otros días ({archivePeerSorted.length})
+            </button>
+            {showWeekArchive ? (
+              <ul className="mt-3 space-y-2 opacity-95">
+                {archivePeerSorted.map((row) => {
+                  const dayLabel = DAYS_ES[row.day_key] || row.day_key || '—'
+                  const when = formatFeedbackTime(row.created_at)
+                  const ch = feedbackClassChrome(row.class_label)
+                  const snippet =
+                    row.changed_details?.trim() ||
+                    row.group_feelings?.trim() ||
+                    row.notes_next_week?.trim() ||
+                    ''
+                  return (
+                    <li
+                      key={`arc-${row.id ?? `${row.day_key}-${row.class_label}-${row.created_at}`}`}
+                      className={`rounded-lg border p-2.5 text-xs ${coachBorder} ${coachBg.cardAlt}`}
+                      style={{ borderLeftWidth: 3, borderLeftColor: ch.bar }}
+                    >
+                      <span className="font-bold text-[#F3EAF8]/90">
+                        {dayLabel} · {row.class_label || '—'} · {row.coach_name?.trim() || 'Coach'}
+                      </span>
+                      {when ? <span className={`${coachText.muted}`}> · {when}</span> : null}
+                      {snippet ? (
+                        <p className={`mt-1 ${coachText.muted} whitespace-pre-wrap line-clamp-3`}>{snippet}</p>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      <div className="mb-8">
+        <button
+          type="button"
+          onClick={() => setShowFeedbackForm((v) => !v)}
+          className={`w-full text-left flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl border ${coachBorder} ${coachBg.card} ${coachText.primary} hover:opacity-95`}
+        >
+          <span className="text-sm font-extrabold uppercase tracking-widest">Enviar tu feedback</span>
+          <span className={`text-xs font-bold ${coachText.muted}`}>{showFeedbackForm ? '▼' : '▶'}</span>
+        </button>
+      </div>
+
+      {showFeedbackForm ? (
+      <form onSubmit={handleSubmit} className={`space-y-6 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-sm -mt-4`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Día</label>
           <select value={dayKey} onChange={(e) => setDayKey(e.target.value)} className={coachField}>
@@ -444,6 +584,7 @@ export default function CoachSessionFeedbackForm({
               </option>
             ))}
           </select>
+        </div>
         </div>
 
         <div>
@@ -526,24 +667,23 @@ export default function CoachSessionFeedbackForm({
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
             ¿Algo a vigilar?
           </label>
-          <p className={`text-xs ${coachText.muted} mb-2 leading-relaxed`}>
-            Lo que el siguiente coach debería tener en cuenta. Aparece en el detalle de esta clase la próxima vez que se imparta.
-          </p>
           <textarea
             value={notesNextWeek}
             onChange={(e) => setNotesNextWeek(e.target.value)}
-            rows={3}
+            rows={2}
             className={coachField}
-            placeholder="Ej.: el AMRAP se quedó corto, ojo con la técnica del peso muerto…"
+            placeholder="Para el siguiente coach que dé esta clase…"
           />
         </div>
 
         {error && (
-          <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-medium">{error}</p>
+          <p className="text-sm text-red-200 bg-red-950/50 border border-red-400/40 rounded-xl px-4 py-3 font-medium">
+            {error}
+          </p>
         )}
         {message && (
           <p
-            className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-medium"
+            className="text-sm text-emerald-200 bg-emerald-950/40 border border-emerald-400/35 rounded-xl px-4 py-3 font-medium"
             role="status"
             aria-live="polite"
           >
@@ -559,6 +699,7 @@ export default function CoachSessionFeedbackForm({
           {saving ? 'Guardando…' : 'Guardar'}
         </button>
       </form>
+      ) : null}
     </div>
   )
 }

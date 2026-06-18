@@ -14,6 +14,7 @@
  */
 
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import { resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 
 export const config = {
   api: {
@@ -239,6 +240,7 @@ export default async function handler(req, res) {
   }
 
   const { model, max_tokens, system, weekContext, messages, supportMode } = body
+  const resolvedModel = resolveProgrammingModel(model)
   const ip = getClientIp(req)
   const endpoint = supportMode ? '/api/anthropic:support' : '/api/anthropic'
   const rateLimit = supportMode ? 10 : 30
@@ -327,7 +329,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: model || 'claude-sonnet-4-20250514',
+        model: resolvedModel,
         max_tokens: max_tokens || 8000,
         system: system === undefined ? undefined : injectWeekContext(system, weekContext),
         messages,
@@ -395,7 +397,7 @@ export default async function handler(req, res) {
     try {
       await insertApiUsageLogViaSupabase({
         endpoint,
-        model: data?.model || model || 'claude-sonnet-4-20250514',
+        model: data?.model || resolvedModel,
         usage: data?.usage || {},
         ip,
       })

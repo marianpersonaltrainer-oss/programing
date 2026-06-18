@@ -17,6 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
+import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
@@ -398,8 +399,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.' })
   }
 
-  const model =
-    (process.env.VITE_CLAUDE_MODEL || process.env.PROGRAMMING_MODEL || 'claude-sonnet-4-20250514').trim()
+  const model = resolveProgrammingModel(
+    process.env.VITE_CLAUDE_MODEL || process.env.PROGRAMMING_MODEL || DEFAULT_PROGRAMMING_MODEL,
+  )
 
   const messagesIn = Array.isArray(body.messages) ? body.messages : null
   const mesociclo = String(body.mesociclo || '').trim()

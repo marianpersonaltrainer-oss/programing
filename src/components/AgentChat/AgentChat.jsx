@@ -22,6 +22,7 @@ export default function AgentChat({
   error,
   activeDay,
   weekState,
+  libraryReady = false,
   onSendMessage,
   onStopGeneration,
   onConfirmSession,
@@ -227,7 +228,12 @@ export default function AgentChat({
           </button>
         </div>
         <div className="flex justify-between items-center mt-3">
-          <p className={`text-[10px] ${sidebarHint} font-medium`}>Shift + Enter para nueva línea</p>
+          <div className="flex flex-col gap-1">
+            <p className={`text-[10px] ${sidebarHint} font-medium`}>Shift + Enter para nueva línea</p>
+            {!libraryReady && (
+              <span className="text-xs text-yellow-400">Cargando biblioteca de ejercicios...</span>
+            )}
+          </div>
           <div className={`flex items-center gap-1 text-[9px] ${sidebarHint} font-bold tracking-widest uppercase`}>Claude</div>
         </div>
       </div>

@@ -45,7 +45,7 @@ function parseHistoryAndActive(weekState) {
   const weeks = Array.isArray(history?.[mesociclo]) ? [...history[mesociclo]] : []
   const recent = weeks
     .sort((a, b) => Number(b?.semana || 0) - Number(a?.semana || 0))
-    .slice(0, 2)
+    .slice(0, 4)
   const previous = recent[0] || null
 
   return { mesociclo, semanaActual, totalWeeks, previous }
@@ -55,9 +55,9 @@ function buildPreviousWeekDays(previous) {
   const days = Array.isArray(previous?.dias) ? previous.dias : []
   const out = []
   for (const d of days) {
-    const ef = truncate(safeWeekText(d, ['wodFuncional', 'evofuncional']), 450)
-    const fit = truncate(safeWeekText(d, ['wodFit', 'evofit']), 450)
-    const basics = truncate(safeWeekText(d, ['wodBasics', 'evobasics']), 450)
+    const ef = truncate(safeWeekText(d, ['wodFuncional', 'evofuncional']), 1400)
+    const fit = truncate(safeWeekText(d, ['wodFit', 'evofit']), 1200)
+    const basics = truncate(safeWeekText(d, ['wodBasics', 'evobasics']), 1200)
     const hasAny = [ef, fit, basics].some((x) => x && x !== '—')
     if (!hasAny) continue
     out.push([

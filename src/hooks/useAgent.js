@@ -30,6 +30,7 @@ export function useAgent(weekState) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState(null)
   const [libraryAppend, setLibraryAppend] = useState('')
+  const [libraryReady, setLibraryReady] = useState(false)
   const abortRef = useRef(null)
 
   useEffect(() => {
@@ -45,9 +46,13 @@ export function useAgent(weekState) {
         } catch {
           /* se mantiene el bloque sin URLs automáticas */
         }
+        if (!cancelled) setLibraryReady(true)
       })
       .catch(() => {
-        if (!cancelled) setLibraryAppend('')
+        if (!cancelled) {
+          setLibraryAppend('')
+          setLibraryReady(true)
+        }
       })
     return () => {
       cancelled = true
@@ -196,5 +201,6 @@ export function useAgent(weekState) {
     sendMessage,
     stopGeneration,
     clearMessages,
+    libraryReady,
   }
 }

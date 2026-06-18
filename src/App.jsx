@@ -35,6 +35,7 @@ export default function App() {
     sendMessage,
     stopGeneration,
     clearMessages,
+    libraryReady,
   } = useAgent(weekState)
 
   const [activeDay, setActiveDay] = useState(null)
@@ -148,6 +149,7 @@ export default function App() {
             error={error}
             activeDay={activeDay}
             weekState={weekState}
+            libraryReady={libraryReady}
             onSendMessage={sendMessage}
             onStopGeneration={stopGeneration}
             onConfirmSession={handleConfirmSession}

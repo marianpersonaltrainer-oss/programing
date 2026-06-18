@@ -27,6 +27,19 @@ const HIGH_IMPACT_RE = [
   /\blesion\b/,
   /\briesgo\b/,
   /\bseguridad\b/,
+  /\bevitar\b/,
+  /\bno combinar\b/,
+  /\bno mezclar\b/,
+  /\bsiempre\b.*\bclase\b/,
+  /\bnunca\b/,
+  /\bbasics\b/,
+  /\bfuncional\b/,
+  /\bfit\b/,
+  /\blandmine\b/,
+  /\bequipamiento\b/,
+  /\bbarbell\b/,
+  /\bkb\b/,
+  /\bdb\b/,
 ]
 
 /**
@@ -35,7 +48,7 @@ const HIGH_IMPACT_RE = [
  */
 export function isHighImpactLearnedLine(line) {
   const n = normalize(line)
-  if (!n || n.length < 28) return false
+  if (!n || n.length < 20) return false
   return HIGH_IMPACT_RE.some((re) => re.test(n))
 }
 

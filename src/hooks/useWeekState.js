@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { MESOCYCLES } from '../constants/evoColors.js'
+import { extractPatternFromSession, getExerciseLibraryRowsCache } from '../utils/extractPatternFromSession.js'
 
 const STORAGE_KEY = 'programingevo_week'
 
@@ -56,12 +57,16 @@ export function useWeekState() {
     }))
   }, [updateWeekState])
 
-  const confirmSession = useCallback((day, content, classes) => {
+  const confirmSession = useCallback((day, content, classes, patterns) => {
+    const resolvedPatterns = Array.isArray(patterns) && patterns.length > 0
+      ? patterns
+      : extractPatternFromSession(content, getExerciseLibraryRowsCache()).patterns
+
     updateWeekState((prev) => ({
       ...prev,
       sessions: {
         ...prev.sessions,
-        [day]: { content, classes, confirmed: true },
+        [day]: { content, classes, confirmed: true, patterns: resolvedPatterns },
       },
     }))
   }, [updateWeekState])

@@ -2,12 +2,26 @@ import { CLASS_COLORS, DAYS_ES } from '../../constants/evoColors.js'
 import { evoBrand } from '../../constants/evoBrand.js'
 import { coachBg, coachBorder, coachText } from '../CoachView/coachTheme.js'
 
+const PATTERN_BADGE_STYLES = {
+  squat: { bg: '#3B0764', text: '#E9D5FF' },
+  hinge: { bg: '#7C2D12', text: '#FED7AA' },
+  pushV: { bg: '#1E3A5F', text: '#BFDBFE' },
+  pushH: { bg: '#1E3A5F', text: '#BFDBFE' },
+  pull: { bg: '#14532D', text: '#BBF7D0' },
+  metabólico: { bg: '#7F1D1D', text: '#FECACA' },
+}
+
+function getPatternBadgeStyle(pattern) {
+  return PATTERN_BADGE_STYLES[pattern] || { bg: '#374151', text: '#D1D5DB' }
+}
+
 export default function DayCard({ day, session, isActive, onClick, onRemove }) {
   const dayLabel = DAYS_ES[day] || day
   const isEmpty = !session
   const isConfirmed = session?.confirmed
 
   const classes = session?.classes || []
+  const patterns = session?.patterns || []
   const primaryClass = classes[0] || 'EvoFuncional'
   const accentColor = CLASS_COLORS[primaryClass]?.bg || '#A729AD'
 
@@ -28,10 +42,28 @@ export default function DayCard({ day, session, isActive, onClick, onRemove }) {
     >
       <div className="p-4">
         <div className="flex items-center justify-between mb-2.5">
-          <span className={`font-evo-display text-[10px] font-bold ${coachText.muted} uppercase tracking-widest`}>
-            {dayLabel}
-          </span>
-          <div className="flex items-center gap-1.5">
+          <div className="min-w-0">
+            <span className={`font-evo-display text-[10px] font-bold ${coachText.muted} uppercase tracking-widest`}>
+              {dayLabel}
+            </span>
+            {isConfirmed && patterns.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {patterns.map((pattern) => {
+                  const style = getPatternBadgeStyle(pattern)
+                  return (
+                    <span
+                      key={pattern}
+                      className="text-[8px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide"
+                      style={{ backgroundColor: style.bg, color: style.text }}
+                    >
+                      {pattern}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
             {isConfirmed && (
               <div className="flex items-center gap-1 bg-emerald-950/50 text-emerald-300 px-1.5 py-0.5 rounded-md border border-emerald-800/50">
                 <span className="w-1 h-1 rounded-full bg-emerald-500" />

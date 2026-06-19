@@ -242,6 +242,43 @@ function buildCompactAccumulatorCoherence(acc) {
   return s
 }
 
+const COMODIN_EXERCISES = [
+  { label: 'Goblet Squat', re: /goblet/i },
+  { label: 'Box Step-up / Step-up', re: /step[\s-]?up/i },
+  { label: 'Dead Bug', re: /dead[\s-]?bug/i },
+  { label: 'Hollow Rock / Hollow Hold', re: /hollow/i },
+  { label: 'Face Pull', re: /face[\s-]?pull/i },
+  { label: 'Hip Thrust', re: /hip[\s-]?thrust/i },
+  { label: 'Glute Bridge', re: /glute[\s-]?bridge/i },
+]
+
+function buildUsedExercisesTrackerBlock(acc) {
+  // Para cada ejercicio comodín, busca en qué días y clases ya aparece
+  const results = []
+  for (const { label, re } of COMODIN_EXERCISES) {
+    const appearances = []
+    for (const dia of acc?.dias || []) {
+      const dayName = dia?.nombre || '—'
+      for (const { key, label: classLabel } of EVO_SESSION_CLASS_DEFS) {
+        const text = String(dia[key] || '').trim()
+        if (!text || /no programada esta semana/i.test(text)) continue
+        // Contar cuántas veces aparece en este campo
+        const matches = text.match(new RegExp(re.source, 'gi'))
+        if (matches && matches.length > 0) {
+          appearances.push(`${dayName} ${classLabel}`)
+        }
+      }
+    }
+    if (appearances.length > 0) {
+      const remaining = Math.max(0, 2 - appearances.length)
+      const status = remaining === 0 ? '→ PROHIBIDO — ya alcanzó el máximo de 2' : `→ ${remaining} aparición(es) más permitida(s) esta semana`
+      results.push(`- ${label}: ${appearances.length}/2 ya usado (${appearances.join(', ')}) ${status}`)
+    }
+  }
+  if (!results.length) return ''
+  return `EJERCICIOS COMODÍN — CONTROL DE FRECUENCIA SEMANAL (máx. 2 por semana en total):\n${results.join('\n')}\nEsta lista es vinculante: si un ejercicio marca PROHIBIDO, no puede aparecer en los días que generas ahora, ni en calentamiento ni en WOD ni en accesorios.`
+}
+
 function sliceText(s, max) {
   const t = String(s || '').trim()
   if (!t) return ''
@@ -1405,7 +1442,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           [...selectedClassKeys],
           resumenFoco,
         )
-        return `${jsonBlock}\n\nCHEQUEO HEURÍSTICO (misma lógica que el panel del programador: rojo/naranja/amarillo; corrige en los días que generas EN ESTA petición, no asumas revisión manual después):\n${heuristic}`
+        const trackerBlock = buildUsedExercisesTrackerBlock(acc)
+        const heuristicBlock = `CHEQUEO HEURÍSTICO (misma lógica que el panel del programador: rojo/naranja/amarillo; corrige en los días que generas EN ESTA petición, no asumas revisión manual después):\n${heuristic}`
+        return trackerBlock
+          ? `${jsonBlock}\n\n${trackerBlock}\n\n${heuristicBlock}`
+          : `${jsonBlock}\n\n${heuristicBlock}`
       }
 
       let generationApiCallIndex = 0

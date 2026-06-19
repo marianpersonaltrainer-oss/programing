@@ -24,6 +24,7 @@ import {
   listMissingExerciseVideos,
   updateMissingExerciseVideo,
   upsertPublishedWeekBySlot,
+  supabase,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import { fetchLibraryAutoVideoMap } from '../../utils/fetchLibraryAutoVideoMap.js'
@@ -58,6 +59,11 @@ import {
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
+import { buildExcelDayContextSynthesis, excelCanonDayToTargetDay } from '../../utils/buildExcelDayContextSynthesis.js'
+import {
+  buildLastYearReferenceBlock,
+  briefingPackIncludesLastYear,
+} from '../../utils/buildLastYearReferenceBlock.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
 import {
   buildWeekSessionClassReview,
@@ -1214,15 +1220,52 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setStatus('generating')
 
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
+    let synthesisLibraryRows = []
     try {
-      const libRows = await getCoachExerciseLibrary()
-      const autoMap = await fetchLibraryAutoVideoMap(libRows, { maxResolve: 12 })
-      const block = buildGeneratorLibraryBlock(libRows, autoMap, {
+      synthesisLibraryRows = await getCoachExerciseLibrary()
+      const autoMap = await fetchLibraryAutoVideoMap(synthesisLibraryRows, { maxResolve: 12 })
+      const block = buildGeneratorLibraryBlock(synthesisLibraryRows, autoMap, {
         maxExercises: EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT,
       })
       if (block) systemExcelFull += `\n\n${block}`
     } catch {
       /* sin biblioteca: generación igual */
+    }
+
+    let synthesisPreviousWeeks = []
+    let synthesisCoachFeedback = []
+    let lastYearReferenceBlock = ''
+    try {
+      const published = await listPublishedWeeksForMesocycle(weekState.mesocycle)
+      const currentSem = Number(weekState.week)
+      synthesisPreviousWeeks = published
+        .filter((r) => Number(r.semana) < currentSem)
+        .slice(-6)
+        .map((r) => ({
+          semana: r.semana,
+          mesociclo: weekState.mesocycle,
+          dias: Array.isArray(r.data?.dias) ? r.data.dias : [],
+        }))
+    } catch {
+      /* síntesis sin semanas previas */
+    }
+    try {
+      const { data } = await supabase
+        .from('coach_session_feedback')
+        .select('class_label, notes_next_week, created_at, week_id')
+        .not('notes_next_week', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      synthesisCoachFeedback = Array.isArray(data) ? data : []
+    } catch {
+      /* síntesis sin feedback */
+    }
+    if (!briefingPackIncludesLastYear(pack)) {
+      try {
+        lastYearReferenceBlock = await buildLastYearReferenceBlock()
+      } catch {
+        /* sin referencia anual */
+      }
     }
 
     const methodText = sanitizePromptTextForLLM(getMethodText()).trim().slice(0, 5000)
@@ -1388,15 +1431,6 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
 - Para NO generar un día: desmárcalo en el selector (el texto ya no excluye días automáticamente).
 - Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente: (no programada esta semana). Feedbacks "". wodbuster "". Festivo real del gimnasio (solo si el usuario lo indica): ver system prompt (FESTIVO).`
 
-      function weekAccumulatorHasNonPlaceholderSessions(weekAcc) {
-        for (const dia of weekAcc?.dias || []) {
-          for (const { key } of EVO_SESSION_CLASS_DEFS) {
-            const t = String(dia[key] || '').trim()
-            if (t && !/^\(no programada esta semana\)\s*$/i.test(t) && !/^FESTIVO\b/i.test(t)) return true
-          }
-        }
-        return false
-      }
 
       function buildChunkMessage(chunkDays, coherenceBlock, { isFirstApiCall = false } = {}) {
         const list = [...chunkDays].join(', ')
@@ -1405,7 +1439,9 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
           : briefingUserBlock
             ? 'Briefing Supabase: ya enviado en la primera petición de esta generación (no se repite).'
             : ''
-        const baseContext = [baseContextCore, briefingPart].filter(Boolean).join('\n\n')
+        const lastYearPart =
+          isFirstApiCall && lastYearReferenceBlock ? lastYearReferenceBlock : ''
+        const baseContext = [baseContextCore, briefingPart, lastYearPart].filter(Boolean).join('\n\n')
         const heavyRules = isFirstApiCall
           ? `\n\n${EXCEL_GENERATION_FIRST_PASS_PUBLISHABLE}\n\n${EXCEL_GENERATION_ANTI_REPETITION_USER_BLOCK}`
           : '\n\n(Mismas reglas de calidad y anti-repetición que en la primera petición de esta generación; no repitas lift/formato/WOD entre días.)'
@@ -1434,8 +1470,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         )
       }
 
-      function buildCoherenceBlockFromAccumulator() {
+      function buildCoherenceBlockFromAccumulator(targetDayKey) {
         const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${buildCompactAccumulatorCoherence(acc)}`
+        const synthesisBlock = buildExcelDayContextSynthesis({
+          acc,
+          targetDay: targetDayKey,
+          exerciseLibraryRows: synthesisLibraryRows,
+          previousWeeks: synthesisPreviousWeeks,
+          coachFeedback: synthesisCoachFeedback,
+        })
         const resumenFoco = (acc.resumen && acc.resumen.foco) || ''
         const heuristic = formatReviewHintsForGenerationPrompt(
           acc.dias,
@@ -1444,17 +1487,19 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         )
         const trackerBlock = buildUsedExercisesTrackerBlock(acc)
         const heuristicBlock = `CHEQUEO HEURÍSTICO (misma lógica que el panel del programador: rojo/naranja/amarillo; corrige en los días que generas EN ESTA petición, no asumas revisión manual después):\n${heuristic}`
-        return trackerBlock
-          ? `${jsonBlock}\n\n${trackerBlock}\n\n${heuristicBlock}`
-          : `${jsonBlock}\n\n${heuristicBlock}`
+        const middle = [synthesisBlock, trackerBlock].filter(Boolean).join('\n\n')
+        if (middle) {
+          return `${jsonBlock}\n\n${middle}\n\n${heuristicBlock}`
+        }
+        return `${jsonBlock}\n\n${heuristicBlock}`
       }
 
       let generationApiCallIndex = 0
 
       async function generateChunkWithFallback(chunk, ci, total) {
         const chunkDaysText = [...chunk].join(' · ')
-        const attachCoherence = ci > 0 || weekAccumulatorHasNonPlaceholderSessions(acc)
-        const coherenceBlock = attachCoherence ? buildCoherenceBlockFromAccumulator() : ''
+        const targetDayKey = excelCanonDayToTargetDay([...chunk][0])
+        const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey)
         const callIdx = generationApiCallIndex
         const isFirstApiCall = callIdx === 0
         setGenStep(
@@ -1524,7 +1569,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       if (missingDays.length) {
         console.warn('[ProgramingEvo][Excel] días marcados sin contenido real tras primera pasada; reintento forzado:', missingDays)
         for (const d of missingDays) {
-          const forceCoherence = buildCoherenceBlockFromAccumulator()
+          const forceCoherence = buildCoherenceBlockFromAccumulator(excelCanonDayToTargetDay(d))
           const forceMsg =
             buildChunkMessage(new Set([d]), forceCoherence) +
             `\n\nREINTENTO FORZADO (${d}): este día estaba marcado para generar por el selector del cliente. ` +
@@ -1604,7 +1649,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         for (const d of blockingCanonDays) {
           const dayIdx = EXCEL_DAY_ORDER.indexOf(d)
           const dayHints = (criticalHintsByDay.get(dayIdx) || []).slice(0, 5).join('\n- ')
-          const forceCoherence = buildCoherenceBlockFromAccumulator()
+          const forceCoherence = buildCoherenceBlockFromAccumulator(excelCanonDayToTargetDay(d))
           const forceMsg =
             buildChunkMessage(new Set([d]), forceCoherence) +
             `\n\nAUTO-CORRECCIÓN DE CALIDAD (${d}) — pasada ${qaPass}/${QA_AUTO_FIX_MAX_PASSES}: reescribe este día para eliminar avisos rojos/naranjas y no toques otros días.` +

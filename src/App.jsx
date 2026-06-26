@@ -14,11 +14,15 @@ import CoachGuideContentPanel from './components/CoachGuideContentPanel/CoachGui
 import { coachBg, coachBorder, coachNav, coachText } from './components/CoachView/coachTheme.js'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
+import Pe2App from './Pe2App.jsx'
 
-const isCoachMode = new URLSearchParams(window.location.search).has('coach')
+const appSearch = new URLSearchParams(window.location.search)
+const isCoachMode = appSearch.has('coach')
+const isPe2Mode = appSearch.has('v2')
 
 export default function App() {
   if (isCoachMode) return <CoachView />
+  if (isPe2Mode) return <Pe2App />
 
   const {
     weekState,

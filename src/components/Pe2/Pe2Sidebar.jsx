@@ -2,11 +2,11 @@ import EvoLogo from '../EvoLogo.jsx'
 import { evoBrand } from '../../constants/evoBrand.js'
 
 const NAV_ITEMS = [
-  { id: 'home', label: 'Inicio V2' },
-  { id: 'week', label: 'Semana actual' },
+  { id: 'home', label: 'Inicio' },
+  { id: 'week', label: 'Semana' },
 ]
 
-export default function Pe2Sidebar({ activeView, onNavigate }) {
+export default function Pe2Sidebar({ activeView, onNavigate, profile, onSignOut }) {
   return (
     <aside
       className="w-[260px] flex-shrink-0 flex flex-col border-r min-h-0"
@@ -20,7 +20,7 @@ export default function Pe2Sidebar({ activeView, onNavigate }) {
               Programación V2
             </p>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C4A8C4]">
-              Modo laboratorio
+              {profile?.role || 'programmer'}
             </p>
           </div>
         </div>
@@ -47,17 +47,21 @@ export default function Pe2Sidebar({ activeView, onNavigate }) {
       </nav>
 
       <div className="p-3 border-t space-y-2" style={{ borderColor: `${evoBrand.purple}44` }}>
+        {profile?.full_name ? (
+          <p className="text-[11px] text-[#C4A8C4] truncate px-1">{profile.full_name}</p>
+        ) : null}
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="block w-full text-center px-3 py-2 rounded-xl text-[11px] font-semibold text-[#C4A8C4] hover:text-white border border-white/15 hover:border-white/30 transition-colors"
+        >
+          Cerrar sesión
+        </button>
         <a
           href="/"
           className="block w-full text-center px-3 py-2 rounded-xl text-[11px] font-semibold text-[#C4A8C4] hover:text-white border border-white/15 hover:border-white/30 transition-colors"
         >
           ← Programador V1
-        </a>
-        <a
-          href="/?coach"
-          className="block w-full text-center px-3 py-2 rounded-xl text-[11px] font-semibold text-[#234C9E] hover:text-[#93C5FD] border border-[#234C9E]/40 transition-colors"
-        >
-          Sala Coach (prod)
         </a>
       </div>
     </aside>

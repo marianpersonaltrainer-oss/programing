@@ -11,7 +11,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
-    "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs"
+    "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
+    "db:apply-pe2-structured-auth": "node scripts/apply-migration-pe2-structured-auth.mjs",
+    "db:seed-pe2-phase1": "node scripts/seed-pe2-phase1.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",

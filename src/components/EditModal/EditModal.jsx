@@ -121,13 +121,6 @@ export default function EditModal({ day, session, onSave, onClose }) {
     const lines = [...new Set([...genericLines, ...contextualLines])]
     if (lines.length) {
       appendAutoLearnedLines(lines)
-      for (const line of lines) {
-        fetch('/api/method-rule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rule_text: line, trigger_context: 'edicion_sesion' }),
-        }).catch(() => {})
-      }
     }
     const p = pendingSave
     setPhase('edit')

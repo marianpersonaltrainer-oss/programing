@@ -2,9 +2,13 @@
  * POST /api/method-rule
  * Persiste una regla aprendida en Supabase `method_rules` (service role).
  *
+ * Escrituras legacy deshabilitadas por defecto. Solo servidor:
+ *   METHOD_RULE_LEGACY_WRITE_ENABLED=true
+ *
  * Body JSON: { rule_text, trigger_context?, rule_type?, confidence? }
  */
 import { createClient } from '@supabase/supabase-js'
+import { isLegacyMethodRulesWriteEnabled } from './lib/methodRuleLegacyFlags.js'
 
 const VALID_RULE_TYPES = new Set(['timing', 'load', 'exercise', 'format', 'rest'])
 
@@ -12,6 +16,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
+  }
+
+  if (!isLegacyMethodRulesWriteEnabled()) {
+    return res.status(403).json({ ok: false, error: 'legacy_writes_disabled' })
   }
 
   const { rule_text, trigger_context = 'edicion', rule_type = 'exercise', confidence = 70 } = req.body || {}

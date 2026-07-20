@@ -37,7 +37,7 @@ import {
   EXCEL_DAY_ORDER,
 } from '../../utils/excelGenerationPlan.js'
 import { buildWeekWodBusterPaste } from '../../utils/formatWodBusterPaste.js'
-import { getMethodText } from '../MethodPanel/MethodPanel.jsx'
+import { buildMethodPromptAppendix } from '../../utils/methodPrompt.js'
 import { AI_CONFIG, PROGRAMMING_MODEL, SUPPORT_MODEL } from '../../constants/config.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import {
@@ -1268,9 +1268,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
     }
 
-    const methodText = sanitizePromptTextForLLM(getMethodText()).trim().slice(0, 5000)
-    if (methodText) {
-      systemExcelFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
+    const methodBlock = buildMethodPromptAppendix()
+    if (methodBlock) {
+      systemExcelFull += `\n\n${methodBlock}`
     }
 
     const mesoProgrammingBlock = buildMesocycleProgrammingBlock({
@@ -2062,9 +2062,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       } catch {
         /* sin biblioteca */
       }
-      const methodText = sanitizePromptTextForLLM(getMethodText()).trim()
-      if (methodText) {
-        systemFull += `\n\nMÉTODO Y REGLAS PERMANENTES DE EVO (panel «Tu método»):\n${methodText}`
+      const methodBlock = buildMethodPromptAppendix()
+      if (methodBlock) {
+        systemFull += `\n\n${methodBlock}`
       }
       const refDay = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
       if (refDay) {

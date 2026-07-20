@@ -10,6 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:prompts": "vitest run src/constants/systemPromptCore.test.js",
+    "test:method": "vitest run src/utils/methodPrompt.test.js api/method-rule.test.js api/programming-week-briefing.test.js",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
     "db:apply-pe2-structured-auth": "node scripts/apply-migration-pe2-structured-auth.mjs",
@@ -37,6 +39,7 @@
     "tailwindcss": "^3.4.14",
     "vercel": "^50.37.3",
     "vite": "^5.4.10",
-    "vite-plugin-node-polyfills": "^0.28.0"
+    "vite-plugin-node-polyfills": "^0.28.0",
+    "vitest": "^3.2.4"
   }
 }

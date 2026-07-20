@@ -12,35 +12,17 @@ import {
   saveReferenceMesocycleContextRaw,
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { extractDriveFolderId } from '../../utils/driveFolderId.js'
+import {
+  DEFAULT_METHOD,
+  getMethodText,
+  saveMethodText,
+  METHOD_STORAGE_KEY,
+} from '../../utils/methodPrompt.js'
 
 const DRIVE_FOLDER_LS_KEY = 'programingevo_drive_programming_folder_id'
 const COACH_ADMIN_SECRET_SESSION_KEY = 'evo_coach_guide_admin_secret'
 
-const METHOD_KEY = 'programingevo_method'
-
-export const DEFAULT_METHOD = `FILOSOFÍA EVO
-EVO es un centro funcional con formato CrossFit pero con identidad propia. Adulto activo 28-55 años. Abierto a ejercicios nuevos, accesorios y creatividad.
-
-CLASES ACTIVAS
-EvoFuncional: fuerza + habilidad + WOD intenso
-EvoBasics: técnica y progresión, juego siempre en calentamiento
-EvoFit: fuerza moderada, sin técnica compleja, nadie sale destrozado
-EvoHybrix: metabólica por bloques, equipos/parejas, máquinas + cardio
-(EvoFuerza, EvoGimnástica y EvoTodos: solo cuando se especifique en instrucciones)
-
-REGLAS FIJAS
-- No muscle ups, no deficit HSPU, no rope climb, no pegboard
-- No overhead squat como ejercicio principal
-- Thruster máx 1 vez/semana total
-- Mismo squat con barra: máx 1 vez/semana por clase
-- Landmine obligatorio 1 vez/semana en cada clase
-- No mismo ejercicio principal en Funcional y Basics el mismo día
-
-ESTILO DE PROGRAMACIÓN
-- Clases distintas, no versiones escaladas de la misma sesión
-- Feedback al coach: briefing texto corrido (ver prompt Excel), sin apartados formales
-- Timings: NOMBRE DEL BLOQUE (X' - Y') — ver SYSTEM_PROMPT_EXCEL
-- EvoFit: nunca KB Clean, Power Clean, Snatch ni movimientos olímpicos`
+export { DEFAULT_METHOD, getMethodText, saveMethodText }
 
 export const DEFAULT_LEARNED_PLACEHOLDER = `Anota aquí correcciones tras revisar semanas, frases que funcionaron en sala, errores a no repetir, ejemplos reales de cómo explicar un formato, etc.
 
@@ -52,28 +34,6 @@ La IA lo usa como referencia de estilo y ritmo en sala — no para copiar sesion
 
 export function getLearnedRulesText() {
   return getLearnedRulesConcatenated()
-}
-
-/** Texto completo para APIs: método base + reglas aprendidas (si hay). */
-export function getMethodText() {
-  let base
-  try {
-    const saved = localStorage.getItem(METHOD_KEY)
-    base = saved || DEFAULT_METHOD
-  } catch {
-    base = DEFAULT_METHOD
-  }
-  const learned = getLearnedRulesConcatenated().trim()
-  if (!learned) return base
-  return `${base}\n\n════════════════════════════════════════\nREGLAS APRENDIDAS\n════════════════════════════════════════\n\n${learned}`
-}
-
-export function saveMethodText(baseText) {
-  try {
-    localStorage.setItem(METHOD_KEY, baseText)
-  } catch {
-    // ignore
-  }
 }
 
 /** Sustituye solo el bloque manual; preserva entradas automáticas. */
@@ -107,7 +67,7 @@ export default function MethodPanel({ onClose }) {
 
   useEffect(() => {
     try {
-      const b = localStorage.getItem(METHOD_KEY)
+      const b = localStorage.getItem(METHOD_STORAGE_KEY)
       setBaseText(b || DEFAULT_METHOD)
     } catch {
       setBaseText(DEFAULT_METHOD)

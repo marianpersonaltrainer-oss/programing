@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import { loadLegacyMethodRulesForBriefing } from './lib/legacyMethodRulesBriefing.js'
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
@@ -336,17 +337,8 @@ async function fetchContextPack(supabase, mesocicloRaw) {
     else handoffs = data || []
   }
 
-  let rules = []
-  {
-    const { data, error: rErr } = await supabase
-      .from('method_rules')
-      .select('rule_type, trigger_context, rule_text, confidence')
-      .eq('active', true)
-      .order('confidence', { ascending: false })
-      .limit(30)
-    if (rErr) logOptionalTableSkip('method_rules', rErr)
-    else rules = data || []
-  }
+  let rules = null
+  rules = await loadLegacyMethodRulesForBriefing(supabase, logOptionalTableSkip)
 
   const mesoLabel = mesociclo ? `mesociclo «${mesociclo}»` : 'todos los mesociclos (ventana corta)'
   const blocks = [
@@ -361,13 +353,18 @@ async function fetchContextPack(supabase, mesocicloRaw) {
     '',
     '## Pases de turno diarios (últimos ~7 días)',
     formatHandoffs(handoffs || []),
-    '',
-    '## Reglas del método (activas)',
-    formatMethodRules(rules || []),
+  ]
+
+  // Reglas method_rules legacy: excluidas por defecto (METHOD_RULE_LEGACY_READ_ENABLED=true para reactivar).
+  if (rules !== null) {
+    blocks.push('', '## Reglas del método (activas)', formatMethodRules(rules || []))
+  }
+
+  blocks.push(
     '',
     `## Feedback por sesión de coaches (vinculado a las semanas publicadas arriba, mismo ${mesoLabel})`,
     formatSessionFeedback(sessionRows),
-  ]
+  )
 
   return blocks.join('\n')
 }

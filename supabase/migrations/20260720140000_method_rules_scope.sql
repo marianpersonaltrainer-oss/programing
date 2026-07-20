@@ -83,6 +83,48 @@ alter table public.method_rules add column if not exists change_reason text;
 alter table public.method_rules add column if not exists created_by uuid references auth.users(id);
 alter table public.method_rules add column if not exists metadata jsonb not null default '{}'::jsonb;
 
+-- ── Integridad de reglas estructuradas ───────────────────────────────────────
+
+alter table public.method_rules drop constraint if exists method_rules_active_complete_check;
+alter table public.method_rules add constraint method_rules_active_complete_check
+  check (
+    rule_status <> 'active'
+    or (
+      rule_key is not null
+      and btrim(rule_key) <> ''
+      and rule_validity is not null
+      and rule_strength is not null
+      and rule_origin is not null
+    )
+  );
+
+alter table public.method_rules drop constraint if exists method_rules_valid_dates_check;
+alter table public.method_rules add constraint method_rules_valid_dates_check
+  check (valid_from is null or valid_to is null or valid_from <= valid_to);
+
+alter table public.method_rules drop constraint if exists method_rules_temporary_window_check;
+alter table public.method_rules add constraint method_rules_temporary_window_check
+  check (rule_validity <> 'temporary' or valid_from is not null or valid_to is not null);
+
+alter table public.method_rules drop constraint if exists method_rules_weekly_scope_check;
+alter table public.method_rules add constraint method_rules_weekly_scope_check
+  check (
+    rule_validity <> 'weekly_exception'
+    or week_number is not null
+    or (valid_from is not null and valid_to is not null)
+  );
+
+alter table public.method_rules drop constraint if exists method_rules_week_number_check;
+alter table public.method_rules add constraint method_rules_week_number_check
+  check (week_number is null or week_number > 0);
+
+alter table public.method_rules drop constraint if exists method_rules_day_of_week_check;
+alter table public.method_rules add constraint method_rules_day_of_week_check
+  check (
+    day_of_week is null
+    or day_of_week <@ array[1, 2, 3, 4, 5, 6, 7]::smallint[]
+  );
+
 -- ── Índices para el compilador ───────────────────────────────────────────────
 
 create index if not exists idx_method_rules_compiler

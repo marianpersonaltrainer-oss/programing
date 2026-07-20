@@ -3,15 +3,6 @@
  * No registra rule_text completo ni bloques del Método Evolution.
  */
 
-const MAX_PREVIEW = 48
-
-function preview(text) {
-  const s = String(text || '').trim()
-  if (!s) return ''
-  if (s.length <= MAX_PREVIEW) return s
-  return `${s.slice(0, MAX_PREVIEW)}…`
-}
-
 /**
  * @param {object} compileResult — salida de compileMethodRules
  * @param {object} ctx — contexto de compilación (sin datos sensibles extra)
@@ -33,7 +24,6 @@ export function buildShadowCompilerLog(compileResult, ctx = {}) {
       strength: rule.rule_strength || null,
       validity: rule.rule_validity || null,
       version: rule.version ?? 1,
-      textPreview: preview(rule.rule_text),
     })),
     conflicts: (r.conflicts || []).map((c) => ({
       ruleKey: c.ruleKey,

@@ -84,31 +84,21 @@ function contextDayOfWeek(ctx) {
   return js === 0 ? 7 : js
 }
 
-function isSupersededTarget(rule, allRules) {
-  const id = rule.id
-  return allRules.some(
-    (r) =>
-      r.rule_status === 'active' &&
-      r.supersedes_id != null &&
-      String(r.supersedes_id) === String(id),
-  )
-}
-
 function matchesOrg(rule, ctx) {
   if (!rule.org_id) return true
-  if (!ctx.orgId) return true
+  if (!ctx.orgId) return false
   return String(rule.org_id) === String(ctx.orgId)
 }
 
 function matchesSeason(rule, ctx) {
   if (!rule.season_key) return true
-  if (!ctx.seasonKey) return true
+  if (!ctx.seasonKey) return false
   return norm(rule.season_key) === norm(ctx.seasonKey)
 }
 
 function matchesMesocycle(rule, ctx) {
   if (!rule.mesocycle_key) return true
-  if (!ctx.mesocycleKey) return true
+  if (!ctx.mesocycleKey) return false
   return norm(rule.mesocycle_key) === norm(ctx.mesocycleKey)
 }
 
@@ -161,6 +151,11 @@ function matchesValidityWindow(rule, ctx) {
   }
 
   if (validity === 'weekly_exception') {
+    const from = rule.valid_from ? parseIsoDate(rule.valid_from) : null
+    const to = rule.valid_to ? parseIsoDate(rule.valid_to) : null
+    if ((from || to) && !ctxDate) return false
+    if (from && ctxDate < from) return false
+    if (to && ctxDate > to) return false
     if (!matchesWeek(rule, ctx)) return false
     if (Array.isArray(rule.day_of_week) && rule.day_of_week.length && Number.isFinite(dow)) {
       return rule.day_of_week.includes(dow)
@@ -171,13 +166,12 @@ function matchesValidityWindow(rule, ctx) {
   return true
 }
 
-/** Regla activa elegible para el contexto (pre-agrupación). */
-export function isRuleEligible(rule, ctx, allRules = []) {
+/** Regla activa que coincide con el contexto, sin resolver supersesión. */
+function isRuleBaseEligible(rule, ctx) {
   if (!rule || typeof rule !== 'object') return false
   if (rule.rule_status !== 'active') return false
   if (COMPILER_EXCLUDED_STATUSES.includes(rule.rule_status)) return false
   if (!rule.rule_key) return false
-  if (isSupersededTarget(rule, allRules)) return false
 
   if (!matchesOrg(rule, ctx)) return false
   if (!matchesSeason(rule, ctx)) return false
@@ -192,6 +186,20 @@ export function isRuleEligible(rule, ctx, allRules = []) {
   return true
 }
 
+function isSupersededTarget(rule, eligibleRules) {
+  const id = rule.id
+  return eligibleRules.some(
+    (r) => r.supersedes_id != null && String(r.supersedes_id) === String(id),
+  )
+}
+
+/** Regla activa elegible para el contexto (incluye supersesión vigente). */
+export function isRuleEligible(rule, ctx, allRules = []) {
+  if (!isRuleBaseEligible(rule, ctx)) return false
+  const eligibleRules = allRules.filter((candidate) => isRuleBaseEligible(candidate, ctx))
+  return !isSupersededTarget(rule, eligibleRules)
+}
+
 function validityTier(rule) {
   const v = rule.rule_validity || 'permanent'
   if (v === 'weekly_exception') return 3
@@ -201,13 +209,13 @@ function validityTier(rule) {
 
 function specificityScore(rule, ctx) {
   let score = 0
-  if (rule.time_slot) score += 64
-  if (rule.room_key) score += 32
-  if (Array.isArray(rule.class_types) && rule.class_types.length) score += 16
-  if (Array.isArray(rule.day_of_week) && rule.day_of_week.length) score += 8
-  if (rule.week_number != null) score += 4
-  if (rule.mesocycle_key) score += 2
-  if (rule.season_key) score += 1
+  if (rule.time_slot) score += 128
+  if (rule.room_key) score += 64
+  if (Array.isArray(rule.class_types) && rule.class_types.length) score += 32
+  if (Array.isArray(rule.day_of_week) && rule.day_of_week.length) score += 16
+  if (rule.week_number != null) score += 8
+  if (rule.mesocycle_key) score += 4
+  if (rule.season_key) score += 2
   if (rule.org_id) score += 1
   void ctx
   return score
@@ -248,18 +256,16 @@ function strengthsIncompatible(a, b) {
   )
 }
 
-function scopesCompatibleForConflict(a, b) {
-  if (norm(a.rule_key) !== norm(b.rule_key)) return false
-  return specificityScore(a, {}) === specificityScore(b, {}) || true
-}
-
 /**
  * @param {MethodRuleRow[]} rules
  * @param {CompileContext} ctx
  */
 export function compileMethodRules(rules, ctx) {
   const input = Array.isArray(rules) ? rules : []
-  const eligible = input.filter((r) => isRuleEligible(r, ctx, input))
+  const eligibleBeforeSupersession = input.filter((r) => isRuleBaseEligible(r, ctx))
+  const eligible = eligibleBeforeSupersession.filter(
+    (rule) => !isSupersededTarget(rule, eligibleBeforeSupersession),
+  )
 
   /** @type {Map<string, MethodRuleRow[]>} */
   const byKey = new Map()
@@ -291,7 +297,12 @@ export function compileMethodRules(rules, ctx) {
     const top = sorted[0]
     const second = sorted[1]
 
-    if (second && specificityScore(top, ctx) === specificityScore(second, ctx) && strengthsIncompatible(top, second)) {
+    if (
+      second &&
+      validityTier(top) === validityTier(second) &&
+      specificityScore(top, ctx) === specificityScore(second, ctx) &&
+      strengthsIncompatible(top, second)
+    ) {
       conflicts.push({
         ruleKey,
         ruleIds: [top.id, second.id],

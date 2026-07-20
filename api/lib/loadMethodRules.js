@@ -63,6 +63,10 @@ export async function loadMethodRules(opts = {}) {
 
   if (orgId) {
     query = query.or(`org_id.eq.${orgId},org_id.is.null`)
+  } else {
+    // Sin organización resuelta solo son elegibles reglas globales. Nunca cargar
+    // silenciosamente reglas de todos los centros.
+    query = query.is('org_id', null)
   }
 
   const { data, error } = await query

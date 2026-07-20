@@ -25,12 +25,16 @@ Módulo interno de servidor. **No hay endpoint público** `GET/POST /api/context
 ## Orden de prioridad (con ejemplos)
 
 1. **Elegibilidad:** solo `rule_status = active` con `rule_key` definido.
-2. **Exclusiones:** legacy_unreviewed, pending_review, rejected, archived, superseded; reglas con otra fila `supersedes_id` apuntando a ellas.
+2. **Exclusiones:** legacy_unreviewed, pending_review, rejected, archived y superseded. Una regla solo sustituye mediante `supersedes_id` mientras la nueva regla también sea elegible para el contexto y esté vigente.
 3. **Agrupación:** por `rule_key` (no por `rule_type` ni texto libre).
 4. **Vigencia:** `weekly_exception` > `temporary` (en rango) > `permanent`.
 5. **Especificidad:** franja > sala > clase > día > semana > mesociclo > temporada > org.
 6. **Fuerza:** prohibited (4) > required (3) > avoid (2) > preferred (1).
 7. **Conflicto:** mismo `rule_key`, misma especificidad, fuerzas incompatibles (required↔prohibited, required↔avoid) → ninguna entra al prompt.
+
+Si falta `org`, temporada o mesociclo en el contexto, las reglas acotadas a ese
+campo se excluyen de forma segura. Una regla temporal o semanal con fechas tampoco
+se aplica si la fecha objetivo no está disponible.
 
 ### Ejemplo A — preferencia vs prohibición
 
@@ -62,8 +66,8 @@ CONTEXT_COMPILER_SHADOW_MODE=true
 ```
 
 - No altera `contextPack` ni respuesta HTTP.
-- Logs: ids, rule_key, métricas, previews ≤48 chars.
-- No escribe textos completos del método.
+- Logs: ids, `rule_key` y métricas; no incluyen previews del texto.
+- No escribe textos completos ni parciales del método.
 
 ## Reglas legacy (53 filas)
 

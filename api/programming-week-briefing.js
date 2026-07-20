@@ -383,7 +383,7 @@ async function fetchContextPack(supabase, mesocicloRaw) {
  * Modo sombra: compila reglas sin alterar contextPack ni respuesta a Marian.
  * Activado solo con CONTEXT_COMPILER_SHADOW_MODE (variable de servidor).
  */
-async function runShadowCompilerIfEnabled({ mesociclo, semana, phase }) {
+async function runShadowCompilerIfEnabled({ mesociclo, semana, phase, targetDate }) {
   if (!isShadowCompilerEnabled()) return
 
   const orgId = resolveDefaultOrgId()
@@ -393,7 +393,9 @@ async function runShadowCompilerIfEnabled({ mesociclo, semana, phase }) {
     mesocycleKey: mesociclo || null,
     weekNumber: Number.isFinite(Number(semana)) ? Number(semana) : null,
     phase: phase || null,
-    date: new Date().toISOString().slice(0, 10),
+    // No usar la fecha de ejecución como si fuera la fecha de la semana objetivo.
+    // Hasta que la UI envíe targetDate, las reglas temporales por fecha quedan fuera.
+    date: targetDate || null,
   }
 
   try {
@@ -446,6 +448,9 @@ export default async function handler(req, res) {
   const mesociclo = String(body.mesociclo || '').trim()
   const semana = Number(body.semana)
   const phase = String(body.phase || '').trim()
+  const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.targetDate || ''))
+    ? String(body.targetDate)
+    : null
   const twRaw = body.totalWeeks
   const totalWeeks = twRaw == null || twRaw === '' ? NaN : Number(twRaw)
 
@@ -468,7 +473,7 @@ export default async function handler(req, res) {
       const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
       contextPack = await fetchContextPack(supabase, mesociclo)
 
-      await runShadowCompilerIfEnabled({ mesociclo, semana, phase })
+      await runShadowCompilerIfEnabled({ mesociclo, semana, phase, targetDate })
 
       const tail = [
         '',

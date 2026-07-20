@@ -94,6 +94,20 @@ describe('contextCompiler', () => {
     expect(hit.applicableRules).toHaveLength(1)
   })
 
+  it('una regla de organización no aplica si el contexto no identifica organización', () => {
+    const rules = [rule({ id: 2, rule_key: 'room_capacity' })]
+    const result = compileMethodRules(rules, { ...baseCtx, orgId: null })
+    expect(result.applicableRules).toHaveLength(0)
+  })
+
+  it('reglas de temporada y mesociclo no aplican si ese alcance falta en el contexto', () => {
+    const seasonRule = rule({ id: 3, rule_key: 'summer_schedule', season_key: '2026-verano' })
+    const mesocycleRule = rule({ id: 4, rule_key: 'effective_duration', mesocycle_key: 'fuerza' })
+
+    expect(compileMethodRules([seasonRule], { ...baseCtx, seasonKey: null }).applicableRules).toHaveLength(0)
+    expect(compileMethodRules([mesocycleRule], { ...baseCtx, mesocycleKey: null }).applicableRules).toHaveLength(0)
+  })
+
   it('legacy_unreviewed nunca se aplica', () => {
     const rules = [
       rule({
@@ -189,6 +203,69 @@ describe('contextCompiler', () => {
     expect(result.applicableRules.map((r) => r.id)).toEqual([31])
   })
 
+  it('una regla temporal caducada no desactiva la regla permanente que sustituía', () => {
+    const rules = [
+      rule({
+        id: 32,
+        rule_key: 'effective_duration',
+        version: 1,
+        rule_text: '30 minutos.',
+      }),
+      rule({
+        id: 33,
+        rule_key: 'effective_duration',
+        version: 2,
+        supersedes_id: 32,
+        rule_text: '32 minutos solo en agosto.',
+        rule_validity: 'temporary',
+        valid_from: '2026-08-01',
+        valid_to: '2026-08-31',
+      }),
+    ]
+    const result = compileMethodRules(rules, baseCtx)
+    expect(result.applicableRules.map((r) => r.id)).toEqual([32])
+  })
+
+  it('una excepción temporal vigente prevalece sobre la permanente sin generar conflicto', () => {
+    const rules = [
+      rule({
+        id: 34,
+        rule_key: 'landmine_frequency',
+        rule_strength: 'required',
+        rule_text: 'Incluir landmine.',
+      }),
+      rule({
+        id: 35,
+        rule_key: 'landmine_frequency',
+        rule_validity: 'temporary',
+        rule_strength: 'prohibited',
+        valid_from: '2026-07-01',
+        valid_to: '2026-07-31',
+        rule_text: 'No incluir landmine esta semana.',
+      }),
+    ]
+    const result = compileMethodRules(rules, baseCtx)
+    expect(result.conflicts).toHaveLength(0)
+    expect(result.applicableRules.map((r) => r.id)).toEqual([35])
+  })
+
+  it('una excepción semanal acotada por fechas no se aplica fuera de su semana', () => {
+    const rules = [
+      rule({
+        id: 36,
+        rule_key: 'summer_schedule',
+        rule_validity: 'weekly_exception',
+        week_number: null,
+        valid_from: '2026-07-20',
+        valid_to: '2026-07-26',
+      }),
+    ]
+
+    expect(compileMethodRules(rules, { ...baseCtx, date: '2026-07-22' }).applicableRules).toHaveLength(1)
+    expect(compileMethodRules(rules, { ...baseCtx, date: '2026-07-29' }).applicableRules).toHaveLength(0)
+    expect(compileMethodRules(rules, { ...baseCtx, date: null }).applicableRules).toHaveLength(0)
+  })
+
   it('dos reglas format distinto rule_key no generan conflicto', () => {
     const rules = [
       rule({
@@ -254,7 +331,7 @@ describe('shadowCompilerLog', () => {
     const log = buildShadowCompilerLog(compileResult, baseCtx)
     const serialized = JSON.stringify(log)
     expect(serialized).not.toContain(longText)
-    expect(log.applicable[0].textPreview.length).toBeLessThanOrEqual(49)
+    expect(log.applicable[0]).not.toHaveProperty('textPreview')
     expect(log.compactPromptCharCount).toBeGreaterThan(0)
     expect(serialized).not.toContain('REGLAS MÉTODO')
   })

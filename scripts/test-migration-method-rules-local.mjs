@@ -353,7 +353,7 @@ async function main() {
     const row = await queryOne(
       db,
       `SELECT public.pe2_review_method_rule_group($1::jsonb) AS result`,
-      [JSON.stringify({ orgId, reviewerId, ...payload })],
+      [JSON.stringify({ orgId, reviewerId, allowUnscoped: true, ...payload })],
     )
     return row.result
   }
@@ -482,7 +482,51 @@ async function main() {
   )
   assert(untouched.rule_status === 'legacy_unreviewed', 'El fallo atómico modificó una fuente válida')
   assert(untouched.active === true, 'El fallo atómico cambió el boolean legacy')
-  console.log('✓ 9. Centro: pending sin activación, aprobación/rechazo explícitos y rollback atómico')
+
+  const permissions = await queryOne(
+    db,
+    `SELECT
+       has_function_privilege('service_role', 'public.pe2_review_method_rule_group(jsonb)', 'EXECUTE') AS service_ok,
+       has_function_privilege('authenticated', 'public.pe2_review_method_rule_group(jsonb)', 'EXECUTE') AS auth_ok,
+       has_function_privilege('anon', 'public.pe2_review_method_rule_group(jsonb)', 'EXECUTE') AS anon_ok`,
+  )
+  assert(permissions.service_ok === true, 'service_role debe poder ejecutar la función')
+  assert(permissions.auth_ok === false, 'authenticated no debe ejecutar la función directamente')
+  assert(permissions.anon_ok === false, 'anon no debe ejecutar la función')
+
+  const secondOrgId = '33333333-3333-4333-8333-333333333333'
+  const secondReviewerId = '44444444-4444-4444-8444-444444444444'
+  await db.query(`INSERT INTO public.organizations (id) VALUES ($1)`, [secondOrgId])
+  await db.query(`INSERT INTO auth.users (id) VALUES ($1)`, [secondReviewerId])
+  await db.query(
+    `INSERT INTO public.profiles (id, role, org_id) VALUES ($1, 'programmer', $2)`,
+    [secondReviewerId, secondOrgId],
+  )
+  let crossOrgBlocked = false
+  try {
+    await queryOne(
+      db,
+      `SELECT public.pe2_review_method_rule_group($1::jsonb) AS result`,
+      [JSON.stringify({
+        action: 'reject',
+        orgId: secondOrgId,
+        reviewerId: secondReviewerId,
+        allowUnscoped: false,
+        sourceIds: [6],
+        changeReason: 'intento_otra_org',
+      })],
+    )
+  } catch {
+    crossOrgBlocked = true
+  }
+  assert(crossOrgBlocked, 'Otra organización no debe reclamar legacy sin org_id')
+  const crossOrgUntouched = await queryOne(
+    db,
+    `SELECT rule_status, org_id FROM public.method_rules WHERE id = 6`,
+  )
+  assert(crossOrgUntouched.rule_status === 'legacy_unreviewed', 'Intento cross-org cambió el estado')
+  assert(crossOrgUntouched.org_id == null, 'Intento cross-org reclamó la regla')
+  console.log('✓ 9. Centro: atomicidad, permisos y aislamiento entre organizaciones')
 
   console.log('\n═══════════════════════════════════════════════════════════')
   console.log('RESULTADO: migración verificada OK en PGLite (entorno local)')

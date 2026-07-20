@@ -15,6 +15,7 @@ declare
   v_action text := coalesce(payload ->> 'action', '');
   v_org_id uuid := nullif(payload ->> 'orgId', '')::uuid;
   v_reviewer_id uuid := nullif(payload ->> 'reviewerId', '')::uuid;
+  v_allow_unscoped boolean := coalesce((payload ->> 'allowUnscoped')::boolean, false);
   v_source_ids bigint[] := coalesce(
     array(select value::bigint from jsonb_array_elements_text(coalesce(payload -> 'sourceIds', '[]'::jsonb))),
     '{}'::bigint[]
@@ -84,7 +85,7 @@ begin
     into v_source_count
   from public.method_rules
   where id = any(v_source_ids)
-    and (org_id is null or org_id = v_org_id)
+    and (org_id = v_org_id or (org_id is null and v_allow_unscoped))
     and coalesce(rule_status, 'legacy_unreviewed') in ('legacy_unreviewed', 'pending_review');
 
   if v_source_count <> cardinality(v_source_ids) then

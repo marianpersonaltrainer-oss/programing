@@ -153,10 +153,12 @@ export default async function handler(req, res) {
   }
 
   const command = validation.value
+  const allowUnscoped = await canReviewUnscopedRules(service, caller.orgId)
   const payload = {
     action: command.action,
     orgId: caller.orgId,
     reviewerId: caller.userId,
+    allowUnscoped,
     sourceIds: command.sourceIds,
     canonicalId: command.canonicalId,
     ruleKey: command.ruleKey || null,

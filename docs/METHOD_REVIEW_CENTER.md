@@ -29,6 +29,9 @@ deterministas, por lo que no añade coste de tokens.
 - El navegador nunca recibe `SUPABASE_SERVICE_ROLE_KEY`.
 - La función `pe2_review_method_rule_group(jsonb)` solo concede ejecución a
   `service_role` y vuelve a validar perfil, rol y organización.
+- Las reglas legacy sin organización solo pueden reclamarse cuando la API ha
+  comprobado que EVO es la única organización o coincide con
+  `EVO_DEFAULT_ORG_ID`; una segunda organización no puede adivinar sus ids.
 - Máximo 100 fuentes por operación y solo estados `legacy_unreviewed` o
   `pending_review`.
 - Una operación con una fuente inexistente, ajena o ya resuelta aborta completa.

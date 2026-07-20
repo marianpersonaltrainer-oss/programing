@@ -11,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:compiler": "vitest run api/lib/contextCompiler.test.js",
+    "test:migration:rules": "node scripts/test-migration-method-rules-local.mjs",
     "inventory:rules": "node scripts/inventory-method-rules.mjs",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
@@ -32,6 +33,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "pg": "^8.14.1",

@@ -99,6 +99,17 @@ Procedimiento de clasificación (humano, post-migración):
 3. Código anterior sigue usando columnas legacy (`active`, `source`).
 4. Migración aditiva: columnas nullable ignorables.
 
+## Prueba local de migración (PGLite)
+
+```bash
+npm run test:migration:rules
+```
+
+- Entorno **in-memory** con `@electric-sql/pglite`; sin credenciales ni red.
+- Valida esquema, backfill `legacy_unreviewed` (53 filas simuladas), `pending_review`,
+  rechazo de inserts inválidos y exclusión en el Context Compiler.
+- **No valida RLS** (políticas `service_role`/`authenticated` requieren Supabase real).
+
 ## RLS (preparado, no aplicado en Sprint 1)
 
 Sprint posterior: reemplazar `method_rules_select_auth_service` por filtro `org_id = pe2_my_org()` y denegar `anon`.

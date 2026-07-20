@@ -11,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:compiler": "vitest run api/lib/contextCompiler.test.js",
+    "test:method-review": "vitest run api/lib/methodRuleReview.test.js",
     "test:migration:rules": "node scripts/test-migration-method-rules-local.mjs",
     "inventory:rules": "node scripts/inventory-method-rules.mjs",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",

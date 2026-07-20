@@ -18,6 +18,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
+import { compileMethodRules, compileMethodRulesDegraded } from './lib/contextCompiler.js'
+import { loadMethodRules, resolveDefaultOrgId } from './lib/loadMethodRules.js'
+import {
+  buildShadowCompilerLog,
+  isShadowCompilerEnabled,
+  logShadowCompilerComparison,
+} from './lib/shadowCompilerLog.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
@@ -372,6 +379,38 @@ async function fetchContextPack(supabase, mesocicloRaw) {
   return blocks.join('\n')
 }
 
+/**
+ * Modo sombra: compila reglas sin alterar contextPack ni respuesta a Marian.
+ * Activado solo con CONTEXT_COMPILER_SHADOW_MODE (variable de servidor).
+ */
+async function runShadowCompilerIfEnabled({ mesociclo, semana, phase }) {
+  if (!isShadowCompilerEnabled()) return
+
+  const orgId = resolveDefaultOrgId()
+  const ctx = {
+    task: 'briefing',
+    orgId,
+    mesocycleKey: mesociclo || null,
+    weekNumber: Number.isFinite(Number(semana)) ? Number(semana) : null,
+    phase: phase || null,
+    date: new Date().toISOString().slice(0, 10),
+  }
+
+  try {
+    const { rules, error } = await loadMethodRules({ orgId, limit: 500 })
+    if (error) {
+      const degraded = compileMethodRulesDegraded(error)
+      logShadowCompilerComparison(buildShadowCompilerLog(degraded, ctx))
+      return
+    }
+    const result = compileMethodRules(rules, ctx)
+    logShadowCompilerComparison(buildShadowCompilerLog(result, ctx))
+  } catch (e) {
+    const degraded = compileMethodRulesDegraded(e)
+    logShadowCompilerComparison(buildShadowCompilerLog(degraded, ctx))
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
@@ -428,6 +467,8 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
       contextPack = await fetchContextPack(supabase, mesociclo)
+
+      await runShadowCompilerIfEnabled({ mesociclo, semana, phase })
 
       const tail = [
         '',

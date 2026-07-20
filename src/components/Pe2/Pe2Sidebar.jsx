@@ -4,6 +4,7 @@ import { evoBrand } from '../../constants/evoBrand.js'
 const NAV_ITEMS = [
   { id: 'home', label: 'Inicio' },
   { id: 'week', label: 'Semana' },
+  { id: 'method', label: 'Tu método' },
 ]
 
 export default function Pe2Sidebar({ activeView, onNavigate, profile, onSignOut }) {

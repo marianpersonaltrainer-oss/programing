@@ -41,6 +41,9 @@ export const KNOWN_RULE_KEYS = Object.freeze([
   'basics_skill_progression',
   'room_capacity',
   'summer_schedule',
+  'muscle_pattern_rotation',
+  'cross_class_harmony',
+  'exercise_variety',
 ])
 
 /** Orden de fuerza: mayor número gana en empate de especificidad. */

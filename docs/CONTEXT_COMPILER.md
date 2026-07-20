@@ -113,3 +113,9 @@ npm run test:migration:rules
 ## RLS (preparado, no aplicado en Sprint 1)
 
 Sprint posterior: reemplazar `method_rules_select_auth_service` por filtro `org_id = pe2_my_org()` y denegar `anon`.
+
+## Continuación Sprint 2
+
+El flujo de revisión por temas, aprobación explícita y operación atómica está
+documentado en `docs/METHOD_REVIEW_CENTER.md`. Su migración también permanece sin
+aplicar hasta disponer de un entorno autorizado.

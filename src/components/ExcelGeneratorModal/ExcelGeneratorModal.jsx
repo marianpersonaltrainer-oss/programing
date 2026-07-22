@@ -57,6 +57,7 @@ import {
   buildReferenceMesocycleSystemAppendix,
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+import { EVO_WEEK_RESPONSE_FORMAT } from '../../constants/evoWeekOutputSchema.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { buildExcelDayContextSynthesis, excelCanonDayToTargetDay } from '../../utils/buildExcelDayContextSynthesis.js'
 import {
@@ -1060,6 +1061,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const maxTokens =
       apiOpts.maxTokens ??
       Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL)
+    let retryingMalformedOutput = false
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       // Tras error de red, apretar más el prompt (evita repetir el fallo por petición gigante).
@@ -1067,13 +1069,23 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         attempt === 0 ? generationCallIndex : Math.max(generationCallIndex, attempt)
       const body = {
         model,
-        max_tokens: maxTokens,
+        // Si una salida estructurada se corta por tokens, Anthropic recomienda
+        // reintentar con un techo mayor. El coste solo aumenta si se usa.
+        max_tokens: Math.min(8000, maxTokens + attempt * 500),
         system: buildExcelSystemForGenerationCall(systemFull, effectiveGenIdx, attempt),
         weekContext: trimWeekContextForAnthropicRetry(
           buildWeekContextForGenerationCall(weekContext, effectiveGenIdx),
           attempt,
         ),
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [
+          {
+            role: 'user',
+            content: retryingMalformedOutput
+              ? `${userMessage}\n\nREINTENTO TÉCNICO: devuelve únicamente el objeto solicitado. No incluyas razonamiento, introducciones, comentarios ni texto fuera de los campos JSON.`
+              : userMessage,
+          },
+        ],
+        responseFormat: EVO_WEEK_RESPONSE_FORMAT,
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
 
@@ -1161,12 +1173,32 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         const apiMsg = getAnthropicProxyErrorMessage(err, responseText, response.status)
         throw new Error(apiMsg || `Error ${response.status}`)
       }
+
+      if (data?.stop_reason === 'max_tokens') {
+        if (attempt < retries) {
+          retryingMalformedOutput = true
+          setGenStep('La respuesta se quedó incompleta — reintentando con más espacio…')
+          await new Promise((r) => setTimeout(r, 1200))
+          continue
+        }
+        throw new Error('La IA no pudo completar el día dentro del límite de respuesta.')
+      }
+      if (data?.stop_reason === 'refusal') {
+        throw new Error('La IA rechazó esta petición de generación. Revisa el contexto añadido y vuelve a intentarlo.')
+      }
+
       const text = extractAnthropicTextBlocks(data)
       try {
         return parseAssistantWeekJson(text)
       } catch (e) {
+        if (attempt < retries) {
+          retryingMalformedOutput = true
+          setGenStep('La IA devolvió un formato incompleto — reparando y reintentando…')
+          await new Promise((r) => setTimeout(r, 1200))
+          continue
+        }
         throw new Error(
-          `${e.message} — Si se repite, reduce el texto del DOCX/contexto o vuelve a generar; el modelo a veces rompe el JSON con comas o caracteres raros.`,
+          `No se pudo recuperar el formato de la respuesta tras varios intentos: ${e.message}`,
         )
       }
     }
@@ -1225,6 +1257,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     let generationLibraryBlock = ''
     let synthesisLibraryRows = []
+    let generationCheckpoint = null
     try {
       synthesisLibraryRows = await getCoachExerciseLibrary()
       const autoMap = await fetchLibraryAutoVideoMap(synthesisLibraryRows, { maxResolve: 12 })
@@ -1412,6 +1445,22 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
+
+      function rememberGenerationProgress() {
+        const snapshot = JSON.parse(JSON.stringify(acc))
+        generationCheckpoint = attachEvoMethodMetadata(
+          {
+            ...snapshot,
+            titulo:
+              snapshot.titulo?.trim() ||
+              `S${weekState.week} – MESOCICLO ${(weekState.mesocycle || '').toUpperCase()}`,
+            semana: weekState.week,
+            mesociclo: weekState.mesocycle,
+            oferta_semanal: serializeWeeklyOfferSelection(dayClassPicker),
+          },
+          { previousWeeks: synthesisPreviousWeeks },
+        )
+      }
       const daysPreserved = new Set(textPreservedDays)
       if (Array.isArray(overlay?.dias)) {
         for (const day of EXCEL_DAY_ORDER) {
@@ -1458,7 +1507,7 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
           : '\n\n(Mismas reglas de calidad y anti-repetición que en la primera petición de esta generación; no repitas lift/formato/WOD entre días.)'
         const core = `${baseContext}\n\n${planSummary}${heavyRules}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
 
-Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orden LUNES, MARTES, MIÉRCOLES, JUEVES, VIERNES, SÁBADO; cada uno con "nombre" en MAYÚSCULAS).
+Devuelve JSON con titulo, semana, mesociclo, resumen y dias. Como esta petición genera un solo día, el array dias debe contener EXACTAMENTE 1 objeto para ${list}, con "nombre" en MAYÚSCULAS.
 
 Antes de redactar, haz internamente una mini-matriz de semana (no la imprimas) con: patrón dominante del día, formato de fuerza, formato WOD, complejidad logística/material. Úsala para evitar repetición entre días consecutivos.
 
@@ -1540,6 +1589,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           })
           generationApiCallIndex += 1
           mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
+          rememberGenerationProgress()
           const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
           if (ji >= 0 && chunk.has('JUEVES')) {
             const jf = String(acc.dias[ji]?.evofuncional ?? '')
@@ -1603,6 +1653,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           })
           generationApiCallIndex += 1
           mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+          rememberGenerationProgress()
         }
       }
 
@@ -1685,6 +1736,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           })
           generationApiCallIndex += 1
           mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+          rememberGenerationProgress()
         }
 
         const qualityAfterPass = summarizeWeekQuality(
@@ -1738,9 +1790,29 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       // PASO 2 — Scoring automático tras generar (sin intervención de la usuaria).
       runScoring(combined)
     } catch (err) {
-      setErrorMsg(humanizeNetworkLikeError(err, 'No se pudo generar la semana.'))
       setGenStep('')
-      setStatus('error')
+      if (generationCheckpoint && weekHasMeaningfulSessionContent(generationCheckpoint)) {
+        const completedDays = (generationCheckpoint.dias || []).filter((dia) =>
+          EVO_SESSION_CLASS_DEFS.some(({ key }) => {
+            const text = String(dia?.[key] || '').trim()
+            return text && !/no programada esta semana/i.test(text) && !/^FESTIVO\b/i.test(text)
+          }),
+        ).length
+        setWeekData(generationCheckpoint)
+        setRawJson(JSON.stringify(generationCheckpoint, null, 2))
+        setEditTitle(generationCheckpoint.titulo || '')
+        setEditSheetName(`S${weekState.week || 1}`)
+        lastPersistedDraftRef.current = JSON.stringify(generationCheckpoint)
+        saveWeekToHistory(weekState.mesocycle, weekState.week, generationCheckpoint)
+        setHistory(getHistoryForMesocycle(weekState.mesocycle))
+        setErrorMsg(
+          `${humanizeNetworkLikeError(err, 'La generación se interrumpió.')} Se han conservado ${completedDays} ${completedDays === 1 ? 'día ya creado' : 'días ya creados'}; pulsa «Elegir días / continuar» para completar solo lo pendiente.`,
+        )
+        setStatus('previewing')
+      } else {
+        setErrorMsg(humanizeNetworkLikeError(err, 'No se pudo generar la semana.'))
+        setStatus('error')
+      }
     }
   }
 

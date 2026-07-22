@@ -15,6 +15,10 @@
 
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import { resolveProgrammingModel } from '../src/constants/anthropicModels.js'
+import {
+  EVO_WEEK_OUTPUT_SCHEMA,
+  EVO_WEEK_RESPONSE_FORMAT,
+} from '../src/constants/evoWeekOutputSchema.js'
 
 export const config = {
   api: {
@@ -239,7 +243,7 @@ export default async function handler(req, res) {
     })
   }
 
-  const { model, max_tokens, system, weekContext, messages, supportMode } = body
+  const { model, max_tokens, system, weekContext, messages, supportMode, responseFormat } = body
   const resolvedModel = resolveProgrammingModel(model)
   const ip = getClientIp(req)
   const endpoint = supportMode ? '/api/anthropic:support' : '/api/anthropic'
@@ -333,6 +337,15 @@ export default async function handler(req, res) {
         max_tokens: max_tokens || 8000,
         system: system === undefined ? undefined : injectWeekContext(system, weekContext),
         messages,
+        output_config:
+          responseFormat === EVO_WEEK_RESPONSE_FORMAT
+            ? {
+                format: {
+                  type: 'json_schema',
+                  schema: EVO_WEEK_OUTPUT_SCHEMA,
+                },
+              }
+            : undefined,
       }),
       signal: upstreamAbort.signal,
     })

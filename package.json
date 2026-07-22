@@ -13,6 +13,8 @@
     "test:prompts": "vitest run src/constants/systemPromptCore.test.js src/domain/method/methodEvoV1.test.js src/utils/coachSupportContext.test.js",
     "test:method": "vitest run src/utils/methodPrompt.test.js src/utils/weeklyOffer.test.js api/programming-week-briefing.test.js",
     "test:evo-rules": "vitest run src/domain/method/evoBasicsSkills.test.js src/domain/method/methodEvoV1.test.js src/utils/methodPrompt.test.js src/constants/systemPromptCore.test.js",
+    "test:shift-protocols": "vitest run src/domain/shiftProtocolLog.test.js src/constants/shiftProtocolResources.test.js src/utils/shiftProtocolTime.test.js supabase/migrations/shift_protocol_logs.test.js",
+    "test:migration:shift-protocols": "node scripts/test-shift-protocols-migration-local.mjs",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
     "db:apply-pe2-structured-auth": "node scripts/apply-migration-pe2-structured-auth.mjs",
@@ -32,6 +34,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "pg": "^8.14.1",

@@ -19,8 +19,13 @@ describe('migración shift_protocol_logs', () => {
 
   it('valida incidencias y completados también en SQL', () => {
     expect(sql).toContain('shift_protocol_logs_incident_comment_check')
-    expect(sql).toContain('length(btrim(coalesce(comment')
+    expect(sql).toContain("coalesce(comment, '') ~ '[^[:space:]]'")
     expect(sql).toContain('shift_protocol_logs_completed_confirmation_check')
+  })
+
+  it('fija la versión V0 también en la base de datos', () => {
+    expect(sql).toContain("protocol_version text not null default 'v0'")
+    expect(sql).toContain("check (protocol_version = 'v0')")
   })
 
   it('concede inserción limitada y no concede edición ni borrado', () => {
@@ -37,6 +42,8 @@ describe('migración shift_protocol_logs', () => {
     expect(sql).toContain('shift_protocol_logs_select_own')
     expect(sql).toContain('shift_protocol_logs_select_direction')
     expect(sql).toContain("public.pe2_my_role() = 'programmer'")
+    expect(sql).toContain("timezone('europe/madrid', now())")
+    expect(sql).toContain("interval '1 day'")
   })
 
   it('impide que un entrenador se asigne el rol de Dirección', () => {

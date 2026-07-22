@@ -10,10 +10,11 @@ create table if not exists public.shift_protocol_logs (
   result text not null check (result in ('completado', 'incidencia')),
   comment text,
   all_steps_confirmed boolean not null default false,
-  protocol_version text not null,
+  protocol_version text not null default 'v0'
+    check (protocol_version = 'v0'),
   created_at timestamptz not null default now(),
   constraint shift_protocol_logs_incident_comment_check check (
-    result <> 'incidencia' or length(btrim(coalesce(comment, ''))) > 0
+    result <> 'incidencia' or coalesce(comment, '') ~ '[^[:space:]]'
   ),
   constraint shift_protocol_logs_completed_confirmation_check check (
     result <> 'completado' or all_steps_confirmed = true
@@ -59,6 +60,15 @@ create policy shift_protocol_logs_select_own
   using (
     user_id = auth.uid()
     and org_id = public.pe2_my_org()
+    and public.pe2_my_role() = 'coach'
+    and created_at >= (
+      date_trunc('day', timezone('Europe/Madrid', now()))
+      at time zone 'Europe/Madrid'
+    )
+    and created_at < (
+      (date_trunc('day', timezone('Europe/Madrid', now())) + interval '1 day')
+      at time zone 'Europe/Madrid'
+    )
   );
 
 drop policy if exists shift_protocol_logs_select_direction on public.shift_protocol_logs;

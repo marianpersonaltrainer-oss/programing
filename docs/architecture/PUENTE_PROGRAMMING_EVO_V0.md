@@ -15,8 +15,8 @@ La migración `20260722210000_shift_protocol_logs.sql` crea una tabla aditiva e 
 - permite varias aperturas y cierres por persona y día;
 - impone `user_id`, `org_id`, `id` y `created_at` desde la base de datos;
 - solo concede al cliente permiso de inserción sobre los cinco campos funcionales;
-- valida incidencias y confirmaciones también con restricciones SQL;
-- permite al entrenador leer solo sus registros;
+- valida incidencias, confirmaciones y la versión `v0` también con restricciones SQL;
+- permite al entrenador leer solo sus registros del día actual en `Europe/Madrid`;
 - permite a `programmer` consultar los registros de su organización;
 - no concede `UPDATE` ni `DELETE` a usuarios autenticados.
 - limita la actualización del perfil propio a `full_name`, porque la política anterior permitía cambiar también `role` y `org_id`; esos campos quedan reservados a administración segura.
@@ -40,7 +40,7 @@ La migración puede comprobarse sin red ni credenciales con:
 npm run test:migration:shift-protocols
 ```
 
-La prueba usa PostgreSQL embebido en memoria y cubre múltiples registros diarios, restricciones, identidad/hora impuestas, inmutabilidad, separación de permisos y bloqueo de escalada de rol.
+La prueba usa PostgreSQL embebido en memoria y cubre múltiples registros diarios, restricciones, identidad/hora impuestas, inmutabilidad, separación entre usuarios y organizaciones, lectura diaria del entrenador y bloqueo de escalada de rol.
 
 ## Prueba manual pendiente
 

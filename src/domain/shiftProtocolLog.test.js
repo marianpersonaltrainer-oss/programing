@@ -32,11 +32,11 @@ describe('buildShiftProtocolLogInput', () => {
     })).toThrow('Confirma que has realizado todos los pasos')
   })
 
-  it('impide una incidencia vacía o compuesta solo por espacios', () => {
+  it('impide una incidencia vacía o compuesta solo por espacios en blanco', () => {
     expect(() => buildShiftProtocolLogInput({
       recordType: 'cierre',
       result: 'incidencia',
-      comment: '   ',
+      comment: ' \n\t ',
       protocolVersion: 'v0',
     })).toThrow('Describe qué paso')
   })

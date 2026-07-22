@@ -17,7 +17,9 @@ const MIGRATION = readFileSync(
 )
 
 const ORG_ID = '10000000-0000-4000-8000-000000000001'
+const OTHER_ORG_ID = '10000000-0000-4000-8000-000000000002'
 const COACH_ID = '20000000-0000-4000-8000-000000000001'
+const OTHER_COACH_ID = '20000000-0000-4000-8000-000000000002'
 const PROGRAMMER_ID = '30000000-0000-4000-8000-000000000001'
 
 function assert(condition, message) {
@@ -100,10 +102,14 @@ async function main() {
       for update to authenticated
       using (id = auth.uid()) with check (id = auth.uid());
 
-    insert into auth.users (id) values ('${COACH_ID}'), ('${PROGRAMMER_ID}');
-    insert into public.organizations (id, name, slug) values ('${ORG_ID}', 'EVO', 'evo');
+    insert into auth.users (id) values
+      ('${COACH_ID}'), ('${OTHER_COACH_ID}'), ('${PROGRAMMER_ID}');
+    insert into public.organizations (id, name, slug) values
+      ('${ORG_ID}', 'EVO', 'evo'),
+      ('${OTHER_ORG_ID}', 'Otro centro', 'otro-centro');
     insert into public.profiles (id, full_name, role, org_id) values
       ('${COACH_ID}', 'Coach Prueba', 'coach', '${ORG_ID}'),
+      ('${OTHER_COACH_ID}', 'Coach Otro Centro', 'coach', '${OTHER_ORG_ID}'),
       ('${PROGRAMMER_ID}', 'Dirección Prueba', 'programmer', '${ORG_ID}');
   `)
 
@@ -150,7 +156,8 @@ async function main() {
     () => db.query(
       `insert into public.shift_protocol_logs
         (record_type, result, comment, all_steps_confirmed, protocol_version)
-       values ('cierre', 'incidencia', '   ', false, 'v0')`,
+       values ('cierre', 'incidencia', $1, false, 'v0')`,
+      [' \n\t '],
     ),
     'una incidencia exige comentario',
   )
@@ -161,6 +168,14 @@ async function main() {
        values ('cierre', 'completado', false, 'v0')`,
     ),
     'un completado exige confirmación',
+  )
+  await expectFail(
+    () => db.query(
+      `insert into public.shift_protocol_logs
+        (record_type, result, all_steps_confirmed, protocol_version)
+       values ('cierre', 'completado', true, 'v1')`,
+    ),
+    'la versión del protocolo queda fijada por la base de datos',
   )
   console.log('✓ Constraints de incidencia y confirmación activos')
 
@@ -181,6 +196,35 @@ async function main() {
   assert(updatedProfile.rows[0]?.full_name === 'Coach Actualizado', 'el entrenador puede editar su nombre')
   console.log('✓ Registros inmutables y escalada de rol bloqueada')
 
+  await db.exec('reset role;')
+  await db.query(
+    `insert into public.shift_protocol_logs
+      (user_id, org_id, record_type, result, all_steps_confirmed, protocol_version, created_at)
+     values ($1, $2, 'apertura', 'completado', true, 'v0', now() - interval '2 days')`,
+    [COACH_ID, ORG_ID],
+  )
+  await db.query(
+    `insert into public.shift_protocol_logs
+      (user_id, org_id, record_type, result, all_steps_confirmed, protocol_version)
+     values ($1, $2, 'cierre', 'completado', true, 'v0')`,
+    [OTHER_COACH_ID, OTHER_ORG_ID],
+  )
+
+  await useIdentity(db, COACH_ID)
+  const coachVisibleLogs = await db.query('select * from public.shift_protocol_logs')
+  assert(coachVisibleLogs.rows.length === 4, 'el coach solo ve sus registros del día actual')
+  assert(
+    coachVisibleLogs.rows.every((row) => row.user_id === COACH_ID && row.org_id === ORG_ID),
+    'el coach no ve otros usuarios u organizaciones',
+  )
+
+  await db.exec('reset role; set role anon;')
+  await expectFail(
+    () => db.query('select * from public.shift_protocol_logs'),
+    'una sesión anónima no puede leer registros',
+  )
+  console.log('✓ Lectura del coach limitada al día actual, a su identidad y a su organización')
+
   await useIdentity(db, PROGRAMMER_ID)
   await expectFail(
     () => db.query(
@@ -192,9 +236,10 @@ async function main() {
   )
   const directionLogs = await db.query('select * from public.shift_protocol_logs')
   const directionProfiles = await db.query('select id, full_name, role from public.profiles')
-  assert(directionLogs.rows.length === 4, 'Dirección debe ver los cuatro registros del equipo')
-  assert(directionProfiles.rows.length === 2, 'Dirección debe resolver el filtro de entrenadores')
-  console.log('✓ Dirección consulta registros y perfiles de su organización')
+  assert(directionLogs.rows.length === 5, 'Dirección debe ver el historial de su organización')
+  assert(directionLogs.rows.every((row) => row.org_id === ORG_ID), 'Dirección no ve otra organización')
+  assert(directionProfiles.rows.length === 2, 'Dirección resuelve solo el equipo de su organización')
+  console.log('✓ Dirección consulta registros y perfiles solo de su organización')
 
   await db.exec('reset role;')
   await db.close()

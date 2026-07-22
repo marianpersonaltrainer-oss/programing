@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getShiftProtocol, SHIFT_PROTOCOL_LINKS } from '../../constants/shiftProtocolResources.js'
 import { evoBrand } from '../../constants/evoBrand.js'
 import { createShiftProtocolLog, listMyShiftProtocolLogs } from '../../lib/shiftProtocols.js'
@@ -28,7 +28,7 @@ function openOfficialLink(url, setError) {
 }
 
 export default function Pe2ShiftView({ profile }) {
-  const today = useMemo(() => madridTodayYmd(), [])
+  const [today, setToday] = useState(() => madridTodayYmd())
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedType, setSelectedType] = useState('')
@@ -54,6 +54,21 @@ export default function Pe2ShiftView({ profile }) {
   useEffect(() => {
     loadLogs()
   }, [loadLogs])
+
+  useEffect(() => {
+    const syncMadridDay = () => {
+      const currentDay = madridTodayYmd()
+      setToday((previousDay) => previousDay === currentDay ? previousDay : currentDay)
+    }
+    const timer = window.setInterval(syncMadridDay, 60_000)
+    window.addEventListener('focus', syncMadridDay)
+    document.addEventListener('visibilitychange', syncMadridDay)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', syncMadridDay)
+      document.removeEventListener('visibilitychange', syncMadridDay)
+    }
+  }, [])
 
   function beginRecord(recordType) {
     setSelectedType(recordType)
@@ -82,7 +97,9 @@ export default function Pe2ShiftView({ profile }) {
       setSelectedType('')
       setComment('')
       setConfirmed(false)
-      await loadLogs()
+      const currentDay = madridTodayYmd()
+      if (currentDay === today) await loadLogs()
+      else setToday(currentDay)
     } catch (e) {
       setError(e.message || 'No se ha podido guardar el registro.')
     } finally {

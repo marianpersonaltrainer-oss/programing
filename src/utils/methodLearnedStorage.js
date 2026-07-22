@@ -1,7 +1,13 @@
-/** Persistencia de «Reglas aprendidas»: manual (textarea) + entradas automáticas (desde ediciones). */
+/** Persistencia local: decisiones manuales confirmadas + observaciones pendientes de revisión. */
 import { filterHighImpactLearnedLines } from './highImpactLearnedRules.js'
+import { METHOD_EVO_V1_VERSION } from '../domain/method/methodEvoV1.js'
 
-export const METHOD_LEARNED_KEY = 'programingevo_method_learned'
+export const METHOD_LEARNED_KEY = `programingevo_method_learned_v${METHOD_EVO_V1_VERSION.replaceAll('.', '_')}`
+export const LEGACY_METHOD_LEARNED_KEYS = [
+  'programingevo_method_learned_v1_1_0',
+  'programingevo_method_learned_v1_0_0',
+  'programingevo_method_learned',
+]
 
 /**
  * @typedef {{ id: string, at: string, text: string }} MethodLearnedAutoEntry
@@ -33,7 +39,13 @@ function safeParse(raw) {
 /** @returns {MethodLearnedState} */
 export function loadLearnedState() {
   try {
-    const raw = localStorage.getItem(METHOD_LEARNED_KEY)
+    let raw = localStorage.getItem(METHOD_LEARNED_KEY)
+    if (raw == null) {
+      for (const key of LEGACY_METHOD_LEARNED_KEYS) {
+        raw = localStorage.getItem(key)
+        if (raw != null) break
+      }
+    }
     if (raw == null) return { manual: '', auto: [] }
     const parsed = safeParse(raw)
     if (parsed) return parsed
@@ -56,35 +68,6 @@ export function saveLearnedState(state) {
   } catch {
     /* quota */
   }
-}
-
-function formatDayStamp(iso) {
-  try {
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return new Date().toISOString().slice(0, 10)
-    return d.toISOString().slice(0, 10)
-  } catch {
-    return new Date().toISOString().slice(0, 10)
-  }
-}
-
-/** Texto único para prompts (manual + bloque automático con fechas). */
-export function getLearnedRulesConcatenated() {
-  const { manual, auto } = loadLearnedState()
-  const parts = []
-  const m = String(manual || '').trim()
-  if (m) parts.push(m)
-  if (auto.length) {
-    const block = auto
-      .map((e) => {
-        const day = formatDayStamp(e.at)
-        return `[${day}] ${String(e.text || '').trim()}`
-      })
-      .filter(Boolean)
-      .join('\n\n')
-    if (block) parts.push(block)
-  }
-  return parts.join('\n\n')
 }
 
 /** Añade una o varias frases con la misma marca temporal (un guardado de edición). */

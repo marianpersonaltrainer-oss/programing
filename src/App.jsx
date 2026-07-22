@@ -1,28 +1,64 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import WeekPanel from './components/WeekPanel/WeekPanel.jsx'
 import AgentChat from './components/AgentChat/AgentChat.jsx'
 import ExportPanel from './components/ExportPanel/ExportPanel.jsx'
-import EditModal from './components/EditModal/EditModal.jsx'
-import ExcelGeneratorModal from './components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'
-import CoachView from './components/CoachView/CoachView.jsx'
-import CoachReview from './components/CoachReview/CoachReview.jsx'
-import MethodPanel from './components/MethodPanel/MethodPanel.jsx'
 import { COACH_CODE_KEY, getCoachCodeFieldInitialValue } from './constants/coachAccess.js'
-import ExerciseLibrary from './components/ExerciseLibrary/ExerciseLibrary.jsx'
 import EvoLogo from './components/EvoLogo.jsx'
-import CoachGuideContentPanel from './components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'
 import { coachBg, coachBorder, coachNav, coachText } from './components/CoachView/coachTheme.js'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
-import Pe2App from './Pe2App.jsx'
+
+const EditModal = lazy(() => import('./components/EditModal/EditModal.jsx'))
+const ExcelGeneratorModal = lazy(() => import('./components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'))
+const CoachView = lazy(() => import('./components/CoachView/CoachView.jsx'))
+const CoachReview = lazy(() => import('./components/CoachReview/CoachReview.jsx'))
+const MethodPanel = lazy(() => import('./components/MethodPanel/MethodPanel.jsx'))
+const ExerciseLibrary = lazy(() => import('./components/ExerciseLibrary/ExerciseLibrary.jsx'))
+const CoachGuideContentPanel = lazy(() => import('./components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'))
+const Pe2App = lazy(() => import('./Pe2App.jsx'))
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
 const isPe2Mode = appSearch.has('v2')
 
+function AppLoading() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-[#0C0B0C] text-[#F6E8F9] font-evo-body">
+      <p className="text-xs font-bold uppercase tracking-[0.2em]">Cargando Evolution…</p>
+    </div>
+  )
+}
+
+function ModalLoading() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm">
+      <p className="rounded-xl bg-white px-4 py-3 text-xs font-bold uppercase tracking-widest text-[#6A1F6D] shadow-xl">
+        Abriendo…
+      </p>
+    </div>
+  )
+}
+
 export default function App() {
-  if (isCoachMode) return <CoachView />
-  if (isPe2Mode) return <Pe2App />
+  if (isCoachMode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <CoachView />
+      </Suspense>
+    )
+  }
+  if (isPe2Mode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <Pe2App />
+      </Suspense>
+    )
+  }
+
+  return <ProgrammerApp />
+}
+
+function ProgrammerApp() {
 
   const {
     weekState,
@@ -218,33 +254,35 @@ export default function App() {
         </div>
       )}
 
-      {editModal && (
-        <EditModal
-          day={editModal.day}
-          session={editModal.session}
-          onSave={handleSaveEdit}
-          onClose={() => setEditModal(null)}
-        />
-      )}
+      <Suspense fallback={<ModalLoading />}>
+        {editModal && (
+          <EditModal
+            day={editModal.day}
+            session={editModal.session}
+            onSave={handleSaveEdit}
+            onClose={() => setEditModal(null)}
+          />
+        )}
 
-      {showExcelModal && (
-        <ExcelGeneratorModal
-          weekState={weekState}
-          onClose={() => setShowExcelModal(false)}
-          onSyncWeekFromHistory={(semana, mesociclo, phase) => {
-            const targetMeso = mesociclo || weekState.mesocycle
-            if (targetMeso) setMesocycle(targetMeso, semana, phase ?? weekState.phase)
-          }}
-        />
-      )}
+        {showExcelModal && (
+          <ExcelGeneratorModal
+            weekState={weekState}
+            onClose={() => setShowExcelModal(false)}
+            onSyncWeekFromHistory={(semana, mesociclo, phase) => {
+              const targetMeso = mesociclo || weekState.mesocycle
+              if (targetMeso) setMesocycle(targetMeso, semana, phase ?? weekState.phase)
+            }}
+          />
+        )}
 
-      {showCoachReview && <CoachReview onClose={() => setShowCoachReview(false)} />}
+        {showCoachReview && <CoachReview onClose={() => setShowCoachReview(false)} />}
 
-      {showMethodPanel && <MethodPanel onClose={() => setShowMethodPanel(false)} />}
+        {showMethodPanel && <MethodPanel onClose={() => setShowMethodPanel(false)} />}
 
-      {showLibrary && <ExerciseLibrary onClose={() => setShowLibrary(false)} />}
+        {showLibrary && <ExerciseLibrary onClose={() => setShowLibrary(false)} />}
 
-      {showCoachContentPanel && <CoachGuideContentPanel onClose={() => setShowCoachContentPanel(false)} />}
+        {showCoachContentPanel && <CoachGuideContentPanel onClose={() => setShowCoachContentPanel(false)} />}
+      </Suspense>
     </div>
   )
 }

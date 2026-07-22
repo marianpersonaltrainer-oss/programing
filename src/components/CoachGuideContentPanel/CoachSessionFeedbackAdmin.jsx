@@ -135,7 +135,7 @@ export default function CoachSessionFeedbackAdmin() {
     const line = String(convertDraft || '').trim()
     if (!line) return
     appendAutoLearnedLines([line])
-    setConvertOk('Regla aprendida añadida.')
+    setConvertOk('Observación guardada para revisión.')
     setTimeout(() => setConvertOk(''), 2500)
     closeConvert()
   }
@@ -234,7 +234,7 @@ export default function CoachSessionFeedbackAdmin() {
                       onClick={() => openConvert(r)}
                       className="px-3 py-2 rounded-lg bg-[#6A1F6D] hover:bg-[#4E1250] text-white text-[11px] font-bold uppercase tracking-wide"
                     >
-                      Convertir en regla aprendida
+                      Guardar como observación pendiente
                     </button>
                   </div>
                 ) : null}
@@ -252,14 +252,14 @@ export default function CoachSessionFeedbackAdmin() {
           <div className="w-full max-w-2xl rounded-2xl border border-[#6A1F6D]/25 bg-white shadow-2xl">
             <div className="px-5 py-4 border-b border-[#6A1F6D]/20">
               <p className="text-sm font-black uppercase tracking-wide text-[#1A0A1A]">
-                Convertir en regla aprendida
+                Guardar como observación pendiente
               </p>
               <p className={`text-xs mt-1 ${coachText.muted}`}>
-                Revisa o edita el texto antes de guardarlo en tu método.
+                Revisa o edita el texto. Quedará pendiente y no modificará el Método EVO automáticamente.
               </p>
             </div>
             <div className="px-5 py-4 space-y-2">
-              <label className={coachAdminUi.label}>Texto de la regla</label>
+              <label className={coachAdminUi.label}>Texto de la observación</label>
               <textarea
                 value={convertDraft}
                 onChange={(e) => setConvertDraft(e.target.value)}
@@ -281,7 +281,7 @@ export default function CoachSessionFeedbackAdmin() {
                 disabled={!String(convertDraft || '').trim()}
                 className="px-4 py-2 rounded-lg bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wide"
               >
-                Guardar regla
+                Guardar observación
               </button>
             </div>
           </div>

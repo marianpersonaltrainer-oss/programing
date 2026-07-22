@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import {
   loadLearnedState,
   saveLearnedState,
-  getLearnedRulesConcatenated,
   removeAutoLearnedEntry,
   clearAutoLearnedEntries,
   clearAllLearned,
@@ -12,36 +11,19 @@ import {
   saveReferenceMesocycleContextRaw,
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { extractDriveFolderId } from '../../utils/driveFolderId.js'
-import {
-  DEFAULT_METHOD,
-  getMethodText,
-  saveMethodText,
-  METHOD_STORAGE_KEY,
-} from '../../utils/methodPrompt.js'
+import { DEFAULT_METHOD } from '../../utils/methodPrompt.js'
+import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
 
 const DRIVE_FOLDER_LS_KEY = 'programingevo_drive_programming_folder_id'
 const COACH_ADMIN_SECRET_SESSION_KEY = 'evo_coach_guide_admin_secret'
 
-export { DEFAULT_METHOD, getMethodText, saveMethodText }
+export const DEFAULT_LEARNED_PLACEHOLDER = `Anota aquí decisiones que hayas revisado y confirmado: frases que funcionan en sala, errores a no repetir o criterios que concretan el método sin contradecirlo.
 
-export const DEFAULT_LEARNED_PLACEHOLDER = `Anota aquí correcciones tras revisar semanas, frases que funcionaron en sala, errores a no repetir, ejemplos reales de cómo explicar un formato, etc.
-
-(Las entradas automáticas al editar sesiones aparecen debajo con fecha; aquí va tu texto libre.)`
+(Las observaciones recogidas al editar sesiones aparecen debajo con fecha, pero no se envían a la IA.)`
 
 export const DEFAULT_REFERENCE_MESOCYCLES_PLACEHOLDER = `Opcional: pega aquí extractos o resúmenes de semanas que ya programaste (otro mesociclo, Drive, notas). No hace falta la semana entera: bloques que os fueron bien, decisiones de timing/descansos, o “en fuerza evitamos X”.
 
-La IA lo usa como referencia de estilo y ritmo en sala — no para copiar sesiones literales. Además, el generador extrae señales de progresión/formatos de este bloque para construir reglas inferidas automáticas. Si lo dejas vacío, no se envía nada extra.`
-
-export function getLearnedRulesText() {
-  return getLearnedRulesConcatenated()
-}
-
-/** Sustituye solo el bloque manual; preserva entradas automáticas. */
-export function saveLearnedRulesText(text) {
-  const state = loadLearnedState()
-  state.manual = text
-  saveLearnedState(state)
-}
+La IA lo usa como referencia de estilo, ritmo e histórico — no para copiar sesiones ni crear reglas. Las posibles señales se revisan como propuestas y no entran en el método automáticamente. Si lo dejas vacío, no se envía nada extra.`
 
 function formatAutoDate(iso) {
   try {
@@ -55,7 +37,7 @@ function formatAutoDate(iso) {
 
 export default function MethodPanel({ onClose }) {
   const driveSectionRef = useRef(null)
-  const [baseText, setBaseText] = useState('')
+  const baseText = DEFAULT_METHOD
   const [learnedManual, setLearnedManual] = useState('')
   const [referenceMesocycles, setReferenceMesocycles] = useState('')
   const [driveFolderInput, setDriveFolderInput] = useState('')
@@ -66,12 +48,6 @@ export default function MethodPanel({ onClose }) {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    try {
-      const b = localStorage.getItem(METHOD_STORAGE_KEY)
-      setBaseText(b || DEFAULT_METHOD)
-    } catch {
-      setBaseText(DEFAULT_METHOD)
-    }
     const s = loadLearnedState()
     setLearnedManual(s.manual)
     setAutoEntries(s.auto)
@@ -110,7 +86,6 @@ export default function MethodPanel({ onClose }) {
   }
 
   async function handleSave() {
-    saveMethodText(baseText)
     saveLearnedState({ manual: learnedManual, auto: autoEntries })
     saveReferenceMesocycleContextRaw(referenceMesocycles)
     const syncRes = await syncReferenceContextToServer(referenceMesocycles)
@@ -127,15 +102,8 @@ export default function MethodPanel({ onClose }) {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  function handleReset() {
-    if (window.confirm('¿Restaurar el método base a los valores EVO por defecto? No borra las Reglas aprendidas.')) {
-      setBaseText(DEFAULT_METHOD)
-      saveMethodText(DEFAULT_METHOD)
-    }
-  }
-
   function handleClearLearned() {
-    if (window.confirm('¿Vaciar manual y todas las reglas automáticas?')) {
+    if (window.confirm('¿Vaciar las decisiones manuales y todas las observaciones pendientes?')) {
       clearAllLearned()
       setLearnedManual('')
       setAutoEntries([])
@@ -143,7 +111,7 @@ export default function MethodPanel({ onClose }) {
   }
 
   function handleClearAutoOnly() {
-    if (window.confirm('¿Vaciar solo las sugerencias automáticas (ediciones de sesión)?')) {
+    if (window.confirm('¿Vaciar solo las observaciones pendientes de las ediciones?')) {
       clearAutoLearnedEntries()
       setAutoEntries([])
     }
@@ -227,7 +195,7 @@ export default function MethodPanel({ onClose }) {
           <div>
             <h2 className="text-display text-base font-extrabold !text-black uppercase tracking-tight" style={{ color: '#000' }}>Tu Método EVO</h2>
             <p className="text-[11px] !text-black font-bold mt-1 uppercase tracking-wide" style={{ color: '#000' }}>
-              REGLAS FIJAS · REGLAS APRENDIDAS · DOCUMENTO VIVO
+              MÉTODO VERSIONADO · DECISIONES CONFIRMADAS · REFERENCIAS
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center text-neutral-700 hover:text-red-600 transition-all shadow-sm border border-black/5">
@@ -239,9 +207,9 @@ export default function MethodPanel({ onClose }) {
           <div className="flex items-start gap-3 px-4 py-3 bg-evo-accent/5 border border-evo-accent/10 rounded-2xl shadow-sm">
             <span className="text-[#1A0A1A] text-lg flex-shrink-0 mt--0.5">✦</span>
             <p className="text-[11px] !text-black font-medium leading-relaxed" style={{ color: '#000' }}>
-              <span className="font-bold !text-black">Método base</span>,{' '}
-              <span className="font-bold !text-black">Reglas aprendidas</span> y, si lo rellenas,{' '}
-              <span className="font-bold !text-black">Contexto de otros mesociclos</span> se envían al generar Excel, al editar un día con IA y al agente del panel (con límites de tamaño en el bloque opcional). La importación desde Drive añade texto aquí; sigue haciendo falta configurar Vercel y compartir la carpeta con la cuenta de servicio.
+              El <span className="font-bold !text-black">Método EVO versionado</span> es de solo lectura en la app. Las{' '}
+              <span className="font-bold !text-black">decisiones manuales</span> y el{' '}
+              <span className="font-bold !text-black">contexto de otros mesociclos</span> se añaden como capas subordinadas al generar Excel, editar un día o usar el agente. La importación desde Drive aporta referencia, nunca modifica el método por sí sola.
             </p>
           </div>
           <div className="flex justify-end">
@@ -257,28 +225,27 @@ export default function MethodPanel({ onClose }) {
 
         <div className="flex-1 px-8 py-4 min-h-0 overflow-y-auto space-y-4 custom-scrollbar">
           <div className="space-y-2">
-            <label className="block text-[11px] font-bold !text-black uppercase tracking-wide" style={{ color: '#000' }}>Método base</label>
+            <label className="block text-[11px] font-bold !text-black uppercase tracking-wide" style={{ color: '#000' }}>{METHOD_EVO_V1_LABEL} · solo lectura</label>
+            <p className="text-[9px] text-neutral-800 leading-relaxed">
+              Para modificar un no negociable hay que crear y aprobar una nueva versión trazable en el repositorio.
+            </p>
             <textarea
               value={baseText}
-              onChange={(e) => {
-                setBaseText(e.target.value)
-                setSaved(false)
-              }}
+              readOnly
               spellCheck={false}
-              className="w-full min-h-[220px] bg-gray-50/50 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] caret-[#1A0A1A] font-mono leading-relaxed focus:outline-none focus:border-evo-accent/30 focus:bg-white transition-all shadow-inner resize-y"
-              placeholder="Filosofía, clases activas, reglas fijas…"
+              className="w-full min-h-[220px] bg-gray-100/70 border border-black/5 rounded-2xl px-5 py-4 text-xs !text-[#1A0A1A] font-mono leading-relaxed focus:outline-none shadow-inner resize-y"
             />
           </div>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="block text-[11px] font-bold !text-black uppercase tracking-wide" style={{ color: '#000' }}>Reglas aprendidas · manual</label>
+              <label className="block text-[11px] font-bold !text-black uppercase tracking-wide" style={{ color: '#000' }}>Decisiones manuales confirmadas</label>
               <div className="flex flex-wrap gap-2 justify-end">
                 <button
                   type="button"
                   onClick={handleClearAutoOnly}
                   className="text-[9px] text-neutral-800 font-bold uppercase tracking-widest hover:text-amber-800"
                 >
-                  Vaciar automáticas
+                  Vaciar pendientes
                 </button>
                 <button
                   type="button"
@@ -290,7 +257,7 @@ export default function MethodPanel({ onClose }) {
               </div>
             </div>
             <p className="text-[9px] text-neutral-800 leading-relaxed">
-              Texto libre más abajo; las frases generadas al guardar ediciones de sesión se listan con fecha (puedes borrarlas una a una).
+              El texto manual confirmado se añade como preferencia subordinada. Las observaciones de las ediciones se listan con fecha, pero no se envían a la IA hasta que se revisen y pasen aquí de forma deliberada.
             </p>
             <textarea
               value={learnedManual}
@@ -371,7 +338,7 @@ export default function MethodPanel({ onClose }) {
           {autoEntries.length ? (
             <div className="space-y-2">
               <label className="block text-[10px] font-bold text-[#1A0A1A] uppercase tracking-widest">
-                Desde ediciones de sesión ({autoEntries.length})
+                Observaciones pendientes de revisión ({autoEntries.length})
               </label>
               <ul className="space-y-2">
                 {autoEntries.map((e) => (
@@ -398,12 +365,7 @@ export default function MethodPanel({ onClose }) {
         </div>
 
         <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50">
-          <button
-            onClick={handleReset}
-            className="text-[10px] text-neutral-800 font-bold uppercase tracking-widest hover:text-red-600 transition-all"
-          >
-            Restaurar método base
-          </button>
+          <span className="text-[9px] text-neutral-700">Método base protegido por versión</span>
           <div className="flex items-center gap-4">
             <button onClick={onClose} className="text-[10px] text-neutral-800 font-bold uppercase tracking-widest hover:text-black transition-all">
               Cerrar

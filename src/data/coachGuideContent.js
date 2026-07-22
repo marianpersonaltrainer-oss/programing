@@ -1,3 +1,8 @@
+import {
+  buildCoachInventoryItems,
+  buildCoachInventoryRooms,
+} from '../domain/method/evoInventory.js'
+
 /**
  * Texto fuente: Seccion_Coach_ProgramingEvo_v1.docx (ProgramingEvo · EVO Granada).
  * Overrides: tabla Supabase coach_guide_settings (material_override, contact_channel, contact_response).
@@ -24,7 +29,7 @@ export const COACH_CENTRO_TRANSMIT =
 
 export const COACH_CENTRO_EXPECT = [
   'Que el alumno entienda qué está entrenando y por qué.',
-  'Que salga sintiéndose bien — no destrozado, no confuso.',
+  'Que salga entendiendo qué ha entrenado, con una exigencia coherente con la intención del día.',
   'Que quiera volver mañana.',
   'Que sienta que el coach estaba ahí para él, no gestionando el tiempo.',
 ]
@@ -57,40 +62,37 @@ export const COACH_GIMNASTICA_EXTENDED_BLOCKS = [
     ],
   },
   {
-    title: 'Semana ejemplo 1 — Tracción + core (~55 min)',
+    title: 'Semana ejemplo 1 — Tracción + core (35 min de trabajo visible)',
     body: [
-      'Bloque 1 (8–10 min): Juego corto — relevo de dead hang por equipos (sumar segundos sin soltar). Explicación: «solo colgar, hombros activos».',
-      'Bloque 2 (15 min): Skill — pull progression. Tres filas: A ring rows + scap pulls, B asistido, C strict o volumen. 4 rondas, descanso al acabar fila.',
-      'Bloque 3 (12 min): Core — hollow/arch en parejas (uno hace hollow 20 s, el otro arch 20 s) × 4 vueltas.',
-      'Bloque 4 (15 min): Circuito AMRAP suave 12 min: 8 ring rows o pull scaled + 20 s plank + 10 arch rocks. Música a volumen medio — última vuelta «sprint» de actitud, no de técnica rota.',
-      'Cierre (3 min): una frase sobre qué notaron en el agarre y en el abdomen.',
+      'A) HABILIDAD — 15 MIN: progresión principal de tracción con una opción de acceso y una de capacidad.',
+      'B) CONTROL — 10 MIN: hollow/arch en parejas, práctica de calidad y descansos claros.',
+      'C) AMRAP — 10 MIN: tracción adaptada + plancha + arch rocks, sin perder la técnica.',
+      'La organización concreta y el cue prioritario se explican en el feedback de esa sesión.',
     ],
   },
   {
-    title: 'Semana ejemplo 2 — Empuje + balance (~55 min)',
+    title: 'Semana ejemplo 2 — Empuje + balance (38 min de trabajo visible)',
     body: [
-      'Bloque 1 (8 min): Warm — wall walk 2–3 + pike walk on box. Objetivo: hombros calientes, no fatiga.',
-      'Bloque 2 (18 min): Pike push / HSPU scaled — 5 series, RPE 7. Opciones de la tabla de escalados.',
-      'Bloque 3 (15 min): Handstand — chest-to-wall + taps (3× máx taps manteniendo línea). Quien no vertical: plancha alta con elevación de manos.',
-      'Bloque 4 (12 min): «Carrera de handstand» por parejas: metros acumulados en hold wall (cambio cada vez que cae la línea). Competencia amistosa, risas permitidas.',
-      'Cierre: recordar un solo cue de hombros («empuja el suelo») para el día siguiente.',
+      'A) HABILIDAD — 18 MIN: Pike Push / HSPU con una progresión y una regresión claras.',
+      'B) CONTROL — 12 MIN: Handstand chest-to-wall + taps; quien no invierte, plancha alta con elevación de manos.',
+      'C) TRABAJO EN PAREJAS — 8 MIN: acumulación de holds con cambios definidos y técnica prioritaria.',
+      'El feedback recuerda un solo cue de hombros y explica la organización si hace falta.',
     ],
   },
   {
-    title: 'Semana ejemplo 3 — Acrobático + dinámico (~55 min)',
+    title: 'Semana ejemplo 3 — Acrobático + dinámico (37 min de trabajo visible)',
     body: [
-      'Bloque 1 (10 min): Movilidad cadera + hombro + 2–3 cartwheels por lado con aterrizaje en mat.',
-      'Bloque 2 (12 min): Kipping educado en barra baja o rings: swing controlado + 3–5 reps muy pulidas (no contar si rompe hueco).',
-      'Bloque 3 (10 min): Saltos — broad jump técnico + salto al cajón bajo en series cortas.',
-      'Bloque 4 (18 min): Circuito por tiempo — 4 rondas, 1 min trabajo / 30 s paso: burpees sin pecho (versión suave), jumping pull-up o high pull, sit-up, desplazamiento lateral conos.',
-      'Cierre: celebrar un «momento random» de la clase (mejor caída salvada, mejor cartwheel, etc.).',
+      'A) HABILIDAD — 15 MIN: Cartwheel con aterrizaje controlado y opciones por capacidad.',
+      'B) TÉCNICA — 10 MIN: Kipping controlado en barra baja o anillas, pocas repeticiones de calidad.',
+      'C) INTERVALOS — 12 MIN: saltos y desplazamientos sencillos con una dinámica divertida.',
+      'La sesión publicada no incluye la preparación general de la hora; el coach la calcula y usa el feedback para las dudas reales.',
     ],
   },
   {
     title: 'Diversión sin perder técnica',
     body: [
-      'Cada sesión debe incluir al menos un elemento de formato: relevo, parejas, AMRAP corto, EMOM ligero, batalla por equipos con métrica tonta (metros, segundos, risas).',
-      'Si la programación viene muy seca, tú añades el marco lúdico (cronómetro visible, equipos de colores, última ronda musical) sin cambiar el skill publicado.',
+      'Cuando aporte a la intención, puede utilizarse un relevo, parejas, AMRAP corto, EMOM ligero o una dinámica por equipos para romper la monotonía.',
+      'El marco lúdico es una posibilidad, no una obligación: no se añade si distrae de la capacidad principal o complica la sala.',
     ],
   },
 ]
@@ -98,48 +100,48 @@ export const COACH_GIMNASTICA_EXTENDED_BLOCKS = [
 export const COACH_CLASS_CARDS = [
   {
     id: 'funcional',
-    title: 'EVOFUNCIONAL — Donde ocurre el progreso real',
+    title: 'EVOFUNCIONAL — Progreso técnico y rendimiento',
     audience: 'Nivel intermedio-avanzado. Alumnos con base técnica, que llevan tiempo entrenando y buscan seguir progresando.',
     has: 'Fuerza con porcentajes + skill técnico (halterofilia, gimnásticos) + WOD de intensidad media-alta.',
     structure:
-      'Warm up (5-7\') → Calentamiento específico (7\') → Explicación y aproximación (8-10\') → Fuerza/OLY (12-15\') → WOD Prep (7\') → WOD (12-15\') → Cierre (5\').',
+      'Salida publicada: A/B/C o Parte Única, con duración en cada título. Puede ser fuerza + intensidad, skill + aplicación, fuerza sin WOD o una parte larga según la intención.',
     can: 'Halterofilia (clean, snatch, jerk), gimnásticos (pull-ups, T2B, HSPU accesible), fuerza con barra y porcentajes, WODs complejos.',
-    cannot: 'Muscle ups, deficit HSPU, rope climb, pegboard, overhead squat como principal.',
+    cannot: 'Varios skills complejos sin relación en la misma sesión, o un skill complejo más un WOD coordinativo complejo sin una razón clara.',
     feel: '«He trabajado fuerte y con cabeza. Sé lo que he hecho y por qué.»',
   },
   {
     id: 'basics',
     title: 'EVOBASICS — Donde se construye la base',
-    audience: 'Nivel principiante-intermedio. Personas que empiezan o que llevan poco tiempo. El objetivo es que en 5-6 meses estén listos para EvoFit.',
-    has: 'Técnica + control + comprensión del movimiento. WOD sencillo y guiado. Siempre juego en el calentamiento.',
+    audience: 'Nivel principiante-intermedio. Personas que empiezan o quieren construir fuerza y habilidades transferibles antes de asumir progresiones más avanzadas.',
+    has: 'Aprendizaje, fuerza estructurada y aplicación. El juego es una herramienta opcional y pedagógica, no una obligación.',
     structure:
-      'Warm up con juego (10\') → Calentamiento (7\') → Explicación técnica y práctica (10-15\') → Fuerza accesible (10-12\') → WOD sencillo (10-12\') → Cierre (5\').',
-    can: 'Un solo movimiento técnico por sesión. Kettlebells, mancuernas, landmine básico, barra con pesos ligeros.',
-    cannot: 'Varios técnicos juntos, impacto alto, movimientos olímpicos complejos, demasiados ejercicios nuevos a la vez.',
+      'Salida publicada: A/B/C o Parte Única. Cada clase real lleva un skill principal; la rotación móvil cierra cada cinco clases con 2 complejos y 3 sencillos, sin reiniciarse cada lunes.',
+    can: 'Back/Front Squat, presses, jerk, clean, snatch, dominadas, anillas y pino desde su progresión más básica; también barra, landmine, comba, pelotas, máquinas, core, burpees y trabajo sencillo de acondicionamiento.',
+    cannot: 'Acumular varios movimientos complejos en el mismo WOD, exigir que el alumno consiga el skill, o convertir la checklist en el único banco de ejercicios.',
     feel: '«He aprendido algo. He entendido el movimiento. Esto lo puedo hacer.»',
   },
   {
     id: 'fit',
-    title: 'EVOFIT — Donde todo el mundo encaja',
+    title: 'EVOFIT — Fuerza real con menor complejidad técnica',
     audience:
       'Todos los niveles. Puede entrar un alumno de Basics con 3-4 meses y uno de Funcional de años — los dos entrenan bien sin romper el flujo.',
-    has: 'Fuerza con tempos, biseries, triseries y accesorios. Más movilidad en el calentamiento. WODs tipo bodybuilding funcional. Puede tener 3-4 partes en días de intensidad.',
+    has: 'Fuerza real + accesorios + WOD o acondicionamiento. Puede haber días pesados, ligeros, individuales, por parejas o por intervalos.',
     structure:
-      'Warm up con movilidad (7-10\') → Fuerza/accesorios en biserie o triserie (15-20\') → WOD funcional (12-15\') → Cierre (5\').',
-    can: 'Fuerza básica con barra y porcentajes (back squat, RDL, bench, row), kettlebells, mancuernas, landmine básico, cardio funcional.',
-    cannot: 'Halterofilia (clean, snatch, jerk), movimientos olímpicos con barra. Sin técnica compleja.',
+      'La salida puede organizarse en A/B/C o combinar contenidos con sentido. Menor complejidad técnica no significa menor carga, intensidad ni nivel de fuerza.',
+    can: 'Barra, porcentajes, RPE/RIR, back squat, front squat, peso muerto, hip thrust, press, remo, landmine y una opción superior directa para quien ya la domina.',
+    cannot: 'Bloques de aprendizaje de halterofilia o progresiones gimnásticas. El WOD no repite con alto volumen el patrón principal de fuerza.',
     scale:
-      'Binario — haces esto o esto otro. No progresiones intermedias. Ejemplo: 5 strict push ups → ring row. Double unders → single unders.',
-    feel: '«Me he dado caña pero podría repetir mañana. Me siento bien.»',
+      'Opción directa según capacidad, sin convertirla en skill: dominada estricta / Ring Row, pino controlado / variante prevista, Push-up completo / adaptación.',
+    feel: '«He entrenado de verdad, con una sesión completa y sin perder tiempo en una técnica que no toca aprender aquí.»',
   },
   {
     id: 'hybrix',
     title: 'EVOHYBRIX — Donde se juega con el esfuerzo',
     audience: 'Todos los niveles. Formato más libre y dinámico.',
     has: 'Bloques metabólicos, trabajo en parejas o equipos, máquinas + cardio. Más diversión y estrategia.',
-    structure: 'Warm up (10\') → 2-3 bloques largos (6-10\' cada uno) + finisher → Cierre.',
-    can: 'Remo, air bike, KB swings, wall balls, slam balls, burpees, movimientos sencillos en circuito o relevos.',
-    cannot: 'Técnica compleja, halterofilia, landmine.',
+    structure: 'Salida publicada en bloques claros o Parte Única. Cuando la explicación es breve puede acercarse a 40-42 minutos efectivos.',
+    can: 'Carrera, SkiErg, RowErg, Bike, trineo, Burpee Broad Jump, Farmer Carry, lunges y Wall Ball, con estaciones o salidas escalonadas.',
+    cannot: 'Técnica compleja o halterofilia como protagonistas. Un accesorio no debe desplazar carrera, máquinas, trineo, carries, lunges o Wall Ball.',
     feel: '«Me lo he pasado bien sufriendo. Ha sido diferente.»',
   },
   {
@@ -149,7 +151,7 @@ export const COACH_CLASS_CARDS = [
       'Cuando el programador incluye esta columna en la semana. Perfil que tolera cargas y control de RIR; no es una clase diaria para todos los públicos.',
     has: 'Progresión por RIR (reps in reserve). Bloques tipo triset A1/A2/A3. Fuerza con volumen moderado y mucha calidad de ejecución.',
     structure:
-      'Calentamiento específico → Trisets o bloques de fuerza con descansos fijos → Accesorios → Cierre.',
+      'Pocos bloques visibles con series, porcentajes, RIR y descansos definidos; accesorios complementarios.',
     can: 'Back squat, RDL, press, remos, accesorios de brazo y pierna con mancuernas/barras controladas.',
     cannot: 'Sustituir a EvoFuncional u otras clases si la semana no trae columna EvoFuerza.',
     feel: '«He trabajado musculación con intención; sé cuánto me quedaba en depósito.»',
@@ -161,11 +163,11 @@ export const COACH_CLASS_CARDS = [
     title: 'EVOGIMNÁSTICA — Skills + diversión (solo si está en programación)',
     audience:
       'Intermedio EVO: muchos dominan o van hacia pull-up; handstand poco trabajado; ring dips raros. No es clase de competición: es técnica accesible, variada y con sensación de «esto solo pasa aquí».',
-    has: 'Rotación semanal de focos (tracción/core · empuje/balance · acro/dinámico). Siempre con juego o formato que rompa la monotonía. Escalados copy-paste para tres niveles.',
+    has: 'Una capacidad principal, regresión y progresión claras, práctica de calidad y un complemento coherente. Las parejas o dinámicas divertidas son opcionales.',
     structure:
-      'Calentamiento corto y divertido → Bloque técnico (explicación máx. ~1 min por bloque) → Trabajo principal con opciones A/B/C → Cierre sin estiramientos largos.',
+      'Una capacidad principal con regresión, progresión, práctica de calidad y complemento coherente. La salida empieza en A/B/C o Parte Única.',
     can: 'Dead hang, scap pull, wall walk, pike en caja, kipping controlado, hollow/arch, cartwheels básicos, relevos, circuitos por tiempo, música si encaja.',
-    cannot: 'Semana tras semana el mismo bloque solo de tracción dura. Técnica seca sin ningún elemento lúdico o competitivo amistoso. Improvisar skills que no vengan en la programación.',
+    cannot: 'Repetir semana tras semana el mismo bloque de tracción dura o improvisar skills que no vengan en la programación. Si aparece monotonía, puede romperse con una dinámica sencilla sin convertirla en obligación.',
     feel: '«He progresado en algo concreto, me lo he pasado bien y no era «otro día igual de anillas».»',
     extendedBlocks: COACH_GIMNASTICA_EXTENDED_BLOCKS,
   },
@@ -175,7 +177,7 @@ export const COACH_CLASS_CARDS = [
     audience:
       'Cuando el programador o las instrucciones lo indican. Clase para aforo ampliado (12–14 personas), suele ser sábado u otros días especiales.',
     has: 'Juego, equipo o parejas. Ritmo social y disfrute sin perder la identidad EVO.',
-    structure: 'Warm up con juego → Bloques accesibles en equipo/parejas → WOD o circuito guiado → Cierre.',
+    structure: 'Bloques visibles en equipo, parejas o relevos cuando la oferta activa incluya esta clase.',
     can: 'Movimientos sencillos, cardio ligero, KB/mancuernas básicas, trabajo cooperativo.',
     cannot: 'Técnica compleja ni halterofilia.',
     feel: '«Me lo he pasado bien y lo he hecho con mi gente.»',
@@ -183,32 +185,32 @@ export const COACH_CLASS_CARDS = [
 ]
 
 export const COACH_CLASSES_FOOTNOTE =
-  'Clave: las clases NO son versiones escaladas unas de otras. Son sesiones distintas con objetivos distintos. EvoFuncional y EvoBasics nunca repiten el mismo ejercicio principal el mismo día. EvoFuerza, EvoGimnástica y EvoTodos solo existen en sala cuando vienen publicadas o indicadas en esa semana.'
+  'Clave: las clases no son versiones escaladas unas de otras. Comparten intención cuando ayuda, pero conservan identidad, carga y aprendizaje propios. EvoFuerza, EvoGimnástica y EvoTodos solo existen cuando la oferta o la semana publicada las incluye.'
 
 /** Coherencia muscular entre clases del mismo día (guía + prompts alineados). */
 export const COACH_CLASS_DAY_COHERENCE =
-  'Por lo general las clases del mismo día trabajan el mismo patrón muscular, adaptado al estilo y nivel de cada clase. Ejemplo: si en EvoBasics hay deadlift con porcentajes, en EvoFuncional puede haber deadlift con mancuernas. El objetivo es que a nivel muscular sean compatibles para los alumnos que combinan clases. Puede haber excepciones cuando el objetivo pedagógico lo justifique.'
+  'Las modalidades del mismo día deben ser compatibles para quien mezcla clases, pero no están obligadas a copiar el mismo ejercicio ni patrón principal. Primero se protege la fatiga, después la intención del mesociclo y la identidad de cada clase; se comparte una familia de estímulo cuando ayuda.'
 
 export const COACH_MESOCICLO_INTRO = [
   'Un mesociclo es un bloque de entrenamiento con un objetivo claro. En EVO usamos tres duraciones según el tipo: Fuerza 6 semanas, Gimnástico/Autocarga 5 semanas, Mixto 4 semanas. Cada semana tiene una fase que ordena el estímulo y lo que deberías notar en sala.',
 ]
 
 export const COACH_MESOCICLO_ROWS = [
-  { semana: 'S1', fase: 'Base', intensidad: '50-55%', notas: 'Pesos ligeros, técnica perfecta, aprender el movimiento.' },
-  { semana: 'S2', fase: 'Adaptación', intensidad: '60-65%', notas: 'Empezamos a cargar. Sensación de trabajo real.' },
-  { semana: 'S3', fase: 'Fuerza I', intensidad: '70-75%', notas: 'Las series cuestan. Foco en posición y control.' },
-  { semana: 'S4', fase: 'Fuerza II', intensidad: '75-80%', notas: 'Exigente. Las últimas series no deben llegar al fallo.' },
-  { semana: 'S5', fase: 'Pico', intensidad: '80-85%', notas: 'Series cortas y pesadas. Descanso completo entre sets.' },
-  { semana: 'S6', fase: 'Test', intensidad: 'Máximos', notas: 'Buscar marcas personales. Registrar resultados.' },
+  { semana: 'S1', fase: 'Referencias', intensidad: 'Single técnico o 2-3RM', notas: 'Test o actualización de referencias operativas cuando sea seguro.' },
+  { semana: 'S2', fase: 'Volumen y control', intensidad: '65-75% · RIR 2-3', notas: 'Construir series sólidas y repetibles.' },
+  { semana: 'S3', fase: 'Producción de fuerza', intensidad: '75-80% · hasta 85% según movimiento', notas: 'Sube la exigencia sin perder velocidad ni posición.' },
+  { semana: 'S4', fase: 'Intensificación', intensidad: '80-85% · RIR 1-2', notas: 'Pocas repeticiones, descanso suficiente y sin fallo.' },
+  { semana: 'S5', fase: 'Pico controlado', intensidad: '90-95% · volumen muy bajo', notas: 'Series cortas, técnica prioritaria y sin fallo.' },
+  { semana: 'S6', fase: 'Retest o verificación', intensidad: '95-100% cuando proceda', notas: 'RM solo en una prueba real; también puede usarse 2-3RM o test submáximo.' },
 ]
 
 export const COACH_MESOCICLO_COACH = [
   'Lo que esto significa para ti en sala',
   'Cada semana la programación cambia de intensidad — no improvises más peso del indicado.',
   'Si un alumno quiere ir más pesado, revisa en qué semana del mesociclo estáis antes de decidir.',
-  'En S1 y S2 el foco es técnica — no presiones para subir peso.',
-  'En S5 y S6 los alumnos van a límite — supervisa más, corrige más, anima más.',
-  'La semana de test (S6) es especial: ayuda a los alumnos a registrar sus marcas en la app o en la pizarra.',
+  'La técnica manda siempre sobre el porcentaje y ninguna semana obliga a llegar al fallo.',
+  'En S5 el volumen baja mucho; en S6 solo se busca RM cuando la sesión está planteada como prueba real.',
+  'Registra peso o porcentaje únicamente cuando ese dato sirve para la progresión siguiente.',
 ]
 
 export const COACH_MESOCICLO_FUERZA_TITLE = 'Mesociclo de Fuerza (6 semanas)'
@@ -225,15 +227,15 @@ export const COACH_MESOCICLO_AUTOCARGA_ROWS = [
   },
   {
     semana: 'S2',
-    fase: 'Densidad',
-    estimulo: 'Volumen controlado',
-    notas: 'Más series, misma técnica. Empieza a costar',
+    fase: 'Volumen mixto',
+    estimulo: 'Skill + fuerza de apoyo',
+    notas: 'Más trabajo acumulado sin perder calidad',
   },
   {
     semana: 'S3',
-    fase: 'Volumen Mixto',
-    estimulo: 'Gimnástico + carga',
-    notas: 'Combinamos cuerpo libre con algo de peso',
+    fase: 'Densidad',
+    estimulo: 'Variantes más exigentes',
+    notas: 'Lastre moderado y menor pausa cuando proceda',
   },
   {
     semana: 'S4',
@@ -254,27 +256,27 @@ export const COACH_MESOCICLO_MIXTO_TITLE = 'Mesociclo Mixto (4 semanas)'
 export const COACH_MESOCICLO_MIXTO_ROWS = [
   {
     semana: 'S1',
-    fase: 'Base',
-    estimulo: 'Fuerza + técnica suave',
-    notas: 'Introducir los dos estímulos sin forzar',
+    fase: 'Integración',
+    estimulo: 'Volumen equilibrado',
+    notas: 'Cargas alrededor de 70-80% cuando proceda',
   },
   {
     semana: 'S2',
-    fase: 'Densidad',
-    estimulo: 'Volumen combinado',
-    notas: 'Más carga y más técnica. Empieza a acumularse',
+    fase: 'Continuidad',
+    estimulo: 'Variedad',
+    notas: 'Cargas medias-bajas alrededor de 60-65%',
   },
   {
     semana: 'S3',
-    fase: 'Peak',
-    estimulo: 'Intensidad alta',
-    notas: 'Lo más exigente del mesociclo. Vigilar fatiga',
+    fase: 'Volumen + potencia',
+    estimulo: 'Fuerza-resistencia',
+    notas: 'Cargas moderadas y buena fluidez',
   },
   {
     semana: 'S4',
-    fase: 'Test',
-    estimulo: 'Evaluación global',
-    notas: 'Marcas de fuerza y evaluación técnica gimnástica',
+    fase: 'Cierre del ciclo',
+    estimulo: 'Densidad, resistencia y estrategia',
+    notas: 'Velocidad y capacidad sin convertir cada día en una sesión larga',
   },
 ]
 
@@ -291,40 +293,37 @@ export const COACH_MESOCICLO_ESPECIALIDADES_PARAS = [
 export const COACH_PROGRESSION_PRINCIPLE_TITLE = 'Principio general de progresión en EVO'
 
 export const COACH_PROGRESSION_PRINCIPLE_LINES = [
-  'Los alumnos se mueven entre clases cada 5-6 meses: EvoBasics → EvoFit → EvoFuncional.',
-  'La programación de cada clase prepara siempre para el siguiente nivel.',
+  'No existe una escalera obligatoria Basics → Fit → Funcional. Cada modalidad tiene identidad propia y la elección depende del objetivo y la complejidad técnica que la persona domina.',
+  'EvoBasics construye fuerza y habilidades transferibles; EvoFit ofrece una sesión completa con menor complejidad técnica; EvoFuncional desarrolla progresiones intermedias y avanzadas.',
 ]
 
 export const COACH_USO_SECTIONS = [
   {
     h: 'Qué tiene cada sesión',
     lines: [
-      'Timing por bloque con reloj acumulado — te dice cuánto dura cada parte.',
+      'Bloques A/B/C o Parte Única con la duración de trabajo dentro del título.',
       'Ejercicios con enlace al vídeo si son técnicos o poco comunes.',
       'Pesos de referencia por nivel — ligero, medio, pesado.',
-      'Feedback del día — el objetivo de cada bloque y las adaptaciones necesarias.',
+      'Feedback del día — qué buscamos en la sesión, cómo debe sentirse y la decisión práctica que ayude a darla bien.',
     ],
   },
   {
     h: 'Cómo leer el timing',
     lines: [
-      'Cada bloque tiene su tiempo marcado. Ejemplo:',
-      'WARM UP — 0:00 a 5:00 (5\')',
-      'CALENTAMIENTO — 5:00 a 12:00 (7\')',
-      'EXPLICACIÓN + APROXIMACIÓN — 12:00 a 21:00 (9\')',
-      'STRENGTH — 21:00 a 34:00 (13\')',
-      'WOD PREP — 34:00 a 42:00 (8\')',
-      'WOD — 42:00 a 55:00 (13\')',
-      'CIERRE — 55:00 a 60:00 (5\')',
-      'Regla fundamental: el tiempo de trabajo real máximo es 30 minutos. Si te pasas de tiempo en las explicaciones, el WOD sufre. Si la clase va a tiempo, el alumno sale bien.',
+      'La programación publicada empieza en A), B), C) o Parte Única. Ejemplo:',
+      'A) FUERZA — 15 MIN',
+      'B) INTERVALOS — 16 MIN',
+      'La app no publica bienvenida, calentamiento, preparación, transiciones ni cierre.',
+      'El coach sigue calculando internamente esos tiempos para que la hora fluya. Con varias partes suele haber unos 30-32 minutos efectivos; no se alarga un WOD solo para llenar.',
     ],
   },
   {
     h: 'Cómo leer el feedback del día',
     lines: [
-      'El feedback está al final de cada sesión. No es un resumen — es la guía que te dice qué tiene que pasar en esa clase. Tiene esta estructura:',
-      'Objetivo en [fuerza / técnica / OLY / WOD]: qué debe conseguir el alumno en ese bloque.',
-      'Adaptación (cuando la sesión la requiere): qué hacer si alguien no puede ejecutar el movimiento.',
+      'El feedback está en un campo separado. No es un resumen: es una nota de Marian que explica qué buscamos en la sesión y cómo queremos que se sienta.',
+      'Después añade solo lo que de verdad puede cambiar la clase: elección de pesos, adaptación u organización de parejas, estaciones y material cuando afecte al funcionamiento real.',
+      'Se escribe como un párrafo natural y fluido, sin bloques rígidos de objetivo, sensaciones o anticipación.',
+      'Todo lo mencionado debe existir en la sesión; no se inventan ejercicios ni logística.',
       'Léelo ANTES de la clase, no durante. Si no has leído el feedback, no estás listo para dar la clase.',
     ],
   },
@@ -332,10 +331,10 @@ export const COACH_USO_SECTIONS = [
     h: 'Las adaptaciones y progresiones',
     lines: [
       'Cada clase tiene un nivel de escalado distinto:',
-      'EvoFuncional y EvoBasics: progresiones del movimiento — de menos a más complejidad o carga.',
-      'EvoFit: escalado binario — haces esto o esto otro. Sin progresiones intermedias.',
-      'Ejemplo: 5 strict push ups → ring row.',
-      'Ejemplo: double unders → single unders.',
+      'EvoBasics prioriza aprendizaje y progresiones transferibles a Funcional.',
+      'EvoFuncional puede desarrollar skills más avanzados con opción de acceso y de capacidad.',
+      'EvoFit no hace un bloque de aprendizaje técnico: ofrece directamente una opción que la persona ya domina y otra alternativa prevista.',
+      'Ejemplo Fit: dominada estricta / Ring Row; pino controlado / variante en pared.',
     ],
   },
   {
@@ -359,80 +358,27 @@ export const COACH_USO_SECTIONS = [
 export const COACH_MATERIAL_INTRO =
   'Este bloque es editable y se actualiza cuando cambia el material del centro. Consúltalo siempre que tengas dudas sobre qué hay disponible.'
 
-export const COACH_MATERIAL_ROOMS = [
-  {
-    sala: 'Sala grande',
-    text: '4 racks de jaula + barras de dominadas integradas · Prioridad: EvoFuncional',
-  },
-  {
-    sala: 'Sala pequeña',
-    text: '4 racks portátiles (también funcionan como dominadas) + barras de dominadas en pared · Prioridad: EvoBasics / EvoFit',
-  },
-]
+export const COACH_MATERIAL_ROOMS = buildCoachInventoryRooms()
 
-export const COACH_MATERIAL_ITEMS = [
-  {
-    name: 'Barras',
-    detail:
-      '10kg (rosa): 7 · 15kg: 7 · 20kg: 4 · Técnica 180cm: 2 · TOTAL: 20 barras\nMáx 4 barras por clase. Clases simultáneas: sala grande para EvoFuncional.',
-  },
-  {
-    name: 'Mancuernas',
-    detail:
-      '4kg: 7p · 6kg: 6p · 8kg: 9p · 10kg: 8p · 12,5kg: 9p · 15kg: 7p · 17,5kg: 4p · 20kg: 4p · 22,5kg: 2p · 25kg: 2p · 27,5kg: 1p · 30kg: 1p\n⚠ 27,5 y 30kg solo en accesorios, no en WODs de reps altas.',
-  },
-  {
-    name: 'Kettlebells',
-    detail:
-      '8kg: 8 · 12kg: 10 · 16kg: 10 · 20kg: 8 · 24kg: 7 · 28kg: 3\n⚠ 28kg solo individual o accesorios. No en WODs para toda la clase.',
-  },
-  {
-    name: 'Slam balls',
-    detail:
-      '8kg: 3 · 10kg: 3 · 15kg: 1 · 20kg: 2 · 30kg: 1\nSolo en rotación o cuando no toda la clase lo necesite a la vez.',
-  },
-  {
-    name: 'Wall balls',
-    detail:
-      '6kg: 3 · 7kg: 6 · 8kg: 2\n⚠ Solo el 7kg tiene cantidad para clase completa. Si el WOD es para todos → siempre 7kg.',
-  },
-  {
-    name: 'Máquinas',
-    detail: 'Remo Concept 2: 1 · Air bike: 1\nMáx 2 por sesión. En clases simultáneas no usar las dos a la vez.',
-  },
-  {
-    name: 'Landmine',
-    detail: '8 uds · Suficiente para clase completa · No usar en Hybrix',
-  },
-  {
-    name: 'Anillas',
-    detail: '12 uds · Uso simultáneo permitido en dos clases a la vez (reparto entre salas).',
-  },
-  {
-    name: 'Cajones',
-    detail: '12 uds · Uso simultáneo permitido en dos clases a la vez (reparto entre salas).',
-  },
-  {
-    name: 'Otro',
-    detail:
-      'Paralettes: 4 · Bancos: 3 · Trineos: 2 · Farmer carry: 2 · AB mats: 16 · Foam rollers: 4 · Bandas: 14 rojas + 5 mini · Combas: 8 (estado regular) · Esterillas: 16',
-  },
-]
+/** La guía y el generador consumen la misma fuente estructurada; no mantener otra copia manual aquí. */
+export const COACH_MATERIAL_ITEMS = buildCoachInventoryItems()
 
 export const COACH_SOPORTE_INTRO =
-  'Si tienes dudas sobre la programación, el material, una sesión concreta o cualquier cosa relacionada con las clases, aquí está el protocolo.'
+  'El asistente conoce la sesión publicada, su feedback y el material del centro. Úsalo para entender y adaptar el trabajo sin perder la intención del día; para errores de programación, accesos o decisiones permanentes utiliza el canal humano.'
 
 export const COACH_SOPORTE_SI = [
-  'No entiendo un ejercicio de la programación o no sé cómo explicarlo.',
-  'Creo que hay un error en el timing o en los pesos de una sesión.',
-  'Un alumno tiene una limitación física y no sé cómo adaptar el movimiento.',
-  'Quiero cambiar algo de lo programado y necesito confirmación.',
-  'Tengo un problema con el acceso o el funcionamiento de la app.',
+  'Entender un ejercicio o explicar qué buscamos en un bloque concreto.',
+  'Adaptar un movimiento por capacidad, molestias o falta de movilidad sin hacer un diagnóstico.',
+  'Sustituir material o reorganizar parejas y estaciones conservando el estímulo.',
+  'Ajustar repeticiones, tiempo, carga o rango cuando el bloque no fluye como estaba previsto.',
+  'Valorar dos alternativas para la sesión real y saber cuál encaja mejor.',
 ]
 
 export const COACH_SOPORTE_NO = [
-  'Dudas que puedes resolver consultando esta guía o la biblioteca de ejercicios.',
-  'Cambios de última hora sin haberlo consultado previamente — eso no es soporte, es improvisar.',
+  'Un posible error en la programación publicada que deba corregirse para todos.',
+  'Un cambio que altera la intención completa de la sesión o una decisión permanente del Método EVO.',
+  'Problemas de acceso, funcionamiento de la app o datos que no aparecen actualizados.',
+  'Una lesión, incidente o situación de riesgo que necesita valoración profesional o actuación del responsable.',
 ]
 
 export const COACH_SOPORTE_PLACEHOLDER_CHANNEL =

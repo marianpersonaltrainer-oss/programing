@@ -39,10 +39,10 @@ const PROGRAMMER_EMAIL = 'marianpersonaltrainer@gmail.com'
 const PROGRAMMER_NAME = 'Marian EVO'
 
 const CLASS_TYPES = [
-  { slug: 'funcional', label: 'EvoFuncional', sort: 1, dna: { objetivo: 'Condicionamiento variado', duracion_min: 30, material: ['KB', 'mancuernas', 'cajón'] } },
-  { slug: 'basics', label: 'EvoBasics', sort: 2, dna: { objetivo: 'Técnica y progresión', duracion_min: 28, material: ['mancuernas', 'bandas'] } },
-  { slug: 'fit', label: 'EvoFit', sort: 3, dna: { objetivo: 'Alta intensidad breve', duracion_min: 24, material: ['barra', 'remo'] } },
-  { slug: 'hyrox', label: 'EvoHyrox', sort: 4, dna: { objetivo: 'Hybrid race prep', duracion_min: 35, material: ['sled', 'remo', 'wall ball'] } },
+  { slug: 'funcional', label: 'EvoFuncional', sort: 1, dna: { objetivo: 'Progreso técnico y rendimiento', duracion_min: 32, material: ['barra', 'KB', 'mancuernas', 'cajón'] } },
+  { slug: 'basics', label: 'EvoBasics', sort: 2, dna: { objetivo: 'Aprendizaje, fuerza y habilidades transferibles', duracion_min: 30, material: ['barra', 'mancuernas', 'bandas'] } },
+  { slug: 'fit', label: 'EvoFit', sort: 3, dna: { objetivo: 'Fuerza real, accesorios y WOD sin bloque de skill', duracion_min: 31, material: ['barra', 'mancuernas', 'landmine'] } },
+  { slug: 'hybrix', label: 'EvoHybrix', sort: 4, dna: { objetivo: 'Esfuerzo híbrido, máquinas y estrategia', duracion_min: 41, material: ['trineo', 'remo', 'ski', 'bicicleta', 'wall ball'] } },
   { slug: 'fuerza', label: 'EvoFuerza', sort: 5, dna: { objetivo: 'Fuerza máxima', duracion_min: 40, material: ['barra', 'rack'] } },
   { slug: 'gimnastica', label: 'EvoGimnástica', sort: 6, dna: { objetivo: 'Control corporal', duracion_min: 32, material: ['anillas', 'paralelas'] } },
 ]
@@ -199,10 +199,10 @@ async function main() {
   const seedSessions = [
     { slug: 'funcional', weekday: 1, title: 'Squat + engine', pattern: 'squat', status: 'confirmed', est: 30 },
     { slug: 'basics', weekday: 1, title: 'Hinge técnica', pattern: 'hinge', status: 'ai_draft', est: 28 },
-    { slug: 'fit', weekday: 1, title: 'Push metcon', pattern: 'push', status: 'confirmed', est: 24 },
+    { slug: 'fit', weekday: 1, title: 'Press + accesorios + WOD', pattern: 'push', status: 'confirmed', est: 31 },
     { slug: 'funcional', weekday: 2, title: 'Pull volume', pattern: 'pull', status: 'confirmed', est: 30 },
     { slug: 'basics', weekday: 2, title: 'Core + squat', pattern: 'core', status: 'confirmed', est: 28 },
-    { slug: 'fit', weekday: 3, title: 'Full AMRAP', pattern: 'full', status: 'ai_draft', est: 22 },
+    { slug: 'fit', weekday: 3, title: 'Deadlift + accesorios + intervalos', pattern: 'hinge', status: 'ai_draft', est: 31 },
   ]
 
   for (const s of seedSessions) {
@@ -224,9 +224,8 @@ async function main() {
     if (sErr) throw sErr
 
     const blocks = [
-      { kind: 'warmup', name: 'Calentamiento', dose: '2 rondas', duration_min: 8, sort: 0, items: [{ text: 'Movilidad cadera + activación', rx: "8'/lado" }] },
-      { kind: 'A', name: 'Fuerza', dose: '5x5', duration_min: 12, sort: 1, items: [{ ex: 'Back Squat', text: 'Back Squat', rx: '@75%' }] },
-      { kind: 'B', name: 'Accesorio', dose: '3x10', duration_min: 8, sort: 2, items: [{ ex: 'Plank', text: 'Plank', rx: '40s' }] },
+      { kind: 'A', name: 'Fuerza', dose: '5x5', duration_min: 13, sort: 1, items: [{ ex: 'Back Squat', text: 'Back Squat', rx: '@75%' }] },
+      { kind: 'B', name: 'Accesorios', dose: '3 vueltas', duration_min: 8, sort: 2, items: [{ ex: 'Plank', text: 'Plank + remo unilateral', rx: '40s + 8/lado' }] },
       { kind: 'C', name: 'WOD', dose: 'AMRAP 10', duration_min: 10, sort: 3, items: [{ ex: 'AMRAP mixto', text: 'KB swing + box step', rx: "10'" }] },
     ]
 

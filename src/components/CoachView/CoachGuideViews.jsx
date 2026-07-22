@@ -442,10 +442,10 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
   const inner = (
     <>
       <h2 className={h2Class}>
-        6. Soporte — Cómo preguntar dudas
+        6. Asistente y soporte
       </h2>
       <p className={`text-[15px] sm:text-base font-medium ${tMuted} mb-6 leading-relaxed`}>{COACH_SOPORTE_INTRO}</p>
-      <h3 className={h3Class}>Qué tipo de dudas van por soporte</h3>
+      <h3 className={h3Class}>Qué puede resolver el asistente</h3>
       <ul
         className={`list-disc pl-5 sm:pl-6 space-y-2 text-[15px] sm:text-base font-medium mb-6 ${
           isEmbedded ? 'text-[#2d2430]' : `text-base ${tMuted}`
@@ -455,7 +455,7 @@ export function CoachGuideSoporteProtocol({ guideSettings, variant = 'full' }) {
           <li key={i}>{t}</li>
         ))}
       </ul>
-      <h3 className={h3Class}>Qué NO va por soporte</h3>
+      <h3 className={h3Class}>Cuándo usar el canal humano</h3>
       <ul
         className={`list-disc pl-5 sm:pl-6 space-y-2 text-[15px] sm:text-base font-medium mb-6 ${
           isEmbedded ? 'text-[#2d2430]' : `text-base ${tMuted}`

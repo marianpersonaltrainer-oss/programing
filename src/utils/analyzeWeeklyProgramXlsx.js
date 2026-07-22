@@ -1699,8 +1699,6 @@ export async function analyzeWeeklyProgramXlsx({
     alerts,
     passed,
     pendingCorrections,
-    /** @deprecated usar pendingCorrections */
-    failed: pendingCorrections,
     blockingReasons,
     validationOutcome,
     kpi,
@@ -1725,4 +1723,3 @@ export async function analyzeWeeklyProgramXlsx({
     parseDiagnostics,
   }
 }
-

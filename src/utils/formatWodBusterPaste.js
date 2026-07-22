@@ -113,13 +113,6 @@ export function formatClassSessionForWodBusterPaste(raw) {
 }
 
 /**
- * @deprecated Usar formatClassSessionForWodBusterPaste; se mantiene por si hay imports externos.
- */
-export function formatWodBusterPasteText(raw) {
-  return formatClassSessionForWodBusterPaste(raw)
-}
-
-/**
  * Semana completa: DÍA EN MAYÚSCULAS, línea en blanco, bloques por clase separados por una línea en blanco;
  * entre días, dos líneas en blanco.
  * @param {{ dias?: Array<Record<string, string>> }} weekData

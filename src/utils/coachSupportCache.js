@@ -1,4 +1,6 @@
-/** Caché local de respuestas del chat Soporte (misma semana + día + clase + pregunta). v2 = prompt soporte Sprint 3. */
+import { COACH_SUPPORT_PROMPT_VERSION } from '../constants/systemPromptCoachSupport.js'
+
+/** Caché local ligada a versión de prompt y huella de la sesión. */
 
 export function supportSlug(value) {
   const s = String(value || '')
@@ -20,12 +22,19 @@ function hashQuestion(s) {
   return (h >>> 0).toString(36)
 }
 
-export function buildSupportCacheKey(weekId, daySlug, classSlug, questionNormalized) {
+export function buildSupportCacheKey(
+  weekId,
+  daySlug,
+  classSlug,
+  questionNormalized,
+  contextFingerprint = 'no-context',
+) {
   const w = String(weekId || 'no-week')
   const d = String(daySlug || 'general').slice(0, 48)
   const c = String(classSlug || 'general').slice(0, 48)
   const h = hashQuestion(questionNormalized)
-  return `coach_support_v2_${w}_${d}_${c}_${h}`
+  const ctx = String(contextFingerprint || 'no-context').slice(0, 24)
+  return `coach_support_v${COACH_SUPPORT_PROMPT_VERSION}_${w}_${d}_${c}_${ctx}_${h}`
 }
 
 export function getSupportCachedReply(storageKey) {

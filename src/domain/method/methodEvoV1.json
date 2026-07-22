@@ -1,0 +1,564 @@
+{
+  "meta": {
+    "id": "metodo-evo",
+    "version": "1.2.0",
+    "date": "2026-07-22",
+    "status": "active",
+    "language": "es"
+  },
+  "authority_order": [
+    "explicit_recent_marian_decision",
+    "approved_method_version",
+    "current_offer_schedule_inventory",
+    "confirmed_real_week_corrections",
+    "recent_approved_history",
+    "recent_method_documents",
+    "old_templates_and_history",
+    "examples_and_external_banks"
+  ],
+  "rule_levels": {
+    "hard": "Error; define identidad, seguridad, oferta o contrato de salida",
+    "operational": "Error o aviso fuerte; protege tiempo, material, fatiga o ejecución",
+    "preference": "Aviso justificable; comportamiento habitual, no obligación absoluta",
+    "allowed": "Posibilidad válida; no genera obligación",
+    "example": "Ilustración o fixture; nunca se aprende como regla"
+  },
+  "current_context": {
+    "effective_from": "2026-07-01",
+    "offer": {
+      "EvoFuncional": ["lunes", "martes", "miércoles", "jueves", "viernes"],
+      "EvoBasics": ["lunes", "miércoles", "viernes"],
+      "EvoFit": ["lunes", "martes", "miércoles", "jueves", "viernes"],
+      "EvoGimnástica": ["martes"],
+      "EvoHybrix": ["lunes", "miércoles"],
+      "EvoFuerza": [],
+      "EvoTodos": []
+    },
+    "inventory": {
+      "updated_at": "2026-07-22",
+      "source_rule": "usable_2023_minus_broken_plus_all_2026_purchases",
+      "rooms": {
+        "large": {
+          "racks": 4,
+          "racks_movable": false,
+          "pull_up_bars": "integrated",
+          "priority": "EvoFuncional"
+        },
+        "small": {
+          "racks": 4,
+          "racks_movable": false,
+          "pull_up_bars": "wall_and_portable_racks",
+          "priority": "EvoBasics_EvoFit",
+          "technical_bar_limit": 5
+        }
+      },
+      "machines": {
+        "rowerg": 1,
+        "bike": 2,
+        "skierg": 2,
+        "location": "one_room",
+        "mobility": "people_move_between_rooms_not_machines",
+        "simultaneous_rule": "reserve_before_programming_and_use_pairs_stations_or_staggered_starts"
+      },
+      "sled": { "total": 2, "movable": true, "setup_cost": "high" },
+      "landmine": {
+        "total": 8,
+        "movable": true,
+        "usual_use": "pairs",
+        "simultaneous_rule": "two_classes_allowed_with_about_four_posts_per_class_and_pairs_or_small_groups",
+        "setup_cost": "high"
+      },
+      "bars": {
+        "enough_for_both_rooms": true,
+        "by_weight_kg": { "10": 3, "15": 7, "20": 4 },
+        "technical_180cm": 2,
+        "room_2_technical_limit": 5,
+        "setup_cost": "high_when_loaded_or_racked"
+      },
+      "plates_units": { "1": 6, "1.25": 16, "2.5": 12, "5": 20, "10": 20, "15": 6, "20": 6 },
+      "dumbbell_pairs": {
+        "4": 7, "6": 6, "8": 9, "10": 8, "12.5": 9, "15": 7,
+        "17.5": 4, "20": 4, "22.5": 2, "25": 2, "27.5": 1, "30": 1
+      },
+      "kettlebell_units": { "8": 8, "12": 10, "16": 10, "20": 8, "24": 7, "28": 3 },
+      "slam_ball_minimum_confirmed_units": {
+        "8": 3, "10": 3, "15": 1, "20": 2, "30": 1,
+        "note": "minimum_confirmed_from_2026_purchase; usable_2023_units_are_additional_but_not_yet_recounted"
+      },
+      "wall_ball_units": { "6": 3, "7": 6, "8": 2 },
+      "rings": {
+        "total": 12,
+        "movable": false,
+        "allocation": "fixed_in_each_room_exact_split_pending",
+        "simultaneous_rule": "use_only_the_fixed_quota_of_each_room"
+      },
+      "boxes": { "total": 12, "movable": true, "setup_cost": "medium" },
+      "other": {
+        "parallettes": 4, "benches": 3, "farmer_carry_handles": 2, "ab_mats": 16,
+        "foam_rollers": 4, "red_bands": 14, "mini_bands": 5, "jump_ropes": 8, "mats": 16
+      }
+    },
+    "reference_class_capacity": 10
+  },
+  "global_rules": [
+    {
+      "id": "EVO-GEN-001",
+      "level": "hard",
+      "scope": "week",
+      "text": "Programar la semana completa dentro del mesociclo, no días aislados."
+    },
+    {
+      "id": "EVO-GEN-002",
+      "level": "hard",
+      "scope": "workflow",
+      "text": "Diseñar primero EvoFuncional y auditar después todas las modalidades juntas."
+    },
+    {
+      "id": "EVO-GEN-003",
+      "level": "hard",
+      "scope": "session",
+      "text": "La fuerza, técnica o skill y el bloque final deben complementarse y no saturar sin intención el mismo patrón o zona de fatiga."
+    },
+    {
+      "id": "EVO-GEN-004",
+      "level": "operational",
+      "scope": "history",
+      "text": "Revisar 4-6 semanas recientes y ponderar más las aprobadas y recientes."
+    },
+    {
+      "id": "EVO-GEN-005",
+      "level": "operational",
+      "scope": "variety",
+      "text": "Comparar patrón, ejercicio, implemento, formato, experiencia, día fijo y compatibilidad entre modalidades. Rediseñar si coinciden tres o más ejes sin progresión justificada."
+    },
+    {
+      "id": "EVO-GEN-006",
+      "level": "preference",
+      "scope": "week",
+      "text": "Incluir al menos un momento memorable semanal sin aumentar el caos logístico."
+    },
+    {
+      "id": "EVO-GEN-007",
+      "level": "hard",
+      "scope": "offer",
+      "text": "No programar ni generar feedback para una clase no ofertada."
+    },
+    {
+      "id": "EVO-GEN-008",
+      "level": "operational",
+      "scope": "fatigue",
+      "text": "Auditar hombro, lumbar, agarre, rodilla, carga axial, impacto, carrera y unilateralidad en días consecutivos y rutas mixtas."
+    },
+    {
+      "id": "EVO-GEN-009",
+      "level": "preference",
+      "scope": "cross_class",
+      "text": "Compartir una familia de intención entre modalidades cuando ayude, sin obligar al mismo ejercicio o patrón exacto."
+    },
+    {
+      "id": "EVO-GEN-010",
+      "level": "hard",
+      "scope": "learning",
+      "text": "Una regla automática no modifica un no negociable y requiere aprobación de Marian antes de escribirse en el método."
+    },
+    {
+      "id": "EVO-GEN-011",
+      "level": "operational",
+      "scope": "strength",
+      "text": "No dejar 3-4 minutos vacíos entre series de un único movimiento. Una cadencia de 3 minutos o más se usa para combinar un básico con un segundo movimiento o accesorio; en un movimiento único se acorta la cadencia. La excepción son las últimas series de la S6 cuando se busca o verifica un RM, con hasta 3 minutos."
+    },
+    {
+      "id": "EVO-GEN-012",
+      "level": "operational",
+      "scope": "variety",
+      "text": "No convertir la semana de Funcional en una sucesión de WODs por intervalos. Rotar AMRAP, por tiempo, ladder, chipper, partner, team, relevos, bloques continuos e intervalos; si se repiten intervalos, cambiar claramente duración, relación trabajo-descanso y estímulo."
+    },
+    {
+      "id": "EVO-GEN-013",
+      "level": "operational",
+      "scope": "force_mesocycle",
+      "text": "En el mesociclo de fuerza, programar básicos en la mayoría de los días de EvoFuncional donde la fatiga y la logística lo permitan. Elegir estratégicamente squat, deadlift, press, floor press, row y pull-up para alcanzar el porcentaje o RIR buscado sin repetir fatiga por inercia."
+    },
+    {
+      "id": "EVO-GEN-014",
+      "level": "operational",
+      "scope": "weightlifting",
+      "text": "Incluir halterofilia en casi todas las semanas del mesociclo de fuerza para que exista enseñanza y progresión. La exposición principal se programa en fuerza o técnica, no dentro de un WOD complejo, y progresa hacia cargas medias-altas con repeticiones limpias y sin fallo."
+    },
+    {
+      "id": "EVO-GEN-015",
+      "level": "operational",
+      "scope": "setup_logistics",
+      "text": "Amortizar los montajes costosos. Si se prepara landmine, barras cargadas, racks, bancos, trineos u otro recurso con montaje, traslado o reparto relevante, reutilizarlo en dos o más bloques o en varios movimientos de una parte larga. Puede convivir con otros materiales, pero no debe aparecer como un único ejercicio aislado salvo motivo técnico, de seguridad o fatiga explícito."
+    },
+    {
+      "id": "EVO-GEN-016",
+      "level": "hard",
+      "scope": "basics_complexity",
+      "text": "En EvoBasics puede enseñarse un skill complejo y aplicarse después con carga, volumen y fatiga controlados, pero el resto del WOD debe ser sencillo y reconocible. No acumular varios movimientos complejos o coordinativos dentro del mismo bloque de acondicionamiento."
+    },
+    {
+      "id": "EVO-GEN-017",
+      "level": "hard",
+      "scope": "basics_skill_rotation",
+      "text": "La rotación de EvoBasics avanza por clases realmente impartidas, no por semanas naturales. Cada bloque móvil de cinco clases contiene exactamente dos skills complejos y tres sencillos; una clase cancelada o no ofertada no avanza la rotación."
+    },
+    {
+      "id": "EVO-GEN-018",
+      "level": "operational",
+      "scope": "basics_movement_banks",
+      "text": "La checklist de skills controla qué se enseña, pero no limita el banco del entrenamiento. Fuerza, WOD y accesorios pueden usar movimientos ya conocidos, core, burpees, carries, carrera, máquinas, lunges, saltos sencillos, kettlebell, dumbbell, pelotas y landmine para conservar variedad y condición física."
+    }
+  ],
+  "output_contract": {
+    "visible_blocks": ["A", "B", "C", "PARTE ÚNICA"],
+    "class_total_minutes": 60,
+    "internal_only_planning": ["explanation", "equipment_setup", "progressions", "warm_up"],
+    "never_stretch_wod_to_fill_time": true,
+    "forbidden_visible_sections": [
+      "BIENVENIDA",
+      "MOVILIDAD",
+      "CALENTAMIENTO",
+      "ACTIVACIÓN GENERAL",
+      "PREPARACIÓN",
+      "WOD PREP",
+      "TRANSICIÓN",
+      "CIERRE",
+      "TIEMPO EFECTIVO",
+      "CRONOGRAMA 0-60"
+    ],
+    "duration_rules": {
+      "multi_part_typical_minutes": [30, 32],
+      "multi_part_allowed_when_last_rest_omitted": 33,
+      "basics_brief_skill_minutes": [8, 10],
+      "basics_skill_plus_simple_long_work_minutes": [38, 40],
+      "technical_specialty_approx_minutes": 30,
+      "simple_single_part_or_hybrix_minutes": [40, 42]
+    },
+    "format_semantics": {
+      "amrap_title": "AMRAP — N MIN",
+      "for_time_title": "POR TIEMPO — TC N MIN",
+      "time_cap_only_for": "for_time",
+      "titles_language": "Spanish",
+      "exercise_names": "official_team_nomenclature"
+    },
+    "feedback_separate_from_session": true
+  },
+  "class_profiles": {
+    "EvoFuncional": {
+      "purpose": "Programación principal intermedia-avanzada de fuerza, técnica, capacidad y aprendizaje.",
+      "required": [
+        "clear_daily_intent",
+        "mesocycle_alignment",
+        "access_and_capacity_options_when_skill_exists"
+      ],
+      "allowed": [
+        "barbell_percentages",
+        "weightlifting",
+        "gymnastics",
+        "advanced_skill",
+        "complexes",
+        "heavy_strength",
+        "strategy",
+        "single_long_block"
+      ],
+      "forbidden": [
+        "multiple_unrelated_complex_skills_in_one_session",
+        "complex_skill_plus_complex_coordinative_wod_without_reason"
+      ]
+    },
+    "EvoBasics": {
+      "purpose": "Base pedagógica que enseña fuerza y habilidades transferibles a EvoFuncional.",
+      "weekly_current_offer_targets": [
+        "one_meaningful_bar_or_strength_exposure",
+        "one_transferable_skill_exposure",
+        "one_application_or_conditioning_exposure"
+      ],
+      "allowed": [
+        "barbell_basic_lifts",
+        "hang_power_clean_learning",
+        "push_press_learning",
+        "jump_rope_skill",
+        "hangs_and_ring_support",
+        "wall_walk",
+        "partner",
+        "relay",
+        "simple_stations"
+      ],
+      "forbidden": [
+        "automatic_barbell_to_dumbbell_replacement",
+        "multiple_difficult_skills_same_session",
+        "light_copy_of_functional_without_learning"
+      ],
+      "logistics": {
+        "room_2_max_technical_bars": 5,
+        "pair_or_wave_management": true
+      },
+      "skill_rotation": {
+        "mode": "two_independent_least_recently_taught_queues",
+        "reset_each_week": false,
+        "advance_only_on_real_taught_class": true,
+        "block_size": 5,
+        "target_per_block": { "complex": 2, "simple": 3 },
+        "default_pattern_when_no_constraint": ["complex", "simple", "simple", "complex", "simple"],
+        "reorder_allowed_for": ["fatigue", "inventory", "simultaneity", "history", "variety", "space"],
+        "principal_skill_each_offered_day": true,
+        "default_minutes": [8, 10],
+        "rules": [
+          "continue_from_open_five_class_block",
+          "choose_least_recently_taught_family_that_fits_the_week",
+          "family_progressions_share_history_but_keep_distinct_coordination_when_needed",
+          "pair_skill_with_coherent_strength_or_application",
+          "skill_need_not_repeat_exactly_inside_wod",
+          "principal_advances_queue_reinforcement_and_application_do_not"
+        ],
+        "roles": {
+          "principal": "full_teaching_advances_rotation",
+          "reinforcement": "brief_reminder_or_strength_integration_does_not_advance",
+          "application": "controlled_wod_exposure_does_not_advance"
+        }
+      },
+      "skill_catalog": {
+        "confirmed_counts": { "complex": 48, "simple": 38 },
+        "complex": [
+          "Front Squat", "Overhead Squat", "Back Squat", "Thruster", "Split Squat", "Single-Leg Squat/Pistol", "Pistol de pie sobre cajón", "Pistol a cajón",
+          "Shoulder Press/Strict Press", "Push Press", "Push Jerk", "Dumbbell Push Jerk", "Split Jerk", "Dumbbell Split Jerk", "Shoulder Press en posición de split",
+          "Deadlift", "Sumo Deadlift", "Good Morning",
+          "Power Snatch", "Hang Power Snatch", "Hang Muscle Snatch", "Muscle Snatch", "Snatch", "Hang Snatch",
+          "Power Clean", "Hang Power Clean", "High-Hang Muscle Clean", "Clean", "Hang Clean",
+          "Strict Pull-Up", "Jumping Pull-Up", "Band-Assisted Pull-Up", "Kipping Pull-Up",
+          "Ring Support Hold", "Ring Dip", "Feet-Assisted Ring Dip", "Banded Ring Dip", "Jumping Ring Dip + Negative",
+          "Toes-to-Bar", "Knees-to-Armpits", "Hanging Knee Raise", "Toes-to-Rings",
+          "Handstand/Pino", "Tripod Handstand/Pino de tres apoyos", "Handstand Hold", "Pike Handstand Push-Up", "Kick-Up to Handstand + Negative", "Handstand Push-Up"
+        ],
+        "simple": [
+          "Air Squat", "Sentadilla a caja u objetivo", "Goblet Squat", "Dumbbell Squat", "Box Squat",
+          "Wall Ball", "Medicine-Ball Thruster", "Medicine-Ball Front Squat", "Medicine-Ball Push-Press Throw", "Dumbbell/Kettlebell Thruster",
+          "Box Jump", "Step-Up", "Lunge/Walking Lunge", "Pistol con pie detrás del talón", "Feet-Together Squat", "Kickstand Squat",
+          "Dumbbell Shoulder Press", "Dumbbell Push Press", "Kettlebell Deadlift", "Sumo Deadlift High Pull",
+          "Medicine-Ball Clean", "Medicine-Ball Power Clean", "Dumbbell Power Clean", "Dumbbell Clean", "Dumbbell Snatch",
+          "Push-Up", "Elevated Push-Up", "Knee Push-Up", "Band-Assisted Push-Up", "Ring Row", "Kip Swing", "False-Grip Ring Row", "False Grip",
+          "Knee Tuck", "V-Up", "Superman Hold", "Sit-Up", "Decline Sit-Up"
+        ],
+        "additional_operational_skills": {
+          "complex": ["Double Under / comba eficiente"],
+          "simple": ["Kettlebell Swing", "Slam Ball", "D-Ball Ground to Shoulder", "Sled Push / Sled Pull", "técnica de RowErg / SkiErg"]
+        },
+        "family_rule": "Variants may share a family and teaching history, but Back Squat, Front Squat, Push Press, Push Jerk and Thruster remain distinct learnings."
+      },
+      "movement_banks": {
+        "training": [
+          "barbell_strength", "dumbbell", "kettlebell", "wall_ball", "slam_ball", "d_ball", "landmine", "rings", "box", "sled", "ergs"
+        ],
+        "complementary": [
+          "core", "burpees", "carries", "run", "machines", "lunges", "step_ups", "simple_jumps", "push_ups", "accessories", "bands", "bodyweight"
+        ],
+        "rule": "A movement may be taught as a principal skill and later reappear as reinforcement or application without consuming another rotation position."
+      },
+      "landmine_family": {
+        "complexity": "simple_for_basics",
+        "allowed": [
+          "Landmine Squat", "Landmine Front Squat", "Landmine Hack Squat", "Landmine Deadlift", "Landmine Romanian Deadlift", "Landmine Reverse Lunge", "Landmine Row", "Landmine Press bilateral", "Landmine Press unilateral", "Half-Kneeling Landmine Press", "Landmine Push Press", "Landmine Thruster/Squat to Press", "Landmine antirotation press", "Landmine controlled rotation"
+        ],
+        "normally_avoid": [
+          "Landmine Clean", "Rotational Landmine Clean", "Landmine Clean and Jerk", "Landmine Pull-to-Punch", "multi-step explosive combinations"
+        ],
+        "setup_rule": "When landmine is mounted, use it coherently in several movements or blocks instead of for one isolated exercise."
+      }
+    },
+    "EvoFit": {
+      "purpose": "Clase completa de fuerza, accesorios y acondicionamiento con menor complejidad técnica, no menor exigencia.",
+      "weekly_components": ["real_strength", "accessories", "conditioning"],
+      "valid_session_structures": [
+        "strength_accessories_conditioning",
+        "two_long_strength_blocks",
+        "strength_plus_long_conditioning",
+        "single_continuous_strength_endurance_block_when_deliberate"
+      ],
+      "allowed": [
+        "barbell",
+        "percentages",
+        "rpe_rir",
+        "heavy_days",
+        "light_days",
+        "back_squat",
+        "front_squat",
+        "deadlift",
+        "hip_thrust",
+        "press",
+        "row",
+        "landmine",
+        "strict_pull_up_if_already_owned",
+        "handstand_option_if_already_owned",
+        "partner",
+        "intervals",
+        "amrap",
+        "for_time",
+        "stations",
+        "relays"
+      ],
+      "forbidden": [
+        "definition_as_basic_light_or_accessible_strength",
+        "weightlifting_learning_block",
+        "gymnastics_skill_progression_block",
+        "automatic_barbell_downgrade_to_dumbbells",
+        "high_volume_repeat_of_main_strength_pattern_in_wod",
+        "default_floor_press_row_carry_core_template"
+      ],
+      "direct_level_options_not_skill": [
+        "strict_pull_up_or_ring_row",
+        "controlled_handstand_or_planned_wall_variant",
+        "full_push_up_or_adaptation"
+      ]
+    },
+    "EvoHybrix": {
+      "purpose": "Entrenamiento híbrido reconocible y transferible a HYROX.",
+      "protagonists": [
+        "run",
+        "skierg",
+        "rowerg",
+        "bike",
+        "sled_push",
+        "sled_pull",
+        "burpee_broad_jump",
+        "farmer_carry",
+        "walking_or_sandbag_lunge",
+        "wall_ball"
+      ],
+      "required": [
+        "inventory_viable_distribution",
+        "pacing_or_transition_intent",
+        "variation_between_weekly_days"
+      ],
+      "preferences": [
+        "monday_intensity",
+        "wednesday_continuous_or_zone_2"
+      ],
+      "forbidden": [
+        "generic_functional_circuit_with_decorative_machine",
+        "ten_people_waiting_for_one_erg"
+      ]
+    },
+    "EvoGimnástica": {
+      "purpose": "Progresión de una capacidad gimnástica principal con práctica de calidad.",
+      "required": [
+        "one_main_capacity",
+        "clear_regression",
+        "clear_progression",
+        "quality_practice",
+        "coherent_complement"
+      ]
+    },
+    "EvoFuerza": {
+      "purpose": "Fuerza estructural complementaria.",
+      "required": [
+        "few_movements",
+        "clear_sets_load_rir_and_rest",
+        "complementary_accessories"
+      ],
+      "forbidden": ["exact_duplicate_of_same_day_functional_heavy_stimulus"]
+    }
+  },
+  "mesocycles": {
+    "force": {
+      "weeks": 6,
+      "sequence": [
+        {"week": 1, "intent": "test_or_update_references", "load": "technical_single_or_2_3rm"},
+        {"week": 2, "intent": "volume_and_control", "load": "65_75_percent_rir_2_3"},
+        {"week": 3, "intent": "force_production", "load": "75_80_up_to_85_by_lift"},
+        {"week": 4, "intent": "intensification", "load": "80_85_percent_rir_1_2_no_failure"},
+        {"week": 5, "intent": "controlled_peak", "load": "90_95_percent_low_volume_no_failure"},
+        {"week": 6, "intent": "retest_or_verification", "load": "95_100_when_appropriate_or_submax_test"}
+      ]
+    },
+    "bodyweight": {
+      "weeks": 5,
+      "sequence": [
+        {"week": 1, "intent": "base_positions_isometrics_tempo"},
+        {"week": 2, "intent": "mixed_volume_skill_plus_support_strength"},
+        {"week": 3, "intent": "density_harder_variants_moderate_load"},
+        {"week": 4, "intent": "technical_peak_lower_volume"},
+        {"week": 5, "intent": "clean_test_or_skill_verification"}
+      ]
+    },
+    "mixed": {
+      "weeks": 4,
+      "sequence": [
+        {"week": 1, "intent": "integration_balanced_volume", "load": "around_70_80_when_relevant"},
+        {"week": 2, "intent": "continuity_and_variety", "load": "around_60_65"},
+        {"week": 3, "intent": "volume_plus_power_and_strength_endurance", "load": "moderate"},
+        {"week": 4, "intent": "density_endurance_speed_strategy"}
+      ]
+    }
+  },
+  "feedback_rules": {
+    "style": "natural_close_oral",
+    "preferred_sentences": [3, 5],
+    "preferred_words": [35, 90],
+    "single_cohesive_paragraph": true,
+    "bullets_required": false,
+    "summarize_entire_session": false,
+    "explain_obvious": false,
+    "required": [
+      "daily_intent",
+      "expected_session_feeling"
+    ],
+    "flow": [
+      "open_with_session_intent",
+      "connect_blocks_to_expected_feeling",
+      "add_only_decisive_coach_action"
+    ],
+    "long_organization_details_location": "feedback",
+    "include_only_when_useful": [
+      "weight_choice",
+      "pair_station_space_or_material_organization",
+      "likely_bottleneck",
+      "main_adaptation"
+    ],
+    "entity_coherence_required": true,
+    "forbidden": [
+      "invented_exercise",
+      "invented_material",
+      "invented_pair_or_station",
+      "general_whiteboard_scores",
+      "feedback_for_unprogrammed_class",
+      "telegraphic_command_chain",
+      "generic_hype_or_slogan",
+      "corporate_or_ai_jargon",
+      "structured_objective_sensations_anticipation_headings"
+    ],
+    "allowed_records": [
+      "rm_only_on_real_test",
+      "working_weight_when_useful",
+      "percentage_when_useful",
+      "last_set_when_useful"
+    ]
+  },
+  "validators": [
+    {"id": "VAL-OFFER-001", "type": "deterministic", "severity": "error", "checks": "class_day_is_offered"},
+    {"id": "VAL-OFFER-002", "type": "deterministic", "severity": "error", "checks": "no_feedback_for_unprogrammed_class"},
+    {"id": "VAL-OUTPUT-001", "type": "deterministic", "severity": "error", "checks": "no_forbidden_visible_sections"},
+    {"id": "VAL-OUTPUT-002", "type": "deterministic", "severity": "error", "checks": "valid_block_letters_and_order"},
+    {"id": "VAL-OUTPUT-003", "type": "deterministic", "severity": "error", "checks": "block_titles_include_duration"},
+    {"id": "VAL-FORMAT-001", "type": "deterministic", "severity": "error", "checks": "amrap_not_for_time_and_no_time_cap"},
+    {"id": "VAL-FORMAT-002", "type": "deterministic", "severity": "error", "checks": "for_time_has_time_cap_when_needed"},
+    {"id": "VAL-TIME-001", "type": "deterministic", "severity": "error", "checks": "interval_arithmetic_matches_title"},
+    {"id": "VAL-MATERIAL-001", "type": "deterministic", "severity": "error", "checks": "inventory_and_simultaneity_feasible"},
+    {"id": "VAL-FEEDBACK-001", "type": "deterministic_semantic", "severity": "error", "checks": "feedback_entities_exist_in_session"},
+    {"id": "VAL-RECORD-001", "type": "deterministic_semantic", "severity": "error", "checks": "rm_only_on_real_test"},
+    {"id": "VAL-FIT-001", "type": "semantic", "severity": "error", "checks": "fit_identity_not_basic_or_light"},
+    {"id": "VAL-FIT-002", "type": "semantic", "severity": "error", "checks": "fit_has_valid_weekly_components_and_deliberate_session_structure"},
+    {"id": "VAL-FIT-003", "type": "semantic", "severity": "error", "checks": "fit_has_no_weightlifting_or_gymnastics_learning_block"},
+    {"id": "VAL-BASICS-001", "type": "semantic", "severity": "error", "checks": "basics_is_not_light_copy_and_has_weekly_learning_strength_application"},
+    {"id": "VAL-BASICS-002", "type": "deterministic_semantic", "severity": "error", "checks": "basics_has_one_identifiable_principal_skill_and_follows_two_complex_three_simple_rolling_block"},
+    {"id": "VAL-BASICS-003", "type": "deterministic_semantic", "severity": "warning", "checks": "basics_wod_does_not_accumulate_multiple_complex_families"},
+    {"id": "VAL-MATERIAL-002", "type": "deterministic_semantic", "severity": "warning", "checks": "high_setup_material_is_reused_or_exception_is_explained"},
+    {"id": "VAL-MATERIAL-003", "type": "deterministic_semantic", "severity": "warning_or_error", "checks": "simultaneous_classes_respect_shared_equipment_and_plate_demand"},
+    {"id": "VAL-STRENGTH-001", "type": "deterministic_semantic", "severity": "error", "checks": "long_strength_cadence_has_second_movement_or_is_week_6_rm_exception"},
+    {"id": "VAL-VARIETY-002", "type": "deterministic_semantic", "severity": "warning_or_error", "checks": "functional_does_not_repeat_interval_wods_across_week"},
+    {"id": "VAL-FATIGUE-001", "type": "semantic", "severity": "warning", "checks": "consecutive_and_mixed_route_fatigue"},
+    {"id": "VAL-HISTORY-001", "type": "semantic", "severity": "warning", "checks": "three_or_more_similarity_axes"},
+    {"id": "VAL-HYBRIX-001", "type": "semantic", "severity": "error", "checks": "hybrix_specificity_and_inventory_flow"},
+    {"id": "VAL-LOGISTICS-001", "type": "semantic", "severity": "warning", "checks": "explanation_transitions_and_waiting_are_realistic"}
+  ]
+}

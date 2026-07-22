@@ -334,7 +334,7 @@ function AdminWeeklyProgramUploadInner() {
           basicScore: out.basicScore,
           qualityScore: out.qualityScore,
           alertsCount: out.alerts.length,
-          pendingCount: out.pendingCorrections?.length ?? out.failed?.length ?? 0,
+          pendingCount: out.pendingCorrections?.length ?? 0,
           blockingCount: out.blockingReasons?.length ?? 0,
           topAlert: out.alerts[0] || 'Sin alertas',
           topRecommendation: out.smartRecommendations?.[0] || 'Sin recomendación',
@@ -1132,4 +1132,3 @@ export default function AdminWeeklyProgramUpload() {
     </AdminWeeklyProgramUploadBoundary>
   )
 }
-

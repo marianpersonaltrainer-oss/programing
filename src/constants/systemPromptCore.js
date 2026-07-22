@@ -1,27 +1,45 @@
 /**
  * Núcleo compartido V1 — Chat, generación Excel y edición diaria.
- * Una sola fuente de verdad para reglas transversales del método EVO.
+ * Las reglas proceden del contrato estructurado y versionado de Método EVO.
  */
+import {
+  METHOD_EVO_V1_FEEDBACK_POLICY,
+  METHOD_EVO_V1_LABEL,
+  METHOD_EVO_V1_OUTPUT_CONTRACT,
+  METHOD_EVO_V1_VERSION,
+} from '../domain/method/methodEvoV1.js'
 
-/** Texto canónico de la política de calentamiento / presentación (V1). */
-export const SYSTEM_PROMPT_CORE_WARMUP_POLICY = `En la programación y en el Excel no se muestran bloques de movilidad ni calentamiento. La clase empieza visualmente en Parte A, Parte B, fuerza, técnica o skill. El tiempo disponible sí debe calcularse teniendo en cuenta que el entrenador necesita explicar, preparar material, hacer progresiones y calentar. En el feedback se pueden incluir indicaciones breves de preparación cuando ayuden a organizar la clase.`
+export const SYSTEM_PROMPT_CORE_OUTPUT_POLICY = METHOD_EVO_V1_OUTPUT_CONTRACT
+export const SYSTEM_PROMPT_CORE_FEEDBACK_POLICY = METHOD_EVO_V1_FEEDBACK_POLICY
 
-/** Regla compacta de cargas compartida por los tres flujos V1. */
-export const SYSTEM_PROMPT_CORE_LOADS = `CARGAS (compartido): NUNCA uses kilogramos específicos en barra; usa porcentaje sobre 1RM o RPE. En mancuernas/kettlebells indica 1DB/2DB/1KB/2KB cuando aplique.`
+export const SYSTEM_PROMPT_CORE_SOURCE_POLICY = `FUENTE Y AUTORIDAD
+- Los tres flujos V1 consumen ${METHOD_EVO_V1_LABEL}; ningún prompt local puede redefinir la identidad de una modalidad.
+- Una decisión reciente y explícita de Marian puede ampliar o corregir el método. Un histórico, ejemplo o regla automática no puede hacerlo.
+- Las observaciones automáticas pendientes no se aplican como reglas hasta que Marian las apruebe.`
 
-/**
- * Bloque insertado una vez en cada system prompt V1.
- * @type {string}
- */
 export const SYSTEM_PROMPT_SHARED_CORE = `════════════════════════════════════════
-POLÍTICA GLOBAL COMPARTIDA — MÉTODO EVO (máxima prioridad)
+NÚCLEO COMPARTIDO — MÉTODO EVO ${METHOD_EVO_V1_VERSION}
 ════════════════════════════════════════
 
-${SYSTEM_PROMPT_CORE_WARMUP_POLICY}
+${SYSTEM_PROMPT_CORE_SOURCE_POLICY}
 
-${SYSTEM_PROMPT_CORE_LOADS}`
+${SYSTEM_PROMPT_CORE_OUTPUT_POLICY}
 
-/** Frases obsoletas que no deben permanecer tras la consolidación. */
+${SYSTEM_PROMPT_CORE_FEEDBACK_POLICY}`
+
+/** Conceptos legacy cuya reaparición en un prompt debe romper las pruebas. */
+export const SYSTEM_PROMPT_DEPRECATED_CONCEPTS = [
+  /juego siempre en calentamiento/i,
+  /nadie sale destrozado/i,
+  /fuerza accesible/i,
+  /fuerza funcional b[aá]sica/i,
+  /completa(?:r|rse)?\s+(?:visualmente\s+)?58\s*[-–]\s*60/i,
+  /CERO log[ií]stica/i,
+  /BIENVENIDA\s*\+\s*A\)\s*B\)\s*C\)\s*\+\s*CIERRE/i,
+]
+
+/** Compatibilidad temporal con imports de la primera consolidación. */
+export const SYSTEM_PROMPT_CORE_WARMUP_POLICY = METHOD_EVO_V1_OUTPUT_CONTRACT
 export const SYSTEM_PROMPT_DEPRECATED_WARMUP_PHRASES = [
   'El calentamiento SIEMPRE se incluye',
   'POLÍTICA GLOBAL ACTUAL — CALENTAMIENTO NO OBLIGATORIO',

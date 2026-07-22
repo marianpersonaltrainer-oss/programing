@@ -14,10 +14,15 @@ import {
   getAssistantWeekContext,
   insertAssistantQuestionHistory,
 } from '../../lib/supabase.js'
-import { AI_CONFIG, SUPPORT_MODEL } from '../../constants/config.js'
+import { AI_CONFIG, COACH_ASSISTANT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
 import { buildSupportCacheKey, getSupportCachedReply, setSupportCachedReply, supportSlug } from '../../utils/coachSupportCache.js'
-import { matchCoachSupportFaq } from '../../utils/matchCoachSupportFaq.js'
+import {
+  buildCoachSupportLibraryBlock,
+  coachSupportContextFingerprint,
+  inferCoachSupportSessionContext,
+  questionHasExplicitCoachContext,
+} from '../../utils/coachSupportContext.js'
 import CoachTodayScreen from './CoachTodayScreen.jsx'
 import CoachWeekOverviewPanel from './CoachWeekOverviewPanel.jsx'
 import CoachProfilePanel from './CoachProfilePanel.jsx'
@@ -59,10 +64,6 @@ const COACH_NOTICE_READ_KEY = 'evo_coach_notice_read_v1'
 const COACH_NOTICE_READ_MAX = 20
 
 export { COACH_CODE_KEY }
-/** @deprecated usar getExpectedCoachCode; se mantiene por compatibilidad con imports antiguos */
-export function getCoachCode() {
-  return getExpectedCoachCode()
-}
 
 function readCoachNoticeMap() {
   try {
@@ -313,22 +314,6 @@ function normalizeText(s) {
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .trim()
-}
-
-function inferSupportContextFromMessage(userMsg, weekData) {
-  if (!weekData?.dias?.length) return null
-  const m = String(userMsg || '').match(
-    /\b(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado)\b[\s·\-–—,:]+(evo[a-záéíóúñ]+)/i,
-  )
-  if (!m) return null
-  const dayNorm = normalizeText(m[1]).toUpperCase()
-  const classNorm = normalizeText(m[2])
-  const dia = weekData.dias.find((d) => normalizeText(d?.nombre || '').toUpperCase() === dayNorm)
-  const classDef = EVO_SESSION_CLASS_DEFS.find((c) => normalizeText(c.label) === classNorm)
-  if (!dia || !classDef) return null
-  const sessionText = String(dia[classDef.key] || '').trim()
-  if (!sessionText) return null
-  return { dayName: dia.nombre, classLabel: classDef.label, sessionText }
 }
 
 function incrementSupportMessagesUsed() {
@@ -976,8 +961,11 @@ export default function CoachView() {
       return
     }
 
-    const inferredContext = inferSupportContextFromMessage(userMsg, weekData)
-    const activeSupportContext = supportSessionContextRef.current || supportSessionContext || inferredContext
+    const inferredContext = inferCoachSupportSessionContext(userMsg, weekData, activeDay)
+    const selectedContext = supportSessionContextRef.current || supportSessionContext
+    const activeSupportContext = questionHasExplicitCoachContext(userMsg)
+      ? inferredContext
+      : selectedContext || inferredContext
     const daySlug = supportSlug(activeSupportContext?.dayName || '')
     const classSlug = supportSlug(activeSupportContext?.classLabel || '')
     const qNorm = normalizeText(userMsg).replace(/\s+/g, ' ').trim()
@@ -999,21 +987,14 @@ export default function CoachView() {
       }
     }
 
-    const faqHit = matchCoachSupportFaq(qNorm)
-    if (faqHit) {
-      const reply = `Respuesta estándar · Sin IA\n\n${faqHit.answer}`
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
-      try {
-        await saveMessage(sessionId, 'assistant', reply)
-        await persistQuestionHistory(reply)
-      } catch {
-        /* noop */
-      }
-      return
-    }
-
     const weekId = String(activeWeekRow?.id ?? 'no-week')
-    const cacheKey = buildSupportCacheKey(weekId, daySlug, classSlug, qNorm)
+    const cacheKey = buildSupportCacheKey(
+      weekId,
+      daySlug,
+      classSlug,
+      qNorm,
+      coachSupportContextFingerprint(activeSupportContext),
+    )
     const cached = getSupportCachedReply(cacheKey)
     if (cached) {
       setMessages((prev) => [...prev, { role: 'assistant', content: cached }])
@@ -1047,7 +1028,14 @@ export default function CoachView() {
     const hasSession = Boolean(supportContextBlock)
     const systemCore = buildCoachSupportSystemPrompt(hasSession)
     const weeklyAssistantBlock = extractAssistantWeeklyContextBlock(userMsg, assistantWeekContext)
-    const systemPrompt = [weeklyAssistantBlock, supportContextBlock, systemCore].filter(Boolean).join('\n\n')
+    const libraryBlock = buildCoachSupportLibraryBlock(
+      exerciseLibrary,
+      activeSupportContext,
+      userMsg,
+    )
+    const systemPrompt = [systemCore, supportContextBlock, weeklyAssistantBlock, libraryBlock]
+      .filter(Boolean)
+      .join('\n\n')
 
     supportInFlightAbortRef.current?.abort()
     const ac = new AbortController()
@@ -1064,7 +1052,7 @@ export default function CoachView() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: SUPPORT_MODEL,
+            model: COACH_ASSISTANT_MODEL,
             max_tokens: AI_CONFIG.coachMaxTokens,
             system: systemPrompt,
             messages: history.map((m) => ({ role: m.role, content: m.content })),
@@ -1344,15 +1332,15 @@ export default function CoachView() {
                     <div className="rounded-2xl border border-[#6A1F6D]/40 bg-[#1a0f1b] shadow-sm p-4 space-y-3 mx-auto max-w-lg">
                       <p className="text-sm font-bold text-[#FFFFFF]">Chatea con el asistente</p>
                       <p className="text-xs font-medium text-[#F6E8F9]/85 leading-relaxed">
-                        Respuestas cortas y concretas. Si vienes desde un día y clase, el contexto ya va incluido.
+                        Te ayuda a adaptar la sesión real sin perder lo que buscamos ese día. Si vienes desde una clase, ya conoce sus bloques, tiempos y material.
                       </p>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-[#F6E8F9]/75">Sugerencias</p>
                       <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {[
-                          '¿Cómo escalo el ejercicio de hoy?',
-                          'Tengo poco material, plan B',
-                          'El WOD va largo, ¿qué quito?',
-                          'Dudas con el landmine',
+                          '¿Cómo adapto este ejercicio sin cambiar el estímulo?',
+                          'No tengo este material, ¿qué alternativa encaja?',
+                          'Este alumno tiene molestias, ¿cómo ajusto la parte?',
+                          'El bloque va largo, ¿qué recorto?',
                         ].map((q) => (
                           <button
                             key={q}

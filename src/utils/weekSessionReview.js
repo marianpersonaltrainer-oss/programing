@@ -86,28 +86,21 @@ const BORING_TOKEN_RE = /^(reps?|rep|rondas?|rounds?|min|mins?|seg|s|series|x|rm
 const MOVEMENT_LIKE_RE =
   /\b(squat|sentadilla|press|row|remo|pull|push|deadlift|lunge|zancada|step|burpee|thruster|wall\s*ball|jump|swing|snatch|clean|jerk|dip|ring|muscle|toes|sit[\s-]?up|plank|carry|rdl|hinge|cluster|pike|handstand|box|copenhagen|pallof|kb|db|goblet|landmine|dominada|strict|kipping|c2b|lunges?|raises?|curls?|wall|shoulder|hip|bridge|raise|walk|rope|under|v[\s-]?up|negative|tempo|iso|isometric)\b/i
 
-/** No incluir «movilidad inicial» aquí: en EVO es uso habitual ligado al trabajo del día → inflaba amarillo×columna. */
-const WARMUP_TITLE_RE = /\b(calentamiento|warm[\s-]?up|wod\s*prep)\b/i
-const GENERIC_WARMUP_RE =
-  /\b(movilidad\s+general|movilidad\s+articular|activacion\s+general|activaci[oó]n\s+general|trote\s+suave|cardio\s+suave)\b/i
+const FORBIDDEN_VISIBLE_TITLE_RE =
+  /^(?:[A-C]\)\s*)?(BIENVENIDA|MOVILIDAD|CALENTAMIENTO|ACTIVACI[OÓ]N(?:\s+GENERAL)?|PREPARACI[OÓ]N|WOD\s*PREP|TRANSICI[OÓ]N|CIERRE|TIEMPO\s+EFECTIVO)\b/i
+const FULL_HOUR_TIMELINE_RE = /(?:^|\s)0\s*['′]?\s*[-–—]\s*60\s*['′]?(?:\s|$)/i
 
-function sessionWarmupIssue(raw) {
+function sessionVisibleContractIssue(raw) {
   const text = String(raw || '').trim()
   if (!text || isSessionPlaceholder(text)) return null
-  const hasWarmupTitle = WARMUP_TITLE_RE.test(text)
-  const hasGenericWarmup = GENERIC_WARMUP_RE.test(text)
-  if (!hasWarmupTitle && !hasGenericWarmup) return null
-  if (hasWarmupTitle && hasGenericWarmup) {
-    return {
-      severity: 'orange',
-      hint:
-        'Calentamiento genérico detectado: deja solo movilidad específica cuando sea estratégica; evita bloque fijo de warm-up.',
-    }
-  }
+  const forbiddenLine = text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => FORBIDDEN_VISIBLE_TITLE_RE.test(line))
+  if (!forbiddenLine && !FULL_HOUR_TIMELINE_RE.test(text)) return null
   return {
-    severity: 'yellow',
-    hint:
-      'Hay bloque de calentamiento: confirma que aporta estrategia real (no obligatorio) y no es plantilla fija.',
+    severity: 'red',
+    hint: `Sección visible no permitida por Método EVO 1.2: «${forbiddenLine || "cronograma 0'-60'"}». Empieza en A/B/C o PARTE ÚNICA.`,
   }
 }
 
@@ -204,7 +197,7 @@ export function buildWeekSessionClassReview(dias, sessionKey, options = {}) {
 
   for (let i = 0; i < n; i += 1) {
     if (!hasProgram[i]) continue
-    const issue = sessionWarmupIssue(String((dias?.[i] || {})[sessionKey] || ''))
+    const issue = sessionVisibleContractIssue(String((dias?.[i] || {})[sessionKey] || ''))
     if (!issue) continue
     rows[i].severity = maxSeverity(rows[i].severity, issue.severity)
     rows[i].hints.push(issue.hint)

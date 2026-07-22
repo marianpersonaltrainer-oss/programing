@@ -138,7 +138,7 @@ function ClassDayCard({
           <CardDivider />
           <div className="rounded-lg border border-[#A729AD]/45 bg-[#2A1630] px-3 py-2.5">
             <p className="text-[11px] font-extrabold uppercase tracking-widest text-[#F6E8F9] mb-1.5">Briefing programación</p>
-            <CoachSessionBriefingPreview text={sessionFeedbackRaw} accent={accent} lineClamp={4} />
+            <CoachSessionBriefingPreview text={sessionFeedbackRaw} lineClamp={4} />
           </div>
         </>
       ) : null}

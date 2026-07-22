@@ -18,7 +18,6 @@ import {
 } from '../utils/parseAnthropicProxyBody.js'
 import { extractAnthropicTextBlocks } from '../utils/extractAnthropicTextBlocks.js'
 import { buildMesocycleProgrammingBlock } from '../constants/mesocycleGenerationBlocks.js'
-import { buildInferredMethodFromReference } from '../utils/buildInferredMethodFromReference.js'
 import {
   getReferenceMesocycleContextForLLM,
   buildReferenceMesocycleSystemAppendix,
@@ -127,16 +126,12 @@ export function useAgent(weekState) {
     const referenceAppendix = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
     if (referenceAppendix) {
       systemWithContext += referenceAppendix
-      const inferredRules = buildInferredMethodFromReference(getReferenceMesocycleContextForLLM())
-      if (inferredRules) {
-        systemWithContext += `\n\n${inferredRules}`
-      }
     }
     if (weekCtx) {
       systemWithContext += `\n\n════════════════════════════════════════\nCONTEXTO ACTUAL\n════════════════════════════════════════\n\n${weekCtx}`
     }
-    // Reglas method_rules remotas (53 legacy en Supabase) excluidas temporalmente del Chat V1
-    // hasta revisión formal. Fuente de verdad: localStorage vía buildMethodPromptAppendix().
+    // El Método EVO versionado y las decisiones manuales confirmadas son la única capa normativa.
+    // Fuente de verdad: contrato versionado vía buildMethodPromptAppendix().
     if (libraryAppend) {
       systemWithContext += `\n\n${libraryAppend}`
     }

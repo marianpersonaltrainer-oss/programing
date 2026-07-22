@@ -19,11 +19,13 @@ import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
-import { loadLegacyMethodRulesForBriefing } from './lib/legacyMethodRulesBriefing.js'
+import { buildMethodEvoV1Prompt } from '../src/domain/method/methodEvoV1.js'
+
+const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
-(mismo mesociclo que indica el bloque final salvo modo legacy), historial de cambios guardados en Supabase,
+(del mismo mesociclo que indica el bloque final), historial de cambios guardados en Supabase,
 check-ins semanales de coaches, pases de turno diarios, reglas del método y feedback por sesión ligado a esas semanas.
 
 Tu tarea:
@@ -34,7 +36,9 @@ Tu tarea:
    - "narrative": string en español, 2–5 frases, tono profesional y cercano
    - "suggestedFocus": una línea, p. ej. "Consolidación + descarga parcial de hombro"
 
-No incluyas la programación día a día; solo la propuesta de enfoque.`
+No incluyas la programación día a día; solo la propuesta de enfoque.
+
+${BRIEFING_METHOD_CONTEXT}`
 
 function buildBriefingSystemPrompt(body) {
   const meso = String(body?.mesociclo || '').trim()
@@ -134,16 +138,6 @@ function formatHandoffs(rows) {
     .map(
       (h) =>
         `- ${h.created_at?.slice(0, 16) || '—'} · ${h.coach_name || ''} · ${h.class_type || ''} @ ${h.class_time || ''} · energía ${h.energy_level ?? '—'}/5${h.had_incident ? ' · incidente' : ''}${h.note ? ` · ${sliceText(h.note, 220)}` : ''}`,
-    )
-    .join('\n')
-}
-
-function formatMethodRules(rows) {
-  if (!rows?.length) return '(Sin reglas activas en method_rules.)'
-  return rows
-    .map(
-      (r) =>
-        `- [${r.rule_type || 'rule'}] ${sliceText(r.trigger_context || 'general', 80)}: ${sliceText(r.rule_text, 240)} (conf. ${r.confidence ?? 50}%)`,
     )
     .join('\n')
 }
@@ -337,9 +331,6 @@ async function fetchContextPack(supabase, mesocicloRaw) {
     else handoffs = data || []
   }
 
-  let rules = null
-  rules = await loadLegacyMethodRulesForBriefing(supabase, logOptionalTableSkip)
-
   const mesoLabel = mesociclo ? `mesociclo «${mesociclo}»` : 'todos los mesociclos (ventana corta)'
   const blocks = [
     `## Semanas ya publicadas en Supabase (${mesoLabel}; texto de programación + resumen)`,
@@ -354,11 +345,6 @@ async function fetchContextPack(supabase, mesocicloRaw) {
     '## Pases de turno diarios (últimos ~7 días)',
     formatHandoffs(handoffs || []),
   ]
-
-  // Reglas method_rules legacy: excluidas por defecto (METHOD_RULE_LEGACY_READ_ENABLED=true para reactivar).
-  if (rules !== null) {
-    blocks.push('', '## Reglas del método (activas)', formatMethodRules(rules || []))
-  }
 
   blocks.push(
     '',

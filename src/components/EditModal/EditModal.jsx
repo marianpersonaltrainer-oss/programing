@@ -276,7 +276,7 @@ export default function EditModal({ day, session, onSave, onClose }) {
 
             <div className={`flex-1 overflow-y-auto px-6 py-5 space-y-5 ${coachBg.app}`}>
               <p className={`text-[11px] ${coachText.muted} leading-relaxed`}>
-                Se generará una frase por motivo en <span className="font-bold">Reglas aprendidas</span>.
+                Guardaremos una observación por motivo para que puedas revisarla después. No cambiará el Método EVO automáticamente.
               </p>
               <div className="flex flex-wrap gap-2">
                 {EDIT_REASON_PRESETS.map(({ id, label }) => {
@@ -356,7 +356,7 @@ export default function EditModal({ day, session, onSave, onClose }) {
                   onClick={handleLearnConfirm}
                   className="px-6 py-2.5 rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] text-white text-[10px] font-bold uppercase tracking-widest"
                 >
-                  Guardar {learnSelected.length ? 'y añadir reglas' : 'sesión'}
+                  Guardar {learnSelected.length ? 'con observaciones' : 'sesión'}
                 </button>
               </div>
             </div>

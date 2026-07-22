@@ -1,37 +1,19 @@
 /**
- * PACK DE VOZ — Feedbacks reales de Marian (Head Coach EVO).
+ * Ejemplos de voz curados para el feedback que Marian deja al entrenador.
  *
- * Estos son ejemplos REALES escritos por Marian, usados como few-shot para que la IA
- * imite su tono al generar/regenerar los feedbacks de coach (campos feedback_*).
- *
- * CÓMO AÑADIR MÁS: pega aquí más feedbacks reales tuyos, en prosa corrida (sin guiones).
- * Cuantos más y más variados (clases, días, registros corto/largo), mejor se replica la voz.
- * No hace falta tocar nada más: el prompt los lee de aquí automáticamente.
+ * Enseñan forma y criterio, no contenido obligatorio: primero explican qué se
+ * busca en la sesión y cómo debería sentirse; después añaden solo la decisión
+ * práctica que de verdad cambia la clase.
  */
 export const VOICE_FEEDBACK_EXAMPLES = [
-  'Hoy quiero que el KB Clean sea la prioridad, pero que la clase no se quede demasiado técnica. En el partner IGYG que se piquen un poco, pero sin perder la recepción del clean. El farmer hold tiene que picar. Si ves que alguien va muy justo, baja carga pero que siga moviéndose.',
-  'El sled tiene que ser el protagonista, pero sin marearlos con demasiada explicación. Que prueben dos cargas y rápido a trabajar. En el team flow quiero que se muevan y se ayuden, no que uno haga todo. Si en el trineo bajan el ritmo, hay que bajar peso.',
-  'Clase para sudar y disfrutar. Deja equipos claros desde el principio y controla que nadie se quede parado esperando máquina. Si solapan, cambia una estación a RUN y listo. En el finisher, que se animen entre ellos y acaben con sensación de equipo.',
-  'Que se note el ambiente de partner relay. En la fuerza, carga exigente pero sin perder postura. En el WOD que salgan ordenados: uno trabaja, otro recupera, y cuando toca correr que aprieten.',
-  'Hoy el RDL va con intención: bajada controlada y espalda fuerte. Pero en la parte B quiero que cambie la sensación, más atlética y menos de quedarse clavados en la barra. Los broad jumps y el bear crawl son los que van a darle vida al día. Que no se duerman entre bloques.',
-  'En el hip thrust, que no se queden con el peso cómodo. Si al acabar la serie no notan glúteo, seguramente iban ligeros. En el for time, que empiecen con cabeza por los burpees. La carrera después de cada ronda es para soltar y seguir, que no se paren.',
-  'Hoy es el día más técnico y controlado. No hace falta que salgan reventados, pero sí que trabajen bien. En el strict press, que no compensen con la espalda. En el EMOM, si los nordic no salen, cambiarlos a glute bridge. La carrera del minuto 4 tiene que darle aire al bloque.',
-  'En el complex, que no se vuelvan locos subiendo peso; quiero barra rápida y controlada. En el team chipper, que repartan bien desde el inicio.',
-  'Hoy la clase tiene que sentirse especial desde que entran. Mucho ambiente de equipo, ritmo constante y cabeza al principio: que no se vuelvan locos en las primeras rondas porque luego el volumen pasa factura. En las flexiones, mejor partir desde el principio o adaptar desde el inicio para que no lleguen al fallo.',
-  'Buscar bien el trabajo de la parte A para que puedan mantenerlo las 4 series. En la parte B que se apreten: el paso del oso es exigente porque son bastantes metros, así que organiza los cajones al fondo y deja media sala para hacerlo.',
-  'Se tienen que apretar en el for time, una sola ronda.',
-  'En la parte A, retarles con el trabajo de pino. Ojo con los wall walks de la B: que los hagan de uno en uno y solo el mejor, sobre todo los que van muy justos.',
-  // Variantes alternativas de los mismos días (otro fraseo, misma voz)
-  'Hoy quiero que el KB Clean se vea limpio, pero que la clase no se quede demasiado técnica. En el partner IGYG que se piquen un poco, pero sin perder la recepción del clean. El farmer hold tiene que molestar, no ser relleno. Si ves que alguien va muy justo, baja carga y que siga moviéndose.',
-  'El sled tiene que ser el protagonista, pero sin marearlos con demasiada explicación. Que prueben dos cargas y rápido a trabajar. En el team flow quiero que se muevan y se ayuden, no que uno haga todo y los demás miren. Si se atasca el trineo, baja peso y seguimos.',
-  'Clase para sudar y disfrutar. Deja equipos claros desde el principio y controla que nadie se quede parado esperando máquina. Si hay atasco, cambia una estación a RUN y listo. En el finisher, que se animen entre ellos y acaben con sensación de equipo.',
-  'Este es el día más memorable de la semana. Quiero que se note el ambiente de partner relay. En la fuerza, carga real pero sin romper postura. En el WOD que salgan ordenados: uno trabaja, otro recupera, y cuando toca correr se corre de verdad. Mucha energía aquí.',
-  'Hoy el RDL va con intención: bajada controlada y espalda fuerte. Pero en la parte B quiero que cambie la sensación, más atlética y menos de quedarse clavados en la barra. Los broad jumps y el bear crawl son los que van a darle vida al día. Que no se duerman entre bloques.',
-  'En el hip thrust, que no se queden con el peso cómodo. Si al acabar la serie no notan glúteo, seguramente iban ligeros. En el for time, que empiecen con cabeza porque los burpees se pagan rápido. La carrera después de cada ronda es para soltar y seguir, no para pasear.',
-  'Hoy es el día más técnico y controlado. No hace falta que salgan reventados, pero sí que trabajen bien. En el strict press, que no compensen con la espalda. En el EMOM, si los nordic no salen, cambia rápido a glute bridge y no pierdas tiempo. La carrera del minuto 4 tiene que darle aire al bloque.',
-  'Viernes tiene que sentirse como cierre de semana. En el complex, que no se vuelvan locos subiendo peso; quiero barra rápida y controlada. En el team chipper, que repartan bien desde el inicio. El bonus final es para acabar con risas y ambiente, pero que sigan trabajando.',
-  'Hoy la clase tiene que sentirse especial desde que entran. Mucho ambiente de equipo, ritmo constante y cabeza al principio: que no se vuelvan locos en las primeras rondas porque luego el volumen pasa factura. En las flexiones, mejor partir pronto o adaptar desde el inicio para que no lleguen al fallo.',
-  'Buscar bien el trabajo de la parte A para que puedan mantenerlo las 4 series. En la parte B que se apreten: el paso del oso es exigente porque son bastantes metros, así que organiza los cajones al fondo y deja media sala para hacerlo.',
+  'Hoy buscamos una fuerza sólida, sin perseguir una marca ni llegar al fallo. En los intervalos sí quiero que suban el ritmo, pero con un peso que les permita mantener el movimiento limpio desde la primera ronda hasta la última. Si el wall ball empieza a romperse demasiado pronto, bajad carga antes de que el bloque pierda continuidad.',
+  'La idea de hoy en Basics es que entiendan bien la posición y ganen confianza con la barra. No hace falta correr con las cargas: prefiero que repitan bien y que lleguen al bloque final sabiendo qué están haciendo. Organizad parejas por niveles parecidos para que los cambios sean rápidos y nadie se quede esperando.',
+  'En Fit hoy quiero una sesión de fuerza de verdad, con un peso que resulte exigente pero que puedan sostener en todas las series. Los accesorios deben completar el trabajo principal y el WOD tiene que cambiar la sensación, con más ritmo y sin volver a cargar la misma zona. Quien ya tenga dominada estricta puede hacerla; el resto trabaja Ring Row sin convertirlo en un skill.',
+  'Hoy buscamos un trabajo continuo y bien medido, no salir demasiado rápido y quedarse sin ritmo a mitad de la sesión. Dejad las cinco estaciones montadas desde el principio y explicad una sola dirección de cambio para que el grupo fluya. Si se forma espera en una máquina, reducid el tiempo de uso antes de cambiar toda la estructura.',
+  'La gracia de esta sesión está en el trabajo por parejas: queremos que se ayuden a mantener el ritmo, no que una persona termine haciendo casi todo. En la primera vuelta que prueben el reparto y, a partir de ahí, que ajusten las tandas antes de llegar al fallo. Dejad claro desde el inicio si el cambio es por ronda para evitar dudas durante el WOD.',
+  'Hoy el trabajo técnico es la prioridad, pero la clase no debe quedarse parada explicando demasiado. Quiero pocas correcciones, muy claras, y repeticiones de calidad que puedan repetir con confianza. En el bloque final, la opción de acceso y la de capacidad deben quedar decididas antes de empezar para que cada persona pueda trabajar con continuidad.',
+  'Buscamos que el trineo sea el protagonista y que el esfuerzo se vea fuerte, pero sin que la carga bloquee la estación. Dejad que prueben dos pesos durante la preparación y elegid el que les permita moverse sin paradas largas. Si una pareja empieza a tardar mucho más que las demás, bajad carga y mantened el orden de salida.',
+  'Hoy quiero que la primera parte se vea controlada y que el cierre tenga una sensación más atlética y ligera. No hace falta repetir cada bloque en el feedback: lo importante es que el entrenador entienda el cambio de intención entre uno y otro. Dejad preparado el espacio de desplazamiento antes de empezar para no cortar el ritmo cuando llegue esa parte.',
 ]
 
 /**
@@ -40,7 +22,7 @@ export const VOICE_FEEDBACK_EXAMPLES = [
  */
 export function buildVoiceFewShot(max) {
   const list = typeof max === 'number' ? VOICE_FEEDBACK_EXAMPLES.slice(0, max) : VOICE_FEEDBACK_EXAMPLES
-  return list.map((ex) => `· ${ex}`).join('\n')
+  return list.map((example) => `· ${example}`).join('\n')
 }
 
 export const VOICE_FEEDBACK_FEWSHOT = buildVoiceFewShot()

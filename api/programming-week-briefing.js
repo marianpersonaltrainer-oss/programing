@@ -412,12 +412,33 @@ export default async function handler(req, res) {
       const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
       contextPack = await fetchContextPack(supabase, mesociclo)
 
+      const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
+      const generationDays = Array.isArray(body.generationDays)
+        ? body.generationDays
+            .map((day) => String(day || '').trim().toUpperCase())
+            .filter((day, index, rows) => validDays.has(day) && rows.indexOf(day) === index)
+        : []
+      const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
+      const weeklyOfferDays = body.weeklyOffer?.dias
+      const weeklyOfferLines = generationDays.map((day) => {
+        const classes = Array.isArray(weeklyOfferDays?.[day]) ? weeklyOfferDays[day] : []
+        return `- ${day}: ${classes.length ? classes.join(', ') : '(sin clases seleccionadas)'}`
+      })
+
       const tail = [
         '',
         '---',
         `Semana OBJETIVO a programar a continuación (en el generador Excel): mesociclo="${mesociclo}", semana=${semana}${phase ? `, fase="${phase}"` : ''}.`,
+        `DÍAS QUE MARIAN QUIERE DISEÑAR EN ESTA TANDA: ${generationDays.join(', ') || 'semana completa según oferta'}.`,
+        weeklyOfferLines.length
+          ? `CLASES SELECCIONADAS EN ESOS DÍAS:\n${weeklyOfferLines.join('\n')}`
+          : '',
+        userInstructions
+          ? `CONTEXTO E INSTRUCCIONES ESCRITAS POR MARIAN (prioridad alta):\n${userInstructions}`
+          : 'Marian no ha añadido contexto libre para esta tanda.',
+        'La propuesta debe respetar expresamente estos días, clases e instrucciones; no propongas contenido para días no seleccionados.',
         'Genera el JSON de propuesta (title, narrative, suggestedFocus) descrito en el system.',
-      ].join('\n')
+      ].filter(Boolean).join('\n')
 
       messages = [
         {

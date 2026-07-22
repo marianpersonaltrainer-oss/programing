@@ -229,22 +229,27 @@ export function parseExcelDayRulesFromText(instructions) {
  */
 export function resolveDaysToGenerateFromSelection(selectedCanon, instructionsAndContext) {
   const selected = selectedCanon instanceof Set ? selectedCanon : new Set(selectedCanon)
-  const { daysPreserved, daysExcluded } = parseExcelDayRulesFromText(instructionsAndContext)
-  // El selector de días manda: no quitamos días por «no generes X» en el texto (evita falsos
-  // positivos cuando el contexto menciona jueves u otros días). Para no generar un día: desmárcalo.
+  const { daysPreserved: mentionedAsPreserved, daysExcluded } =
+    parseExcelDayRulesFromText(instructionsAndContext)
+  // El selector visual manda de forma absoluta. El contexto puede mencionar días ya hechos,
+  // comparaciones o exclusiones históricas sin cambiar accidentalmente la tanda actual.
+  // Para no generar un día, Marian debe desmarcarlo.
   const daysToGenerate = new Set(
-    [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d) && !daysPreserved.has(d)),
+    [...selected].filter((d) => EXCEL_DAY_ORDER.includes(d)),
+  )
+  const daysPreserved = new Set(
+    [...mentionedAsPreserved].filter((d) => EXCEL_DAY_ORDER.includes(d) && !selected.has(d)),
   )
 
   const desdeSelector = EXCEL_DAY_ORDER.filter((d) => selected.has(d))
   const decisiónFinal = EXCEL_DAY_ORDER.filter((d) => daysToGenerate.has(d))
   console.log('[ProgramingEvo][Excel plan] resolveDaysToGenerateFromSelection', {
     desdeSelectorOrdenLunesASab: desdeSelector,
-    preservadosDelTexto: [...daysPreserved].sort(),
+    preservadosDelTextoFueraDelSelector: [...daysPreserved].sort(),
     excluidosDetectadosEnTexto_noAfectanSelector: [...daysExcluded].sort(),
     diasQueSeMandaranALaIA: decisiónFinal,
     juevesEnSelector: selected.has('JUEVES'),
-    juevesPreservadoPorTexto: daysPreserved.has('JUEVES'),
+    juevesPreservadoPorTextoFueraDelSelector: daysPreserved.has('JUEVES'),
     juevesEnDiasToGenerate: daysToGenerate.has('JUEVES'),
   })
 

@@ -32,7 +32,6 @@ import {
   buildWeekSkeleton,
   mergeGeneratedDaysIntoAccumulator,
   applyPreservedFromOverlay,
-  applyFestivoToNonGeneratedDays,
   resolveDaysToGenerateFromSelection,
   EXCEL_DAY_ORDER,
 } from '../../utils/excelGenerationPlan.js'
@@ -83,9 +82,7 @@ import {
 } from '../../utils/normalizeWeekDataForEditor.js'
 import {
   buildCurrentWeeklyOfferSelection,
-  buildEmptyWeeklyOfferSelection,
   getSelectedClassKeysForDay,
-  getSelectedOfferDays,
   parseWeeklyOfferSelection,
   serializeWeeklyOfferSelection,
   weeklyOfferSelectionFromWeekData,
@@ -102,10 +99,44 @@ const EXCEL_COHERENCE_JSON_MAX_CHARS = 22_000
 const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 100
 
 const ADDENDUM_MAX_CHARS = 3000
-const WEEK_INSTRUCTIONS_KEY = 'programingevo_week_instructions'
+const WEEK_INSTRUCTIONS_KEY_PREFIX = 'programingevo_week_instructions'
 /** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
 const QA_AUTO_FIX_MAX_PASSES = 2
 const QA_TARGET_SCORE = 8.2
+
+function buildGenerationDaySelectionFromOffer(offerSelection) {
+  return Object.fromEntries(
+    EXCEL_DAY_ORDER.map((day) => [day, getSelectedClassKeysForDay(offerSelection, day).length > 0]),
+  )
+}
+
+function getGenerationDays(daySelection, offerSelection) {
+  return EXCEL_DAY_ORDER.filter(
+    (day) => !!daySelection?.[day] && getSelectedClassKeysForDay(offerSelection, day).length > 0,
+  )
+}
+
+function planningInputFingerprint({ addendum, generationDays, offerSelection }) {
+  return JSON.stringify({
+    instructions: String(addendum || '').trim(),
+    generationDays: [...generationDays],
+    weeklyOffer: serializeWeeklyOfferSelection(offerSelection),
+  })
+}
+
+function weekInstructionsStorageKey(weekState) {
+  const mesocycle = String(weekState?.mesocycle || 'sin-mesociclo').trim().toLowerCase()
+  const week = Number(weekState?.week || 0)
+  return `${WEEK_INSTRUCTIONS_KEY_PREFIX}:${mesocycle}:s${week}`
+}
+
+function readStoredWeekInstructions(weekState) {
+  try {
+    return localStorage.getItem(weekInstructionsStorageKey(weekState)) || ''
+  } catch {
+    return ''
+  }
+}
 
 /**
  * Serializa el acumulador para el bloque de coherencia: compacta y recorta textos largos si hace falta.
@@ -537,24 +568,21 @@ async function fetchServerReferenceContext() {
 export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFromHistory }) {
   const [existingBuffer, setExistingBuffer] = useState(null)
   const [isExcelFile, setIsExcelFile] = useState(false)
-  /** Briefing conversacional: carga automática al abrir (Supabase + IA). */
-  const [briefingStatus, setBriefingStatus] = useState('loading') // loading | ready | error
+  /** Briefing conversacional: solo arranca cuando Marian confirma días y contexto. */
+  const [briefingStatus, setBriefingStatus] = useState('idle') // idle | loading | ready | error
   const [briefingErrorMsg, setBriefingErrorMsg] = useState('')
   const [briefingContextPack, setBriefingContextPack] = useState('')
   const [briefingApiMessages, setBriefingApiMessages] = useState([])
+  const [briefingInputFingerprint, setBriefingInputFingerprint] = useState('')
   const [proposalTitle, setProposalTitle] = useState('')
   const [proposalNarrative, setProposalNarrative] = useState('')
   const [proposalSuggestedFocus, setProposalSuggestedFocus] = useState('')
   /** review | refine | addons */
   const [proposalStep, setProposalStep] = useState('review')
   const [proposalAccepted, setProposalAccepted] = useState(false)
-  const [addendum, setAddendum] = useState(() => {
-    try {
-      return localStorage.getItem(WEEK_INSTRUCTIONS_KEY) || ''
-    } catch {
-      return ''
-    }
-  })
+  const [addendum, setAddendum] = useState(() => readStoredWeekInstructions(weekState))
+  const addendumStorageKey = weekInstructionsStorageKey(weekState)
+  const addendumStorageKeyRef = useRef(addendumStorageKey)
   const [refineDraft, setRefineDraft] = useState('')
   const [refineBusy, setRefineBusy] = useState(false)
 
@@ -591,8 +619,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [openingActiveEdit, setOpeningActiveEdit] = useState(false)
   /** Texto de sesión alineado con el feedback (solo memoria del modal). */
   const sessionFingerprintsRef = useRef(new Map())
-  const weekDataRef = useRef(null)
-  weekDataRef.current = weekData
   const [staleFeedbackKeys, setStaleFeedbackKeys] = useState(() => new Set())
   const [regeneratingFeedbackKey, setRegeneratingFeedbackKey] = useState(null)
   /**
@@ -600,6 +626,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
    * manda a la IA; no existe un segundo selector capaz de contradecir esta parrilla.
    */
   const [dayClassPicker, setDayClassPicker] = useState(() => buildCurrentWeeklyOfferSelection())
+  /** Días que se generarán en esta tanda. Independiente de las clases ofertadas. */
+  const [generationDayPicker, setGenerationDayPicker] = useState(() =>
+    buildGenerationDaySelectionFromOffer(buildCurrentWeeklyOfferSelection()),
+  )
   /** Pestaña «Editar»: día visible (el resto de la semana en tabs, sin scroll infinito). */
   const [editFocusDayIdx, setEditFocusDayIdx] = useState(0)
   /** Clase enfocada en pestaña Editar (bloque activo de la parrilla semanal). */
@@ -608,7 +638,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [dayAiDraftByIdx, setDayAiDraftByIdx] = useState({})
   const [dayEditAiBusy, setDayEditAiBusy] = useState(false)
   const [regenDayFeedbacksAfterAi, setRegenDayFeedbacksAfterAi] = useState(false)
-  const [briefingRetry, setBriefingRetry] = useState(0)
   /** Evita escrituras repetidas al historial local si el JSON no cambió. */
   const lastPersistedDraftRef = useRef('')
   /** Aviso breve: borrador / guardado manual en localStorage. */
@@ -630,10 +659,27 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     return [...out]
   }, [dayClassPicker])
 
-  const selectedOfferDayCount = useMemo(
-    () => getSelectedOfferDays(dayClassPicker).length,
-    [dayClassPicker],
+  const selectedGenerationDays = useMemo(
+    () => getGenerationDays(generationDayPicker, dayClassPicker),
+    [generationDayPicker, dayClassPicker],
   )
+
+  const selectedGenerationDayCount = selectedGenerationDays.length
+
+  const currentPlanningInputFingerprint = useMemo(
+    () =>
+      planningInputFingerprint({
+        addendum,
+        generationDays: selectedGenerationDays,
+        offerSelection: dayClassPicker,
+      }),
+    [addendum, selectedGenerationDays, dayClassPicker],
+  )
+
+  const briefingIsStale =
+    briefingStatus === 'ready' &&
+    !!briefingInputFingerprint &&
+    briefingInputFingerprint !== currentPlanningInputFingerprint
 
   const weekQuality = useMemo(() => {
     if (!weekData?.dias) return null
@@ -663,13 +709,33 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     ).length
   }, [weekData])
 
+  const pendingOfferedDays = useMemo(() => {
+    if (!Array.isArray(weekData?.dias)) return []
+    return EXCEL_DAY_ORDER.filter((day) => {
+      const classKeys = getSelectedClassKeysForDay(dayClassPicker, day)
+      if (!classKeys.length) return false
+      const row = weekData.dias.find(
+        (candidate) => String(candidate?.nombre || '').trim().toUpperCase() === day,
+      )
+      return classKeys.some((key) => {
+        const text = String(row?.[key] || '').trim()
+        return !text || /no programada esta semana/i.test(text)
+      })
+    })
+  }, [weekData, dayClassPicker])
+
   useEffect(() => {
+    if (addendumStorageKeyRef.current !== addendumStorageKey) {
+      addendumStorageKeyRef.current = addendumStorageKey
+      setAddendum(readStoredWeekInstructions(weekState))
+      return
+    }
     try {
-      localStorage.setItem(WEEK_INSTRUCTIONS_KEY, addendum || '')
+      localStorage.setItem(addendumStorageKey, addendum || '')
     } catch {
       /* localStorage no disponible: no es crítico */
     }
-  }, [addendum])
+  }, [addendum, addendumStorageKey, weekState.mesocycle, weekState.week])
 
   useEffect(() => {
     if (status !== 'previewing') return
@@ -687,55 +753,72 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }, [weekState.mesocycle])
 
   useEffect(() => {
-    setDayClassPicker(buildCurrentWeeklyOfferSelection())
-  }, [weekState.mesocycle, weekState.week])
+    const offer = buildCurrentWeeklyOfferSelection()
+    setDayClassPicker(offer)
+    setGenerationDayPicker(buildGenerationDaySelectionFromOffer(offer))
+    setBriefingStatus('idle')
+    setBriefingErrorMsg('')
+    setBriefingContextPack('')
+    setBriefingApiMessages([])
+    setBriefingInputFingerprint('')
+    setProposalAccepted(false)
+    setProposalStep('review')
+    setRefineDraft('')
+    setProposalTitle('')
+    setProposalNarrative('')
+    setProposalSuggestedFocus('')
+  }, [weekState.mesocycle, weekState.week, weekState.phase])
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadBriefing() {
-      if (!weekState?.mesocycle || weekState.week == null) {
-        setBriefingStatus('error')
-        setBriefingErrorMsg('Selecciona mesociclo y semana en el panel izquierdo.')
-        return
-      }
-      setBriefingStatus('loading')
-      setBriefingErrorMsg('')
-      setProposalAccepted(false)
-      setProposalStep('review')
-      setAddendum('')
-      setRefineDraft('')
-      setProposalTitle('')
-      setProposalNarrative('')
-      setProposalSuggestedFocus('')
-      try {
-        const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
-          mesociclo: weekState.mesocycle,
-          semana: Number(weekState.week),
-          phase: weekState.phase || '',
-          totalWeeks: weekState.totalWeeks ?? null,
-        })
-        if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
-        if (cancelled) return
-        setBriefingContextPack(String(json.contextPack || ''))
-        setProposalTitle(String(json.proposal?.title || '').trim())
-        setProposalNarrative(String(json.proposal?.narrative || '').trim())
-        setProposalSuggestedFocus(String(json.proposal?.suggestedFocus || '').trim())
-        setBriefingApiMessages(Array.isArray(json.initialMessages) ? json.initialMessages : [])
-        setBriefingStatus('ready')
-      } catch (e) {
-        if (!cancelled) {
-          setBriefingStatus('error')
-          setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
-        }
-      }
+  async function prepareBriefing() {
+    if (!weekState?.mesocycle || weekState.week == null) {
+      setBriefingStatus('error')
+      setBriefingErrorMsg('Selecciona mesociclo y semana en el panel izquierdo.')
+      return
     }
-    loadBriefing()
-    return () => {
-      cancelled = true
+    if (selectedGenerationDayCount === 0) {
+      setBriefingStatus('error')
+      setBriefingErrorMsg('Selecciona al menos un día para diseñar.')
+      return
     }
-  }, [weekState.mesocycle, weekState.week, weekState.phase, briefingRetry])
 
-  /** Cambiar mesociclo/semana en el panel debe limpiar la rejilla anterior (la auto-carga trae la fila del slot nuevo). */
+    const inputFingerprint = currentPlanningInputFingerprint
+    const instructionsSnapshot = String(addendum || '').trim().slice(0, ADDENDUM_MAX_CHARS)
+    const daysSnapshot = [...selectedGenerationDays]
+    const offerSnapshot = serializeWeeklyOfferSelection(dayClassPicker)
+
+    setBriefingStatus('loading')
+    setBriefingErrorMsg('')
+    setProposalAccepted(false)
+    setProposalStep('review')
+    setRefineDraft('')
+    setProposalTitle('')
+    setProposalNarrative('')
+    setProposalSuggestedFocus('')
+    try {
+      const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
+        mesociclo: weekState.mesocycle,
+        semana: Number(weekState.week),
+        phase: weekState.phase || '',
+        totalWeeks: weekState.totalWeeks ?? null,
+        userInstructions: instructionsSnapshot,
+        generationDays: daysSnapshot,
+        weeklyOffer: offerSnapshot,
+      })
+      if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
+      setBriefingContextPack(String(json.contextPack || ''))
+      setProposalTitle(String(json.proposal?.title || '').trim())
+      setProposalNarrative(String(json.proposal?.narrative || '').trim())
+      setProposalSuggestedFocus(String(json.proposal?.suggestedFocus || '').trim())
+      setBriefingApiMessages(Array.isArray(json.initialMessages) ? json.initialMessages : [])
+      setBriefingInputFingerprint(inputFingerprint)
+      setBriefingStatus('ready')
+    } catch (e) {
+      setBriefingStatus('error')
+      setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
+    }
+  }
+
+  /** Cambiar mesociclo/semana limpia la rejilla; una semana publicada solo se abre por acción explícita. */
   useEffect(() => {
     if (!weekState.mesocycle || weekState.week == null) return
     setWeekData(null)
@@ -783,39 +866,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       cancelled = true
     }
   }, [briefingStatus, weekState.mesocycle])
-
-  /** Semana publicada para este slot: precargar rejilla si el modal aún no tiene datos locales. */
-  useEffect(() => {
-    if (briefingStatus !== 'ready' || !weekState.mesocycle || weekState.week == null) return undefined
-    const mesoTarget = weekState.mesocycle
-    const semTarget = Number(weekState.week)
-    let cancelled = false
-    ;(async () => {
-      try {
-        const row = await getPublishedWeekByMesocycleAndWeek(mesoTarget, semTarget)
-        if (cancelled || !row?.data || mesoTarget !== weekState.mesocycle || semTarget !== Number(weekState.week)) {
-          return
-        }
-        const normalized = normalizeWeekDataForEditor(row.data, {
-          semana: Number(row.semana),
-          mesociclo: row.mesociclo || mesoTarget,
-        })
-        if (!weekHasMeaningfulSessionContent(normalized)) return
-        const cur = weekDataRef.current
-        if (cur && weekHasMeaningfulSessionContent(cur)) return
-        if (mesoTarget !== weekState.mesocycle || semTarget !== Number(weekState.week)) return
-        setEditingPublishedRowId(row.id || null)
-        setEditingPublishedIsActive(!!row.is_active)
-        loadWeekDataIntoEditor(normalized, Number(row.semana), row.titulo || normalized.titulo || '')
-        onSyncWeekFromHistory?.(Number(row.semana), weekState.mesocycle, normalized.phase || null)
-      } catch (e) {
-        console.warn('[ExcelGeneratorModal] auto-carga semana desde Supabase:', e?.message || e)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [briefingStatus, weekState.mesocycle, weekState.week, onSyncWeekFromHistory])
 
   useEffect(() => {
     const n = weekData?.dias?.length ?? 0
@@ -1163,6 +1213,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         setStatus('error')
         return
       }
+      if (briefingIsStale) {
+        setErrorMsg('Has cambiado los días, las clases o el contexto. Actualiza la propuesta antes de generar.')
+        setStatus('error')
+        return
+      }
     }
 
     setStatus('generating')
@@ -1288,8 +1343,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       .join('\n\n')
 
     const planSourceText = [proposalNarrative, addendumClean].filter(Boolean).join('\n\n')
-    const selectedCanon = new Set(getSelectedOfferDays(dayClassPicker))
-    const { daysToGenerate, daysPreserved } = resolveDaysToGenerateFromSelection(
+    const selectedCanon = new Set(selectedGenerationDays)
+    const { daysToGenerate, daysPreserved: textPreservedDays } = resolveDaysToGenerateFromSelection(
       selectedCanon,
       planSourceText,
     )
@@ -1305,7 +1360,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     if (daysToGenerate.size === 0) {
       setErrorMsg(
-        'No hay días para generar: marca al menos un día arriba o revisa si pusiste «lunes ya está hecho» (eso preserva el día y no lo manda a la IA).',
+        'No hay días para generar: marca al menos un día en el selector de arriba.',
       )
       setStatus('error')
       return
@@ -1357,6 +1412,16 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
+      const daysPreserved = new Set(textPreservedDays)
+      if (Array.isArray(overlay?.dias)) {
+        for (const day of EXCEL_DAY_ORDER) {
+          if (daysToGenerate.has(day)) continue
+          const existingDay = overlay.dias.find(
+            (row) => String(row?.nombre || '').trim().toUpperCase() === day,
+          )
+          if (existingDay) daysPreserved.add(day)
+        }
+      }
       applyPreservedFromOverlay(acc, overlay, daysPreserved)
 
       const perDayPlanLines = EXCEL_DAY_ORDER
@@ -1375,7 +1440,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
 - Preservados / ya hechos (no regenerar; el cliente fusiona desde copia si existe): ${[...daysPreserved].join(', ') || 'ninguno'}
 - Para NO generar un día: desmárcalo en el selector (el texto ya no excluye días automáticamente).
-- Resto de días del array "dias": cada campo de sesión (evofuncional, evobasics, evofit, etc.) debe ser exactamente: (no programada esta semana). Feedbacks "". wodbuster "". Festivo real del gimnasio (solo si el usuario lo indica): ver system prompt (FESTIVO).`
+- Los días no elegidos quedan pendientes o se conservan si ya tenían contenido. No inventes sesiones para ellos. En tu respuesta parcial puedes dejarlos con cadenas vacías o «(no programada esta semana)»; el cliente no fusionará esos días. Festivo real del gimnasio (solo si el usuario lo indica): ver system prompt (FESTIVO).`
 
 
       function buildChunkMessage(chunkDays, coherenceBlock, { isFirstApiCall = false } = {}) {
@@ -1398,7 +1463,7 @@ Devuelve JSON con titulo, resumen y dias (array de EXACTAMENTE 6 objetos en orde
 Antes de redactar, haz internamente una mini-matriz de semana (no la imprimas) con: patrón dominante del día, formato de fuerza, formato WOD, complejidad logística/material. Úsala para evitar repetición entre días consecutivos.
 
 Solo rellena contenido completo (sesiones y feedbacks) para: ${list}, respetando exactamente las columnas por día listadas en PLAN DE DÍAS Y COLUMNAS; en otras columnas de esos mismos días deja «(no programada esta semana)» y feedback vacío. En esos días wodbuster = "".
-Para el resto de días: cada sesión = exactamente (no programada esta semana); feedbacks ""; wodbuster "". Festivo real solo si el usuario lo pide (FESTIVO). No inventes sesiones para días fuera de la lista.
+Para el resto de días no inventes sesiones: el cliente conservará lo ya hecho o los dejará pendientes. Festivo real solo si el usuario lo pide (FESTIVO).
 
 Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
@@ -1632,7 +1697,6 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         }
       }
 
-      applyFestivoToNonGeneratedDays(acc, daysToGenerate, daysPreserved)
       for (let i = 0; i < EXCEL_DAY_ORDER.length; i += 1) {
         const dayName = EXCEL_DAY_ORDER[i]
         if (!daysToGenerate.has(dayName)) continue
@@ -2719,14 +2783,191 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           {/* IDLE / INPUT */}
           {(status === 'idle' || status === 'error') && (
             <>
+              <section className="rounded-2xl border border-evo-accent/25 bg-white p-5 shadow-sm space-y-4">
+                <div>
+                  <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">
+                    1 · Decide qué quieres diseñar
+                  </p>
+                  <h3 className="mt-1 text-base font-bold text-[#1A0A1A]">
+                    Días y contexto antes de generar
+                  </h3>
+                  <p className="mt-1 text-[10px] text-neutral-600 leading-relaxed">
+                    Puedes crear toda la semana o solo algunos días. Lo que no selecciones queda pendiente y no se borra.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#1A0A1A]">
+                      Días que quieres generar ahora
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={briefingStatus === 'loading'}
+                        onClick={() =>
+                          setGenerationDayPicker(buildGenerationDaySelectionFromOffer(dayClassPicker))
+                        }
+                        className="text-[9px] font-bold uppercase text-evo-accent px-2 py-1 rounded-lg border border-evo-accent/20 hover:bg-evo-accent/10 disabled:opacity-40"
+                      >
+                        Toda la semana
+                      </button>
+                      <button
+                        type="button"
+                        disabled={briefingStatus === 'loading'}
+                        onClick={() =>
+                          setGenerationDayPicker(
+                            Object.fromEntries(EXCEL_DAY_ORDER.map((day) => [day, false])),
+                          )
+                        }
+                        className="text-[9px] font-bold uppercase text-neutral-600 px-2 py-1 rounded-lg border border-black/10 hover:bg-gray-100 disabled:opacity-40"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {EXCEL_DAY_ORDER.map((day) => {
+                      const offeredCount = getSelectedClassKeysForDay(dayClassPicker, day).length
+                      const checked = !!generationDayPicker?.[day] && offeredCount > 0
+                      return (
+                        <label
+                          key={`generation-${day}`}
+                          className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
+                            checked
+                              ? 'border-evo-accent/40 bg-evo-accent/[0.06] text-evo-accent'
+                              : offeredCount
+                                ? 'border-black/10 bg-neutral-50 text-[#1A0A1A] cursor-pointer'
+                                : 'border-black/5 bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <span className="text-[10px] font-bold uppercase tracking-wide">{day}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-[8px] font-semibold normal-case">
+                              {offeredCount ? `${offeredCount} clases` : 'sin oferta'}
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!offeredCount || briefingStatus === 'loading'}
+                              onChange={() =>
+                                setGenerationDayPicker((prev) => ({ ...prev, [day]: !checked }))
+                              }
+                              className="rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
+                            />
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[9px] font-semibold text-neutral-600">
+                    Seleccionados: {selectedGenerationDayCount} {selectedGenerationDayCount === 1 ? 'día' : 'días'}.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#1A0A1A]">
+                    Contexto e instrucciones para esta creación
+                  </label>
+                  <textarea
+                    value={addendum}
+                    disabled={briefingStatus === 'loading'}
+                    onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
+                    rows={4}
+                    maxLength={ADDENDUM_MAX_CHARS}
+                    placeholder="Ej.: quiero probar una Semana 5 desde cero; el miércoles evita tren inferior, el viernes quiero una dinámica por parejas y utiliza landmine durante toda la sesión si se monta."
+                    className="w-full bg-neutral-50 border border-black/10 rounded-xl px-3 py-2.5 text-sm !text-[#1A0A1A] disabled:opacity-60"
+                  />
+                  <p className="text-[9px] text-neutral-500 leading-snug">
+                    Este texto se usa tanto para preparar el enfoque como para generar los entrenamientos.
+                  </p>
+                </div>
+
+                <details className="rounded-xl border border-black/10 bg-neutral-50/70 px-3 py-2.5">
+                  <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-[#1A0A1A]">
+                    Revisar o cambiar las clases de cada día
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    {EXCEL_DAY_ORDER.map((day) => (
+                      <div key={`offer-${day}`} className="rounded-lg border border-black/10 bg-white p-2.5">
+                        <p className="mb-2 text-[9px] font-bold uppercase tracking-wide text-[#1A0A1A]">{day}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {EVO_SESSION_CLASS_DEFS.map(({ key, label, color }) => {
+                            const checked = !!dayClassPicker?.[day]?.[key]
+                            return (
+                              <label
+                                key={`${day}-${key}`}
+                                style={checked ? { borderColor: color, color } : undefined}
+                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold select-none transition-colors ${
+                                  checked
+                                    ? 'bg-white shadow-sm'
+                                    : 'border-black/10 bg-gray-50 text-neutral-500'
+                                } ${briefingStatus === 'loading' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={briefingStatus === 'loading'}
+                                  onChange={() => {
+                                    const nextChecked = !checked
+                                    setDayClassPicker((prev) => ({
+                                      ...prev,
+                                      [day]: { ...(prev[day] || {}), [key]: nextChecked },
+                                    }))
+                                    if (nextChecked) {
+                                      setGenerationDayPicker((prev) => ({ ...prev, [day]: true }))
+                                    }
+                                  }}
+                                  className="rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
+                                />
+                                {label}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={briefingStatus === 'loading'}
+                      onClick={() => {
+                        const offer = buildCurrentWeeklyOfferSelection()
+                        setDayClassPicker(offer)
+                        setGenerationDayPicker(buildGenerationDaySelectionFromOffer(offer))
+                      }}
+                      className="text-[9px] font-bold uppercase text-evo-accent px-2 py-1 rounded-lg border border-evo-accent/20 hover:bg-evo-accent/10 disabled:opacity-40"
+                    >
+                      Recuperar oferta actual
+                    </button>
+                  </div>
+                </details>
+
+                {briefingIsStale ? (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-900">
+                    Has cambiado días, clases o contexto. Actualiza la propuesta para que tenga en cuenta los cambios.
+                  </p>
+                ) : null}
+
+                {(briefingStatus === 'idle' || briefingStatus === 'error' || briefingIsStale) && (
+                  <button
+                    type="button"
+                    onClick={prepareBriefing}
+                    disabled={selectedGenerationDayCount === 0}
+                    className="w-full px-5 py-3 rounded-xl bg-evo-accent text-white text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-evo-accent-hover disabled:opacity-45"
+                  >
+                    {briefingIsStale ? 'Actualizar propuesta con estos cambios' : 'Preparar propuesta con estos datos'}
+                  </button>
+                )}
+              </section>
+
               {briefingStatus === 'loading' && (
                 <div className="flex flex-col items-center justify-center py-16 px-4 space-y-3">
                   <div className="w-12 h-12 rounded-full border-2 border-evo-accent/30 border-t-evo-accent animate-spin" />
                   <p className="text-sm font-bold text-[#1A0A1A] text-center">Analizando datos de Supabase…</p>
                   <p className="text-[11px] text-neutral-700 text-center max-w-lg leading-relaxed">
                     Semanas ya publicadas en Supabase del mesociclo que tienes en el panel, cambios guardados en el Hub,
-                    check-ins de coaches, pases de turno, reglas del método y notas por sesión. No hace falta pegar
-                    contexto manual: solo tus notas opcionales después de aceptar la propuesta.
+                    check-ins de coaches, pases de turno, reglas del método y notas por sesión. También tendrá en cuenta
+                    el contexto escrito arriba, los días seleccionados y la oferta real de clases.
                   </p>
                 </div>
               )}
@@ -2737,10 +2978,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   <p className="text-xs text-red-800/90">{briefingErrorMsg}</p>
                   <button
                     type="button"
-                    onClick={() => setBriefingRetry((x) => x + 1)}
+                    onClick={prepareBriefing}
                     className="text-[11px] font-bold uppercase px-4 py-2 rounded-xl bg-white border border-red-300 text-red-900 hover:bg-red-100"
                   >
-                    Reintentar
+                    Reintentar con estos datos
                   </button>
                 </div>
               )}
@@ -2808,25 +3049,6 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       <span className="text-[10px] font-semibold text-emerald-700">Propuesta manual lista ✓</span>
                     ) : null}
                   </div>
-                  {proposalAccepted && proposalStep === 'addons' ? (
-                    <div className="space-y-3 pt-2 border-t border-black/10">
-                      <label className="block text-[11px] font-medium text-evo-accent">
-                        Instrucciones para esta semana
-                      </label>
-                      <textarea
-                        value={addendum}
-                        onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
-                        rows={3}
-                        maxLength={ADDENDUM_MAX_CHARS}
-                        placeholder="Ej: más trabajo de pierna, menos empuje de hombro, incluye KB Swing en Basics el miércoles, sin sentadilla frontal"
-                        style={{ minHeight: '72px' }}
-                        className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
-                      />
-                      <p className="text-[9px] text-neutral-400 leading-snug">
-                        Se aplica a todos los días que generes esta semana. Se guarda automáticamente.
-                      </p>
-                    </div>
-                  ) : null}
                 </div>
               )}
 
@@ -2902,112 +3124,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                     </div>
                   )}
                   {proposalStep === 'addons' && (
-                    <div className="space-y-3 pt-2 border-t border-black/10">
-                      <label className="block text-[11px] font-medium text-evo-accent">
-                        Instrucciones para esta semana
-                      </label>
-                      <textarea
-                        value={addendum}
-                        onChange={(e) => setAddendum(e.target.value.slice(0, ADDENDUM_MAX_CHARS))}
-                        rows={3}
-                        maxLength={ADDENDUM_MAX_CHARS}
-                        placeholder="Ej: más trabajo de pierna, menos empuje de hombro, incluye KB Swing en Basics el miércoles, sin sentadilla frontal"
-                        style={{ minHeight: '72px' }}
-                        className="w-full bg-white border border-black/10 rounded-xl px-3 py-2 text-sm !text-[#1A0A1A]"
-                      />
-                      <p className="text-[9px] text-neutral-400 leading-snug">
-                        Se aplica a todos los días que generes esta semana. Se guarda automáticamente.
-                      </p>
-                    </div>
+                    <p className="pt-2 border-t border-black/10 text-[10px] font-semibold text-emerald-700">
+                      Propuesta aprobada. Revisa arriba los días y el contexto antes de generar.
+                    </p>
                   )}
-                </div>
-              )}
-
-              {(briefingStatus === 'ready' || briefingStatus === 'error') && (
-                <div className="rounded-2xl border border-evo-accent/20 bg-white px-4 py-4 space-y-3 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] font-bold text-[#1A0A1A] uppercase tracking-wider">
-                        Oferta de esta semana
-                      </p>
-                      <p className="mt-1 text-[9px] text-neutral-600 font-medium leading-relaxed">
-                        Marca las clases que se imparten cada día. Un día vacío no se genera.
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDayClassPicker(buildCurrentWeeklyOfferSelection())}
-                        className="text-[9px] font-bold uppercase text-evo-accent px-2 py-1 rounded-lg border border-evo-accent/20 hover:bg-evo-accent/10"
-                      >
-                        Oferta actual
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDayClassPicker(buildEmptyWeeklyOfferSelection())}
-                        className="text-[9px] font-bold uppercase text-neutral-600 px-2 py-1 rounded-lg border border-black/10 hover:bg-gray-100"
-                      >
-                        Limpiar
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {EXCEL_DAY_ORDER.map((d) => {
-                      const selectedCount = getSelectedClassKeysForDay(dayClassPicker, d).length
-                      return (
-                        <div
-                          key={d}
-                          className={`rounded-xl border p-2.5 transition-colors ${
-                            selectedCount
-                              ? 'border-evo-accent/20 bg-evo-accent/[0.025]'
-                              : 'border-black/10 bg-neutral-50/70'
-                          }`}
-                        >
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-[#1A0A1A]">
-                              {d}
-                            </span>
-                            <span className="text-[9px] font-medium text-neutral-500">
-                              {selectedCount ? `${selectedCount} ${selectedCount === 1 ? 'clase' : 'clases'}` : 'Sin clases'}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {EVO_SESSION_CLASS_DEFS.map(({ key, label, color }) => {
-                              const checked = !!dayClassPicker?.[d]?.[key]
-                              return (
-                                <label
-                                  key={`${d}-${key}`}
-                                  style={checked ? { borderColor: color, color } : undefined}
-                                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold cursor-pointer select-none transition-colors ${
-                                    checked
-                                      ? 'bg-white shadow-sm'
-                                      : 'border-black/10 bg-gray-50 text-neutral-500 hover:bg-white'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() =>
-                                      setDayClassPicker((prev) => ({
-                                        ...prev,
-                                        [d]: { ...(prev[d] || {}), [key]: !prev?.[d]?.[key] },
-                                      }))
-                                    }
-                                    className="rounded border-black/20 text-evo-accent focus:ring-evo-accent/30"
-                                  />
-                                  {label}
-                                </label>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className="text-[9px] text-neutral-500 leading-relaxed">
-                    La oferta queda guardada con la semana y manda sobre la plantilla general. Si indicas que un día ya
-                    está hecho, se conserva sin regenerarlo.
-                  </p>
                 </div>
               )}
 
@@ -3016,12 +3136,14 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 <button
                   type="button"
                   onClick={handleGenerate}
-                  disabled={selectedOfferDayCount === 0}
+                  disabled={selectedGenerationDayCount === 0 || briefingIsStale}
                   className="w-full px-6 py-3.5 rounded-xl bg-evo-accent text-white text-[12px] font-bold uppercase tracking-wide shadow-md hover:bg-evo-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  {selectedOfferDayCount
-                    ? `Generar ${selectedOfferDayCount} ${selectedOfferDayCount === 1 ? 'día' : 'días'}`
-                    : 'Selecciona al menos una clase'}
+                  {briefingIsStale
+                    ? 'Actualiza la propuesta antes de generar'
+                    : selectedGenerationDayCount
+                      ? `Generar ${selectedGenerationDayCount} ${selectedGenerationDayCount === 1 ? 'día' : 'días'}`
+                      : 'Selecciona al menos un día'}
                 </button>
               )}
 
@@ -3373,6 +3495,12 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                     })}
                   </ul>
                 </details>
+              )}
+              {pendingOfferedDays.length > 0 && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] text-sky-900">
+                  <span className="font-bold uppercase tracking-wide">Semana todavía parcial · </span>
+                  quedan clases por diseñar en {pendingOfferedDays.join(', ')}. Usa «Elegir días / continuar»; la app conservará lo ya creado.
+                </div>
               )}
               {editingPublishedRowId && (
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
@@ -3975,10 +4103,26 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
             />
             {status === 'previewing' && (
               <button
-                onClick={handleGenerate}
+                onClick={() => {
+                  const nextDays = pendingOfferedDays.length
+                    ? new Set(pendingOfferedDays)
+                    : new Set(selectedGenerationDays)
+                  setGenerationDayPicker(
+                    Object.fromEntries(EXCEL_DAY_ORDER.map((day) => [day, nextDays.has(day)])),
+                  )
+                  setStatus('idle')
+                  setBriefingStatus('idle')
+                  setBriefingErrorMsg('')
+                  setBriefingInputFingerprint('')
+                  setProposalAccepted(false)
+                  setProposalStep('review')
+                  setProposalTitle('')
+                  setProposalNarrative('')
+                  setProposalSuggestedFocus('')
+                }}
                 className="px-5 py-2.5 rounded-xl border border-black/10 bg-white text-neutral-600 hover:text-[#1A0A1A] hover:bg-gray-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
               >
-                Regenerar
+                Elegir días / continuar
               </button>
             )}
             {status === 'previewing' && weekData && generatedDaysCount >= 3 && (
@@ -4000,17 +4144,20 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                     publishing ||
                     published ||
                     savingHubDraft ||
+                    pendingOfferedDays.length > 0 ||
                     (!!evalResult &&
                       typeof evalResult.scoreDisplay === 'number' &&
                       evalResult.scoreDisplay < 60)
                   }
                   className="flex items-center gap-2 px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-50 text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-evo-accent/20 active:scale-95"
                   title={
-                    !!evalResult &&
-                    typeof evalResult.scoreDisplay === 'number' &&
-                    evalResult.scoreDisplay < 60
-                      ? 'Corrige los problemas antes de publicar'
-                      : 'Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub.'
+                    pendingOfferedDays.length > 0
+                      ? `Completa antes las clases pendientes de: ${pendingOfferedDays.join(', ')}`
+                      : !!evalResult &&
+                          typeof evalResult.scoreDisplay === 'number' &&
+                          evalResult.scoreDisplay < 60
+                        ? 'Corrige los problemas antes de publicar'
+                        : 'Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub.'
                   }
                 >
                   {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}

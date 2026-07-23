@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js'
+import { assertPe2WeekLockMatch, Pe2WeekVersionConflictError } from './pe2WeekLock.js'
 
 const TABLE = 'pe2_weeks'
 
@@ -83,7 +84,7 @@ export async function listPe2WeeksForSlot(mesociclo, semana, { includeArchived =
   if (!mesociclo || semana == null) return []
   let q = supabase
     .from(TABLE)
-    .select('id, mesociclo, semana, phase, titulo, status, is_primary, updated_at, created_at, published_week_id')
+    .select('id, mesociclo, semana, phase, titulo, status, is_primary, updated_at, created_at, published_week_id, lock_version')
     .eq('mesociclo', mesociclo)
     .eq('semana', Number(semana))
     .order('updated_at', { ascending: false })
@@ -149,7 +150,7 @@ export async function createPe2WeekDraft({
   return row
 }
 
-export async function updatePe2Week(id, patch) {
+export async function updatePe2Week(id, patch, options = {}) {
   if (id == null) throw new Error('Falta id de borrador')
 
   if (patch?.is_primary === true) {
@@ -159,8 +160,21 @@ export async function updatePe2Week(id, patch) {
     }
   }
 
-  const { data, error } = await supabase.from(TABLE).update(patch).eq('id', id).select('*').single()
+  let q = supabase.from(TABLE).update(patch).eq('id', id)
+  if (options.expectedLockVersion != null) {
+    q = q.eq('lock_version', Number(options.expectedLockVersion))
+  }
+
+  const { data, error } = await q.select('*').maybeSingle()
   if (error) throw wrapPe2Error(error)
+
+  if (options.expectedLockVersion != null) {
+    const lock = assertPe2WeekLockMatch(data, options.expectedLockVersion)
+    if (!lock.ok) throw new Pe2WeekVersionConflictError(lock.message, lock.code)
+  } else if (!data) {
+    throw new Error('No se encontró el borrador a actualizar.')
+  }
+
   return data
 }
 

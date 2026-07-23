@@ -211,16 +211,15 @@ Cada 3' x 5 series finales:
     const week = {
       semana: 5,
       mesociclo: 'fuerza',
-      dias: ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES'].map((nombre) => ({
+      dias: ['LUNES', 'MARTES', 'MIÉRCOLES'].map((nombre) => ({
         nombre,
         evofuncional: intervalSession,
         feedback_funcional: '',
       })),
     }
-    const result = validateEvoWeek(week)
+    const result = validateEvoWeek(week, { validateOfferCompleteness: false })
     expect(result.valid).toBe(false)
-    expect(result.errors.map((entry) => entry.code)).toContain('VAL-VARIETY-002')
-    expect(result.warnings.map((entry) => entry.code)).toContain('VAL-VARIETY-002')
+    expect(result.errors.map((entry) => entry.code)).toContain('VAL-INTERVAL-001')
   })
 
   it('no confunde una carrera metafórica y trata estaciones logísticas como aviso', () => {
@@ -233,7 +232,7 @@ Cada 3' x 5 series finales:
         },
       ],
     }
-    const result = validateEvoWeek(week)
+    const result = validateEvoWeek(week, { validateOfferCompleteness: false })
     expect(result.valid).toBe(true)
     expect(result.warnings.map((entry) => entry.code)).toContain('VAL-FEEDBACK-001')
   })

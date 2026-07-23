@@ -19,7 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
-import { buildMethodEvoV1Prompt } from '../src/domain/method/methodEvoV1.js'
+import { filterGenerationContextWeeks } from '../src/domain/method/validators/validateGenerationContext.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
 
@@ -256,8 +256,9 @@ function logOptionalTableSkip(label, err) {
   console.warn(`[programming-week-briefing] ${label} omitido:`, msg)
 }
 
-async function fetchContextPack(supabase, mesocicloRaw) {
+async function fetchContextPack(supabase, mesocicloRaw, targetSemana) {
   const mesociclo = String(mesocicloRaw || '').trim()
+  const target = Number(targetSemana)
 
   let weeks = []
   if (mesociclo) {
@@ -288,6 +289,10 @@ async function fetchContextPack(supabase, mesocicloRaw) {
 
     if (wErr) throw new Error(`published_weeks: ${wErr.message}`)
     weeks = rows || []
+  }
+
+  if (mesociclo && Number.isFinite(target)) {
+    weeks = filterGenerationContextWeeks(weeks, { mesociclo, targetSemana: target })
   }
 
   const weekIds = (weeks || []).map((r) => r.id).filter(Boolean)
@@ -410,7 +415,7 @@ export default async function handler(req, res) {
       }
 
       const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
-      contextPack = await fetchContextPack(supabase, mesociclo)
+      contextPack = await fetchContextPack(supabase, mesociclo, semana)
 
       const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
       const generationDays = Array.isArray(body.generationDays)

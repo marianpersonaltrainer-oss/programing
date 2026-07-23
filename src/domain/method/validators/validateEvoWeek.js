@@ -1,6 +1,8 @@
 import { METHOD_EVO_V1 } from '../methodEvoV1.js'
 import { validateEvoBasicsRotation } from '../evoBasicsSkills.js'
 import { validateDailyEquipmentSimultaneity } from '../evoInventory.js'
+import { detectIntervalStructure } from './evoIntervalDetection.js'
+import { validateWeeklyVariety } from './validateEvoWeekVariety.js'
 import { validateEvoSessionContract } from './validateEvoSession.js'
 
 const CLASS_FIELDS = [
@@ -26,22 +28,77 @@ const DAY_ALIASES = {
 }
 
 function normalizeDay(value) {
-  return DAY_ALIASES[
-    String(value || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-  ] || String(value || '').trim().toLowerCase()
+  return (
+    DAY_ALIASES[
+      String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+    ] || String(value || '').trim().toLowerCase()
+  )
 }
 
 function isPlaceholder(value) {
   const text = String(value || '').trim()
-  return !text || /^\(no programada esta semana\)$/i.test(text) || /^FESTIVO\b/i.test(text)
+  return !text || /^\(no programada esta semana\)$/i.test(text)
+}
+
+function isFestivo(value) {
+  return /^FESTIVO\b/i.test(String(value || '').trim())
 }
 
 function containsAny(text, patterns) {
   return patterns.some((pattern) => pattern.test(String(text || '')))
+}
+
+function validateOfferCompleteness(week, offer, errors) {
+  if (!offer || typeof offer !== 'object') return
+
+  for (const [, , className] of CLASS_FIELDS) {
+    const offeredDays = offer[className]
+    if (!Array.isArray(offeredDays) || offeredDays.length === 0) continue
+
+    for (const offeredDay of offeredDays) {
+      const dayName = normalizeDay(offeredDay)
+      const dayIndex = (week?.dias || []).findIndex((day) => normalizeDay(day?.nombre) === dayName)
+      if (dayIndex < 0) {
+        errors.push({
+          code: 'VAL-OFFER-003',
+          severity: 'error',
+          message: `${className} está en la oferta del ${dayName || offeredDay} pero falta ese día en la semana.`,
+        })
+        continue
+      }
+
+      const sessionKey = CLASS_FIELDS.find(([, , name]) => name === className)?.[0]
+      const session = String(week.dias[dayIndex]?.[sessionKey] || '').trim()
+      if (isPlaceholder(session) && !isFestivo(session)) {
+        errors.push({
+          code: 'VAL-OFFER-003',
+          severity: 'error',
+          dayIndex,
+          classKey: sessionKey,
+          message: `${className} está ofertada el ${dayName} pero no tiene sesión generada.`,
+        })
+      }
+    }
+  }
+}
+
+function validateAuthorizedFestivo(day, dayIndex, sessionKey, className, session, options, errors) {
+  if (!isFestivo(session)) return
+  const dayName = normalizeDay(day?.nombre)
+  const authorized = (options.authorizedFestivoDays || []).map(normalizeDay)
+  if (!authorized.includes(dayName)) {
+    errors.push({
+      code: 'VAL-FESTIVO-001',
+      severity: 'error',
+      dayIndex,
+      classKey: sessionKey,
+      message: `${className} marca FESTIVO el ${dayName} sin indicación explícita del calendario o del usuario. Usa «(no programada esta semana)» si no corresponde generar.`,
+    })
+  }
 }
 
 /**
@@ -116,24 +173,42 @@ function validateFeedbackAgainstSession(session, feedback) {
   return { errors, warnings }
 }
 
-/** Validación determinista mínima previa a publicación. */
+function promoteMaterialConflicts(entries) {
+  const promoted = []
+  for (const entry of entries) {
+    const machineConflict = /\b(rowerg|skierg|bike)\b/i.test(entry.message)
+    const sledConflict = /\btrineos?\b/i.test(entry.message)
+    promoted.push({
+      ...entry,
+      severity: machineConflict || sledConflict ? 'error' : entry.severity,
+      code: machineConflict || sledConflict ? 'VAL-MATERIAL-001' : entry.code,
+    })
+  }
+  return promoted
+}
+
+/** Validación determinista previa a publicación. */
 export function validateEvoWeek(week, options = {}) {
   const errors = []
   const warnings = []
   const offer = options.offer || METHOD_EVO_V1.current_context.offer
-  const functionalIntervalDays = []
+  const varietyEntries = []
   const intervalSignatures = new Map()
 
   for (const [dayIndex, day] of (week?.dias || []).entries()) {
     const dayName = normalizeDay(day?.nombre)
     const resourceSessions = []
+
     for (const [sessionKey, feedbackKey, className] of CLASS_FIELDS) {
       const session = String(day?.[sessionKey] || '')
       const feedback = String(day?.[feedbackKey] || '').trim()
       const placeholder = isPlaceholder(session)
+      const festivo = isFestivo(session)
       const offeredDays = offer?.[className]
 
-      if (Array.isArray(offeredDays) && !placeholder && !offeredDays.map(normalizeDay).includes(dayName)) {
+      validateAuthorizedFestivo(day, dayIndex, sessionKey, className, session, options, errors)
+
+      if (Array.isArray(offeredDays) && !placeholder && !festivo && !offeredDays.map(normalizeDay).includes(dayName)) {
         errors.push({
           code: 'VAL-OFFER-001',
           severity: 'error',
@@ -142,7 +217,7 @@ export function validateEvoWeek(week, options = {}) {
           message: `${className} no está ofertada el ${dayName || 'día indicado'}.`,
         })
       }
-      if (placeholder && feedback) {
+      if ((placeholder || festivo) && feedback) {
         errors.push({
           code: 'VAL-OFFER-002',
           severity: 'error',
@@ -151,8 +226,10 @@ export function validateEvoWeek(week, options = {}) {
           message: `${className} no tiene sesión pero sí feedback.`,
         })
       }
-      if (placeholder) continue
+      if (placeholder || festivo) continue
+
       resourceSessions.push({ classKey: sessionKey, className, session })
+      varietyEntries.push({ dayName, classKey: sessionKey, className, session })
 
       const result = validateEvoSessionContract(session, {
         classKey: sessionKey,
@@ -173,47 +250,37 @@ export function validateEvoWeek(week, options = {}) {
         warnings.push({ ...entry, dayIndex, classKey: sessionKey })
       }
 
-      if (sessionKey === 'evofuncional' && /\bINTERVALOS\b/i.test(session)) {
-        functionalIntervalDays.push({ dayIndex, dayName })
-        const signatureMatch = session.match(
-          /\b(\d+)\s*rondas?[\s\S]{0,100}?(\d+(?:[.,]\d+)?)\s*['′]?\s*(?:de\s*)?trabajo\s*[/|]\s*(\d+(?:[.,]\d+)?)\s*['′]?\s*(?:de\s*)?descanso/i,
-        )
-        if (signatureMatch) {
-          const signature = `${signatureMatch[2].replace(',', '.')}+${signatureMatch[3].replace(',', '.')}`
-          const entries = intervalSignatures.get(signature) || []
-          entries.push(dayName)
-          intervalSignatures.set(signature, entries)
-        }
+      const interval = detectIntervalStructure(session)
+      if (interval.isInterval && interval.signature) {
+        const entries = intervalSignatures.get(interval.signature) || []
+        entries.push({ dayName, className })
+        intervalSignatures.set(interval.signature, entries)
       }
     }
-    for (const entry of validateDailyEquipmentSimultaneity(resourceSessions)) {
-      warnings.push({ ...entry, dayIndex, classKey: 'material' })
+
+    for (const entry of promoteMaterialConflicts(validateDailyEquipmentSimultaneity(resourceSessions))) {
+      const target = entry.severity === 'error' ? errors : warnings
+      target.push({ ...entry, dayIndex, classKey: 'material' })
     }
   }
 
   errors.push(...validateEvoBasicsRotation(week))
 
-  if (functionalIntervalDays.length >= 4) {
-    errors.push({
-      code: 'VAL-VARIETY-002',
-      severity: 'error',
-      message: `EvoFuncional contiene intervalos en ${functionalIntervalDays.length} días. Rediseña la semana con formatos distintos.`,
-    })
-  } else if (functionalIntervalDays.length === 3) {
-    warnings.push({
-      code: 'VAL-VARIETY-002',
-      severity: 'warning',
-      message: 'EvoFuncional contiene intervalos en tres días; confirma que la repetición es deliberada y que los estímulos son claramente distintos.',
-    })
-  }
+  const variety = validateWeeklyVariety(varietyEntries, options)
+  errors.push(...variety.errors)
+  warnings.push(...variety.warnings)
 
   for (const [signature, days] of intervalSignatures.entries()) {
     if (days.length < 2) continue
-    warnings.push({
+    errors.push({
       code: 'VAL-VARIETY-002',
-      severity: 'warning',
-      message: `EvoFuncional repite la relación de intervalos ${signature.replace('+', "' trabajo / ")}' descanso en ${days.join(' y ')}.`,
+      severity: 'error',
+      message: `Se repite la relación de intervalos ${signature.replace('+', "' trabajo / ")}' descanso en ${days.map((d) => `${d.className} (${d.dayName})`).join(' y ')}.`,
     })
+  }
+
+  if (options.validateOfferCompleteness !== false) {
+    validateOfferCompleteness(week, offer, errors)
   }
 
   return { valid: errors.length === 0, errors, warnings }

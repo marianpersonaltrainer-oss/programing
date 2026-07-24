@@ -13,9 +13,12 @@ const BASE_MIGRATION = join(__dirname, '..', 'supabase', 'migrations', '20260622
 async function main() {
   const url = process.env.DATABASE_URL?.trim()
   if (!url) {
-    console.log('SKIP: DATABASE_URL no definida — migración revisada estáticamente.')
-    console.log('SQL:', MIGRATION)
-    process.exit(0)
+    console.log('SKIP: DATABASE_URL no definida — delegando en PGLite aislado.')
+    const { spawnSync } = await import('child_process')
+    const r = spawnSync(process.execPath, [join(__dirname, 'validate-migration-pe2-weeks-lock-pglite.mjs')], {
+      stdio: 'inherit',
+    })
+    process.exit(r.status ?? 1)
   }
 
   const { default: pg } = await import('pg')

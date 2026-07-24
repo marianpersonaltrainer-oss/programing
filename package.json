@@ -15,6 +15,8 @@
     "test:evo-rules": "vitest run src/domain/method/evoBasicsSkills.test.js src/domain/method/methodEvoV1.test.js src/utils/methodPrompt.test.js src/constants/systemPromptCore.test.js",
     "test:adversarial": "vitest run src/domain/method/evoGenerationSafeguards.adversarial.test.js",
     "test:all": "vitest run",
+    "test:migration-lock": "node scripts/validate-migration-pe2-weeks-lock-pglite.mjs",
+    "smoke:motor-safeguards": "node scripts/staging-smoke-motor-safeguards.mjs",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
     "db:apply-pe2-structured-auth": "node scripts/apply-migration-pe2-structured-auth.mjs",
@@ -34,6 +36,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "pg": "^8.14.1",

@@ -16,14 +16,16 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
-import { buildMethodEvoV1Prompt } from '../src/domain/method/methodEvoV1.js'
+import { filterBriefingContextWeeks } from './lib/briefingContextFilter.js'
+import { buildMesocycleProgrammingBlockServer, getBriefingMethodContext } from './lib/methodEvoServerBundle.js'
 
-const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
+export const config = {
+  maxDuration: 180,
+}
 
-const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
+const SYSTEM_PREFIX = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
 (del mismo mesociclo que indica el bloque final), historial de cambios guardados en Supabase,
 check-ins semanales de coaches, pases de turno diarios, reglas del método y feedback por sesión ligado a esas semanas.
@@ -36,24 +38,24 @@ Tu tarea:
    - "narrative": string en español, 2–5 frases, tono profesional y cercano
    - "suggestedFocus": una línea, p. ej. "Consolidación + descarga parcial de hombro"
 
-No incluyas la programación día a día; solo la propuesta de enfoque.
+No incluyas la programación día a día; solo la propuesta de enfoque.`
 
-${BRIEFING_METHOD_CONTEXT}`
-
-function buildBriefingSystemPrompt(body) {
+async function buildBriefingSystemPrompt(body) {
+  const methodContext = await getBriefingMethodContext()
+  const system = `${SYSTEM_PREFIX}\n\n${methodContext}`
   const meso = String(body?.mesociclo || '').trim()
   const week = Number(body?.semana)
   const phase = String(body?.phase || '').trim()
   const twRaw = body?.totalWeeks
   const tw = twRaw == null || twRaw === '' ? NaN : Number(twRaw)
-  const block = buildMesocycleProgrammingBlock({
+  const block = await buildMesocycleProgrammingBlockServer({
     mesocycle: meso,
     week: Number.isFinite(week) ? week : undefined,
     totalWeeks: Number.isFinite(tw) ? tw : null,
     phase: phase || null,
   })
-  if (!block) return SYSTEM
-  return `${SYSTEM}
+  if (!block) return system
+  return `${system}
 
 ════════════════════════════════════════
 INTENCIÓN DEL MESOCICLO (obligatoria para la propuesta)
@@ -256,8 +258,9 @@ function logOptionalTableSkip(label, err) {
   console.warn(`[programming-week-briefing] ${label} omitido:`, msg)
 }
 
-async function fetchContextPack(supabase, mesocicloRaw) {
+async function fetchContextPack(supabase, mesocicloRaw, targetSemana) {
   const mesociclo = String(mesocicloRaw || '').trim()
+  const target = Number(targetSemana)
 
   let weeks = []
   if (mesociclo) {
@@ -288,6 +291,10 @@ async function fetchContextPack(supabase, mesocicloRaw) {
 
     if (wErr) throw new Error(`published_weeks: ${wErr.message}`)
     weeks = rows || []
+  }
+
+  if (mesociclo && Number.isFinite(target)) {
+    weeks = filterBriefingContextWeeks(weeks, { mesociclo, targetSemana: target })
   }
 
   const weekIds = (weeks || []).map((r) => r.id).filter(Boolean)
@@ -355,6 +362,68 @@ async function fetchContextPack(supabase, mesocicloRaw) {
   return blocks.join('\n')
 }
 
+function resolveSupabaseServerConfig() {
+  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
+  if (serviceKey && supabaseUrl) {
+    return { supabaseUrl, serviceKey, degraded: false }
+  }
+  return { supabaseUrl, serviceKey, degraded: true }
+}
+
+function buildDegradedContextPack(mesociclo, semana) {
+  return [
+    '## Contexto Supabase no cargado (entorno preview sin service role)',
+    'Este despliegue no tiene SUPABASE_SERVICE_ROLE_KEY en el servidor.',
+    'No se han leído semanas publicadas, feedback de coaches, check-ins ni pases de turno desde Supabase.',
+    'Genera la propuesta solo con el Método EVO, la intención del mesociclo y los días/clases indicados por Marian abajo.',
+    '',
+    `Mesociclo objetivo: ${mesociclo || '—'} · Semana: ${Number.isFinite(semana) ? semana : '—'}`,
+  ].join('\n')
+}
+
+function buildInitialBriefingMessages(body, contextPack) {
+  const mesociclo = String(body.mesociclo || '').trim()
+  const semana = Number(body.semana)
+  const phase = String(body.phase || '').trim()
+  const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
+  const generationDays = Array.isArray(body.generationDays)
+    ? body.generationDays
+        .map((day) => String(day || '').trim().toUpperCase())
+        .filter((day, index, rows) => validDays.has(day) && rows.indexOf(day) === index)
+    : []
+  const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
+  const weeklyOfferDays = body.weeklyOffer?.dias
+  const weeklyOfferLines = generationDays.map((day) => {
+    const classes = Array.isArray(weeklyOfferDays?.[day]) ? weeklyOfferDays[day] : []
+    return `- ${day}: ${classes.length ? classes.join(', ') : '(sin clases seleccionadas)'}`
+  })
+
+  const tail = [
+    '',
+    '---',
+    `Semana OBJETIVO a programar a continuación (en el generador Excel): mesociclo="${mesociclo}", semana=${semana}${phase ? `, fase="${phase}"` : ''}.`,
+    `DÍAS QUE MARIAN QUIERE DISEÑAR EN ESTA TANDA: ${generationDays.join(', ') || 'semana completa según oferta'}.`,
+    weeklyOfferLines.length
+      ? `CLASES SELECCIONADAS EN ESOS DÍAS:\n${weeklyOfferLines.join('\n')}`
+      : '',
+    userInstructions
+      ? `CONTEXTO E INSTRUCCIONES ESCRITAS POR MARIAN (prioridad alta):\n${userInstructions}`
+      : 'Marian no ha añadido contexto libre para esta tanda.',
+    'La propuesta debe respetar expresamente estos días, clases e instrucciones; no propongas contenido para días no seleccionados.',
+    'Genera el JSON de propuesta (title, narrative, suggestedFocus) descrito en el system.',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return [
+    {
+      role: 'user',
+      content: `PAQUETE DE DATOS:\n\n${contextPack}\n${tail}`,
+    },
+  ]
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
@@ -376,10 +445,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY en el servidor.' })
   }
 
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
-  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
-  if (!serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.' })
+  const supabaseConfig = resolveSupabaseServerConfig()
+  let degradedContext = supabaseConfig.degraded
+  if (degradedContext) {
+    console.warn(
+      '[programming-week-briefing] Modo degradado: falta SUPABASE_SERVICE_ROLE_KEY o URL. No se leerá Supabase.',
+    )
   }
 
   const model = resolveProgrammingModel(
@@ -409,46 +480,19 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan mesociclo o semana para el briefing inicial.' })
       }
 
-      const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
-      contextPack = await fetchContextPack(supabase, mesociclo)
+      if (degradedContext) {
+        contextPack = buildDegradedContextPack(mesociclo, semana)
+      } else {
+        const supabase = createClient(supabaseConfig.supabaseUrl, supabaseConfig.serviceKey, {
+          auth: { persistSession: false },
+        })
+        contextPack = await fetchContextPack(supabase, mesociclo, semana)
+      }
 
-      const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
-      const generationDays = Array.isArray(body.generationDays)
-        ? body.generationDays
-            .map((day) => String(day || '').trim().toUpperCase())
-            .filter((day, index, rows) => validDays.has(day) && rows.indexOf(day) === index)
-        : []
-      const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
-      const weeklyOfferDays = body.weeklyOffer?.dias
-      const weeklyOfferLines = generationDays.map((day) => {
-        const classes = Array.isArray(weeklyOfferDays?.[day]) ? weeklyOfferDays[day] : []
-        return `- ${day}: ${classes.length ? classes.join(', ') : '(sin clases seleccionadas)'}`
-      })
-
-      const tail = [
-        '',
-        '---',
-        `Semana OBJETIVO a programar a continuación (en el generador Excel): mesociclo="${mesociclo}", semana=${semana}${phase ? `, fase="${phase}"` : ''}.`,
-        `DÍAS QUE MARIAN QUIERE DISEÑAR EN ESTA TANDA: ${generationDays.join(', ') || 'semana completa según oferta'}.`,
-        weeklyOfferLines.length
-          ? `CLASES SELECCIONADAS EN ESOS DÍAS:\n${weeklyOfferLines.join('\n')}`
-          : '',
-        userInstructions
-          ? `CONTEXTO E INSTRUCCIONES ESCRITAS POR MARIAN (prioridad alta):\n${userInstructions}`
-          : 'Marian no ha añadido contexto libre para esta tanda.',
-        'La propuesta debe respetar expresamente estos días, clases e instrucciones; no propongas contenido para días no seleccionados.',
-        'Genera el JSON de propuesta (title, narrative, suggestedFocus) descrito en el system.',
-      ].filter(Boolean).join('\n')
-
-      messages = [
-        {
-          role: 'user',
-          content: `PAQUETE DE DATOS:\n\n${contextPack}\n${tail}`,
-        },
-      ]
+      messages = buildInitialBriefingMessages(body, contextPack)
     }
 
-    const systemPrompt = buildBriefingSystemPrompt({
+    const systemPrompt = await buildBriefingSystemPrompt({
       mesociclo,
       semana,
       phase,
@@ -507,6 +551,7 @@ export default async function handler(req, res) {
       proposal,
       contextPack: contextPack || undefined,
       model: data?.model || model,
+      degradedContext: degradedContext || undefined,
     }
     if (!messagesIn?.length && messages?.[0]) {
       payload.initialMessages = [

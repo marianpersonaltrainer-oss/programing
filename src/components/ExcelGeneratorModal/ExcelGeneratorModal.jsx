@@ -72,6 +72,7 @@ import {
 } from '../../utils/weekSessionReview.js'
 import { buildMesocycleProgrammingBlock } from '../../constants/mesocycleGenerationBlocks.js'
 import { validateEvoWeek } from '../../domain/method/validators/validateEvoWeek.js'
+import { assertOfficialLibrary } from '../../domain/method/validators/validateOfficialLibrary.js'
 import {
   attachEvoMethodMetadata,
   buildEvoBasicsRotationContext,
@@ -1260,13 +1261,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let generationCheckpoint = null
     try {
       synthesisLibraryRows = await getCoachExerciseLibrary()
+      assertOfficialLibrary(synthesisLibraryRows)
       const autoMap = await fetchLibraryAutoVideoMap(synthesisLibraryRows, { maxResolve: 12 })
       const block = buildGeneratorLibraryBlock(synthesisLibraryRows, autoMap, {
         maxExercises: EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT,
       })
       if (block) generationLibraryBlock = block
-    } catch {
-      /* sin biblioteca: generación igual */
+    } catch (err) {
+      const msg =
+        err?.code === 'LIB-OFFICIAL-001'
+          ? err.message
+          : `La biblioteca oficial EVO no se pudo cargar (${err?.message || 'error desconocido'}). Detén la generación hasta recuperar la fuente oficial.`
+      setErrorMsg(msg)
+      setStatus('error')
+      return
     }
 
     let synthesisPreviousWeeks = []

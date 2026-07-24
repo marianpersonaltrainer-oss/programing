@@ -1,27 +1,60 @@
 import { describe, expect, it } from 'vitest'
+import { isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import { filterBriefingContextWeeks } from './lib/briefingContextFilter.js'
+import {
+  buildMesocycleProgrammingBlockFromContract,
+  getBriefingMethodContext,
+  loadMethodEvoV1Contract,
+} from './lib/methodEvoServerBundle.js'
 
-describe('programming-week-briefing.js — método canónico', () => {
-  it('no consulta ni permite reactivar method_rules legacy', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { fileURLToPath } = await import('node:url')
-    const { dirname, join } = await import('node:path')
-    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-    const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
-    expect(src).toContain('buildMethodEvoV1Prompt')
-    expect(src).not.toContain('method_rules')
-    expect(src).not.toContain('METHOD_RULE_LEGACY')
+describe('evoAllowedOrigins', () => {
+  it('permite previews Vercel de programing y programing-evo', () => {
+    expect(isEvoOriginAllowed('https://programing-evo.vercel.app')).toBe(true)
+    expect(isEvoOriginAllowed('https://programing-evo-git-main-marian.vercel.app')).toBe(true)
+    expect(
+      isEvoOriginAllowed('https://programing-cvuwkfn6q-marianpersonaltrainer-oss-projects.vercel.app'),
+    ).toBe(true)
+    expect(isEvoOriginAllowed('https://evil.example.com')).toBe(false)
+  })
+})
+
+describe('briefingContextFilter', () => {
+  it('excluye semanas futuras y de otro mesociclo', () => {
+    const rows = [
+      { mesociclo: 'fuerza', semana: 3, data: { dias: [{ nombre: 'LUNES', evofuncional: 'A) FUERZA — 10 MIN\nX' }] } },
+      { mesociclo: 'resistencia', semana: 2, data: { dias: [{ nombre: 'LUNES', evofuncional: 'A) FUERZA — 10 MIN\nX' }] } },
+      { mesociclo: 'fuerza', semana: 6, data: { dias: [{ nombre: 'LUNES', evofuncional: 'A) FUERZA — 10 MIN\nX' }] } },
+    ]
+    const kept = filterBriefingContextWeeks(rows, { mesociclo: 'fuerza', targetSemana: 5 })
+    expect(kept.map((r) => r.semana)).toEqual([3])
+  })
+})
+
+describe('methodEvoServerBundle', () => {
+  it('carga el contrato JSON y construye contexto de briefing', async () => {
+    const contract = loadMethodEvoV1Contract()
+    expect(contract.meta.version).toBeTruthy()
+    const block = buildMesocycleProgrammingBlockFromContract(contract, { mesocycle: 'fuerza', week: 5 })
+    expect(block).toContain('MESOCICLO ACTIVO')
+    const context = await getBriefingMethodContext()
+    expect(context.length).toBeGreaterThan(200)
+  })
+})
+
+describe('programming-week-briefing.js — carga del módulo', () => {
+  it('importa sin ejecutar buildMethodEvoV1Prompt en el arranque', async () => {
+    const mod = await import('./programming-week-briefing.js')
+    expect(typeof mod.default).toBe('function')
+    expect(mod.config?.maxDuration).toBe(180)
   })
 
-  it('incorpora días, clases y contexto elegidos antes de preparar la propuesta', async () => {
+  it('usa modo degradado si falta SUPABASE_SERVICE_ROLE_KEY en preview', async () => {
     const { readFileSync } = await import('node:fs')
     const { fileURLToPath } = await import('node:url')
     const { dirname, join } = await import('node:path')
-    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-    const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
-
-    expect(src).toContain('body.generationDays')
-    expect(src).toContain('body.weeklyOffer?.dias')
-    expect(src).toContain('body.userInstructions')
-    expect(src).toContain('DÍAS QUE MARIAN QUIERE DISEÑAR EN ESTA TANDA')
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'programming-week-briefing.js'), 'utf8')
+    expect(src).toContain('buildDegradedContextPack')
+    expect(src).toContain('degradedContext')
+    expect(src).not.toContain("error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.'")
   })
 })

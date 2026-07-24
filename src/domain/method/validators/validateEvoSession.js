@@ -1,5 +1,6 @@
 import { findComplexEvoBasicsFamiliesInConditioning } from '../evoBasicsSkills.js'
 import { validateHighSetupReuse } from '../evoInventory.js'
+import { readDurationMinutes, readTimeCapMinutes } from './evoDurationUtils.js'
 
 const FORBIDDEN_VISIBLE_LINE_RE =
   /^(BIENVENIDA|MOVILIDAD|CALENTAMIENTO|ACTIVACI[OÓ]N(?:\s+GENERAL)?|PREPARACI[OÓ]N|WOD\s*PREP|TRANSICI[OÓ]N|CIERRE|TIEMPO\s+EFECTIVO)\b/i
@@ -9,11 +10,6 @@ const PART_UNIQUE_HEADER_RE = /^PARTE\s+[UÚ]NICA\b(.*)$/i
 
 function issue(code, message, severity = 'error') {
   return { code, message, severity }
-}
-
-function readDurationMinutes(header) {
-  const match = String(header || '').match(/[—–-]\s*(?:TC\s*)?(\d+(?:[.,]\d+)?)\s*MIN\b/i)
-  return match ? Number(match[1].replace(',', '.')) : null
 }
 
 function stripVisibleLinePrefix(line) {
@@ -134,7 +130,7 @@ export function validateEvoSessionContract(raw, options = {}) {
     if (isAmrap && /\bTC\b/i.test(title)) {
       errors.push(issue('VAL-FORMAT-001', `Un AMRAP no lleva TC: «${block.letter}) ${title}».`))
     }
-    if (isForTime && !/\bTC\s*\d/i.test(title)) {
+    if (isForTime && readTimeCapMinutes(title) == null) {
       errors.push(issue('VAL-FORMAT-002', `El trabajo POR TIEMPO debe indicar TC en el título: «${block.letter}) ${title}».`))
     }
     if (isForTime && /\bAMRAP\b/i.test(body)) {

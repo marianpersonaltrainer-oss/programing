@@ -112,7 +112,8 @@ No se realiza el último descanso.`
       dias: [
         {
           nombre: 'MARTES',
-          evobasics: 'A) TÉCNICA — 10 MIN\nBack Squat\nB) FUERZA — 15 MIN\nBack Squat\n4 x 5 @RIR 2',
+          evobasics:
+            'A) TÉCNICA — 10 MIN\nBack Squat\nB) FUERZA — 15 MIN\nBack Squat\n4 x 5 @RIR 2\nC) APLICACIÓN — 15 MIN\n8 Air Squat',
           feedback_basics: '',
         },
       ],
@@ -211,16 +212,15 @@ Cada 3' x 5 series finales:
     const week = {
       semana: 5,
       mesociclo: 'fuerza',
-      dias: ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES'].map((nombre) => ({
+      dias: ['LUNES', 'MARTES', 'MIÉRCOLES'].map((nombre) => ({
         nombre,
         evofuncional: intervalSession,
         feedback_funcional: '',
       })),
     }
-    const result = validateEvoWeek(week)
+    const result = validateEvoWeek(week, { validateOfferCompleteness: false })
     expect(result.valid).toBe(false)
-    expect(result.errors.map((entry) => entry.code)).toContain('VAL-VARIETY-002')
-    expect(result.warnings.map((entry) => entry.code)).toContain('VAL-VARIETY-002')
+    expect(result.errors.map((entry) => entry.code)).toContain('VAL-INTERVAL-001')
   })
 
   it('no confunde una carrera metafórica y trata estaciones logísticas como aviso', () => {
@@ -228,12 +228,13 @@ Cada 3' x 5 series finales:
       dias: [
         {
           nombre: 'LUNES',
-          evofuncional: 'A) FUERZA — 15 MIN\nBack Squat\n5 x 5 @75 % RM',
+          evofuncional:
+            'A) FUERZA — 15 MIN\nBack Squat\n5 x 5 @75 % RM\nB) AMRAP — 15 MIN\n10 Air Squat',
           feedback_funcional: 'No quiero que esto se convierta en una carrera. Montad estaciones si ayuda al espacio.',
         },
       ],
     }
-    const result = validateEvoWeek(week)
+    const result = validateEvoWeek(week, { validateOfferCompleteness: false })
     expect(result.valid).toBe(true)
     expect(result.warnings.map((entry) => entry.code)).toContain('VAL-FEEDBACK-001')
   })

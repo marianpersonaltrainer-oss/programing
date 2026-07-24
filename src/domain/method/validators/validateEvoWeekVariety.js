@@ -1,5 +1,7 @@
 import { splitEvoSessionBlocks } from '../evoBasicsSkills.js'
+import { METHOD_EVO_V1 } from '../methodEvoV1.js'
 import { detectIntervalStructure } from './evoIntervalDetection.js'
+import { readDurationMinutes, sumSessionBlockDurations } from './evoDurationUtils.js'
 
 const FORMAT_PATTERNS = [
   ['AMRAP', /\bAMRAP\b/i],
@@ -60,17 +62,22 @@ export function extractFatigueZones(session) {
   return matchLabels(session, FATIGUE_ZONES)
 }
 
-function readDurationMinutes(header) {
-  const match = String(header || '').match(/[—–-]\s*(?:TC\s*)?(\d+(?:[.,]\d+)?)\s*MIN\b/i)
-  return match ? Number(match[1].replace(',', '.')) : null
-}
+const EXERCISE_REPEAT_PATTERNS = [
+  ['KB Swing', /\b(?:kettlebell\s+)?swing\b|\bkb\s+swing\b/i],
+  ['Wall Ball', /\bwall\s+ball\b/i],
+  ['familia Snatch', /\b(?:hang\s+)?(?:power\s+)?snatch\b|\bhang\s+muscle\s+snatch\b|\bmuscle\s+snatch\b/i],
+  ['press vertical', /\b(?:strict\s+press|overhead\s+press|ohp\b|shoulder\s+press)\b/i],
+]
 
-export function sumSessionBlockDurations(session) {
-  const blocks = splitEvoSessionBlocks(session)
-  return blocks.reduce((sum, block) => sum + (readDurationMinutes(block.header) || 0), 0)
+const MIN_DURATION_BY_CLASS = {
+  evofuncional: METHOD_EVO_V1.output_contract.duration_rules.multi_part_typical_minutes[0],
+  evobasics: METHOD_EVO_V1.output_contract.duration_rules.basics_skill_plus_simple_long_work_minutes[0],
+  evofit: METHOD_EVO_V1.output_contract.duration_rules.multi_part_typical_minutes[0],
+  evohybrix: METHOD_EVO_V1.output_contract.duration_rules.simple_single_part_or_hybrix_minutes[0],
+  evogimnastica: METHOD_EVO_V1.output_contract.duration_rules.technical_specialty_approx_minutes,
+  evofuerza: 25,
+  evotodos: METHOD_EVO_V1.output_contract.duration_rules.multi_part_typical_minutes[0],
 }
-
-const DAY_ORDER = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 function dayIndex(name) {
   const n = String(name || '')
@@ -110,6 +117,8 @@ export function validateWeeklyVariety(entries, options = {}) {
   const strengthByClass = new Map()
   const familiesByDay = []
   const fatigueByDay = []
+  const exerciseDaysByClass = new Map()
+  const maxExerciseDays = options.maxExerciseDaysPerClass ?? 2
 
   for (const entry of entries) {
     const { dayName, classKey, className, session } = entry
@@ -152,6 +161,24 @@ export function validateWeeklyVariety(entries, options = {}) {
         classKey,
         message: `${className} el ${dayName} suma ${duration} min en bloques A/B/C; una clase no puede superar ~62 min de trabajo publicado.`,
       })
+    }
+
+    const minDuration = MIN_DURATION_BY_CLASS[classKey]
+    if (minDuration != null && duration > 0 && duration < minDuration) {
+      errors.push({
+        code: 'VAL-TIME-003',
+        severity: 'error',
+        classKey,
+        message: `${className} el ${dayName} suma ${duration} min efectivos; la modalidad exige al menos ~${minDuration} min de trabajo publicado.`,
+      })
+    }
+
+    for (const [label, pattern] of EXERCISE_REPEAT_PATTERNS) {
+      if (!pattern.test(session)) continue
+      const key = `${classKey}::${label}`
+      const days = exerciseDaysByClass.get(key) || []
+      days.push(dayName)
+      exerciseDaysByClass.set(key, days)
     }
   }
 
@@ -246,7 +273,19 @@ export function validateWeeklyVariety(entries, options = {}) {
     }
   }
 
+  for (const [key, days] of exerciseDaysByClass.entries()) {
+    const uniqueDays = [...new Set(days)]
+    if (uniqueDays.length <= maxExerciseDays) continue
+    const [classKey, label] = key.split('::')
+    errors.push({
+      code: 'VAL-VARIETY-003',
+      severity: 'error',
+      classKey,
+      message: `${classKey} repite «${label}» en ${uniqueDays.length} días (${uniqueDays.join(', ')}). Máximo ${maxExerciseDays} apariciones semanales por modalidad.`,
+    })
+  }
+
   return { errors, warnings }
 }
 
-export { dayIndex, areConsecutiveDays }
+export { dayIndex, areConsecutiveDays, sumSessionBlockDurations, readDurationMinutes }

@@ -541,7 +541,10 @@
     {"id": "VAL-INTERVAL-001", "type": "deterministic_semantic", "severity": "error", "checks": "max_two_interval_days_per_class_per_week"},
     {"id": "VAL-INTERVAL-002", "type": "deterministic_semantic", "severity": "error", "checks": "avoid_consecutive_interval_days"},
     {"id": "VAL-VARIETY-001", "type": "deterministic_semantic", "severity": "error", "checks": "no_excessive_format_strength_or_family_repetition"},
+    {"id": "VAL-VARIETY-003", "type": "deterministic_semantic", "severity": "error", "checks": "no_excessive_exercise_repetition_per_modality"},
     {"id": "VAL-TIME-002", "type": "deterministic", "severity": "error", "checks": "session_block_duration_feasible_for_class"},
+    {"id": "VAL-TIME-003", "type": "deterministic", "severity": "error", "checks": "minimum_effective_session_minutes_by_modality"},
+    {"id": "VAL-TIME-004", "type": "deterministic", "severity": "error", "checks": "round_rest_and_station_bursts_fit_time_cap"},
     {"id": "VAL-FEEDBACK-002", "type": "deterministic", "severity": "error", "checks": "feedback_matches_week_day_and_class_scope"},
     {"id": "LIB-OFFICIAL-001", "type": "deterministic", "severity": "error", "checks": "official_library_required_for_generation"},
     {"id": "VAL-OUTPUT-001", "type": "deterministic", "severity": "error", "checks": "no_forbidden_visible_sections"},
@@ -556,6 +559,7 @@
     {"id": "VAL-FIT-001", "type": "semantic", "severity": "error", "checks": "fit_identity_not_basic_or_light"},
     {"id": "VAL-FIT-002", "type": "semantic", "severity": "error", "checks": "fit_has_valid_weekly_components_and_deliberate_session_structure"},
     {"id": "VAL-FIT-003", "type": "semantic", "severity": "error", "checks": "fit_has_no_weightlifting_or_gymnastics_learning_block"},
+    {"id": "VAL-IDENTITY-001", "type": "semantic", "severity": "error", "checks": "modality_identity_matches_class_profile"},
     {"id": "VAL-BASICS-001", "type": "semantic", "severity": "error", "checks": "basics_is_not_light_copy_and_has_weekly_learning_strength_application"},
     {"id": "VAL-BASICS-002", "type": "deterministic_semantic", "severity": "error", "checks": "basics_has_one_identifiable_principal_skill_and_follows_two_complex_three_simple_rolling_block"},
     {"id": "VAL-BASICS-003", "type": "deterministic_semantic", "severity": "warning", "checks": "basics_wod_does_not_accumulate_multiple_complex_families"},
@@ -566,6 +570,8 @@
     {"id": "VAL-FATIGUE-001", "type": "semantic", "severity": "warning", "checks": "consecutive_and_mixed_route_fatigue"},
     {"id": "VAL-HISTORY-001", "type": "semantic", "severity": "warning", "checks": "three_or_more_similarity_axes"},
     {"id": "VAL-HYBRIX-001", "type": "semantic", "severity": "error", "checks": "hybrix_specificity_and_inventory_flow"},
-    {"id": "VAL-LOGISTICS-001", "type": "semantic", "severity": "warning", "checks": "explanation_transitions_and_waiting_are_realistic"}
+    {"id": "VAL-LOAD-001", "type": "semantic", "severity": "error", "checks": "realistic_loads_and_scaling_for_evo_profile"},
+    {"id": "VAL-LOGISTICS-001", "type": "semantic", "severity": "error", "checks": "equipment_quantities_and_transitions_are_feasible"},
+    {"id": "VAL-SUMMARY-001", "type": "deterministic_semantic", "severity": "error", "checks": "week_summary_matches_published_content"}
   ]
 }

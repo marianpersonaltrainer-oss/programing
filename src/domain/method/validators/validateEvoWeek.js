@@ -4,6 +4,7 @@ import { validateDailyEquipmentSimultaneity } from '../evoInventory.js'
 import { detectIntervalStructure } from './evoIntervalDetection.js'
 import { validateWeeklyVariety } from './validateEvoWeekVariety.js'
 import { validateEvoSessionContract } from './validateEvoSession.js'
+import { validateEvoSessionSemantics } from './validateEvoSessionSemantics.js'
 
 const CLASS_FIELDS = [
   ['evofuncional', 'feedback_funcional', 'EvoFuncional'],
@@ -187,6 +188,38 @@ function promoteMaterialConflicts(entries) {
   return promoted
 }
 
+function collectWeekSummaryText(week) {
+  return [week?.resumen_semana, week?.estimulo, week?.intensidad_foco, week?.nota_coach, week?.titulo]
+    .filter(Boolean)
+    .join('\n')
+}
+
+function validateWeekSummaryClaims(week, errors) {
+  const summary = collectWeekSummaryText(week)
+  if (!summary.trim()) return
+
+  const deniesPatternRepeat =
+    /\bno\s+se\s+repiten\s+patrones\b/i.test(summary) ||
+    /\bsin\s+repetir\s+patrones\b/i.test(summary) ||
+    /\bsin\s+solapamiento\s+de\s+fatiga\b/i.test(summary)
+
+  if (!deniesPatternRepeat) return
+
+  const contentErrors = errors.filter((entry) =>
+    ['VAL-VARIETY-001', 'VAL-VARIETY-003', 'VAL-FATIGUE-001', 'VAL-INTERVAL-001', 'VAL-INTERVAL-002'].includes(
+      entry.code,
+    ),
+  )
+  if (!contentErrors.length) return
+
+  errors.push({
+    code: 'VAL-SUMMARY-001',
+    severity: 'error',
+    message:
+      'El resumen de semana afirma que no se repiten patrones o fatiga, pero el contenido publicado sí los repite. Corrige la semana o el resumen.',
+  })
+}
+
 /** Validación determinista previa a publicación. */
 export function validateEvoWeek(week, options = {}) {
   const errors = []
@@ -242,6 +275,13 @@ export function validateEvoWeek(week, options = {}) {
       for (const entry of result.warnings) {
         warnings.push({ ...entry, dayIndex, classKey: sessionKey })
       }
+      const semantics = validateEvoSessionSemantics(session, { classKey: sessionKey })
+      for (const entry of semantics.errors) {
+        errors.push({ ...entry, dayIndex, classKey: sessionKey })
+      }
+      for (const entry of semantics.warnings) {
+        warnings.push({ ...entry, dayIndex, classKey: sessionKey })
+      }
       const feedbackResult = validateFeedbackAgainstSession(session, feedback)
       for (const entry of feedbackResult.errors) {
         errors.push({ ...entry, dayIndex, classKey: sessionKey })
@@ -282,6 +322,8 @@ export function validateEvoWeek(week, options = {}) {
   if (options.validateOfferCompleteness !== false) {
     validateOfferCompleteness(week, offer, errors)
   }
+
+  validateWeekSummaryClaims(week, errors)
 
   return { valid: errors.length === 0, errors, warnings }
 }

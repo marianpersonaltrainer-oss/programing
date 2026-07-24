@@ -13,6 +13,8 @@ import {
 } from './validators/buildPartialWeekSummary.js'
 import { assertPe2WeekLockMatch } from '../../lib/pe2WeekLock.js'
 import { validateEvoSessionContract } from './validators/validateEvoSession.js'
+import { validateEvoSessionSemantics } from './validators/validateEvoSessionSemantics.js'
+import { readDurationMinutes } from './validators/evoDurationUtils.js'
 import { METHOD_EVO_V1 } from './methodEvoV1.js'
 
 const OFFER_FUNCIONAL_LMX = {
@@ -266,6 +268,80 @@ C) INTERVALOS — 20 MIN
     expect(blocked.valid).toBe(false)
     const allowed = validateEvoWeek(week, { authorizedFestivoDays: ['lunes'], validateOfferCompleteness: false })
     expect(allowed.errors.some((e) => e.code === 'VAL-FESTIVO-001')).toBe(false)
+  })
+
+  it('20. detecta EMOM como día interválico', () => {
+    const emom = `A) FUERZA — HIP THRUST · 14 MIN
+5 series
+B) ACCESORIOS + ACONDICIONAMIENTO — EMOM 16 MIN
+Cada minuto: 12 KB Swing`
+    expect(detectIntervalStructure(emom).isInterval).toBe(true)
+  })
+
+  it('21. detecta EVERY N seg como interválico', () => {
+    const every = `A) FUERZA — BACK SQUAT · 16 MIN
+5 series
+B) BLOQUE FINAL — EVERY 90 SEG × 8 RONDAS (12 MIN)
+10 Wall Ball`
+    expect(detectIntervalStructure(every).isInterval).toBe(true)
+  })
+
+  it('22. bloquea sesión demasiado corta por modalidad', () => {
+    const shortFuncional = `A) FUERZA — BENT-OVER BARBELL ROW · 18 MIN
+5 series · descanso 2 min`
+    const week = { dias: [day('LUNES', { evofuncional: shortFuncional, feedback_funcional: '' })] }
+    const result = validateEvoWeek(week, { validateOfferCompleteness: false })
+    expect(result.errors.some((e) => e.code === 'VAL-TIME-003')).toBe(true)
+  })
+
+  it('23. bloquea tiempos imposibles (rondas + descanso vs TC)', () => {
+    const basicsWod = `C) APLICACIÓN — WOD · 8 MIN POR TIEMPO
+6 rounds for time:
+8 Landmine Squat
+10 KB Swing
+Descanso 60 seg después de cada ronda completa.`
+    const result = validateEvoSessionSemantics(`A) FUERZA — GOBLET SQUAT · 10 MIN
+4 series
+B) SKILL — WALKING LUNGE · 10 MIN
+Progresión
+${basicsWod}`, { classKey: 'evobasics' })
+    expect(result.errors.some((e) => e.code === 'VAL-TIME-004')).toBe(true)
+  })
+
+  it('24. bloquea identidad incorrecta en EvoGimnástica', () => {
+    const session = `A) CAPACIDAD PRINCIPAL — POWER SNATCH DESDE SUELO · 18 MIN
+Progresión técnica
+B) REFUERZO — PINO EN PARED · 5 MIN`
+    const result = validateEvoSessionSemantics(session, { classKey: 'evogimnastica' })
+    expect(result.errors.some((e) => e.code === 'VAL-IDENTITY-001')).toBe(true)
+  })
+
+  it('25. bloquea repetición de ejercicio más de dos días por modalidad', () => {
+    const fitDay = `A) FUERZA — HIP THRUST · 14 MIN
+5 series
+B) ACCESORIOS · 8 MIN
+C) ACONDICIONAMIENTO · 8 MIN
+10 Kettlebell Swing ruso`
+    const week = {
+      dias: ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES'].map((nombre) =>
+        day(nombre, { evofit: fitDay, feedback_fit: '' }),
+      ),
+    }
+    const result = validateEvoWeek(week, { validateOfferCompleteness: false })
+    expect(result.errors.some((e) => e.code === 'VAL-VARIETY-003')).toBe(true)
+  })
+
+  it('26. bloquea logística imposible (dos barras por persona)', () => {
+    const session = `A) FUERZA — STRICT PRESS + HALTEROFILIA · 20 MIN
+Dos barras por persona o pareja compartida.
+Serie 1: Strict Press`
+    const result = validateEvoSessionSemantics(session, { classKey: 'evofuncional' })
+    expect(result.errors.some((e) => e.code === 'VAL-LOGISTICS-001')).toBe(true)
+  })
+
+  it('27. lee duración con separador · en títulos EVO', () => {
+    expect(readDurationMinutes('A) FUERZA — BENT-OVER BARBELL ROW · 18 MIN')).toBe(18)
+    expect(readDurationMinutes('PARTE ÚNICA — AMRAP 34 MIN')).toBe(34)
   })
 
   it('regression: método expone oferta e inventario base', () => {

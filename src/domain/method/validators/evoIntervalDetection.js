@@ -40,6 +40,24 @@ export function detectIntervalStructure(session) {
     return { isInterval: true, kind: 'igyg' }
   }
 
+  if (/\bEMOM\b/i.test(text) || /\bE\d+(?::\d{2})?MOM\b/i.test(text)) {
+    return { isInterval: true, kind: 'emom' }
+  }
+
+  if (/\bEVERY\s+\d+(?:[.,]\d+)?\s*(?:SEC|SEG|SEGS?|MIN|MINUTOS?)\b/i.test(text)) {
+    return { isInterval: true, kind: 'every_cadence' }
+  }
+
+  if (
+    /\b\d+\s*rondas?\b/i.test(text) &&
+    /\b(?:descanso|rest)\s+\d+\s*(?:seg|sec|min)/i.test(text) &&
+    /\b(?:for\s+time|por\s+tiempo|wod|amrap|acondicionamiento|aplicaci[oó]n|bloque\s+condicionante|bloque\s+final)\b/i.test(
+      text,
+    )
+  ) {
+    return { isInterval: true, kind: 'rounds_with_rest' }
+  }
+
   if (/\bTABATA\b/i.test(text)) {
     return { isInterval: true, kind: 'tabata' }
   }

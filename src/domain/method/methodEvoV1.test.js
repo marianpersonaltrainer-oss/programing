@@ -112,7 +112,8 @@ No se realiza el último descanso.`
       dias: [
         {
           nombre: 'MARTES',
-          evobasics: 'A) TÉCNICA — 10 MIN\nBack Squat\nB) FUERZA — 15 MIN\nBack Squat\n4 x 5 @RIR 2',
+          evobasics:
+            'A) TÉCNICA — 10 MIN\nBack Squat\nB) FUERZA — 15 MIN\nBack Squat\n4 x 5 @RIR 2\nC) APLICACIÓN — 15 MIN\n8 Air Squat',
           feedback_basics: '',
         },
       ],
@@ -227,7 +228,8 @@ Cada 3' x 5 series finales:
       dias: [
         {
           nombre: 'LUNES',
-          evofuncional: 'A) FUERZA — 15 MIN\nBack Squat\n5 x 5 @75 % RM',
+          evofuncional:
+            'A) FUERZA — 15 MIN\nBack Squat\n5 x 5 @75 % RM\nB) AMRAP — 15 MIN\n10 Air Squat',
           feedback_funcional: 'No quiero que esto se convierta en una carrera. Montad estaciones si ayuda al espacio.',
         },
       ],

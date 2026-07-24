@@ -85,8 +85,8 @@ describe('methodPrompt — Método EVO versionado', () => {
 
   it('briefing importa la misma fuente estructurada', () => {
     const briefing = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
-    expect(briefing).toContain('buildMethodEvoV1Prompt')
-    expect(briefing).toContain('BRIEFING_METHOD_CONTEXT')
+    expect(briefing).toContain('getBriefingMethodContext')
+    expect(briefing).toContain('methodEvoServerBundle')
   })
 
   it('Chat V1 y EditModal no reactivan method_rules legacy', () => {

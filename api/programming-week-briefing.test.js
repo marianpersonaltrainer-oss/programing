@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import { filterBriefingContextWeeks } from './lib/briefingContextFilter.js'
+import {
+  buildMesocycleProgrammingBlockFromContract,
+  getBriefingMethodContext,
+  loadMethodEvoV1Contract,
+} from './lib/methodEvoServerBundle.js'
 
 describe('evoAllowedOrigins', () => {
   it('permite previews Vercel de programing y programing-evo', () => {
@@ -25,8 +30,21 @@ describe('briefingContextFilter', () => {
   })
 })
 
+describe('methodEvoServerBundle', () => {
+  it('carga el contrato JSON y construye contexto de briefing', async () => {
+    const contract = loadMethodEvoV1Contract()
+    expect(contract.meta.version).toBeTruthy()
+    const block = buildMesocycleProgrammingBlockFromContract(contract, { mesocycle: 'fuerza', week: 5 })
+    expect(block).toContain('MESOCICLO ACTIVO')
+    const context = await getBriefingMethodContext()
+    expect(context.length).toBeGreaterThan(200)
+  })
+})
+
 describe('programming-week-briefing.js — carga del módulo', () => {
-  it('importa sin ReferenceError', async () => {
-    await expect(import('./programming-week-briefing.js')).resolves.toBeTruthy()
+  it('importa sin ejecutar buildMethodEvoV1Prompt en el arranque', async () => {
+    const mod = await import('./programming-week-briefing.js')
+    expect(typeof mod.default).toBe('function')
+    expect(mod.config?.maxDuration).toBe(180)
   })
 })

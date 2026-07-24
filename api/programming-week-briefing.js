@@ -16,15 +16,16 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import { filterBriefingContextWeeks } from './lib/briefingContextFilter.js'
-import { buildMethodEvoV1Prompt } from '../src/domain/method/methodEvoV1.js'
+import { buildMesocycleProgrammingBlockServer, getBriefingMethodContext } from './lib/methodEvoServerBundle.js'
 
-const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
+export const config = {
+  maxDuration: 180,
+}
 
-const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
+const SYSTEM_PREFIX = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
 (del mismo mesociclo que indica el bloque final), historial de cambios guardados en Supabase,
 check-ins semanales de coaches, pases de turno diarios, reglas del método y feedback por sesión ligado a esas semanas.
@@ -37,24 +38,24 @@ Tu tarea:
    - "narrative": string en español, 2–5 frases, tono profesional y cercano
    - "suggestedFocus": una línea, p. ej. "Consolidación + descarga parcial de hombro"
 
-No incluyas la programación día a día; solo la propuesta de enfoque.
+No incluyas la programación día a día; solo la propuesta de enfoque.`
 
-${BRIEFING_METHOD_CONTEXT}`
-
-function buildBriefingSystemPrompt(body) {
+async function buildBriefingSystemPrompt(body) {
+  const methodContext = await getBriefingMethodContext()
+  const system = `${SYSTEM_PREFIX}\n\n${methodContext}`
   const meso = String(body?.mesociclo || '').trim()
   const week = Number(body?.semana)
   const phase = String(body?.phase || '').trim()
   const twRaw = body?.totalWeeks
   const tw = twRaw == null || twRaw === '' ? NaN : Number(twRaw)
-  const block = buildMesocycleProgrammingBlock({
+  const block = await buildMesocycleProgrammingBlockServer({
     mesocycle: meso,
     week: Number.isFinite(week) ? week : undefined,
     totalWeeks: Number.isFinite(tw) ? tw : null,
     phase: phase || null,
   })
-  if (!block) return SYSTEM
-  return `${SYSTEM}
+  if (!block) return system
+  return `${system}
 
 ════════════════════════════════════════
 INTENCIÓN DEL MESOCICLO (obligatoria para la propuesta)
@@ -454,7 +455,7 @@ export default async function handler(req, res) {
       ]
     }
 
-    const systemPrompt = buildBriefingSystemPrompt({
+    const systemPrompt = await buildBriefingSystemPrompt({
       mesociclo,
       semana,
       phase,

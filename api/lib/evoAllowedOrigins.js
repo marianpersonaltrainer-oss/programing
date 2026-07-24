@@ -11,6 +11,7 @@ const EXTRA_PREFIXES = String(process.env.EVO_ALLOWED_ORIGIN_PREFIXES || '')
 
 const STATIC_PREFIXES = [
   'https://programing-evo.vercel.app',
+  'https://programing.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   ...EXTRA_PREFIXES,
@@ -28,5 +29,6 @@ export function isEvoOriginAllowed(originValue) {
   if (!v) return false
   if (STATIC_PREFIXES.some((p) => v.startsWith(p))) return true
   if (/^https:\/\/programing-evo[\w.-]*\.vercel\.app$/i.test(v)) return true
+  if (/^https:\/\/programing[\w.-]*\.vercel\.app$/i.test(v)) return true
   return false
 }

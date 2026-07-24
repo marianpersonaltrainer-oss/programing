@@ -19,8 +19,8 @@ import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import { filterBriefingContextWeeks } from './lib/briefingContextFilter.js'
 import { buildMethodEvoV1Prompt } from '../src/domain/method/methodEvoV1.js'
-import { filterGenerationContextWeeks } from '../src/domain/method/validators/validateGenerationContext.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
 
@@ -293,7 +293,7 @@ async function fetchContextPack(supabase, mesocicloRaw, targetSemana) {
   }
 
   if (mesociclo && Number.isFinite(target)) {
-    weeks = filterGenerationContextWeeks(weeks, { mesociclo, targetSemana: target })
+    weeks = filterBriefingContextWeeks(weeks, { mesociclo, targetSemana: target })
   }
 
   const weekIds = (weeks || []).map((r) => r.id).filter(Boolean)

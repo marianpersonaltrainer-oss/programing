@@ -7,6 +7,7 @@ describe('programming-week-briefing.js — método canónico', () => {
     const { dirname, join } = await import('node:path')
     const root = join(dirname(fileURLToPath(import.meta.url)), '..')
     const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
+    expect(src).toContain("from '../src/domain/method/methodEvoV1.js'")
     expect(src).toContain('buildMethodEvoV1Prompt')
     expect(src).not.toContain('method_rules')
     expect(src).not.toContain('METHOD_RULE_LEGACY')

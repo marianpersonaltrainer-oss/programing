@@ -47,4 +47,14 @@ describe('programming-week-briefing.js — carga del módulo', () => {
     expect(typeof mod.default).toBe('function')
     expect(mod.config?.maxDuration).toBe(180)
   })
+
+  it('usa modo degradado si falta SUPABASE_SERVICE_ROLE_KEY en preview', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const { dirname, join } = await import('node:path')
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'programming-week-briefing.js'), 'utf8')
+    expect(src).toContain('buildDegradedContextPack')
+    expect(src).toContain('degradedContext')
+    expect(src).not.toContain("error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.'")
+  })
 })

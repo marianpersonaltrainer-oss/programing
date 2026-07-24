@@ -362,6 +362,68 @@ async function fetchContextPack(supabase, mesocicloRaw, targetSemana) {
   return blocks.join('\n')
 }
 
+function resolveSupabaseServerConfig() {
+  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
+  if (serviceKey && supabaseUrl) {
+    return { supabaseUrl, serviceKey, degraded: false }
+  }
+  return { supabaseUrl, serviceKey, degraded: true }
+}
+
+function buildDegradedContextPack(mesociclo, semana) {
+  return [
+    '## Contexto Supabase no cargado (entorno preview sin service role)',
+    'Este despliegue no tiene SUPABASE_SERVICE_ROLE_KEY en el servidor.',
+    'No se han leído semanas publicadas, feedback de coaches, check-ins ni pases de turno desde Supabase.',
+    'Genera la propuesta solo con el Método EVO, la intención del mesociclo y los días/clases indicados por Marian abajo.',
+    '',
+    `Mesociclo objetivo: ${mesociclo || '—'} · Semana: ${Number.isFinite(semana) ? semana : '—'}`,
+  ].join('\n')
+}
+
+function buildInitialBriefingMessages(body, contextPack) {
+  const mesociclo = String(body.mesociclo || '').trim()
+  const semana = Number(body.semana)
+  const phase = String(body.phase || '').trim()
+  const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
+  const generationDays = Array.isArray(body.generationDays)
+    ? body.generationDays
+        .map((day) => String(day || '').trim().toUpperCase())
+        .filter((day, index, rows) => validDays.has(day) && rows.indexOf(day) === index)
+    : []
+  const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
+  const weeklyOfferDays = body.weeklyOffer?.dias
+  const weeklyOfferLines = generationDays.map((day) => {
+    const classes = Array.isArray(weeklyOfferDays?.[day]) ? weeklyOfferDays[day] : []
+    return `- ${day}: ${classes.length ? classes.join(', ') : '(sin clases seleccionadas)'}`
+  })
+
+  const tail = [
+    '',
+    '---',
+    `Semana OBJETIVO a programar a continuación (en el generador Excel): mesociclo="${mesociclo}", semana=${semana}${phase ? `, fase="${phase}"` : ''}.`,
+    `DÍAS QUE MARIAN QUIERE DISEÑAR EN ESTA TANDA: ${generationDays.join(', ') || 'semana completa según oferta'}.`,
+    weeklyOfferLines.length
+      ? `CLASES SELECCIONADAS EN ESOS DÍAS:\n${weeklyOfferLines.join('\n')}`
+      : '',
+    userInstructions
+      ? `CONTEXTO E INSTRUCCIONES ESCRITAS POR MARIAN (prioridad alta):\n${userInstructions}`
+      : 'Marian no ha añadido contexto libre para esta tanda.',
+    'La propuesta debe respetar expresamente estos días, clases e instrucciones; no propongas contenido para días no seleccionados.',
+    'Genera el JSON de propuesta (title, narrative, suggestedFocus) descrito en el system.',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return [
+    {
+      role: 'user',
+      content: `PAQUETE DE DATOS:\n\n${contextPack}\n${tail}`,
+    },
+  ]
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
@@ -383,10 +445,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY en el servidor.' })
   }
 
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
-  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
-  if (!serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.' })
+  const supabaseConfig = resolveSupabaseServerConfig()
+  let degradedContext = supabaseConfig.degraded
+  if (degradedContext) {
+    console.warn(
+      '[programming-week-briefing] Modo degradado: falta SUPABASE_SERVICE_ROLE_KEY o URL. No se leerá Supabase.',
+    )
   }
 
   const model = resolveProgrammingModel(
@@ -416,43 +480,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan mesociclo o semana para el briefing inicial.' })
       }
 
-      const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
-      contextPack = await fetchContextPack(supabase, mesociclo, semana)
+      if (degradedContext) {
+        contextPack = buildDegradedContextPack(mesociclo, semana)
+      } else {
+        const supabase = createClient(supabaseConfig.supabaseUrl, supabaseConfig.serviceKey, {
+          auth: { persistSession: false },
+        })
+        contextPack = await fetchContextPack(supabase, mesociclo, semana)
+      }
 
-      const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
-      const generationDays = Array.isArray(body.generationDays)
-        ? body.generationDays
-            .map((day) => String(day || '').trim().toUpperCase())
-            .filter((day, index, rows) => validDays.has(day) && rows.indexOf(day) === index)
-        : []
-      const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
-      const weeklyOfferDays = body.weeklyOffer?.dias
-      const weeklyOfferLines = generationDays.map((day) => {
-        const classes = Array.isArray(weeklyOfferDays?.[day]) ? weeklyOfferDays[day] : []
-        return `- ${day}: ${classes.length ? classes.join(', ') : '(sin clases seleccionadas)'}`
-      })
-
-      const tail = [
-        '',
-        '---',
-        `Semana OBJETIVO a programar a continuación (en el generador Excel): mesociclo="${mesociclo}", semana=${semana}${phase ? `, fase="${phase}"` : ''}.`,
-        `DÍAS QUE MARIAN QUIERE DISEÑAR EN ESTA TANDA: ${generationDays.join(', ') || 'semana completa según oferta'}.`,
-        weeklyOfferLines.length
-          ? `CLASES SELECCIONADAS EN ESOS DÍAS:\n${weeklyOfferLines.join('\n')}`
-          : '',
-        userInstructions
-          ? `CONTEXTO E INSTRUCCIONES ESCRITAS POR MARIAN (prioridad alta):\n${userInstructions}`
-          : 'Marian no ha añadido contexto libre para esta tanda.',
-        'La propuesta debe respetar expresamente estos días, clases e instrucciones; no propongas contenido para días no seleccionados.',
-        'Genera el JSON de propuesta (title, narrative, suggestedFocus) descrito en el system.',
-      ].filter(Boolean).join('\n')
-
-      messages = [
-        {
-          role: 'user',
-          content: `PAQUETE DE DATOS:\n\n${contextPack}\n${tail}`,
-        },
-      ]
+      messages = buildInitialBriefingMessages(body, contextPack)
     }
 
     const systemPrompt = await buildBriefingSystemPrompt({
@@ -514,6 +551,7 @@ export default async function handler(req, res) {
       proposal,
       contextPack: contextPack || undefined,
       model: data?.model || model,
+      degradedContext: degradedContext || undefined,
     }
     if (!messagesIn?.length && messages?.[0]) {
       payload.initialMessages = [

@@ -16,6 +16,8 @@
     "test:adversarial": "vitest run src/domain/method/evoGenerationSafeguards.adversarial.test.js",
     "test:all": "vitest run",
     "test:migration-lock": "node scripts/validate-migration-pe2-weeks-lock-pglite.mjs",
+    "staging:validate": "node scripts/staging-validate-supabase.mjs",
+    "staging:apply-lock-migration": "node scripts/apply-migration-pe2-weeks-lock.mjs",
     "smoke:motor-safeguards": "node scripts/staging-smoke-motor-safeguards.mjs",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",

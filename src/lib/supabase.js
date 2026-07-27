@@ -2,6 +2,11 @@ import { createClient } from '@supabase/supabase-js'
 import {
   assertPublicationGateApproved,
 } from '../utils/publicationQualityGate.js'
+import {
+  filterPublishedOrSupersededRows,
+  isMissingPublishedWeeksV2ColumnError,
+  withInferredPublicationStatus,
+} from '../utils/publishedWeeksLegacy.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -17,7 +22,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 // ── Semanas publicadas ────────────────────────────────────────────────────────
 
 export async function getActiveWeek() {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('published_weeks')
     .select('*')
     .eq('is_active', true)
@@ -26,18 +31,38 @@ export async function getActiveWeek() {
     .limit(1)
     .single()
 
+  if (error && isMissingPublishedWeeksV2ColumnError(error)) {
+    ;({ data, error } = await supabase
+      .from('published_weeks')
+      .select('*')
+      .eq('is_active', true)
+      .order('published_at', { ascending: false })
+      .limit(1)
+      .single())
+    if (data) data = withInferredPublicationStatus(data)
+  }
+
   if (error && error.code !== 'PGRST116') throw error
   return data || null
 }
 
 /** Listado para selectores (export admin, etc.). */
 export async function listPublishedWeeksSummary(limit = 80) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('published_weeks')
     .select('id, titulo, semana, mesociclo, cycle_id, cycle_start_date, week_start_date, published_at, is_active, publication_status, version_number')
     .in('publication_status', ['published', 'superseded'])
     .order('published_at', { ascending: false })
     .limit(limit)
+
+  if (error && isMissingPublishedWeeksV2ColumnError(error)) {
+    ;({ data, error } = await supabase
+      .from('published_weeks')
+      .select('id, titulo, semana, mesociclo, published_at, is_active, data, edit_history')
+      .order('published_at', { ascending: false })
+      .limit(limit))
+    data = filterPublishedOrSupersededRows(data)
+  }
 
   if (error) throw error
   return data || []
@@ -59,7 +84,7 @@ export async function getPublishedWeekById(id) {
 export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana, cycleId) {
   if (!mesociclo || semana == null) return null
   if (!cycleId) throw new Error('Falta cycleId para abrir una semana publicada exacta.')
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('published_weeks')
     .select('*')
     .eq('mesociclo', mesociclo)
@@ -70,6 +95,21 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana, cycl
     .order('published_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (error && isMissingPublishedWeeksV2ColumnError(error)) {
+    ;({ data, error } = await supabase
+      .from('published_weeks')
+      .select('*')
+      .eq('mesociclo', mesociclo)
+      .eq('semana', semana)
+      .order('published_at', { ascending: false })
+      .limit(1)
+      .maybeSingle())
+    data = data && withInferredPublicationStatus(data)
+    if (data && !['published', 'superseded', 'legacy_unverified'].includes(data.publication_status)) {
+      data = null
+    }
+  }
 
   if (error) throw error
   return data || null
@@ -181,12 +221,21 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
  */
 export async function listPublishedWeekVersionsForMesocycle(mesociclo) {
   if (!mesociclo) return []
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('published_weeks')
     .select('id, mesociclo, semana, cycle_id, cycle_start_date, week_start_date, titulo, data, published_at, publication_status, version_number, content_fingerprint')
     .eq('mesociclo', mesociclo)
     .in('publication_status', ['published', 'superseded'])
     .order('published_at', { ascending: false })
+
+  if (error && isMissingPublishedWeeksV2ColumnError(error)) {
+    ;({ data, error } = await supabase
+      .from('published_weeks')
+      .select('id, mesociclo, semana, titulo, data, published_at, is_active, edit_history')
+      .eq('mesociclo', mesociclo)
+      .order('published_at', { ascending: false }))
+    data = filterPublishedOrSupersededRows(data)
+  }
 
   if (error) throw error
   return data || []

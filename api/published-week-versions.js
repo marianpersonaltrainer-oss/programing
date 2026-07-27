@@ -20,6 +20,8 @@ import {
   normalizeProgrammingDate,
   selectProgrammingContextWeeks,
 } from '../src/utils/programmingContextSelection.js'
+import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
+import { filterPublishedOrSupersededRows } from '../src/utils/publishedWeeksLegacy.js'
 
 const REQUIRED_WEEK_DAYS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO']
 
@@ -157,15 +159,9 @@ async function validateExactPublication(supabase, weekData, gate, mesocycle, wee
   const offerSelection = parseWeeklyOfferSelection(weekData?.oferta_semanal)
   if (!offerSelection) throw new Error('explicit_weekly_offer_required')
 
-  const { data: rows, error: rowsError } = await supabase
-    .from('published_weeks')
-    .select('id, mesociclo, semana, titulo, published_at, publication_status, data')
-    .in('publication_status', ['published', 'superseded'])
-    .order('published_at', { ascending: false })
-    .limit(160)
-  if (rowsError) throw rowsError
+  const rows = filterPublishedOrSupersededRows(await loadPublishedWeeksForContext(supabase, { limit: 160 }))
   if (
-    (rows || []).some((row) => {
+    rows.some((row) => {
       const publishedMs = Date.parse(row?.published_at)
       return Number.isFinite(publishedMs) && publishedMs > contextSnapshotMs
     })
@@ -173,7 +169,7 @@ async function validateExactPublication(supabase, weekData, gate, mesocycle, wee
     throw new Error('publication_context_changed')
   }
 
-  const selection = selectProgrammingContextWeeks(rows || [], weekData, {
+  const selection = selectProgrammingContextWeeks(rows, weekData, {
     progressionLimit: 6,
     historicalLimit: 6,
   })

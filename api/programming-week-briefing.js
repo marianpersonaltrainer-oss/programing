@@ -33,6 +33,7 @@ import {
   normalizeWeeklyArchitecturePlan,
   replaceWeeklyArchitectureBlock,
 } from '../src/utils/weeklyArchitecturePlan.js'
+import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
 
@@ -278,13 +279,7 @@ async function fetchContextPack(supabase, target) {
   // Se toma antes de leer: cualquier publicación posterior deberá invalidar
   // este contexto en la transacción final, aunque sea de otro mesociclo.
   const snapshotAt = new Date().toISOString()
-  const { data: rows, error: wErr } = await supabase
-    .from('published_weeks')
-    .select('id, mesociclo, semana, titulo, published_at, publication_status, data, edit_history')
-    .order('published_at', { ascending: false })
-    .limit(160)
-
-  if (wErr) throw new Error(`published_weeks: ${wErr.message}`)
+  const rows = await loadPublishedWeeksForContext(supabase, { limit: 160 })
 
   const selection = selectProgrammingContextWeeks(rows || [], target, {
     progressionLimit: 6,

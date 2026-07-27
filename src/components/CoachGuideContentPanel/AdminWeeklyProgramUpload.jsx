@@ -1,15 +1,27 @@
 import { Component, useMemo, useState } from 'react'
 import {
-  getPublishedWeekByMesocycleAndWeek,
-  listPublishedWeeksForMesocycle,
+  listPublishedWeekVersionsForMesocycle,
   upsertPublishedWeekBySlot,
-  activatePublishedWeekForHub,
 } from '../../lib/supabase.js'
 import { generateCreativeProgrammingSuggestions } from '../../utils/analyzeWeeklyProgramXlsx.js'
 import {
   normalizeWeekDataForEditor,
   weekHasMeaningfulSessionContent,
 } from '../../utils/normalizeWeekDataForEditor.js'
+import { validateEvoWeek } from '../../domain/method/validators/validateEvoWeek.js'
+import {
+  buildPublicationQualityGate,
+  buildPublicationTargetFingerprint,
+  hashPublicationValue,
+} from '../../utils/publicationQualityGate.js'
+import {
+  parseWeeklyOfferSelection,
+  weeklyOfferSelectionToValidationOffer,
+} from '../../utils/weeklyOffer.js'
+import {
+  addProgrammingDays,
+  selectProgrammingContextWeeks,
+} from '../../utils/programmingContextSelection.js'
 
 const MESO_OPTS = ['fuerza', 'autocarga', 'mixto']
 
@@ -83,6 +95,28 @@ const WEEK_OPTS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 const SAFE_POINTS_FALLBACK = { estructura: 0, variedad: 0, coherencia: 0, feedback: 0 }
 
+function fileIdentity(file) {
+  return file
+    ? {
+        name: String(file.name || ''),
+        size: Number(file.size || 0),
+        lastModified: Number(file.lastModified || 0),
+      }
+    : null
+}
+
+function historyRowIdentity(row) {
+  return {
+    id: String(row?.id || ''),
+    week: Number(row?.semana || 0),
+    publishedAt: String(row?.published_at || ''),
+    publicationStatus: String(row?.publication_status || ''),
+    version: Number(row?.version_number || 0),
+    contentFingerprint:
+      String(row?.content_fingerprint || '') || hashPublicationValue(row?.data || null),
+  }
+}
+
 function stringifyRow(x) {
   if (x == null) return ''
   if (typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean') return String(x)
@@ -127,16 +161,20 @@ class AdminWeeklyProgramUploadBoundary extends Component {
   }
 }
 
-function AdminWeeklyProgramUploadInner() {
+function AdminWeeklyProgramUploadInner({ adminSecret = '' }) {
   const [file, setFile] = useState(null)
   const [batchFiles, setBatchFiles] = useState([])
   const [mesocycle, setMesocycle] = useState('autocarga')
   const [week, setWeek] = useState(1)
   const [phase, setPhase] = useState('')
+  const [cycleStartDate, setCycleStartDate] = useState('')
   const [busy, setBusy] = useState(false)
   const [batchBusy, setBatchBusy] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  /** Contexto histórico exacto usado por el análisis; cualquier cambio invalida su aprobación. */
+  const [analysisContextRows, setAnalysisContextRows] = useState(null)
+  const [analysisFingerprint, setAnalysisFingerprint] = useState('')
   const [batchResult, setBatchResult] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
@@ -146,15 +184,84 @@ function AdminWeeklyProgramUploadInner() {
   const [creativeIdeas, setCreativeIdeas] = useState([])
   /** Tras analizar: guardar JSON en Supabase sin cambiar qué semana ven los coaches. */
   const [subirHubAutomatico, setSubirHubAutomatico] = useState(false)
-  const [hubActivating, setHubActivating] = useState(false)
+  const [hubDraftVersion, setHubDraftVersion] = useState(null)
 
-  const canAnalyze = !!file && !busy
+  const canAnalyze = !!file && !!cycleStartDate && !busy
   const canBatchAnalyze = batchFiles.length > 0 && !batchBusy
+
+  function invalidateAnalysis() {
+    setResult(null)
+    setAnalysisContextRows(null)
+    setAnalysisFingerprint('')
+    setCreativeIdeas([])
+    setImportMsg('')
+    setHubDraftVersion(null)
+  }
+
+  async function loadExactHistoryContext() {
+    if (!cycleStartDate) {
+      throw new Error('Indica la fecha real de inicio del ciclo antes de analizar.')
+    }
+    const publishedVersions = await listPublishedWeekVersionsForMesocycle(mesocycle)
+    const target = {
+      mesociclo: mesocycle,
+      semana: Number(week),
+      cycle_id: `${mesocycle}:${cycleStartDate}`,
+      cycle_start_date: cycleStartDate,
+      week_start_date: addProgrammingDays(cycleStartDate, (Number(week) - 1) * 7),
+    }
+    const selection = selectProgrammingContextWeeks(publishedVersions, target, {
+      progressionLimit: 6,
+      historicalLimit: 0,
+    })
+    if (selection.mode !== 'exact-cycle-date') {
+      throw new Error('No se pudo verificar el ciclo exacto del Excel.')
+    }
+    const rows = selection.progressionWeeks
+    const previousRow =
+      rows.find((row) => Number(row?.semana) === Number(week) - 1) || null
+    return {
+      previousRow,
+      rows,
+      mode: selection.mode,
+      selectedWeekIds: selection.selectedWeekIds,
+      identity: rows.map(historyRowIdentity),
+    }
+  }
+
+  function buildAdminContextFingerprint(contextRows = analysisContextRows) {
+    return hashPublicationValue({
+      target: {
+        mesocycle,
+        week: Number(week),
+        phase: String(phase || '').trim(),
+        cycleStartDate,
+        weekStartDate: addProgrammingDays(cycleStartDate, (Number(week) - 1) * 7),
+      },
+      file: fileIdentity(file),
+      scope: {
+        partialWeek: partialWeekMode,
+        activeClassesOnly: partialWeekMode,
+        draftMode: partialWeekMode,
+        experienciaEvo: experienciaEvoEnabled,
+      },
+      history: contextRows?.identity || [],
+    })
+  }
+
   function buildHubPayload() {
     if (!result?.parsedWeekData) return null
     try {
       return normalizeWeekDataForEditor(
-        { ...result.parsedWeekData, mesociclo: mesocycle, semana: Number(week) },
+        {
+          ...result.parsedWeekData,
+          mesociclo: mesocycle,
+          semana: Number(week),
+          phase: String(phase || '').trim(),
+          cycle_id: `${mesocycle}:${cycleStartDate}`,
+          cycle_start_date: cycleStartDate,
+          week_start_date: addProgrammingDays(cycleStartDate, (Number(week) - 1) * 7),
+        },
         { semana: Number(week), mesociclo: mesocycle },
       )
     } catch {
@@ -162,7 +269,88 @@ function AdminWeeklyProgramUploadInner() {
     }
   }
 
-  const hubPayloadPreview = useMemo(() => buildHubPayload(), [result, mesocycle, week])
+  const hubPayloadPreview = useMemo(
+    () => buildHubPayload(),
+    [cycleStartDate, mesocycle, phase, result, week],
+  )
+  const explicitOfferSelection = useMemo(
+    () => parseWeeklyOfferSelection(hubPayloadPreview?.oferta_semanal),
+    [hubPayloadPreview],
+  )
+  const currentAdminContextFingerprint = useMemo(
+    () => buildAdminContextFingerprint(),
+    [
+      analysisContextRows,
+      cycleStartDate,
+      experienciaEvoEnabled,
+      file,
+      mesocycle,
+      partialWeekMode,
+      phase,
+      week,
+    ],
+  )
+  const currentAdminTargetFingerprint = useMemo(
+    () =>
+      hubPayloadPreview
+        ? buildPublicationTargetFingerprint({
+            weekData: hubPayloadPreview,
+            mesocycle,
+            week,
+            phase,
+            offer: hubPayloadPreview?.oferta_semanal || null,
+            contextFingerprint: currentAdminContextFingerprint,
+          })
+        : '',
+    [
+      currentAdminContextFingerprint,
+      hubPayloadPreview,
+      mesocycle,
+      phase,
+      week,
+    ],
+  )
+  const currentAdminMethodReview = useMemo(
+    () =>
+      hubPayloadPreview
+        ? validateEvoWeek(hubPayloadPreview, {
+            ...(explicitOfferSelection
+              ? { offer: weeklyOfferSelectionToValidationOffer(explicitOfferSelection) }
+              : {}),
+            previousWeeks: (analysisContextRows?.rows || [])
+              .map((row) => row?.data)
+              .filter(Boolean),
+            allowFestivo: false,
+          })
+        : { errors: [], warnings: [] },
+    [analysisContextRows, explicitOfferSelection, hubPayloadPreview],
+  )
+  const currentAdminQualityGate = useMemo(
+    () =>
+      buildPublicationQualityGate({
+        evaluation: result,
+        evaluationFingerprint: analysisFingerprint,
+        targetFingerprint: currentAdminTargetFingerprint,
+        methodErrors: (currentAdminMethodReview?.errors || []).map(
+          (entry) => entry?.message || String(entry),
+        ),
+        contextReady:
+          !!cycleStartDate &&
+          analysisContextRows?.mode === 'exact-cycle-date',
+        extraBlockers: explicitOfferSelection
+          ? []
+          : ['La oferta semanal exacta no está confirmada en el documento importado. Guárdalo como borrador y confírmala en el generador.'],
+      }),
+    [
+      analysisContextRows,
+      analysisFingerprint,
+      cycleStartDate,
+      currentAdminMethodReview,
+      currentAdminTargetFingerprint,
+      explicitOfferSelection,
+      result,
+    ],
+  )
   const canSubirAlHub =
     !!hubPayloadPreview && weekHasMeaningfulSessionContent(hubPayloadPreview) && !importing && !busy
   /** Botón visible tras analizar aunque falle el chequeo de contenido (al pulsar se muestra el motivo). */
@@ -203,17 +391,13 @@ function AdminWeeklyProgramUploadInner() {
     setBusy(true)
     setError('')
     setImportMsg('')
+    setAnalysisFingerprint('')
+    setAnalysisContextRows(null)
     try {
       const buf = await readFileAsArrayBuffer(file)
-      let previousWeekData = null
-      if (Number(week) > 1) {
-        const prev = await getPublishedWeekByMesocycleAndWeek(mesocycle, Number(week) - 1)
-        previousWeekData = prev?.data || null
-      }
-      const mesoHistory = await listPublishedWeeksForMesocycle(mesocycle)
-      const historicalWeeksData = (mesoHistory || [])
-        .filter((row) => Number(row?.semana) < Number(week))
-        .slice(-4)
+      const exactContext = await loadExactHistoryContext()
+      const previousWeekData = exactContext.previousRow?.data || null
+      const historicalWeeksData = exactContext.rows
         .map((row) => row?.data)
         .filter(Boolean)
       const out = await analyzeViaApi({
@@ -230,6 +414,29 @@ function AdminWeeklyProgramUploadInner() {
           experienciaEvo: experienciaEvoEnabled,
         },
       })
+      const normalized = normalizeWeekDataForEditor(
+        {
+          ...out.parsedWeekData,
+          mesociclo: mesocycle,
+          semana: Number(week),
+          phase: String(phase || '').trim(),
+          cycle_id: `${mesocycle}:${cycleStartDate}`,
+          cycle_start_date: cycleStartDate,
+          week_start_date: addProgrammingDays(cycleStartDate, (Number(week) - 1) * 7),
+        },
+        { semana: Number(week), mesociclo: mesocycle },
+      )
+      const contextFingerprint = buildAdminContextFingerprint(exactContext)
+      const targetFingerprint = buildPublicationTargetFingerprint({
+        weekData: normalized,
+        mesocycle,
+        week,
+        phase,
+        offer: normalized?.oferta_semanal || null,
+        contextFingerprint,
+      })
+      setAnalysisContextRows(exactContext)
+      setAnalysisFingerprint(targetFingerprint)
       setResult(out)
       setCreativeIdeas(
         generateCreativeProgrammingSuggestions({
@@ -239,20 +446,33 @@ function AdminWeeklyProgramUploadInner() {
         }),
       )
       if (subirHubAutomatico && out?.parsedWeekData) {
-        const normalized = normalizeWeekDataForEditor(
-          { ...out.parsedWeekData, mesociclo: mesocycle, semana: Number(week) },
-          { semana: Number(week), mesociclo: mesocycle },
-        )
         if (weekHasMeaningfulSessionContent(normalized)) {
           setImporting(true)
           try {
             const r = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
               activateForHub: false,
+              adminSecret,
+              contentFingerprint: targetFingerprint,
+              qualityGate: buildPublicationQualityGate({
+                evaluation: out,
+                evaluationFingerprint: targetFingerprint,
+                targetFingerprint,
+                contextReady: true,
+                extraBlockers: parseWeeklyOfferSelection(normalized?.oferta_semanal)
+                  ? []
+                  : ['La oferta semanal exacta no está confirmada en el documento importado.'],
+              }),
+              draftId: hubDraftVersion?.id || null,
+              expectedRevision: hubDraftVersion?.id
+                ? Number(hubDraftVersion.revision)
+                : 0,
             })
+            if (r?.active) {
+              throw new Error('El servidor intentó activar una importación que debía quedar como borrador.')
+            }
+            setHubDraftVersion({ id: r.id, revision: Number(r.revision) })
             setImportMsg(
-              r?.active
-                ? 'Subida automática con activación (inesperado).'
-                : 'Borrador guardado en Supabase (la semana visible para coaches no ha cambiado). Abre «Generar programación semanal» con meso/S correctos para editar; publica cuando toque.',
+              'Borrador guardado en Supabase (la semana visible para coaches no ha cambiado). Abre «Generar programación semanal» con el ciclo y semana correctos para editar y validar.',
             )
             try {
               window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload-auto' } }))
@@ -272,6 +492,8 @@ function AdminWeeklyProgramUploadInner() {
     } catch (e) {
       setError(e?.message || 'No se pudo analizar el Excel')
       setResult(null)
+      setAnalysisFingerprint('')
+      setAnalysisContextRows(null)
     } finally {
       setBusy(false)
     }
@@ -398,9 +620,25 @@ function AdminWeeklyProgramUploadInner() {
     }
     setImporting(true)
     try {
-      await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), { activateForHub: false })
+      const savedDraft = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
+        activateForHub: false,
+        adminSecret,
+        contentFingerprint: currentAdminTargetFingerprint,
+        qualityGate: currentAdminQualityGate,
+        draftId: hubDraftVersion?.id || null,
+        expectedRevision: hubDraftVersion?.id
+          ? Number(hubDraftVersion.revision)
+          : 0,
+      })
+      if (savedDraft?.active) {
+        throw new Error('El servidor intentó activar una importación que debía quedar como borrador.')
+      }
+      setHubDraftVersion({
+        id: savedDraft.id,
+        revision: Number(savedDraft.revision),
+      })
       setImportMsg(
-        'Borrador guardado en Supabase para este mesociclo y semana. Los coaches siguen viendo la semana que estaba activa; cuando termine la semana en curso, usa «Publicar para coaches».',
+        'Borrador guardado en Supabase para este ciclo y semana. Los coaches siguen viendo la versión activa; abre «Generar programación semanal» para completar la revisión y publicar.',
       )
       try {
         window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload-draft' } }))
@@ -414,79 +652,6 @@ function AdminWeeklyProgramUploadInner() {
       )
     } finally {
       setImporting(false)
-    }
-  }
-
-  async function handlePublicarCoachesHub() {
-    setError('')
-    setImportMsg('')
-    if (!result?.parsedWeekData) {
-      setError('Primero analiza el Excel con el botón morado.')
-      return
-    }
-    const normalized = buildHubPayload()
-    if (!normalized) {
-      setError('No se pudo preparar los datos. Vuelve a analizar el archivo.')
-      return
-    }
-    if (!weekHasMeaningfulSessionContent(normalized)) {
-      setError(
-        'No hay texto de sesión reconocible (solo celdas vacías o «no programada»). Revisa mesociclo/semana o el Excel.',
-      )
-      return
-    }
-    const go = window.confirm(
-      '¿Publicar esta semana para coaches? Sustituirá la semana visible en el Hub (?coach=1) por la que acabas de analizar (mesociclo y número de semana del selector).',
-    )
-    if (!go) return
-    setHubActivating(true)
-    try {
-      await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), { activateForHub: true })
-      setImportMsg(
-        'Semana activa en el Hub actualizada. Los coaches ven ya esta programación. Abre «Generar programación semanal» o recarga ?coach=1.',
-      )
-      try {
-        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload-publish' } }))
-      } catch {
-        /* noop */
-      }
-    } catch (e) {
-      const msg = e?.message || String(e)
-      setError(
-        `No se pudo publicar: ${msg}${/policy|rls|permission|42501/i.test(msg) ? ' — Revisa políticas RLS de published_weeks.' : ''}`,
-      )
-    } finally {
-      setHubActivating(false)
-    }
-  }
-
-  async function handleSoloActivarSemanaSlot() {
-    setError('')
-    setImportMsg('')
-    try {
-      const row = await getPublishedWeekByMesocycleAndWeek(mesocycle, Number(week))
-      if (!row?.id) {
-        setError(
-          'No hay datos guardados en Supabase para este mesociclo y semana. Primero «Guardar borrador en Hub» (o analiza y guarda).',
-        )
-        return
-      }
-      const go = window.confirm(
-        `¿Activar en el Hub la semana ya guardada (${mesocycle} · S${week})? Los coaches dejarán de ver la semana activa anterior.`,
-      )
-      if (!go) return
-      setHubActivating(true)
-      await activatePublishedWeekForHub(mesocycle, Number(week))
-      setImportMsg('Semana activa en el Hub: ahora los coaches ven la que tenías guardada en este slot (sin volver a subir el Excel).')
-      try {
-        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-activate-only' } }))
-      } catch {
-        /* noop */
-      }
-    } catch (e) {
-      setError(e?.message || String(e))
-    } finally {
-      setHubActivating(false)
     }
   }
 
@@ -506,9 +671,8 @@ function AdminWeeklyProgramUploadInner() {
     <section className="space-y-4">
       <p className="text-sm text-[#F6E8F9CC]">
         Sube un Excel y analízalo. Por defecto puedes <span className="font-semibold text-[#F6E8F9]">guardar borrador en Supabase</span> para la
-        semana del selector (mesociclo + S) <span className="font-semibold">sin cambiar</span> la semana que los coaches ven ahora en el Hub. Cuando
-        termine la semana en curso, usa «Publicar para coaches» o «Solo activar este slot» si el JSON ya estaba guardado. «Generar programación
-        semanal» abre el mismo JSON por meso/semana; ?coach=1 sigue la fila <span className="italic">activa</span>.
+        semana y ciclo exactos <span className="font-semibold">sin cambiar</span> la versión que ven los coaches. Las importaciones quedan siempre
+        como borrador: abre después «Generar programación semanal» para revisar contexto, oferta y feedback antes de publicar.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -519,6 +683,7 @@ function AdminWeeklyProgramUploadInner() {
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(e) => {
               const f = e.target.files?.[0] || null
+              invalidateAnalysis()
               setFile(f)
               if (f?.name) {
                 const inferred = inferWeekFromFileName(f.name, week)
@@ -532,7 +697,10 @@ function AdminWeeklyProgramUploadInner() {
           <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Mesociclo activo</span>
           <select
             value={mesocycle}
-            onChange={(e) => setMesocycle(e.target.value)}
+            onChange={(e) => {
+              invalidateAnalysis()
+              setMesocycle(e.target.value)
+            }}
             className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
           >
             {MESO_OPTS.map((m) => (
@@ -546,7 +714,10 @@ function AdminWeeklyProgramUploadInner() {
           <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Semana</span>
           <select
             value={week}
-            onChange={(e) => setWeek(Number(e.target.value))}
+            onChange={(e) => {
+              invalidateAnalysis()
+              setWeek(Number(e.target.value))
+            }}
             className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
           >
             {WEEK_OPTS.map((w) => (
@@ -558,21 +729,45 @@ function AdminWeeklyProgramUploadInner() {
         </label>
       </div>
 
-      <label className="space-y-1 block">
-        <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Fase (opcional, para informe)</span>
-        <input
-          value={phase}
-          onChange={(e) => setPhase(e.target.value)}
-          placeholder="Ej.: Volumen mixto"
-          className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
-        />
-      </label>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label className="space-y-1 block">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Inicio real del ciclo</span>
+          <input
+            type="date"
+            required
+            value={cycleStartDate}
+            onChange={(e) => {
+              invalidateAnalysis()
+              setCycleStartDate(e.target.value)
+            }}
+            className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          />
+          <span className="block text-[10px] text-[#F6E8F9AA]">
+            Evita mezclar esta S{week} con otra del mismo mesociclo.
+          </span>
+        </label>
+        <label className="space-y-1 block">
+          <span className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Fase (opcional, para informe)</span>
+          <input
+            value={phase}
+            onChange={(e) => {
+              invalidateAnalysis()
+              setPhase(e.target.value)
+            }}
+            placeholder="Ej.: Volumen mixto"
+            className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9]"
+          />
+        </label>
+      </div>
 
       <label className="inline-flex items-center gap-2 text-xs text-[#F6E8F9CC]">
         <input
           type="checkbox"
           checked={partialWeekMode}
-          onChange={(e) => setPartialWeekMode(e.target.checked)}
+          onChange={(e) => {
+            invalidateAnalysis()
+            setPartialWeekMode(e.target.checked)
+          }}
         />
         Modo semana parcial / draft (no penaliza plantilla incompleta)
       </label>
@@ -580,7 +775,10 @@ function AdminWeeklyProgramUploadInner() {
         <input
           type="checkbox"
           checked={experienciaEvoEnabled}
-          onChange={(e) => setExperienciaEvoEnabled(e.target.checked)}
+          onChange={(e) => {
+            invalidateAnalysis()
+            setExperienciaEvoEnabled(e.target.checked)
+          }}
         />
         Capa Experiencia EVO (lectura cualitativa; no cambia el score técnico)
       </label>
@@ -622,39 +820,15 @@ function AdminWeeklyProgramUploadInner() {
           {busy ? 'Analizando…' : 'Analizar antes de importar'}
         </button>
         {showSubirHubButton ? (
-          <>
-            <button
-              type="button"
-              onClick={handleGuardarBorradorHub}
-              disabled={importing || busy || hubActivating}
-              title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
-              className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
-            >
-              {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
-            </button>
-            <button
-              type="button"
-              onClick={handlePublicarCoachesHub}
-              disabled={!canSubirAlHub || importing || busy || hubActivating}
-              title={
-                canSubirAlHub
-                  ? 'Sustituye la semana activa en el Hub por esta (coaches + ?coach=1).'
-                  : 'Falta contenido de sesión reconocible en el análisis.'
-              }
-              className="h-11 px-5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-amber-900/40"
-            >
-              {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
-            </button>
-            <button
-              type="button"
-              onClick={handleSoloActivarSemanaSlot}
-              disabled={importing || busy || hubActivating}
-              className="h-11 px-4 rounded-lg border border-[#F6E8F9]/30 text-[#F6E8F9] font-evo-display uppercase text-[10px] disabled:opacity-50"
-              title="Activa en el Hub la semana ya guardada en Supabase para este meso/S (sin volver a pasar el Excel)."
-            >
-              {hubActivating ? 'Activando…' : 'Solo activar este slot'}
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={handleGuardarBorradorHub}
+            disabled={importing || busy}
+            title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
+            className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
+          >
+            {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
+          </button>
         ) : null}
         <button
           type="button"
@@ -737,50 +911,34 @@ function AdminWeeklyProgramUploadInner() {
               </p>
               <p className="text-xs text-[#E8FDE8]/90 mt-1 leading-relaxed">
                 <span className="font-semibold text-white">Guardar borrador</span> escribe esta semana en Supabase para el mesociclo y número
-                elegidos <span className="font-semibold">sin</span> cambiar lo que los coaches ven. <span className="font-semibold text-amber-200">Publicar para coaches</span> sí
-                activa esta semana en el Hub (vista coach + semana activa global). «Solo activar este slot» sirve si ya guardaste el JSON antes y
-                solo quieres hacer visible esa fila.
+                elegidos <span className="font-semibold">sin</span> cambiar lo que los coaches ven. Por seguridad, un Excel importado no se publica
+                desde este panel: debe abrirse y validarse dentro de «Generar programación semanal».
               </p>
             </div>
             {showSubirHubButton ? (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={handleGuardarBorradorHub}
-                  disabled={importing || busy || hubActivating}
+                  disabled={importing || busy}
                   className="flex-1 min-h-[3rem] rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-evo-display font-bold uppercase tracking-wide text-sm shadow-md disabled:opacity-50 disabled:pointer-events-none transition-all"
                 >
                   {importing ? 'Guardando borrador…' : 'Guardar borrador en Hub'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handlePublicarCoachesHub}
-                  disabled={!canSubirAlHub || importing || busy || hubActivating}
-                  className="flex-1 min-h-[3rem] rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-[#422006] font-evo-display font-bold uppercase tracking-wide text-sm shadow-md disabled:opacity-50 disabled:pointer-events-none transition-all"
-                >
-                  {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
-                </button>
+                <p className="text-[10px] text-amber-200/90">
+                  Importación = borrador. La publicación final solo está disponible en el generador tras comprobar el ciclo exacto.
+                </p>
               </div>
             ) : (
               <p className="text-xs text-amber-200/95 border border-amber-500/30 rounded-lg px-3 py-2 bg-amber-950/40">
                 Analiza de nuevo tras elegir archivo y mesociclo/semana; si ya analizaste y falla esto, revisa el mensaje de error superior.
               </p>
             )}
-            {showSubirHubButton ? (
-              <button
-                type="button"
-                onClick={handleSoloActivarSemanaSlot}
-                disabled={importing || busy || hubActivating}
-                className="w-full min-h-[2.5rem] rounded-lg border border-emerald-400/40 text-emerald-100/95 text-[11px] font-evo-display uppercase tracking-wide hover:bg-emerald-900/40 disabled:opacity-50"
-              >
-                Solo activar este meso + semana en el Hub (sin volver a subir Excel)
-              </button>
-            ) : null}
-            {canSubirAlHub && !importing && !hubActivating ? (
-              <p className="text-[10px] text-emerald-200/80 uppercase tracking-wide">Listo: sesiones detectadas en el Excel</p>
-            ) : showSubirHubButton && !busy && !importing && !hubActivating ? (
+            {showSubirHubButton && !busy && !importing ? (
               <p className="text-[10px] text-[#F6E8F9]/70">
-                Si al guardar ves error, puede que falte texto útil en las clases o haya bloqueado Supabase (RLS).
+                {(currentAdminQualityGate.blockers || [])[0] ||
+                  (currentAdminQualityGate.pending || [])[0] ||
+                  'El análisis está completo; guarda el archivo como borrador y finaliza la revisión en el generador.'}
               </p>
             ) : null}
           </div>
@@ -788,8 +946,10 @@ function AdminWeeklyProgramUploadInner() {
             {result.kpi?.statusLabel || result.validationOutcome?.label || '—'}
           </div>
           <p className={`text-lg font-extrabold ${bucketClass}`}>Score: {result.score}/100</p>
-          {result.scoreRaw != null && result.scoreRaw !== result.score ? (
-            <p className="text-[10px] text-[#F6E8F9AA]">Referencia interna (si aplica bonus futuro): {result.scoreRaw}</p>
+          {(result.kpi?.status || result.validationOutcome?.key) === 'bloqueado' ? (
+            <p className="text-[10px] text-red-200">
+              La nota queda limitada mientras exista un bloqueo. Los subindicadores son diagnóstico, no una aprobación.
+            </p>
           ) : null}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
             <p className="rounded-lg border border-[#6A1F6D]/30 px-2 py-1 text-[#F6E8F9]">
@@ -1125,10 +1285,10 @@ function AdminWeeklyProgramUploadInner() {
   )
 }
 
-export default function AdminWeeklyProgramUpload() {
+export default function AdminWeeklyProgramUpload(props) {
   return (
     <AdminWeeklyProgramUploadBoundary>
-      <AdminWeeklyProgramUploadInner />
+      <AdminWeeklyProgramUploadInner {...props} />
     </AdminWeeklyProgramUploadBoundary>
   )
 }

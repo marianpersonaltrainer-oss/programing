@@ -102,10 +102,15 @@ function hasExplicitSetupException(text) {
   )
 }
 
-export function validateHighSetupReuse(session) {
+export function validateHighSetupReuse(session, organizationText = '') {
   const text = String(session || '')
   const blocks = splitEvoSessionBlocks(text)
-  if (blocks.length < 2 || hasExplicitSetupException(text)) return []
+  if (
+    blocks.length < 2 ||
+    hasExplicitSetupException([text, organizationText].filter(Boolean).join('\n'))
+  ) {
+    return []
+  }
   const usage = detectEvoEquipmentUsage(text)
   const warnings = []
   const highSetup = new Set(['landmine', 'barbell', 'sled', 'bench'])
@@ -129,6 +134,12 @@ function usesHeavyBarbell(text) {
   )
 }
 
+function hasExplicitSharedResourcePlan(entry) {
+  return /\b(?:reserva(?:r|da[os]?)?|asigna(?:r|da[os]?)?|franjas?|horarios?\s+separados?|una\s+clase\s+primero|entre\s+clases|entre\s+salas|no\s+coinciden)\b/i.test(
+    [entry?.session, entry?.organizationText].filter(Boolean).join('\n'),
+  )
+}
+
 /** Avisos conservadores cuando varias modalidades del mismo día compiten por recursos compartidos. */
 export function validateDailyEquipmentSimultaneity(sessions) {
   const active = (sessions || []).filter((entry) => String(entry?.session || '').trim())
@@ -137,14 +148,14 @@ export function validateDailyEquipmentSimultaneity(sessions) {
   for (const entry of active) {
     for (const item of detectEvoEquipmentUsage(entry.session)) {
       const users = usersByResource.get(item.key) || []
-      users.push(entry.classKey)
+      users.push(entry)
       usersByResource.set(item.key, users)
     }
   }
 
   for (const key of ['rowerg', 'skierg', 'bike']) {
     const users = usersByResource.get(key) || []
-    if (users.length < 2) continue
+    if (users.length < 2 || users.every(hasExplicitSharedResourcePlan)) continue
     warnings.push({
       code: 'VAL-MATERIAL-003',
       severity: 'warning',
@@ -153,7 +164,7 @@ export function validateDailyEquipmentSimultaneity(sessions) {
   }
 
   const sledUsers = usersByResource.get('sled') || []
-  if (sledUsers.length > 1) {
+  if (sledUsers.length > 1 && !sledUsers.every(hasExplicitSharedResourcePlan)) {
     warnings.push({
       code: 'VAL-MATERIAL-003',
       severity: 'warning',
@@ -162,7 +173,7 @@ export function validateDailyEquipmentSimultaneity(sessions) {
   }
 
   const landmineUsers = usersByResource.get('landmine') || []
-  if (landmineUsers.length > 2) {
+  if (landmineUsers.length > 2 && !landmineUsers.every(hasExplicitSharedResourcePlan)) {
     warnings.push({
       code: 'VAL-MATERIAL-003',
       severity: 'warning',
@@ -171,7 +182,7 @@ export function validateDailyEquipmentSimultaneity(sessions) {
   }
 
   const heavyBars = active.filter((entry) => usesHeavyBarbell(entry.session))
-  if (heavyBars.length > 1) {
+  if (heavyBars.length > 1 && !heavyBars.every(hasExplicitSharedResourcePlan)) {
     warnings.push({
       code: 'VAL-MATERIAL-003',
       severity: 'warning',
@@ -180,7 +191,7 @@ export function validateDailyEquipmentSimultaneity(sessions) {
   }
 
   const benchUsers = usersByResource.get('bench') || []
-  if (benchUsers.length > 1) {
+  if (benchUsers.length > 1 && !benchUsers.every(hasExplicitSharedResourcePlan)) {
     warnings.push({
       code: 'VAL-MATERIAL-003',
       severity: 'warning',

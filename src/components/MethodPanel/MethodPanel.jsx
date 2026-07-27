@@ -72,6 +72,7 @@ export default function MethodPanel({ onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'set',
           secret,
           contextText: String(nextReferenceText || ''),
           source: 'method_panel_save',

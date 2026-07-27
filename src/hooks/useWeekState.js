@@ -16,6 +16,8 @@ function getInitialState() {
     week: 1,
     phase: null,
     totalWeeks: null,
+    cycleStartDate: null,
+    cycleId: null,
     sessions: {
       monday:    null,
       tuesday:   null,
@@ -46,15 +48,25 @@ export function useWeekState() {
     })
   }, [])
 
-  const setMesocycle = useCallback((mesocycle, week, phase) => {
+  const setMesocycle = useCallback((mesocycle, week, phase, cycleStartDate) => {
     const meso = MESOCYCLES.find((m) => m.value === mesocycle)
-    updateWeekState((prev) => ({
-      ...prev,
-      mesocycle,
-      week: week || 1,
-      phase: phase || null,
-      totalWeeks: meso?.weeks || null,
-    }))
+    updateWeekState((prev) => {
+      const cycleWasProvided = cycleStartDate !== undefined
+      const resolvedCycleStart = cycleWasProvided
+        ? String(cycleStartDate || '').trim() || null
+        : prev.mesocycle === mesocycle
+          ? prev.cycleStartDate || null
+          : null
+      return {
+        ...prev,
+        mesocycle,
+        week: week || 1,
+        phase: phase || null,
+        totalWeeks: meso?.weeks || null,
+        cycleStartDate: resolvedCycleStart,
+        cycleId: resolvedCycleStart ? `${mesocycle}:${resolvedCycleStart}` : null,
+      }
+    })
   }, [updateWeekState])
 
   const confirmSession = useCallback((day, content, classes, patterns) => {
@@ -87,6 +99,8 @@ export function useWeekState() {
       week: 1,
       phase: null,
       totalWeeks: null,
+      cycleStartDate: null,
+      cycleId: null,
       sessions: {
         monday: null, tuesday: null, wednesday: null,
         thursday: null, friday: null, saturday: null,

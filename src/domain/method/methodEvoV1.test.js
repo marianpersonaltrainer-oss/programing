@@ -3,9 +3,9 @@ import { METHOD_EVO_V1, METHOD_EVO_V1_PROMPT } from './methodEvoV1.js'
 import { validateEvoSessionContract } from './validators/validateEvoSession.js'
 import { validateEvoWeek } from './validators/validateEvoWeek.js'
 
-describe('Método EVO 1.2 — contrato y validadores', () => {
+describe('Método EVO 1.3 — contrato y validadores', () => {
   it('expone versión, estado y IDs de regla únicos', () => {
-    expect(METHOD_EVO_V1.meta.version).toBe('1.2.0')
+    expect(METHOD_EVO_V1.meta.version).toBe('1.3.0')
     expect(METHOD_EVO_V1.meta.status).toBe('active')
     const ids = METHOD_EVO_V1.global_rules.map((rule) => rule.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -30,15 +30,15 @@ describe('Método EVO 1.2 — contrato y validadores', () => {
     expect(METHOD_EVO_V1_PROMPT).toContain('encabezados rígidos OBJETIVO / SENSACIONES / ANTICIPACIÓN')
   })
 
-  it('acepta una sesión canónica de fuerza + intervalos', () => {
+  it('acepta una sesión canónica de fuerza + intervalos con descanso proporcional', () => {
     const session = `A) FUERZA — 15 MIN
 Back Squat
 5 series x 4 repeticiones @75-80%
 Descanso: 2:00-2:30
 
-B) INTERVALOS — 18 MIN
+B) INTERVALOS — 13 MIN
 5 rondas:
-2 min de trabajo / 2 min de descanso
+2 min de trabajo / 45 seg de descanso
 5 Burpees
 10 Wall Balls
 No se realiza el último descanso.`
@@ -220,7 +220,8 @@ Cada 3' x 5 series finales:
     const result = validateEvoWeek(week)
     expect(result.valid).toBe(false)
     expect(result.errors.map((entry) => entry.code)).toContain('VAL-VARIETY-002')
-    expect(result.warnings.map((entry) => entry.code)).toContain('VAL-VARIETY-002')
+    expect(result.errors.map((entry) => entry.code)).toContain('VAL-VARIETY-003')
+    expect(result.errors.map((entry) => entry.code)).toContain('VAL-VARIETY-004')
   })
 
   it('no confunde una carrera metafórica y trata estaciones logísticas como aviso', () => {

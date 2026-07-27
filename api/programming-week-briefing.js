@@ -12,31 +12,52 @@
  * - contextPack (opcional) — si messages tiene más de 0 elementos y el primer user no incluye
  *   el paquete, el cliente puede mandar contextPack para prefijarlo (o ya va en messages[0]).
  *
- * Respuesta: { proposal: { title, narrative, suggestedFocus }, contextPack, model? }
+ * Respuesta: { proposal: { title, narrative, suggestedFocus, weeklyArchitecture }, contextPack, model? }
  */
 
 import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import {
+  adminSecretsMatch,
+  checkAdminRateLimit,
+} from './lib/evoAdminAuth.js'
 import { buildMethodEvoV1Prompt } from '../src/domain/method/methodEvoV1.js'
+import {
+  filterFeedbackForSelectedWeekIds,
+  selectProgrammingContextWeeks,
+} from '../src/utils/programmingContextSelection.js'
+import {
+  formatWeeklyStructuralFingerprints,
+  normalizeWeeklyArchitecturePlan,
+  replaceWeeklyArchitectureBlock,
+} from '../src/utils/weeklyArchitecturePlan.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
-(del mismo mesociclo que indica el bloque final), historial de cambios guardados en Supabase,
-check-ins semanales de coaches, pases de turno diarios, reglas del método y feedback por sesión ligado a esas semanas.
+(progresión verificada del ciclo exacto y referencias antiguas separadas), historial de cambios guardados
+en Supabase, check-ins semanales de coaches, pases de turno diarios, reglas del método, huellas
+estructurales y feedback por sesión ligado exclusivamente a las semanas seleccionadas.
 
 Tu tarea:
 1) Sintetiza patrones útiles (carga, fatiga, energía, incidentes, notas de coaches, coherencia con semanas previas).
 2) Propón un enfoque para LA SEMANA que se indica al final del mensaje (no inventes datos que no vengan del paquete; si algo falta, dilo con suavidad).
-3) Responde SOLO con un objeto JSON válido (sin markdown, sin \`\`\`, sin texto fuera del JSON) con exactamente estas claves:
+3) ANTES de que se genere ningún día, decide una arquitectura semanal completa para todos los días y clases seleccionados. Debe contrastar formatos, fatiga, material y relación trabajo/descanso; no puede repetir el mismo esqueleto en días consecutivos.
+4) Responde SOLO con un objeto JSON válido (sin markdown, sin \`\`\`, sin texto fuera del JSON) con exactamente estas claves:
    - "title": string corto, p. ej. "PROPUESTA PARA SEMANA 6"
    - "narrative": string en español, 2–5 frases, tono profesional y cercano
    - "suggestedFocus": una línea, p. ej. "Consolidación + descarga parcial de hombro"
+   - "weeklyArchitecture": array con un objeto por cada día seleccionado, sin añadir días. Cada objeto contiene exactamente:
+     - "day": día en MAYÚSCULAS
+     - "intent": intención concreta del día
+     - "classPlans": objeto cuyas claves son EXACTAMENTE las clases seleccionadas para ese día (evofuncional, evobasics, etc.) y cuyo valor resume fuerza/skill + formato metabólico + trabajo/descanso + material
+     - "sharedFatigue": fatiga compartida que debe protegerse entre modalidades
+     - "antiRepetition": diferencia estructural obligatoria respecto a días contiguos e histórico reciente
 
-No incluyas la programación día a día; solo la propuesta de enfoque.
+No redactes todavía sesiones, ejercicios con repeticiones completas ni WODs. weeklyArchitecture es un mapa previo compacto, no la programación día a día.
 
 ${BRIEFING_METHOD_CONTEXT}`
 
@@ -207,7 +228,7 @@ function extractTopLevelJsonObject(text) {
   return null
 }
 
-function parseProposalJson(assistantText) {
+function parseProposalJson(assistantText, options = {}) {
   const slice = extractTopLevelJsonObject(assistantText)
   if (!slice) throw new Error('La IA no devolvió un JSON {…} reconocible.')
   let o
@@ -220,7 +241,8 @@ function parseProposalJson(assistantText) {
   const narrative = String(o.narrative || '').trim()
   const suggestedFocus = String(o.suggestedFocus || '').trim()
   if (!title || !narrative) throw new Error('JSON incompleto: faltan title o narrative.')
-  return { title, narrative, suggestedFocus }
+  const weeklyArchitecture = normalizeWeeklyArchitecturePlan(o.weeklyArchitecture, options)
+  return { title, narrative, suggestedFocus, weeklyArchitecture }
 }
 
 function extractAnthropicTextBlocks(data) {
@@ -243,11 +265,6 @@ function summarizeAnthropicContentTypes(data) {
 }
 
 /**
- * Semanas publicadas en Supabase para CONTEXTO del briefing.
- * Si hay `mesociclo`, solo filas de ese mesociclo (hasta 8 semanas distintas, última publicación por S#).
- * Si no, últimas 4 filas globales (compatibilidad).
- */
-/**
  * Tablas auxiliares del pack (check-ins, handoffs, reglas, feedback por sesión).
  * Si la migración no está aplicada en Supabase o falla RLS, el briefing sigue funcionando sin ese bloque.
  */
@@ -256,41 +273,27 @@ function logOptionalTableSkip(label, err) {
   console.warn(`[programming-week-briefing] ${label} omitido:`, msg)
 }
 
-async function fetchContextPack(supabase, mesocicloRaw) {
-  const mesociclo = String(mesocicloRaw || '').trim()
+async function fetchContextPack(supabase, target) {
+  const mesociclo = String(target?.mesociclo || '').trim()
+  // Se toma antes de leer: cualquier publicación posterior deberá invalidar
+  // este contexto en la transacción final, aunque sea de otro mesociclo.
+  const snapshotAt = new Date().toISOString()
+  const { data: rows, error: wErr } = await supabase
+    .from('published_weeks')
+    .select('id, mesociclo, semana, titulo, published_at, publication_status, data, edit_history')
+    .order('published_at', { ascending: false })
+    .limit(160)
 
-  let weeks = []
-  if (mesociclo) {
-    const { data: rows, error: wErr } = await supabase
-      .from('published_weeks')
-      .select('id, mesociclo, semana, titulo, published_at, data, edit_history')
-      .eq('mesociclo', mesociclo)
-      .order('published_at', { ascending: false })
-      .limit(40)
+  if (wErr) throw new Error(`published_weeks: ${wErr.message}`)
 
-    if (wErr) throw new Error(`published_weeks: ${wErr.message}`)
-
-    const seenSem = new Set()
-    for (const r of rows || []) {
-      const sn = Number(r.semana)
-      if (!Number.isFinite(sn) || seenSem.has(sn)) continue
-      seenSem.add(sn)
-      weeks.push(r)
-      if (weeks.length >= 8) break
-    }
-    weeks.sort((a, b) => Number(a.semana) - Number(b.semana))
-  } else {
-    const { data: rows, error: wErr } = await supabase
-      .from('published_weeks')
-      .select('id, mesociclo, semana, titulo, published_at, data, edit_history')
-      .order('published_at', { ascending: false })
-      .limit(4)
-
-    if (wErr) throw new Error(`published_weeks: ${wErr.message}`)
-    weeks = rows || []
-  }
-
-  const weekIds = (weeks || []).map((r) => r.id).filter(Boolean)
+  const selection = selectProgrammingContextWeeks(rows || [], target, {
+    progressionLimit: 6,
+    historicalLimit: 6,
+  })
+  const progressionWeeks = selection.progressionWeeks
+  const historicalWeeks = selection.historicalReferenceWeeks
+  const selectedWeeks = [...progressionWeeks, ...historicalWeeks]
+  const weekIds = selection.selectedWeekIds
   let sessionRows = []
   if (weekIds.length) {
     const { data: fb, error: fErr } = await supabase
@@ -302,7 +305,7 @@ async function fetchContextPack(supabase, mesocicloRaw) {
       .order('created_at', { ascending: false })
       .limit(200)
     if (fErr) logOptionalTableSkip('coach_session_feedback', fErr)
-    else sessionRows = fb || []
+    else sessionRows = filterFeedbackForSelectedWeekIds(fb || [], weekIds)
   }
 
   let checkins = []
@@ -331,13 +334,23 @@ async function fetchContextPack(supabase, mesocicloRaw) {
     else handoffs = data || []
   }
 
-  const mesoLabel = mesociclo ? `mesociclo «${mesociclo}»` : 'todos los mesociclos (ventana corta)'
   const blocks = [
-    `## Semanas ya publicadas en Supabase (${mesoLabel}; texto de programación + resumen)`,
-    (weeks || []).map(compactPublishedWeek).join('\n\n') || '(Ninguna semana publicada aún en este criterio.)',
+    `## Progresión verificada del ciclo objetivo (${mesociclo || 'sin mesociclo'}; solo semanas estrictamente anteriores)`,
+    progressionWeeks.map(compactPublishedWeek).join('\n\n') ||
+      '(Sin semanas anteriores verificadas del ciclo exacto. No inventes una progresión.)',
     '',
-    '## Cambios guardados en el Hub (edit_history en Supabase, resumen por semana)',
-    formatEditHistoryForPack(weeks || []),
+    '## Huella estructural de la progresión (formato + patrón + material; usar para no repetir esqueletos)',
+    formatWeeklyStructuralFingerprints(progressionWeeks),
+    '',
+    '## Referencias históricas separadas (NO son progresión del ciclo actual; sirven solo para variedad y logística)',
+    historicalWeeks.map(compactPublishedWeek).join('\n\n') ||
+      '(Sin referencias históricas seleccionadas.)',
+    '',
+    '## Huella estructural de referencias antiguas (inspiración; no copiar)',
+    formatWeeklyStructuralFingerprints(historicalWeeks),
+    '',
+    '## Cambios guardados en el Hub (solo semanas seleccionadas arriba)',
+    formatEditHistoryForPack(selectedWeeks),
     '',
     '## Check-ins semanales coaches (~últimas 2 semanas por fecha)',
     formatCheckins(checkins || []),
@@ -348,11 +361,20 @@ async function fetchContextPack(supabase, mesocicloRaw) {
 
   blocks.push(
     '',
-    `## Feedback por sesión de coaches (vinculado a las semanas publicadas arriba, mismo ${mesoLabel})`,
+    `## Feedback por sesión de coaches (solo week_id de las ${weekIds.length} semanas seleccionadas arriba)`,
     formatSessionFeedback(sessionRows),
   )
 
-  return blocks.join('\n')
+  return {
+    text: blocks.join('\n'),
+    selection: {
+      mode: selection.mode,
+      snapshotAt,
+      progressionWeekIds: progressionWeeks.map((row) => row.id).filter(Boolean),
+      historicalWeekIds: historicalWeeks.map((row) => row.id).filter(Boolean),
+      selectedWeekIds: weekIds,
+    },
+  }
 }
 
 export default async function handler(req, res) {
@@ -378,8 +400,32 @@ export default async function handler(req, res) {
 
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
-  if (!serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.' })
+  const serverSecret = String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim()
+  if (!serviceKey || !supabaseUrl || !serverSecret) {
+    return res.status(500).json({
+      error:
+        'Falta SUPABASE_SERVICE_ROLE_KEY, URL de Supabase o COACH_GUIDE_ADMIN_SECRET.',
+    })
+  }
+  const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
+  try {
+    const exceeded = await checkAdminRateLimit(supabase, req, {
+      endpoint: '/api/programming-week-briefing',
+      limit: 20,
+      windowMinutes: 10,
+    })
+    if (exceeded) {
+      return res.status(429).json({
+        error: 'rate_limit_exceeded',
+        retry_after_seconds: 600,
+      })
+    }
+  } catch (error) {
+    console.error('[programming-week-briefing] rate limit unavailable:', error?.message || error)
+    return res.status(503).json({ error: 'rate_limit_unavailable' })
+  }
+  if (!adminSecretsMatch(body.secret, serverSecret)) {
+    return res.status(401).json({ error: 'unauthorized' })
   }
 
   const model = resolveProgrammingModel(
@@ -392,10 +438,27 @@ export default async function handler(req, res) {
   const phase = String(body.phase || '').trim()
   const twRaw = body.totalWeeks
   const totalWeeks = twRaw == null || twRaw === '' ? NaN : Number(twRaw)
+  const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
+  const generationDays = Array.isArray(body.generationDays)
+    ? body.generationDays
+        .map((day) => String(day || '').trim().toUpperCase())
+        .filter((day, index, values) => validDays.has(day) && values.indexOf(day) === index)
+    : []
+  const weeklyOffer = body.weeklyOffer && typeof body.weeklyOffer === 'object'
+    ? body.weeklyOffer
+    : null
+  const targetCycle = {
+    mesociclo,
+    semana,
+    cycle_id: String(body.cycleId ?? body.cycle_id ?? '').trim(),
+    cycle_start_date: String(body.cycleStartDate ?? body.cycle_start_date ?? '').trim(),
+    week_start_date: String(body.targetWeekStartDate ?? body.weekStartDate ?? body.week_start_date ?? '').trim(),
+  }
 
   try {
     let messages
     let contextPack = String(body.contextPack || '').trim()
+    let contextSelection = null
 
     if (messagesIn && messagesIn.length > 0) {
       messages = messagesIn
@@ -409,17 +472,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan mesociclo o semana para el briefing inicial.' })
       }
 
-      const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
-      contextPack = await fetchContextPack(supabase, mesociclo)
-
-      const validDays = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
-      const generationDays = Array.isArray(body.generationDays)
-        ? body.generationDays
-            .map((day) => String(day || '').trim().toUpperCase())
-            .filter((day, index, rows) => validDays.has(day) && rows.indexOf(day) === index)
-        : []
+      const fetchedContext = await fetchContextPack(supabase, targetCycle)
+      contextPack = fetchedContext.text
+      contextSelection = fetchedContext.selection
       const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
-      const weeklyOfferDays = body.weeklyOffer?.dias
+      const weeklyOfferDays = weeklyOffer?.dias
       const weeklyOfferLines = generationDays.map((day) => {
         const classes = Array.isArray(weeklyOfferDays?.[day]) ? weeklyOfferDays[day] : []
         return `- ${day}: ${classes.length ? classes.join(', ') : '(sin clases seleccionadas)'}`
@@ -437,7 +494,7 @@ export default async function handler(req, res) {
           ? `CONTEXTO E INSTRUCCIONES ESCRITAS POR MARIAN (prioridad alta):\n${userInstructions}`
           : 'Marian no ha añadido contexto libre para esta tanda.',
         'La propuesta debe respetar expresamente estos días, clases e instrucciones; no propongas contenido para días no seleccionados.',
-        'Genera el JSON de propuesta (title, narrative, suggestedFocus) descrito en el system.',
+        'Genera el JSON de propuesta (title, narrative, suggestedFocus, weeklyArchitecture) descrito en el system.',
       ].filter(Boolean).join('\n')
 
       messages = [
@@ -464,7 +521,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1400,
+        max_tokens: 2600,
         system: systemPrompt,
         messages,
       }),
@@ -498,14 +555,19 @@ export default async function handler(req, res) {
     }
     let proposal
     try {
-      proposal = parseProposalJson(assistantText)
+      proposal = parseProposalJson(assistantText, {
+        generationDays,
+        weeklyOffer,
+      })
     } catch (e) {
       return res.status(502).json({ error: e?.message || 'La IA devolvió una propuesta inválida.' })
     }
 
+    contextPack = replaceWeeklyArchitectureBlock(contextPack, proposal.weeklyArchitecture)
     const payload = {
       proposal,
       contextPack: contextPack || undefined,
+      contextSelection: contextSelection || undefined,
       model: data?.model || model,
     }
     if (!messagesIn?.length && messages?.[0]) {

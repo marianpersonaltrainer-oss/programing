@@ -26,9 +26,12 @@ REGLAS DE EDICIÓN
 4. Todo campo de sesión modificado empieza en A), B), C) o PARTE ÚNICA, con duración en el título. No añadas secciones invisibles de preparación de la hora.
 5. No fuerces siempre tres partes. Conserva o crea la estructura que responda a la intención real.
 6. Si una clase no se ofrece o no está programada, conserva su valor técnico vacío o placeholder y deja su feedback vacío.
-7. Actualiza wodbuster solo si Marian lo pide o el cambio deja el contenido claramente obsoleto.
-8. Si modificas feedback, alinéalo con la sesión resultante: un párrafo natural de 3-5 frases que explique primero qué buscamos y cómo queremos que se sienta; añade logística solo cuando ayude y no inventes ninguna entidad. Si no se pide, cópialo verbatim.
-9. Antes de devolver el JSON, comprueba formato, tiempo, material, identidad de modalidad y correspondencia feedback ↔ sesión.
+7. No inventes «FESTIVO» ni sustituyas por ese marcador una clase válida durante la corrección.
+8. Si el cambio toca un intervalo, aplica la densidad vigente: 2' de trabajo admite 30-45'' de descanso; 3' admite 45-60''. Cuenta ON/OFF, IGYG pasivo y estaciones con recuperación.
+9. Comprueba que las partes no superen 33' en sesiones multipartes, que los puestos sean viables para diez personas y que el día no copie la arquitectura de los adyacentes.
+10. Actualiza wodbuster solo si Marian lo pide o el cambio deja el contenido claramente obsoleto.
+11. Si modificas feedback, alinéalo con la sesión resultante: un párrafo natural de 3-5 frases que explique primero qué buscamos y cómo queremos que se sienta; añade logística solo cuando ayude y no inventes ninguna entidad. Si no se pide, cópialo verbatim.
+12. Antes de devolver el JSON, comprueba formato, tiempo, material, identidad de modalidad y correspondencia feedback ↔ sesión.
 
 ════════════════════════════════════════
 SEGURIDAD

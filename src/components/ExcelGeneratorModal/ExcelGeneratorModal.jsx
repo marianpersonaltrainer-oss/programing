@@ -17,13 +17,15 @@ import {
 import {
   getActiveWeek,
   getCoachExerciseLibrary,
-  updatePublishedWeekData,
+  getPublishedWeekDraftByMesocycleAndWeek,
   getPublishedWeekByMesocycleAndWeek,
+  listPublishedWeekVersionsForMesocycle,
   listPublishedWeeksForMesocycle,
   upsertMissingExerciseVideos,
   listMissingExerciseVideos,
   updateMissingExerciseVideo,
   upsertPublishedWeekBySlot,
+  publicationAdminSecret,
   supabase,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
@@ -33,6 +35,7 @@ import {
   mergeGeneratedDaysIntoAccumulator,
   applyPreservedFromOverlay,
   resolveDaysToGenerateFromSelection,
+  resolveExplicitHolidayDays,
   EXCEL_DAY_ORDER,
 } from '../../utils/excelGenerationPlan.js'
 import { buildWeekWodBusterPaste } from '../../utils/formatWodBusterPaste.js'
@@ -82,6 +85,13 @@ import {
   weekHasMeaningfulSessionContent,
 } from '../../utils/normalizeWeekDataForEditor.js'
 import {
+  assertPublicationGateApproved,
+  buildPublicationQualityGate,
+  buildPublicationTargetFingerprint,
+  hashPublicationValue,
+  publicationGateIsApproved,
+} from '../../utils/publicationQualityGate.js'
+import {
   buildCurrentWeeklyOfferSelection,
   getSelectedClassKeysForDay,
   parseWeeklyOfferSelection,
@@ -89,6 +99,29 @@ import {
   weeklyOfferSelectionFromWeekData,
   weeklyOfferSelectionToValidationOffer,
 } from '../../utils/weeklyOffer.js'
+import { extractWeeklyArchitectureBlock } from '../../utils/weeklyArchitecturePlan.js'
+import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
+import {
+  addProgrammingDays,
+  normalizeProgrammingDate,
+  selectProgrammingContextWeeks,
+} from '../../utils/programmingContextSelection.js'
+import {
+  assertGenerationRequestStillCurrent,
+  buildGenerationRequestFingerprint,
+  StaleGenerationResponseError,
+} from '../../utils/generationRequestFingerprint.js'
+import { weekInstructionsStorageKey } from '../../utils/weekInstructionsStorage.js'
+import {
+  editorOpenTargetMatchesWeekState,
+  publishedWeekMatchesExactTarget,
+  resolvePendingEditorOpen,
+  resolveEditorOpenTarget,
+} from '../../utils/weekEditorOpenTarget.js'
+import {
+  publicationMutationSnapshotIsCurrent,
+  publicationMutationTargetIsCurrent,
+} from '../../utils/publicationMutationSnapshot.js'
 
 /** Techo de salida por POST (1 día; bajar reduce coste sin cortar un día completo). */
 const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 5500
@@ -100,7 +133,6 @@ const EXCEL_COHERENCE_JSON_MAX_CHARS = 22_000
 const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 100
 
 const ADDENDUM_MAX_CHARS = 3000
-const WEEK_INSTRUCTIONS_KEY_PREFIX = 'programingevo_week_instructions'
 /** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
 const QA_AUTO_FIX_MAX_PASSES = 2
 const QA_TARGET_SCORE = 8.2
@@ -117,18 +149,13 @@ function getGenerationDays(daySelection, offerSelection) {
   )
 }
 
-function planningInputFingerprint({ addendum, generationDays, offerSelection }) {
+function planningInputFingerprint({ addendum, generationDays, offerSelection, target }) {
   return JSON.stringify({
     instructions: String(addendum || '').trim(),
     generationDays: [...generationDays],
     weeklyOffer: serializeWeeklyOfferSelection(offerSelection),
+    target,
   })
-}
-
-function weekInstructionsStorageKey(weekState) {
-  const mesocycle = String(weekState?.mesocycle || 'sin-mesociclo').trim().toLowerCase()
-  const week = Number(weekState?.week || 0)
-  return `${WEEK_INSTRUCTIONS_KEY_PREFIX}:${mesocycle}:s${week}`
 }
 
 function readStoredWeekInstructions(weekState) {
@@ -556,8 +583,14 @@ async function postJsonWithRetry(url, payload, retries = 2) {
 }
 
 async function fetchServerReferenceContext() {
+  const secret = publicationAdminSecret()
+  if (!secret) return ''
   try {
-    const res = await fetch('/api/programming-reference-context', { method: 'GET' })
+    const res = await fetch('/api/programming-reference-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', secret }),
+    })
     if (!res.ok) return ''
     const json = await res.json().catch(() => ({}))
     return String(json?.contextText || '').trim()
@@ -575,6 +608,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [briefingContextPack, setBriefingContextPack] = useState('')
   const [briefingApiMessages, setBriefingApiMessages] = useState([])
   const [briefingInputFingerprint, setBriefingInputFingerprint] = useState('')
+  const briefingRunRef = useRef(0)
+  const currentPlanningFingerprintRef = useRef('')
+  /** IDs exactos elegidos por el briefing; evita mezclar feedback de otras semanas. */
+  const briefingContextSelectionRef = useRef(null)
+  const [publicationProgressionWeeks, setPublicationProgressionWeeks] = useState([])
+  const [publicationContextVerified, setPublicationContextVerified] = useState(false)
   const [proposalTitle, setProposalTitle] = useState('')
   const [proposalNarrative, setProposalNarrative] = useState('')
   const [proposalSuggestedFocus, setProposalSuggestedFocus] = useState('')
@@ -594,7 +633,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
   const [evalResult, setEvalResult] = useState(null)
+  /** Huella exacta de contenido+ciclo+oferta+contexto que recibió el scoring. */
+  const [evalFingerprint, setEvalFingerprint] = useState('')
   const [evalError, setEvalError] = useState('')
+  const scoringRunRef = useRef(0)
+  const generationRunRef = useRef(0)
+  const currentGenerationFingerprintRef = useRef('')
   const [showFullAnalysis, setShowFullAnalysis] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [editingJson, setEditingJson] = useState(false)
@@ -611,10 +655,20 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [savingHubDraft, setSavingHubDraft] = useState(false)
   const [published, setPublished]     = useState(false)
   const [editingPublishedRowId, setEditingPublishedRowId] = useState(null)
+  /** Revisión CAS del borrador abierto; null significa que la fila abierta es inmutable o local. */
+  const [editingDraftRevision, setEditingDraftRevision] = useState(null)
+  const hasEditingDraftVersion =
+    !!editingPublishedRowId &&
+    editingDraftRevision != null &&
+    Number.isInteger(Number(editingDraftRevision)) &&
+    Number(editingDraftRevision) >= 1
+  /** Versión inmutable de la que nace el borrador; nunca apunta al propio borrador mutable. */
+  const [editingPublishedSourceId, setEditingPublishedSourceId] = useState(null)
   const [editingPublishedIsActive, setEditingPublishedIsActive] = useState(false)
   const [savingPublishedEdit, setSavingPublishedEdit] = useState(false)
   const [savedPublishedEdit, setSavedPublishedEdit] = useState(false)
   const [importingExcel, setImportingExcel] = useState(false)
+  const publicationMutationLockRef = useRef(false)
   const excelImportInputRef = useRef(null)
   const [activePublishedWeek, setActivePublishedWeek] = useState(null)
   const [openingActiveEdit, setOpeningActiveEdit] = useState(false)
@@ -638,9 +692,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   /** Borradores de instrucciones para «IA · este día» (por índice de día). */
   const [dayAiDraftByIdx, setDayAiDraftByIdx] = useState({})
   const [dayEditAiBusy, setDayEditAiBusy] = useState(false)
+  const dayEditRunRef = useRef(0)
+  const feedbackRunRef = useRef(0)
+  const weekEditRevisionRef = useRef(0)
+  const editorTargetIdentityRef = useRef('')
   const [regenDayFeedbacksAfterAi, setRegenDayFeedbacksAfterAi] = useState(false)
   /** Evita escrituras repetidas al historial local si el JSON no cambió. */
   const lastPersistedDraftRef = useRef('')
+  /** Apertura que espera a que App cambie al ciclo/semana exactos antes de hidratar el editor. */
+  const pendingEditorOpenRef = useRef(null)
   /** Aviso breve: borrador / guardado manual en localStorage. */
   const [draftNotice, setDraftNotice] = useState('')
   /** Resumen de última importación Excel automática. */
@@ -649,6 +709,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [missingVideoBusyId, setMissingVideoBusyId] = useState(null)
   const [weekGridSummaryMode, setWeekGridSummaryMode] = useState(true)
   const [weekGridColWidth, setWeekGridColWidth] = useState(190)
+  const currentPublicationFingerprintRef = useRef('')
+  const publicationMutationBusy =
+    publishing || savingHubDraft || savingPublishedEdit || importingExcel
 
   const selectedClassKeysForReview = useMemo(() => {
     const out = new Set()
@@ -666,6 +729,66 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   )
 
   const selectedGenerationDayCount = selectedGenerationDays.length
+  const targetCycleStartDate = normalizeProgrammingDate(weekState.cycleStartDate)
+  const targetWeekStartDate =
+    targetCycleStartDate && Number(weekState.week) > 0
+      ? addProgrammingDays(targetCycleStartDate, (Number(weekState.week) - 1) * 7)
+      : ''
+  const targetCycleId =
+    String(weekState.cycleId || '').trim() ||
+    (targetCycleStartDate && weekState.mesocycle
+      ? `${weekState.mesocycle}:${targetCycleStartDate}`
+      : '')
+  const exactLocalHistoryOptions = useMemo(
+    () => ({
+      cycleId: targetCycleId,
+      cycleStartDate: targetCycleStartDate,
+    }),
+    [targetCycleId, targetCycleStartDate],
+  )
+  const readExactLocalHistory = useCallback(
+    () =>
+      getHistoryForMesocycle(
+        weekState.mesocycle,
+        exactLocalHistoryOptions,
+      ),
+    [exactLocalHistoryOptions, weekState.mesocycle],
+  )
+  const attachExactCycleIdentity = useCallback(
+    (source, targetWeek = weekState.week) => {
+      const data = source && typeof source === 'object' ? { ...source } : source
+      if (!data || typeof data !== 'object') return data
+      const weekNumber = Number(targetWeek || data.semana || 0)
+      const mesocycle = String(
+        weekState.mesocycle || data.mesociclo || '',
+      ).trim()
+      const cycleStartDate =
+        targetCycleStartDate ||
+        normalizeProgrammingDate(data.cycle_start_date || data.cycleStartDate)
+      const cycleId =
+        cycleStartDate && mesocycle
+          ? `${mesocycle}:${cycleStartDate}`
+          : String(data.cycle_id || data.cycleId || targetCycleId || '').trim()
+      const weekStartDate =
+        cycleStartDate && Number.isInteger(weekNumber) && weekNumber > 0
+          ? addProgrammingDays(cycleStartDate, (weekNumber - 1) * 7)
+          : normalizeProgrammingDate(data.week_start_date || data.weekStartDate)
+      return {
+        ...data,
+        mesociclo: mesocycle || data.mesociclo,
+        semana: weekNumber || data.semana,
+        cycle_id: cycleId || null,
+        cycle_start_date: cycleStartDate || null,
+        week_start_date: weekStartDate || null,
+      }
+    },
+    [
+      targetCycleId,
+      targetCycleStartDate,
+      weekState.mesocycle,
+      weekState.week,
+    ],
+  )
 
   const currentPlanningInputFingerprint = useMemo(
     () =>
@@ -673,9 +796,90 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         addendum,
         generationDays: selectedGenerationDays,
         offerSelection: dayClassPicker,
+        target: {
+          mesocycle: weekState.mesocycle,
+          week: Number(weekState.week),
+          phase: weekState.phase || '',
+          cycleId: targetCycleId,
+          cycleStartDate: targetCycleStartDate,
+          weekStartDate: targetWeekStartDate,
+        },
       }),
-    [addendum, selectedGenerationDays, dayClassPicker],
+    [
+      addendum,
+      dayClassPicker,
+      selectedGenerationDays,
+      targetCycleId,
+      targetCycleStartDate,
+      targetWeekStartDate,
+      weekState.mesocycle,
+      weekState.phase,
+      weekState.week,
+    ],
   )
+
+  const currentGenerationRequestFingerprint = useMemo(
+    () =>
+      buildGenerationRequestFingerprint({
+        mesocycle: weekState.mesocycle,
+        week: weekState.week,
+        phase: weekState.phase || '',
+        targetWeekStartDate,
+        generationDays: selectedGenerationDays,
+        weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+        instructions: addendum,
+        selectedContextWeekIds: briefingContextSelectionRef.current?.selectedWeekIds || [],
+        contextRevision: hashPublicationValue({
+          briefingInputFingerprint,
+          briefingContextPack,
+          proposalTitle,
+          proposalNarrative,
+          proposalSuggestedFocus,
+          proposalAccepted,
+        }),
+        weeklyArchitecture: extractWeeklyArchitectureBlock(briefingContextPack),
+        completedDays: hashPublicationValue(weekData || null),
+      }),
+    [
+      addendum,
+      briefingContextPack,
+      briefingInputFingerprint,
+      dayClassPicker,
+      proposalAccepted,
+      proposalNarrative,
+      proposalSuggestedFocus,
+      proposalTitle,
+      selectedGenerationDays,
+      targetWeekStartDate,
+      weekData,
+      weekState.mesocycle,
+      weekState.phase,
+      weekState.week,
+    ],
+  )
+
+  useEffect(() => {
+    if (
+      currentPlanningFingerprintRef.current &&
+      currentPlanningFingerprintRef.current !== currentPlanningInputFingerprint
+    ) {
+      briefingRunRef.current += 1
+      setBriefingStatus((current) => (current === 'loading' ? 'idle' : current))
+    }
+    currentPlanningFingerprintRef.current = currentPlanningInputFingerprint
+  }, [currentPlanningInputFingerprint])
+
+  useEffect(() => {
+    if (
+      currentGenerationFingerprintRef.current &&
+      currentGenerationFingerprintRef.current !== currentGenerationRequestFingerprint
+    ) {
+      generationRunRef.current += 1
+      setStatus((current) => (current === 'generating' ? 'idle' : current))
+      setGenStep('')
+    }
+    currentGenerationFingerprintRef.current = currentGenerationRequestFingerprint
+  }, [currentGenerationRequestFingerprint])
 
   const briefingIsStale =
     briefingStatus === 'ready' &&
@@ -691,13 +895,27 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     )
   }, [weekData, selectedClassKeysForReview])
 
+  const authorizedHolidayDays = useMemo(
+    () =>
+      new Set(
+        (Array.isArray(weekData?.authorized_holiday_days)
+          ? weekData.authorized_holiday_days
+          : []
+        ).map((day) => String(day || '').trim().toUpperCase()),
+      ),
+    [weekData?.authorized_holiday_days],
+  )
+
   const methodReview = useMemo(() => {
     if (!weekData?.dias) return null
     const withMetadata = attachEvoMethodMetadata(weekData)
     return validateEvoWeek(withMetadata, {
       offer: weeklyOfferSelectionToValidationOffer(dayClassPicker),
+      previousWeeks: publicationProgressionWeeks,
+      allowFestivo: false,
+      allowedHolidayDays: authorizedHolidayDays,
     })
-  }, [weekData, dayClassPicker])
+  }, [authorizedHolidayDays, weekData, dayClassPicker, publicationProgressionWeeks])
 
   // Nº de días con contenido real generado (para habilitar «Evaluar semana»).
   const generatedDaysCount = useMemo(() => {
@@ -720,10 +938,189 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       )
       return classKeys.some((key) => {
         const text = String(row?.[key] || '').trim()
-        return !text || /no programada esta semana/i.test(text)
+        if (/^FESTIVO$/i.test(text) && authorizedHolidayDays.has(day)) return false
+        return !text || /no programada esta semana/i.test(text) || /^FESTIVO$/i.test(text)
       })
     })
-  }, [weekData, dayClassPicker])
+  }, [authorizedHolidayDays, weekData, dayClassPicker])
+
+  const publicationContextFingerprint = useMemo(
+    () =>
+      hashPublicationValue({
+        briefingInputFingerprint: briefingInputFingerprint || currentPlanningInputFingerprint,
+        briefingContextPack: String(briefingContextPack || ''),
+        proposal: {
+          title: proposalTitle,
+          narrative: proposalNarrative,
+          suggestedFocus: proposalSuggestedFocus,
+          accepted: proposalAccepted,
+        },
+      }),
+    [
+      briefingContextPack,
+      briefingInputFingerprint,
+      currentPlanningInputFingerprint,
+      proposalAccepted,
+      proposalNarrative,
+      proposalSuggestedFocus,
+      proposalTitle,
+    ],
+  )
+
+  function preparePublicationCandidate(sourceData = weekData) {
+    if (!sourceData || typeof sourceData !== 'object') return null
+    let data = { ...sourceData }
+    data.titulo = String(editTitle || data.titulo || '').trim() || data.titulo
+    data = attachEvoMethodMetadata(data)
+    return normalizeWeekDataForEditor(
+      {
+        ...data,
+        mesociclo: weekState.mesocycle,
+        semana: Number(weekState.week),
+        cycle_id: data.cycle_id || targetCycleId || null,
+        cycle_start_date: data.cycle_start_date || targetCycleStartDate || null,
+        week_start_date: data.week_start_date || targetWeekStartDate || null,
+        phase: data.phase || weekState.phase || null,
+        publication_context: {
+          version: 1,
+          fingerprint: publicationContextFingerprint,
+          mode: briefingContextSelectionRef.current?.mode || null,
+          context_snapshot_at:
+            briefingContextSelectionRef.current?.snapshotAt || null,
+          progression_week_ids:
+            briefingContextSelectionRef.current?.progressionWeekIds || [],
+          historical_week_ids:
+            briefingContextSelectionRef.current?.historicalWeekIds || [],
+          selected_week_ids:
+            briefingContextSelectionRef.current?.selectedWeekIds || [],
+        },
+      },
+      {
+        semana: Number(weekState.week),
+        mesociclo: weekState.mesocycle,
+      },
+    )
+  }
+
+  const currentPublicationCandidate = useMemo(() => {
+    try {
+      const source = editingJson ? JSON.parse(rawJson) : weekData
+      return preparePublicationCandidate(source)
+    } catch {
+      return null
+    }
+  }, [
+    dayClassPicker,
+    editTitle,
+    editingJson,
+    publicationContextFingerprint,
+    rawJson,
+    targetCycleId,
+    targetCycleStartDate,
+    targetWeekStartDate,
+    weekData,
+    weekState.mesocycle,
+    weekState.phase,
+    weekState.week,
+  ])
+
+  const currentPublicationFingerprint = useMemo(
+    () =>
+      currentPublicationCandidate
+        ? buildPublicationTargetFingerprint({
+            weekData: currentPublicationCandidate,
+            mesocycle: weekState.mesocycle,
+            week: weekState.week,
+            phase: weekState.phase || '',
+            offer: serializeWeeklyOfferSelection(dayClassPicker),
+            contextFingerprint: publicationContextFingerprint,
+          })
+        : '',
+    [
+      currentPublicationCandidate,
+      dayClassPicker,
+      publicationContextFingerprint,
+      weekState.mesocycle,
+      weekState.phase,
+      weekState.week,
+    ],
+  )
+
+  const currentPublicationGate = useMemo(() => {
+    const gateMethodReview = currentPublicationCandidate
+      ? validateEvoWeek(currentPublicationCandidate, {
+          offer: weeklyOfferSelectionToValidationOffer(dayClassPicker),
+          previousWeeks: publicationProgressionWeeks,
+          allowFestivo: false,
+          allowedHolidayDays:
+            currentPublicationCandidate?.authorized_holiday_days || [],
+        })
+      : { errors: [] }
+    const methodErrors = [
+      ...(gateMethodReview?.errors || []),
+      ...(gateMethodReview?.warnings || []),
+    ].map((entry) => {
+      const day = currentPublicationCandidate?.dias?.[entry.dayIndex]?.nombre || `Día ${Number(entry.dayIndex) + 1}`
+      const classLabel =
+        EVO_SESSION_CLASS_DEFS.find((item) => item.key === entry.classKey)?.label || entry.classKey
+      return `${day} · ${classLabel}: ${entry.message}`
+    })
+    return buildPublicationQualityGate({
+      evaluation: evalResult,
+      evaluationFingerprint: evalFingerprint,
+      targetFingerprint: currentPublicationFingerprint,
+      methodErrors,
+      offerPendingDays: pendingOfferedDays,
+      staleFeedbackKeys: [...staleFeedbackKeys],
+      contextReady:
+        briefingStatus === 'ready' &&
+        !briefingIsStale &&
+        !!briefingContextPack &&
+        proposalAccepted &&
+        publicationContextVerified &&
+        !!targetCycleStartDate,
+    })
+  }, [
+    briefingContextPack,
+    briefingIsStale,
+    briefingStatus,
+    currentPublicationCandidate,
+    currentPublicationFingerprint,
+    evalFingerprint,
+    evalResult,
+    pendingOfferedDays,
+    proposalAccepted,
+    publicationContextVerified,
+    publicationProgressionWeeks,
+    staleFeedbackKeys,
+    targetCycleStartDate,
+  ])
+
+  const publicationReady = publicationGateIsApproved(currentPublicationGate)
+  const evaluationIsCurrent =
+    !!evalFingerprint &&
+    !!currentPublicationFingerprint &&
+    evalFingerprint === currentPublicationFingerprint
+
+  useEffect(() => {
+    currentPublicationFingerprintRef.current = currentPublicationFingerprint
+  }, [currentPublicationFingerprint])
+
+  useEffect(() => {
+    editorTargetIdentityRef.current = hashPublicationValue({
+      mesocycle: weekState.mesocycle,
+      week: Number(weekState.week),
+      cycleId: targetCycleId,
+      cycleStartDate: targetCycleStartDate,
+      rowId: editingPublishedRowId,
+    })
+  }, [
+    editingPublishedRowId,
+    targetCycleId,
+    targetCycleStartDate,
+    weekState.mesocycle,
+    weekState.week,
+  ])
 
   useEffect(() => {
     if (addendumStorageKeyRef.current !== addendumStorageKey) {
@@ -749,9 +1146,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   // Cargar historial del mesociclo al abrir
   useEffect(() => {
     if (weekState.mesocycle) {
-      setHistory(getHistoryForMesocycle(weekState.mesocycle))
+      setHistory(readExactLocalHistory())
     }
-  }, [weekState.mesocycle])
+  }, [readExactLocalHistory, weekState.mesocycle])
 
   useEffect(() => {
     const offer = buildCurrentWeeklyOfferSelection()
@@ -762,13 +1159,34 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setBriefingContextPack('')
     setBriefingApiMessages([])
     setBriefingInputFingerprint('')
+    briefingContextSelectionRef.current = null
+    setPublicationProgressionWeeks([])
+    setPublicationContextVerified(false)
     setProposalAccepted(false)
     setProposalStep('review')
     setRefineDraft('')
+    setRefineBusy(false)
     setProposalTitle('')
     setProposalNarrative('')
     setProposalSuggestedFocus('')
-  }, [weekState.mesocycle, weekState.week, weekState.phase])
+    briefingRunRef.current += 1
+    dayEditRunRef.current += 1
+    feedbackRunRef.current += 1
+    weekEditRevisionRef.current += 1
+    setDayEditAiBusy(false)
+    setRegeneratingFeedbackKey(null)
+    scoringRunRef.current += 1
+    setEvaluating(false)
+    setEvalResult(null)
+    setEvalFingerprint('')
+    setEvalError('')
+  }, [
+    weekState.cycleId,
+    weekState.cycleStartDate,
+    weekState.mesocycle,
+    weekState.phase,
+    weekState.week,
+  ])
 
   async function prepareBriefing() {
     if (!weekState?.mesocycle || weekState.week == null) {
@@ -776,13 +1194,31 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setBriefingErrorMsg('Selecciona mesociclo y semana en el panel izquierdo.')
       return
     }
+    if (!targetCycleStartDate) {
+      setBriefingStatus('error')
+      setBriefingErrorMsg(
+        'Indica la fecha real de inicio del ciclo en el panel izquierdo para cargar el histórico correcto.',
+      )
+      return
+    }
     if (selectedGenerationDayCount === 0) {
       setBriefingStatus('error')
       setBriefingErrorMsg('Selecciona al menos un día para diseñar.')
       return
     }
+    const adminSecret = publicationAdminSecret()
+    if (!adminSecret) {
+      setBriefingStatus('error')
+      setBriefingErrorMsg(
+        'Introduce primero la clave de administración en Contenido Coach o Tu método. El contexto interno no se carga sin autenticación.',
+      )
+      return
+    }
 
     const inputFingerprint = currentPlanningInputFingerprint
+    const briefingRunId = briefingRunRef.current + 1
+    briefingRunRef.current = briefingRunId
+    currentPlanningFingerprintRef.current = inputFingerprint
     const instructionsSnapshot = String(addendum || '').trim().slice(0, ADDENDUM_MAX_CHARS)
     const daysSnapshot = [...selectedGenerationDays]
     const offerSnapshot = serializeWeeklyOfferSelection(dayClassPicker)
@@ -797,16 +1233,61 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setProposalSuggestedFocus('')
     try {
       const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
+        secret: adminSecret,
         mesociclo: weekState.mesocycle,
         semana: Number(weekState.week),
         phase: weekState.phase || '',
         totalWeeks: weekState.totalWeeks ?? null,
+        cycleId: targetCycleId || null,
+        cycleStartDate: targetCycleStartDate || null,
+        targetWeekStartDate: targetWeekStartDate || null,
         userInstructions: instructionsSnapshot,
         generationDays: daysSnapshot,
         weeklyOffer: offerSnapshot,
       })
+      if (
+        briefingRunRef.current !== briefingRunId ||
+        currentPlanningFingerprintRef.current !== inputFingerprint
+      ) {
+        return
+      }
       if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
       setBriefingContextPack(String(json.contextPack || ''))
+      const contextSelection =
+        json.contextSelection && typeof json.contextSelection === 'object'
+          ? json.contextSelection
+          : null
+      briefingContextSelectionRef.current = contextSelection
+      let exactProgression = []
+      let exactContextReady = false
+      if (
+        contextSelection?.mode === 'exact-cycle-date' &&
+        targetCycleStartDate
+      ) {
+        try {
+          const versions = await listPublishedWeekVersionsForMesocycle(
+            weekState.mesocycle,
+          )
+          const expectedIds = new Set(contextSelection.progressionWeekIds || [])
+          exactProgression = versions
+            .filter((row) => expectedIds.has(row.id))
+            .sort((a, b) => Number(a?.semana || 0) - Number(b?.semana || 0))
+            .map((row) => row?.data)
+            .filter(Boolean)
+          exactContextReady = exactProgression.length === expectedIds.size
+        } catch {
+          exactProgression = []
+          exactContextReady = false
+        }
+      }
+      if (
+        briefingRunRef.current !== briefingRunId ||
+        currentPlanningFingerprintRef.current !== inputFingerprint
+      ) {
+        return
+      }
+      setPublicationProgressionWeeks(exactProgression)
+      setPublicationContextVerified(exactContextReady)
       setProposalTitle(String(json.proposal?.title || '').trim())
       setProposalNarrative(String(json.proposal?.narrative || '').trim())
       setProposalSuggestedFocus(String(json.proposal?.suggestedFocus || '').trim())
@@ -814,6 +1295,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setBriefingInputFingerprint(inputFingerprint)
       setBriefingStatus('ready')
     } catch (e) {
+      if (briefingRunRef.current !== briefingRunId) return
       setBriefingStatus('error')
       setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
     }
@@ -825,6 +1307,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setWeekData(null)
     setRawJson('')
     setEditingPublishedRowId(null)
+    setEditingDraftRevision(null)
+    setEditingPublishedSourceId(null)
     setEditingPublishedIsActive(false)
     setSavedPublishedEdit(false)
     setPublished(false)
@@ -832,17 +1316,49 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setEditTitle('')
     setEditSheetName(`S${weekState.week || 1}`)
     lastPersistedDraftRef.current = ''
-  }, [weekState.mesocycle, weekState.week])
+  }, [
+    weekState.cycleId,
+    weekState.cycleStartDate,
+    weekState.mesocycle,
+    weekState.week,
+  ])
+
+  /**
+   * Una apertura de otra S/ciclo espera a que App confirme el nuevo objetivo.
+   * Este efecto corre después del reset anterior, de modo que la hidratación no
+   * puede ser borrada por el mismo cambio de weekState que la hizo necesaria.
+   */
+  useEffect(() => {
+    const pending = pendingEditorOpenRef.current
+    const transition = resolvePendingEditorOpen(pending, weekState)
+    if (transition.action === 'none') return
+    if (transition.action === 'discard') {
+      // Si el objetivo cambió a otro distinto mientras esperábamos, la apertura quedó obsoleta.
+      pendingEditorOpenRef.current = null
+      return
+    }
+    pendingEditorOpenRef.current = null
+    applyEditorOpenPayload(transition.payload)
+  }, [
+    weekState.cycleId,
+    weekState.cycleStartDate,
+    weekState.mesocycle,
+    weekState.phase,
+    weekState.week,
+  ])
 
   /** Tras cargar el briefing, alinear historial local con semanas ya publicadas en Supabase (p. ej. S6 en Hub pero no en localStorage). */
   useEffect(() => {
-    if (briefingStatus !== 'ready' || !weekState.mesocycle) return undefined
+    if (briefingStatus !== 'ready' || !weekState.mesocycle || !targetCycleId) return undefined
     let cancelled = false
     ;(async () => {
       try {
-        const rows = await listPublishedWeeksForMesocycle(weekState.mesocycle)
+        const rows = await listPublishedWeeksForMesocycle(
+          weekState.mesocycle,
+          targetCycleId,
+        )
         if (cancelled) return
-        const existingHistory = getHistoryForMesocycle(weekState.mesocycle)
+        const existingHistory = readExactLocalHistory()
         const existingBySemana = new Set(existingHistory.map((e) => Number(e?.semana || 0)))
         for (const row of rows) {
           if (!row?.data) continue
@@ -856,9 +1372,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           data.titulo = row.titulo || data.titulo
           data.mesociclo = weekState.mesocycle
           if (!weekHasMeaningfulSessionContent(data)) continue
-          saveWeekToHistory(weekState.mesocycle, Number(row.semana), data)
+          saveWeekToHistory(
+            weekState.mesocycle,
+            Number(row.semana),
+            attachExactCycleIdentity(data, Number(row.semana)),
+          )
         }
-        setHistory(getHistoryForMesocycle(weekState.mesocycle))
+        setHistory(readExactLocalHistory())
       } catch (e) {
         console.warn('[ExcelGeneratorModal] sync historial desde Supabase:', e?.message || e)
       }
@@ -866,7 +1386,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     return () => {
       cancelled = true
     }
-  }, [briefingStatus, weekState.mesocycle])
+  }, [
+    attachExactCycleIdentity,
+    briefingStatus,
+    readExactLocalHistory,
+    targetCycleId,
+    weekState.mesocycle,
+  ])
 
   useEffect(() => {
     const n = weekData?.dias?.length ?? 0
@@ -896,15 +1422,23 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
     if (!data || !Array.isArray(data.dias)) return false
     data.titulo = String(editTitle || data.titulo || '').trim() || data.titulo
-    data.semana = weekState.week
-    data.mesociclo = weekState.mesocycle
+    data = attachExactCycleIdentity(data, weekState.week)
     const sig = JSON.stringify(data)
     if (!force && sig === lastPersistedDraftRef.current) return false
     saveWeekToHistory(weekState.mesocycle, weekState.week, data)
-    setHistory(getHistoryForMesocycle(weekState.mesocycle))
+    setHistory(readExactLocalHistory())
     lastPersistedDraftRef.current = sig
     return true
-  }, [weekState.mesocycle, weekState.week, weekData, rawJson, editingJson, editTitle])
+  }, [
+    attachExactCycleIdentity,
+    editTitle,
+    editingJson,
+    rawJson,
+    readExactLocalHistory,
+    weekData,
+    weekState.mesocycle,
+    weekState.week,
+  ])
 
   /** Autoguardado local ~3 s después de dejar de editar (misma copia que el historial del mesociclo). */
   useEffect(() => {
@@ -938,6 +1472,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }, [refreshActivePublishedWeek])
 
   async function handleOpenActivePublishedWeekForEdit() {
+    if (publicationMutationLockRef.current || publicationMutationBusy) {
+      setErrorMsg('Espera a que termine la operación en curso antes de abrir otra semana.')
+      return
+    }
     setOpeningActiveEdit(true)
     setErrorMsg('')
     try {
@@ -951,7 +1489,17 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       let row = null
       try {
         if (weekState.mesocycle && weekState.week != null) {
-          row = await getPublishedWeekByMesocycleAndWeek(weekState.mesocycle, Number(weekState.week))
+          row =
+            (await getPublishedWeekDraftByMesocycleAndWeek(
+              weekState.mesocycle,
+              Number(weekState.week),
+              targetCycleId,
+            )) ||
+            (await getPublishedWeekByMesocycleAndWeek(
+              weekState.mesocycle,
+              Number(weekState.week),
+              targetCycleId,
+            ))
         }
       } catch {
         row = null
@@ -981,7 +1529,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         return
       }
 
-      const hasHistoryEntry = getHistoryForMesocycle(weekState.mesocycle).some(
+      const hasHistoryEntry = readExactLocalHistory().some(
         (entry) => Number(entry.semana) === Number(weekState.week),
       )
       if (hasHistoryEntry) {
@@ -994,7 +1542,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         const matchesActive =
           active &&
           active.mesociclo === weekState.mesocycle &&
-          Number(active.semana) === Number(weekState.week)
+          Number(active.semana) === Number(weekState.week) &&
+          String(active.cycle_id || active.data?.cycle_id || '') === targetCycleId
         if (!cancelled) setIsEditingExistingWeek(!!matchesActive)
       } catch {
         if (!cancelled) setIsEditingExistingWeek(false)
@@ -1005,7 +1554,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     return () => {
       cancelled = true
     }
-  }, [weekState.mesocycle, weekState.week])
+  }, [readExactLocalHistory, targetCycleId, weekState.mesocycle, weekState.week])
 
   async function sendProposalRefinement() {
     const line = sanitizePromptTextForLLM(refineDraft || '').trim()
@@ -1017,30 +1566,55 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setErrorMsg('No hay historial de briefing para refinar.')
       return
     }
+    const adminSecret = publicationAdminSecret()
+    if (!adminSecret) {
+      setErrorMsg(
+        'Vuelve a introducir la clave de administración antes de refinar la propuesta.',
+      )
+      return
+    }
+    const briefingRunId = briefingRunRef.current + 1
+    briefingRunRef.current = briefingRunId
+    const planningFingerprint = currentPlanningInputFingerprint
+    currentPlanningFingerprintRef.current = planningFingerprint
     setRefineBusy(true)
     setErrorMsg('')
     try {
       const nextMessages = [...briefingApiMessages, { role: 'user', content: line }]
       const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
+        secret: adminSecret,
         messages: nextMessages,
         contextPack: briefingContextPack,
         mesociclo: weekState.mesocycle,
         semana: Number(weekState.week),
         phase: weekState.phase || '',
         totalWeeks: weekState.totalWeeks ?? null,
+        cycleId: targetCycleId || null,
+        cycleStartDate: targetCycleStartDate || null,
+        targetWeekStartDate: targetWeekStartDate || null,
+        generationDays: [...selectedGenerationDays],
+        weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
       })
+      if (
+        briefingRunRef.current !== briefingRunId ||
+        currentPlanningFingerprintRef.current !== planningFingerprint
+      ) {
+        return
+      }
       if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
       const assistantText = JSON.stringify(json.proposal || {})
       setProposalTitle(String(json.proposal?.title || '').trim())
       setProposalNarrative(String(json.proposal?.narrative || '').trim())
       setProposalSuggestedFocus(String(json.proposal?.suggestedFocus || '').trim())
+      setBriefingContextPack(String(json.contextPack || briefingContextPack))
       setBriefingApiMessages([...nextMessages, { role: 'assistant', content: assistantText }])
       setRefineDraft('')
       setProposalStep('review')
     } catch (e) {
+      if (briefingRunRef.current !== briefingRunId) return
       setErrorMsg(humanizeNetworkLikeError(e, 'No se pudo actualizar la propuesta.'))
     } finally {
-      setRefineBusy(false)
+      if (briefingRunRef.current === briefingRunId) setRefineBusy(false)
     }
   }
 
@@ -1160,7 +1734,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           throw new Error(
             'El dominio desde el que abres la app no está autorizado para la API de generación. ' +
               'Si usas un dominio propio, en Vercel define EVO_ALLOWED_ORIGIN_PREFIXES con la URL exacta (https://…) y redeploy. ' +
-              'Las URLs de preview tipo https://programing-evo*.vercel.app ya deberían funcionar sin configuración extra.',
+              'Las URLs de preview también deben añadirse de forma explícita para evitar que otro dominio reutilice la API.',
           )
         }
         if (response.status === 504 || response.status === 502 || errType === 'upstream_timeout') {
@@ -1217,39 +1791,48 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setErrorMsg('')
 
     const pack = String(briefingContextPack || '').trim()
-    const regenerating = !!weekData
+    if (!targetCycleStartDate) {
+      setErrorMsg(
+        'Indica la fecha real de inicio del ciclo antes de generar; sin ella no se puede separar esta progresión de ciclos antiguos.',
+      )
+      setStatus('error')
+      return
+    }
+    if (briefingStatus === 'loading') {
+      setErrorMsg('Espera a que termine el análisis automático de la IA.')
+      setStatus('error')
+      return
+    }
+    if (briefingStatus !== 'ready' || !pack || !publicationContextVerified) {
+      setErrorMsg(
+        'Actualiza primero la propuesta: la generación necesita el contexto exacto del ciclo y su histórico verificado.',
+      )
+      setStatus('error')
+      return
+    }
+    if (!proposalAccepted) {
+      setErrorMsg('Pulsa «Me parece bien» y luego «Generar semana» (o ajusta el enfoque con la IA).')
+      setStatus('error')
+      return
+    }
+    if (briefingIsStale) {
+      setErrorMsg('Has cambiado los días, las clases o el contexto. Actualiza la propuesta antes de generar.')
+      setStatus('error')
+      return
+    }
 
-    if (!regenerating) {
-      const acceptedManualProposal =
-        proposalAccepted && String(proposalTitle || '').trim() && String(proposalNarrative || '').trim()
-      if (briefingStatus === 'loading') {
-        setErrorMsg('Espera a que termine el análisis automático de la IA.')
-        setStatus('error')
-        return
+    const capturedGenerationFingerprint = currentGenerationRequestFingerprint
+    const generationRunId = generationRunRef.current + 1
+    generationRunRef.current = generationRunId
+    currentGenerationFingerprintRef.current = capturedGenerationFingerprint
+    const assertGenerationIsCurrent = () => {
+      if (generationRunRef.current !== generationRunId) {
+        throw new StaleGenerationResponseError()
       }
-      if (briefingStatus === 'ready') {
-        if (!pack) {
-          setErrorMsg('No se pudo cargar el contexto del briefing. Reintenta o usa propuesta manual.')
-          setStatus('error')
-          return
-        }
-        if (!proposalAccepted) {
-          setErrorMsg('Pulsa «Me parece bien» y luego «Generar semana» (o ajusta el enfoque con la IA).')
-          setStatus('error')
-          return
-        }
-      } else if (!acceptedManualProposal) {
-        setErrorMsg(
-          'El briefing automático falló. Completa y acepta una propuesta manual (título + narrativa) para continuar.',
-        )
-        setStatus('error')
-        return
-      }
-      if (briefingIsStale) {
-        setErrorMsg('Has cambiado los días, las clases o el contexto. Actualiza la propuesta antes de generar.')
-        setStatus('error')
-        return
-      }
+      return assertGenerationRequestStillCurrent(
+        capturedGenerationFingerprint,
+        currentGenerationFingerprintRef.current,
+      )
     }
 
     setStatus('generating')
@@ -1260,43 +1843,84 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let generationCheckpoint = null
     try {
       synthesisLibraryRows = await getCoachExerciseLibrary()
+      if (!Array.isArray(synthesisLibraryRows) || synthesisLibraryRows.length === 0) {
+        throw new Error('La Biblioteca EVO oficial no devolvió ejercicios.')
+      }
       const autoMap = await fetchLibraryAutoVideoMap(synthesisLibraryRows, { maxResolve: 12 })
       const block = buildGeneratorLibraryBlock(synthesisLibraryRows, autoMap, {
         maxExercises: EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT,
       })
-      if (block) generationLibraryBlock = block
-    } catch {
-      /* sin biblioteca: generación igual */
+      if (!block) throw new Error('No se pudo construir el contexto de la Biblioteca EVO.')
+      generationLibraryBlock = block
+    } catch (libraryError) {
+      setErrorMsg(
+        `La generación se ha detenido porque no está disponible la Biblioteca EVO oficial: ${
+          libraryError?.message || libraryError
+        }. Recarga la biblioteca y vuelve a intentarlo.`,
+      )
+      setStatus('error')
+      setGenStep('')
+      return
     }
+    assertGenerationIsCurrent()
 
     let synthesisPreviousWeeks = []
     let synthesisCoachFeedback = []
+    let synthesisSelectedWeekIds = []
     let lastYearReferenceBlock = ''
     try {
-      const published = await listPublishedWeeksForMesocycle(weekState.mesocycle)
-      const currentSem = Number(weekState.week)
-      synthesisPreviousWeeks = published
-        .filter((r) => Number(r.semana) < currentSem)
+      const published = await listPublishedWeekVersionsForMesocycle(weekState.mesocycle)
+      const exactSelection = selectProgrammingContextWeeks(
+        published,
+        {
+          mesociclo: weekState.mesocycle,
+          semana: Number(weekState.week),
+          cycle_id: targetCycleId,
+          cycle_start_date: targetCycleStartDate,
+          week_start_date: targetWeekStartDate,
+        },
+        { progressionLimit: 6, historicalLimit: 0 },
+      )
+      const selectedProgressionIds = new Set(
+        briefingContextSelectionRef.current?.progressionWeekIds || [],
+      )
+      const progressionRows = selectedProgressionIds.size
+        ? published.filter((row) => selectedProgressionIds.has(row.id))
+        : exactSelection.progressionWeeks
+      synthesisPreviousWeeks = progressionRows
         .slice(-6)
         .map((r) => ({
+          id: r.id,
           semana: r.semana,
           mesociclo: weekState.mesocycle,
           dias: Array.isArray(r.data?.dias) ? r.data.dias : [],
         }))
+      synthesisSelectedWeekIds = [
+        ...new Set(
+          briefingContextSelectionRef.current?.selectedWeekIds?.length
+            ? briefingContextSelectionRef.current.selectedWeekIds
+            : synthesisPreviousWeeks.map((row) => row.id).filter(Boolean),
+        ),
+      ]
     } catch {
       /* síntesis sin semanas previas */
     }
+    assertGenerationIsCurrent()
     try {
-      const { data } = await supabase
-        .from('coach_session_feedback')
-        .select('class_label, notes_next_week, created_at, week_id')
-        .not('notes_next_week', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(20)
-      synthesisCoachFeedback = Array.isArray(data) ? data : []
+      if (synthesisSelectedWeekIds.length) {
+        const { data } = await supabase
+          .from('coach_session_feedback')
+          .select('class_label, notes_next_week, created_at, week_id')
+          .in('week_id', synthesisSelectedWeekIds)
+          .not('notes_next_week', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(40)
+        synthesisCoachFeedback = Array.isArray(data) ? data : []
+      }
     } catch {
       /* síntesis sin feedback */
     }
+    assertGenerationIsCurrent()
     if (!briefingPackIncludesLastYear(pack)) {
       try {
         lastYearReferenceBlock = await buildLastYearReferenceBlock()
@@ -1304,6 +1928,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         /* sin referencia anual */
       }
     }
+    assertGenerationIsCurrent()
 
     const methodBlock = buildMethodPromptAppendix()
     if (methodBlock) {
@@ -1381,6 +2006,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       selectedCanon,
       planSourceText,
     )
+    const explicitHolidayDays = resolveExplicitHolidayDays(addendumClean)
+    const holidayMergeOptions = {
+      allowHolidayCreation: explicitHolidayDays.size > 0,
+      allowedHolidayDays: explicitHolidayDays,
+    }
     // Siempre 1 día por POST: con briefing + método + ejemplos el prompt es muy grande; 2 días
     // en la misma llamada provocaba timeouts (504/502) frecuentes en Vercel.
     const dayChunks = buildConsecutiveDayChunks(daysToGenerate, 1)
@@ -1405,6 +2035,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const selectedClassKeys = new Set(
       [...daysToGenerate].flatMap((d) => [...(classesByDay[d] || new Set())]),
     )
+    const expectedDatesByDay = targetWeekStartDate
+      ? Object.fromEntries(
+          EXCEL_DAY_ORDER.map((day, index) => [
+            day,
+            addProgrammingDays(targetWeekStartDate, index),
+          ]),
+        )
+      : {}
     if (selectedClassKeys.size === 0) {
       setErrorMsg('Marca al menos una clase en algún día seleccionado para generar.')
       setStatus('error')
@@ -1433,9 +2071,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         try {
           const row = await getActiveWeek()
           if (
-            row?.data &&
-            row.mesociclo === weekState.mesocycle &&
-            Number(row.semana) === Number(weekState.week)
+            publishedWeekMatchesExactTarget(row, {
+              mesocycle: weekState.mesocycle,
+              week: weekState.week,
+              cycleId: targetCycleId,
+              cycleStartDate: targetCycleStartDate,
+            })
           ) {
             overlay = row.data
           }
@@ -1456,6 +2097,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
               `S${weekState.week} – MESOCICLO ${(weekState.mesocycle || '').toUpperCase()}`,
             semana: weekState.week,
             mesociclo: weekState.mesocycle,
+            cycle_id: targetCycleId || null,
+            cycle_start_date: targetCycleStartDate || null,
+            week_start_date: targetWeekStartDate || null,
             oferta_semanal: serializeWeeklyOfferSelection(dayClassPicker),
           },
           { previousWeeks: synthesisPreviousWeeks },
@@ -1494,10 +2138,14 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
 
       function buildChunkMessage(chunkDays, coherenceBlock, { isFirstApiCall = false } = {}) {
         const list = [...chunkDays].join(', ')
+        const architectureBlock = extractWeeklyArchitectureBlock(pack)
         const briefingPart = isFirstApiCall
           ? briefingUserBlock
           : briefingUserBlock
-            ? 'Briefing Supabase: ya enviado en la primera petición de esta generación (no se repite).'
+            ? [
+                'Briefing Supabase: ya enviado en la primera petición de esta generación (no se repite).',
+                architectureBlock,
+              ].filter(Boolean).join('\n\n')
             : ''
         const lastYearPart =
           isFirstApiCall && lastYearReferenceBlock ? lastYearReferenceBlock : ''
@@ -1567,6 +2215,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       let generationApiCallIndex = 0
 
       async function generateChunkWithFallback(chunk, ci, total) {
+        assertGenerationIsCurrent()
         const chunkDaysText = [...chunk].join(' · ')
         const targetDayKey = excelCanonDayToTargetDay([...chunk][0])
         const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey)
@@ -1587,8 +2236,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 5, {
             generationCallIndex: callIdx,
           })
+          assertGenerationIsCurrent()
           generationApiCallIndex += 1
-          mergeGeneratedDaysIntoAccumulator(acc, part, chunk)
+          mergeGeneratedDaysIntoAccumulator(
+            acc,
+            part,
+            chunk,
+            expectedDatesByDay,
+            holidayMergeOptions,
+          )
           rememberGenerationProgress()
           const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
           if (ji >= 0 && chunk.has('JUEVES')) {
@@ -1651,8 +2307,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             maxTokens: 5000,
             generationCallIndex: generationApiCallIndex,
           })
+          assertGenerationIsCurrent()
           generationApiCallIndex += 1
-          mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+          mergeGeneratedDaysIntoAccumulator(
+            acc,
+            part,
+            new Set([d]),
+            expectedDatesByDay,
+            holidayMergeOptions,
+          )
           rememberGenerationProgress()
         }
       }
@@ -1734,8 +2397,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             maxTokens: 5000,
             generationCallIndex: generationApiCallIndex,
           })
+          assertGenerationIsCurrent()
           generationApiCallIndex += 1
-          mergeGeneratedDaysIntoAccumulator(acc, part, new Set([d]))
+          mergeGeneratedDaysIntoAccumulator(
+            acc,
+            part,
+            new Set([d]),
+            expectedDatesByDay,
+            holidayMergeOptions,
+          )
           rememberGenerationProgress()
         }
 
@@ -1771,11 +2441,16 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             `S${weekState.week} – MESOCICLO ${(weekState.mesocycle || '').toUpperCase()}`,
           semana: weekState.week,
           mesociclo: weekState.mesocycle,
+          cycle_id: targetCycleId || null,
+          cycle_start_date: targetCycleStartDate || null,
+          week_start_date: targetWeekStartDate || null,
           oferta_semanal: serializeWeeklyOfferSelection(dayClassPicker),
+          authorized_holiday_days: [...explicitHolidayDays],
         },
         { previousWeeks: synthesisPreviousWeeks },
       )
 
+      assertGenerationIsCurrent()
       sessionFingerprintsRef.current = buildSessionFingerprintMap(combined)
       setStaleFeedbackKeys(new Set())
       setWeekData(combined)
@@ -1790,6 +2465,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       // PASO 2 — Scoring automático tras generar (sin intervención de la usuaria).
       runScoring(combined)
     } catch (err) {
+      if (
+        err instanceof StaleGenerationResponseError ||
+        generationRunRef.current !== generationRunId
+      ) {
+        return
+      }
       setGenStep('')
       if (generationCheckpoint && weekHasMeaningfulSessionContent(generationCheckpoint)) {
         const completedDays = (generationCheckpoint.dias || []).filter((dia) =>
@@ -1803,8 +2484,12 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         setEditTitle(generationCheckpoint.titulo || '')
         setEditSheetName(`S${weekState.week || 1}`)
         lastPersistedDraftRef.current = JSON.stringify(generationCheckpoint)
-        saveWeekToHistory(weekState.mesocycle, weekState.week, generationCheckpoint)
-        setHistory(getHistoryForMesocycle(weekState.mesocycle))
+        saveWeekToHistory(
+          weekState.mesocycle,
+          weekState.week,
+          attachExactCycleIdentity(generationCheckpoint, weekState.week),
+        )
+        setHistory(readExactLocalHistory())
         setErrorMsg(
           `${humanizeNetworkLikeError(err, 'La generación se interrumpió.')} Se han conservado ${completedDays} ${completedDays === 1 ? 'día ya creado' : 'días ya creados'}; pulsa «Elegir días / continuar» para completar solo lo pendiente.`,
         )
@@ -1835,6 +2520,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
   }
 
   function handleCloseModal() {
+    if (publicationMutationLockRef.current || publicationMutationBusy) {
+      setErrorMsg('Espera a que termine la operación de publicación o guardado antes de cerrar.')
+      return
+    }
     if (status === 'previewing' && weekState.mesocycle && weekData != null) {
       persistDraftToLocalHistory()
     }
@@ -1874,56 +2563,133 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     return bits.join(' · ') || 'Error desconocido'
   }
 
+  function claimPublicationMutation(setBusy) {
+    if (publicationMutationLockRef.current || publicationMutationBusy) {
+      setErrorMsg('Ya hay una operación de guardado, importación o publicación en curso.')
+      return false
+    }
+    publicationMutationLockRef.current = true
+    setBusy(true)
+    return true
+  }
+
+  function releasePublicationMutation(setBusy) {
+    publicationMutationLockRef.current = false
+    setBusy(false)
+  }
+
+  function capturePublicationMutationSnapshot(fingerprint) {
+    return {
+      capturedRevision: weekEditRevisionRef.current,
+      capturedTargetIdentity: editorTargetIdentityRef.current,
+      capturedFingerprint: fingerprint,
+    }
+  }
+
+  function publicationMutationIsStillCurrent(snapshot) {
+    return publicationMutationSnapshotIsCurrent({
+      ...snapshot,
+      currentRevision: weekEditRevisionRef.current,
+      currentTargetIdentity: editorTargetIdentityRef.current,
+      currentFingerprint: currentPublicationFingerprintRef.current,
+    })
+  }
+
+  function publicationMutationTargetStillCurrent(snapshot) {
+    return publicationMutationTargetIsCurrent({
+      ...snapshot,
+      currentTargetIdentity: editorTargetIdentityRef.current,
+    })
+  }
+
   async function handlePublish() {
+    if (!claimPublicationMutation(setPublishing)) return
     try {
-      setPublishing(true)
       setErrorMsg('')
       if (!weekState.mesocycle || weekState.week == null) {
         throw new Error('Falta mesociclo o número de semana en el panel izquierdo.')
       }
-      let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
-      data.titulo = editTitle || data.titulo
-      data = attachEvoMethodMetadata(data)
-      const savedOfferSelection = parseWeeklyOfferSelection(data?.oferta_semanal)
+      const source = editingJson ? JSON.parse(rawJson) : weekData
+      const normalized = preparePublicationCandidate(source)
+      if (!normalized) throw new Error('No hay una semana válida que publicar.')
+      const savedOfferSelection = parseWeeklyOfferSelection(normalized?.oferta_semanal)
       const methodValidation = validateEvoWeek(
-        data,
+        normalized,
         savedOfferSelection
-          ? { offer: weeklyOfferSelectionToValidationOffer(savedOfferSelection) }
-          : undefined,
+          ? {
+              offer: weeklyOfferSelectionToValidationOffer(savedOfferSelection),
+              previousWeeks: publicationProgressionWeeks,
+              allowFestivo: false,
+              allowedHolidayDays: normalized?.authorized_holiday_days || [],
+            }
+          : {
+              offer: weeklyOfferSelectionToValidationOffer(dayClassPicker),
+              previousWeeks: publicationProgressionWeeks,
+              allowFestivo: false,
+              allowedHolidayDays: normalized?.authorized_holiday_days || [],
+            },
       )
-      if (!methodValidation.valid) {
-        const top = methodValidation.errors
-          .slice(0, 6)
-          .map((entry) => {
-            const day = data?.dias?.[entry.dayIndex]?.nombre || `Día ${Number(entry.dayIndex) + 1}`
-            const classLabel = EVO_SESSION_CLASS_DEFS.find((item) => item.key === entry.classKey)?.label || entry.classKey
-            return `${day} · ${classLabel}: ${entry.message}`
-          })
-          .join(' | ')
-        throw new Error(`Publicación bloqueada por Método EVO 1.2. ${top}`)
-      }
-      const warmupIssues = getWarmupBlockingIssuesForPublish(data?.dias || [])
-      if (warmupIssues.length) {
-        const top = warmupIssues
-          .slice(0, 4)
-          .map((x) => `${x.dayLabel} · ${x.classLabel}: ${x.hint}`)
-          .join(' | ')
-        throw new Error(
-          `Publicación bloqueada: hay secciones visibles que el Método EVO reserva para la gestión interna de la hora. La sesión publicada debe empezar en A/B/C o PARTE ÚNICA. ${top}`,
-        )
-      }
-      const normalized = normalizeWeekDataForEditor(
-        { ...data, mesociclo: weekState.mesocycle, semana: Number(weekState.week) },
-        { semana: Number(weekState.week), mesociclo: weekState.mesocycle },
-      )
+      const methodErrors = [
+        ...(methodValidation.errors || []),
+        ...(methodValidation.warnings || []),
+      ].map((entry) => {
+        const day = normalized?.dias?.[entry.dayIndex]?.nombre || `Día ${Number(entry.dayIndex) + 1}`
+        const classLabel =
+          EVO_SESSION_CLASS_DEFS.find((item) => item.key === entry.classKey)?.label || entry.classKey
+        return `${day} · ${classLabel}: ${entry.message}`
+      })
+      const warmupIssues = getWarmupBlockingIssuesForPublish(normalized?.dias || [])
+      const fingerprint = buildPublicationTargetFingerprint({
+        weekData: normalized,
+        mesocycle: weekState.mesocycle,
+        week: weekState.week,
+        phase: weekState.phase || '',
+        offer: serializeWeeklyOfferSelection(dayClassPicker),
+        contextFingerprint: publicationContextFingerprint,
+      })
+      const qualityGate = buildPublicationQualityGate({
+        evaluation: evalResult,
+        evaluationFingerprint: evalFingerprint,
+        targetFingerprint: fingerprint,
+        methodErrors,
+        offerPendingDays: pendingOfferedDays,
+        staleFeedbackKeys: [...staleFeedbackKeys],
+        warmupIssues: warmupIssues.map((x) => `${x.dayLabel} · ${x.classLabel}: ${x.hint}`),
+        contextReady:
+          briefingStatus === 'ready' &&
+          !briefingIsStale &&
+          !!briefingContextPack &&
+          proposalAccepted &&
+          publicationContextVerified &&
+          !!targetCycleStartDate,
+      })
+      assertPublicationGateApproved(qualityGate)
+      const mutationSnapshot = capturePublicationMutationSnapshot(fingerprint)
       const r = await upsertPublishedWeekBySlot(normalized, weekState.mesocycle, Number(weekState.week), {
         activateForHub: true,
+        contentFingerprint: fingerprint,
+        qualityGate,
+        sourceWeekId: editingPublishedSourceId,
+        draftId: hasEditingDraftVersion ? editingPublishedRowId : null,
+        expectedRevision: hasEditingDraftVersion ? Number(editingDraftRevision) : 0,
       })
-      if (r?.id) {
+      const mutationIsCurrent = publicationMutationIsStillCurrent(mutationSnapshot)
+      if (r?.id && publicationMutationTargetStillCurrent(mutationSnapshot)) {
         setEditingPublishedRowId(r.id)
+        setEditingDraftRevision(null)
+        setEditingPublishedSourceId(r.id)
         setEditingPublishedIsActive(true)
       }
-      setPublished(true)
+      if (mutationIsCurrent) {
+        setPublished(true)
+      } else {
+        setPublished(false)
+        setSavedPublishedEdit(false)
+        setDraftNotice(
+          'La versión enviada sí se publicó, pero conservamos tus cambios posteriores en el editor. Guárdalos como un borrador nuevo antes de volver a publicar.',
+        )
+        window.setTimeout(() => setDraftNotice(''), 9000)
+      }
       try {
         window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'publish' } }))
       } catch {
@@ -1932,38 +2698,66 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     } catch (err) {
       setErrorMsg('Error publicando: ' + formatClientError(err))
     } finally {
-      setPublishing(false)
+      releasePublicationMutation(setPublishing)
     }
   }
 
   async function handleSaveHubDraft() {
+    if (!claimPublicationMutation(setSavingHubDraft)) return
     if (!weekState.mesocycle || weekState.week == null) {
       setErrorMsg('Falta mesociclo o número de semana en el panel izquierdo.')
+      releasePublicationMutation(setSavingHubDraft)
       return
     }
     try {
-      setSavingHubDraft(true)
       setErrorMsg('')
-      let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
-      data.titulo = editTitle || data.titulo
-      data = attachEvoMethodMetadata(data)
-      const normalized = normalizeWeekDataForEditor(
-        { ...data, mesociclo: weekState.mesocycle, semana: Number(weekState.week) },
-        { semana: Number(weekState.week), mesociclo: weekState.mesocycle },
-      )
+      const source = editingJson ? JSON.parse(rawJson) : weekData
+      const normalized = preparePublicationCandidate(source)
+      if (!normalized) throw new Error('No hay una semana válida que guardar.')
+      const fingerprint = buildPublicationTargetFingerprint({
+        weekData: normalized,
+        mesocycle: weekState.mesocycle,
+        week: weekState.week,
+        phase: weekState.phase || '',
+        offer: serializeWeeklyOfferSelection(dayClassPicker),
+        contextFingerprint: publicationContextFingerprint,
+      })
+      const mutationSnapshot = capturePublicationMutationSnapshot(fingerprint)
       const r = await upsertPublishedWeekBySlot(normalized, weekState.mesocycle, Number(weekState.week), {
         activateForHub: false,
+        contentFingerprint: fingerprint,
+        qualityGate:
+          evalFingerprint === fingerprint
+            ? currentPublicationGate
+            : buildPublicationQualityGate({
+                evaluation: null,
+                evaluationFingerprint: '',
+                targetFingerprint: fingerprint,
+                contextReady: false,
+              }),
+        sourceWeekId: editingPublishedSourceId,
+        draftId: hasEditingDraftVersion ? editingPublishedRowId : null,
+        expectedRevision: hasEditingDraftVersion ? Number(editingDraftRevision) : 0,
       })
-      if (r?.id) {
+      const mutationIsCurrent = publicationMutationIsStillCurrent(mutationSnapshot)
+      if (r?.id && publicationMutationTargetStillCurrent(mutationSnapshot)) {
         setEditingPublishedRowId(r.id)
+        setEditingDraftRevision(Number(r.revision))
         setEditingPublishedIsActive(false)
       }
       saveWeekToHistory(weekState.mesocycle, weekState.week, normalized)
-      lastPersistedDraftRef.current = JSON.stringify(normalized)
-      setHistory(getHistoryForMesocycle(weekState.mesocycle))
-      setWeekData(normalized)
-      setRawJson(JSON.stringify(normalized, null, 2))
-      setDraftNotice('Borrador guardado en Supabase (la semana visible para coaches no cambia).')
+      setHistory(readExactLocalHistory())
+      if (mutationIsCurrent) {
+        lastPersistedDraftRef.current = JSON.stringify(normalized)
+        setWeekData(normalized)
+        setRawJson(JSON.stringify(normalized, null, 2))
+        setDraftNotice('Borrador guardado en Supabase (la semana visible para coaches no cambia).')
+      } else {
+        setSavedPublishedEdit(false)
+        setDraftNotice(
+          'Se guardó la versión enviada, pero tus cambios posteriores siguen en el editor y todavía no están guardados.',
+        )
+      }
       setTimeout(() => setDraftNotice(''), 4200)
       try {
         window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'excel-modal-hub-draft' } }))
@@ -1973,11 +2767,19 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     } catch (err) {
       setErrorMsg('Error guardando borrador en Supabase: ' + formatClientError(err))
     } finally {
-      setSavingHubDraft(false)
+      releasePublicationMutation(setSavingHubDraft)
     }
   }
 
   function loadWeekDataIntoEditor(data, semana, fallbackTitle = '') {
+    dayEditRunRef.current += 1
+    feedbackRunRef.current += 1
+    weekEditRevisionRef.current += 1
+    scoringRunRef.current += 1
+    setEvaluating(false)
+    setEvalResult(null)
+    setEvalFingerprint('')
+    setEvalError('')
     sessionFingerprintsRef.current = buildSessionFingerprintMap(data)
     setStaleFeedbackKeys(new Set())
     setDayClassPicker(weeklyOfferSelectionFromWeekData(data))
@@ -2001,34 +2803,121 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     }
   }
 
+  function applyEditorOpenPayload(payload) {
+    const {
+      sourceData,
+      semana,
+      fallbackTitle = '',
+      rowId = null,
+      draftRevision = null,
+      sourceWeekId = null,
+      isActive = false,
+    } = payload || {}
+    if (!sourceData || !semana) return
+    setEditingPublishedRowId(rowId)
+    setEditingDraftRevision(draftRevision)
+    setEditingPublishedSourceId(sourceWeekId)
+    setEditingPublishedIsActive(!!isActive)
+    loadWeekDataIntoEditor(sourceData, semana, fallbackTitle)
+  }
+
+  function requestEditorOpen(payload) {
+    if (!payload?.target || !payload?.sourceData) return false
+    if (!editorOpenTargetMatchesWeekState(payload.target, weekState)) {
+      pendingEditorOpenRef.current = payload
+      onSyncWeekFromHistory?.(
+        payload.target.week,
+        payload.target.mesocycle,
+        payload.target.phase ?? '',
+        payload.target.cycleStartDate,
+      )
+      return false
+    }
+    pendingEditorOpenRef.current = null
+    applyEditorOpenPayload(payload)
+    return true
+  }
+
+  function buildEditorOpenTarget(row, sourceData, fallbackSemana, fallbackMeso) {
+    const target = resolveEditorOpenTarget({
+      row,
+      data: sourceData,
+      fallbackSemana,
+      fallbackMeso,
+    })
+    // App conserva la fase actual cuando recibe null; reflejarlo también en la comparación.
+    if (!target.phase && target.mesocycle === weekState.mesocycle) {
+      target.phase = weekState.phase || null
+    }
+    return target
+  }
+
   async function handleSavePublishedEdit() {
     if (!editingPublishedRowId || !weekData) return
+    if (!claimPublicationMutation(setSavingPublishedEdit)) return
     try {
-      setSavingPublishedEdit(true)
       setErrorMsg('')
-      let data = editingJson ? JSON.parse(rawJson) : { ...weekData }
-      data.titulo = editTitle || data.titulo
-      data = attachEvoMethodMetadata(data)
-      await updatePublishedWeekData(editingPublishedRowId, data)
-      saveWeekToHistory(weekState.mesocycle, weekState.week, data)
-      lastPersistedDraftRef.current = JSON.stringify(data)
-      setHistory(getHistoryForMesocycle(weekState.mesocycle))
-      setWeekData(data)
-      setRawJson(JSON.stringify(data, null, 2))
-      setSavedPublishedEdit(true)
-      try {
-        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'save-published' } }))
-      } catch {
-        /* noop */
+      const source = editingJson ? JSON.parse(rawJson) : weekData
+      const data = preparePublicationCandidate(source)
+      if (!data) throw new Error('No hay una semana válida que guardar.')
+      const fingerprint = buildPublicationTargetFingerprint({
+        weekData: data,
+        mesocycle: weekState.mesocycle,
+        week: weekState.week,
+        phase: weekState.phase || '',
+        offer: serializeWeeklyOfferSelection(dayClassPicker),
+        contextFingerprint: publicationContextFingerprint,
+      })
+      const mutationSnapshot = capturePublicationMutationSnapshot(fingerprint)
+      const r = await upsertPublishedWeekBySlot(data, weekState.mesocycle, Number(weekState.week), {
+        activateForHub: false,
+        contentFingerprint: fingerprint,
+        qualityGate:
+          evalFingerprint === fingerprint
+            ? currentPublicationGate
+            : buildPublicationQualityGate({
+                evaluation: null,
+                evaluationFingerprint: '',
+                targetFingerprint: fingerprint,
+                contextReady: false,
+              }),
+        sourceWeekId: editingPublishedSourceId,
+        draftId: hasEditingDraftVersion ? editingPublishedRowId : null,
+        expectedRevision: hasEditingDraftVersion ? Number(editingDraftRevision) : 0,
+      })
+      const mutationIsCurrent = publicationMutationIsStillCurrent(mutationSnapshot)
+      if (r?.id && publicationMutationTargetStillCurrent(mutationSnapshot)) {
+        setEditingPublishedRowId(r.id)
+        setEditingDraftRevision(Number(r.revision))
       }
+      setEditingPublishedIsActive(false)
+      saveWeekToHistory(weekState.mesocycle, weekState.week, data)
+      setHistory(readExactLocalHistory())
+      if (mutationIsCurrent) {
+        lastPersistedDraftRef.current = JSON.stringify(data)
+        setWeekData(data)
+        setRawJson(JSON.stringify(data, null, 2))
+        setSavedPublishedEdit(true)
+        setDraftNotice('Cambios guardados como borrador nuevo. La versión visible para coaches no se ha modificado.')
+      } else {
+        setSavedPublishedEdit(false)
+        setDraftNotice(
+          'Se guardó la versión enviada, pero tus cambios posteriores siguen en el editor y todavía no están guardados.',
+        )
+      }
+      setTimeout(() => setDraftNotice(''), 5200)
     } catch (err) {
-      setErrorMsg('Error guardando cambios en Supabase: ' + formatClientError(err))
+      setErrorMsg('Error guardando la nueva versión borrador: ' + formatClientError(err))
     } finally {
-      setSavingPublishedEdit(false)
+      releasePublicationMutation(setSavingPublishedEdit)
     }
   }
 
   function openPublishedRowForEdit(row, fallbackSemana = null, fallbackMeso = null) {
+    if (publicationMutationLockRef.current || publicationMutationBusy) {
+      setErrorMsg('Espera a que termine la operación en curso antes de abrir otra semana.')
+      return
+    }
     if (!row?.data) {
       setErrorMsg('La semana publicada no tiene JSON editable válido en Supabase.')
       setStatus((s) => (s === 'previewing' ? 'previewing' : 'error'))
@@ -2039,15 +2928,30 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     const sourceData = normalizeWeekDataForEditor(row.data, { semana, mesociclo })
     sourceData.semana = semana
     sourceData.mesociclo = mesociclo || sourceData.mesociclo
-    setEditingPublishedRowId(row.id || null)
-    setEditingPublishedIsActive(!!row.is_active)
-    loadWeekDataIntoEditor(sourceData, semana, row.titulo || sourceData.titulo || '')
-    onSyncWeekFromHistory?.(semana, mesociclo, sourceData.phase || null)
+    const target = buildEditorOpenTarget(row, sourceData, semana, mesociclo)
+    sourceData.cycle_id = target.cycleId
+    sourceData.cycle_start_date = target.cycleStartDate
+    sourceData.week_start_date = target.weekStartDate
+    requestEditorOpen({
+      target,
+      sourceData,
+      semana,
+      fallbackTitle: row.titulo || sourceData.titulo || '',
+      rowId: row.id || null,
+      draftRevision:
+        row.publication_status === 'draft' && Number.isInteger(Number(row.revision))
+          ? Number(row.revision)
+          : null,
+      sourceWeekId:
+        row.publication_status === 'draft' ? row.source_week_id || null : row.id || null,
+      isActive: !!row.is_active,
+    })
   }
 
   function updateWeekData(updater) {
     setWeekData((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
+      weekEditRevisionRef.current += 1
       setRawJson(JSON.stringify(next, null, 2))
       if (editingPublishedRowId) setSavedPublishedEdit(false)
       return next
@@ -2095,6 +2999,10 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     sessionText,
   ) {
     const sk = feedbackStaleKey(diaIdx, feedbackKey)
+    const feedbackRunId = feedbackRunRef.current + 1
+    feedbackRunRef.current = feedbackRunId
+    const capturedRevision = weekEditRevisionRef.current
+    const capturedTargetIdentity = editorTargetIdentityRef.current
     setRegeneratingFeedbackKey(sk)
     setErrorMsg('')
     try {
@@ -2135,6 +3043,15 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       const raw = extractAnthropicTextBlocks(data)
       const feedback = sanitizeCoachFeedbackText(stripCodeFences(raw))
       if (!feedback.trim()) throw new Error('La API no devolvió texto de feedback.')
+      if (
+        feedbackRunRef.current !== feedbackRunId ||
+        weekEditRevisionRef.current !== capturedRevision ||
+        editorTargetIdentityRef.current !== capturedTargetIdentity
+      ) {
+        throw new StaleGenerationResponseError(
+          'El feedback pertenece a una versión anterior de la semana.',
+        )
+      }
 
       updateWeekData((prev) => {
         const dias = [...(prev.dias || [])]
@@ -2148,10 +3065,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return next
       })
     } catch (err) {
+      if (err instanceof StaleGenerationResponseError) return
       console.error(err)
       setErrorMsg(err?.message || 'No se pudo regenerar el feedback.')
     } finally {
-      setRegeneratingFeedbackKey(null)
+      if (feedbackRunRef.current === feedbackRunId) setRegeneratingFeedbackKey(null)
     }
   }
 
@@ -2162,6 +3080,22 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       return
     }
     if (!weekData?.dias?.[diaIdx]) return
+
+    const dayEditRunId = dayEditRunRef.current + 1
+    dayEditRunRef.current = dayEditRunId
+    const capturedRevision = weekEditRevisionRef.current
+    const capturedTargetIdentity = editorTargetIdentityRef.current
+    const assertDayEditIsCurrent = () => {
+      if (
+        dayEditRunRef.current !== dayEditRunId ||
+        weekEditRevisionRef.current !== capturedRevision ||
+        editorTargetIdentityRef.current !== capturedTargetIdentity
+      ) {
+        throw new StaleGenerationResponseError(
+          'La edición pertenece a una versión anterior de la semana.',
+        )
+      }
+    }
 
     setDayEditAiBusy(true)
     setErrorMsg('')
@@ -2175,6 +3109,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       } catch {
         /* sin biblioteca */
       }
+      assertDayEditIsCurrent()
       const refDay = buildReferenceMesocycleSystemAppendix(getReferenceMesocycleContextForLLM())
       if (refDay) {
         systemFull += refDay
@@ -2240,6 +3175,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         }
         const raw = extractAnthropicTextBlocks(data)
         if (!raw.trim()) throw new Error('La API no devolvió texto.')
+        assertDayEditIsCurrent()
         return parseAssistantDayJson(raw)
       }
 
@@ -2281,7 +3217,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       // Fallback duro: si no hubo cambios reales en la clase foco, pedimos SOLO ese campo en texto plano.
       if (!focusedChanged) {
         const focusedPrev = String(prevDia[editFocusClassKey] || '')
-        const fallbackSystem = `Eres ProgramingEvo. Debes reescribir SOLO una clase de un día aplicando el Método EVO 1.2.
+        const fallbackSystem = `Eres ProgramingEvo. Debes reescribir SOLO una clase de un día aplicando ${METHOD_EVO_V1_LABEL}.
 Devuelve SOLO texto plano de sesión (sin JSON, sin markdown, sin explicaciones). La sesión empieza directamente en A), B), C) o PARTE ÚNICA, con duración dentro del título. No muestres bienvenida, movilidad, calentamiento, preparación, transición, cierre, TIEMPO EFECTIVO ni cronograma 0'-60'.
 No toques otros campos porque no se te piden.
 Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
@@ -2324,13 +3260,19 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           throw new Error(getAnthropicProxyErrorMessage(fbData, fbText, fbRes.status))
         }
         const forcedText = stripCodeFences(extractAnthropicTextBlocks(fbData)).trim()
-        if (forcedText && forcedText !== focusedPrev) {
+        assertDayEditIsCurrent()
+        if (
+          forcedText &&
+          forcedText !== focusedPrev &&
+          (!/^FESTIVO$/i.test(forcedText) || /^FESTIVO$/i.test(focusedPrev))
+        ) {
           merged[editFocusClassKey] = forcedText
           focusedChanged = true
           changedSessions = listSessionFieldsChanged(prevDia, merged)
         }
       }
 
+      assertDayEditIsCurrent()
       updateWeekData((prev) => {
         const dias = [...(prev.dias || [])]
         dias[diaIdx] = merged
@@ -2367,10 +3309,11 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
 
       setDayAiDraftByIdx((prev) => ({ ...prev, [diaIdx]: '' }))
     } catch (err) {
+      if (err instanceof StaleGenerationResponseError) return
       console.error(err)
       setErrorMsg(err?.message || 'No se pudo aplicar la edición con IA.')
     } finally {
-      setDayEditAiBusy(false)
+      if (dayEditRunRef.current === dayEditRunId) setDayEditAiBusy(false)
     }
   }
 
@@ -2379,8 +3322,28 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       try {
         const parsed = JSON.parse(rawJson)
         if (!parsed || !Array.isArray(parsed.dias)) throw new Error('Falta el array "dias"')
-        sessionFingerprintsRef.current = buildSessionFingerprintMap(parsed)
-        setStaleFeedbackKeys(new Set())
+        const nextStale = new Set(staleFeedbackKeys)
+        for (let diaIdx = 0; diaIdx < parsed.dias.length; diaIdx += 1) {
+          const previousDay = weekData?.dias?.[diaIdx] || {}
+          const nextDay = parsed.dias[diaIdx] || {}
+          for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+            const sessionKey = sessionFingerprintKey(diaIdx, key)
+            const staleKey = feedbackStaleKey(diaIdx, feedbackKey)
+            const previousFeedback = String(previousDay?.[feedbackKey] || '')
+            const nextFeedback = String(nextDay?.[feedbackKey] || '')
+            const nextSession = String(nextDay?.[key] || '')
+            if (nextFeedback !== previousFeedback) {
+              sessionFingerprintsRef.current.set(sessionKey, nextSession)
+              nextStale.delete(staleKey)
+              continue
+            }
+            const alignedSession = String(sessionFingerprintsRef.current.get(sessionKey) || '')
+            if (nextSession !== alignedSession) nextStale.add(staleKey)
+            else nextStale.delete(staleKey)
+          }
+        }
+        weekEditRevisionRef.current += 1
+        setStaleFeedbackKeys(nextStale)
         setWeekData(parsed)
         setRawJson(JSON.stringify(parsed, null, 2))
       } catch (e) {
@@ -2394,12 +3357,50 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
   }
 
   async function openHistoryEntryForEdit(entry) {
+    if (publicationMutationLockRef.current || publicationMutationBusy) {
+      setErrorMsg('Espera a que termine la operación en curso antes de abrir el historial.')
+      return
+    }
     setErrorMsg('')
-    const mesociclo = weekState.mesocycle
+    const entryTarget = resolveEditorOpenTarget({
+      data: {
+        ...(entry?.weekDataFull || {}),
+        mesociclo:
+          entry?.mesociclo ||
+          entry?.weekDataFull?.mesociclo ||
+          weekState.mesocycle,
+        semana: entry?.semana,
+        cycle_id: entry?.cycleId || entry?.weekDataFull?.cycle_id,
+        cycle_start_date:
+          entry?.cycleStartDate || entry?.weekDataFull?.cycle_start_date,
+        week_start_date:
+          entry?.weekStartDate || entry?.weekDataFull?.week_start_date,
+      },
+      fallbackSemana: entry?.semana,
+      fallbackMeso: weekState.mesocycle,
+    })
+    const mesociclo = entryTarget.mesocycle
+    const entryCycleId = entryTarget.cycleId
+    if (!mesociclo || !entryCycleId) {
+      setErrorMsg(
+        'Esta referencia antigua no tiene ciclo exacto y no puede cargarse automáticamente en el editor actual.',
+      )
+      return
+    }
     let publishedRow = null
     try {
-      if (mesociclo) {
-        publishedRow = await getPublishedWeekByMesocycleAndWeek(mesociclo, entry?.semana)
+      if (mesociclo && entryCycleId) {
+        publishedRow =
+          (await getPublishedWeekDraftByMesocycleAndWeek(
+            mesociclo,
+            entry?.semana,
+            entryCycleId,
+          )) ||
+          (await getPublishedWeekByMesocycleAndWeek(
+            mesociclo,
+            entry?.semana,
+            entryCycleId,
+          ))
       }
     } catch {
       publishedRow = null
@@ -2410,7 +3411,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         if (
           active &&
           active.mesociclo === mesociclo &&
-          Number(active.semana) === Number(entry?.semana)
+          Number(active.semana) === Number(entry?.semana) &&
+          String(active.cycle_id || active.data?.cycle_id || '') === entryCycleId
         ) {
           publishedRow = active
         }
@@ -2425,8 +3427,6 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         semana: Number(entry.semana),
         mesociclo: mesociclo || entry.weekDataFull?.mesociclo || '',
       })
-      setEditingPublishedRowId(publishedRow?.id || null)
-      setEditingPublishedIsActive(!!publishedRow?.is_active)
     } else if (publishedRow?.data) {
       openPublishedRowForEdit(publishedRow, entry?.semana, mesociclo)
       return
@@ -2442,13 +3442,41 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
 
     sourceData.semana = entry.semana
     sourceData.mesociclo = mesociclo || sourceData.mesociclo
-    loadWeekDataIntoEditor(sourceData, entry.semana, entry.titulo || publishedRow?.titulo || '')
-    onSyncWeekFromHistory?.(entry.semana, sourceData.mesociclo || mesociclo, sourceData.phase || null)
+    const target = buildEditorOpenTarget(
+      publishedRow,
+      sourceData,
+      entry.semana,
+      mesociclo,
+    )
+    sourceData.cycle_id = target.cycleId
+    sourceData.cycle_start_date = target.cycleStartDate
+    sourceData.week_start_date = target.weekStartDate
+    requestEditorOpen({
+      target,
+      sourceData,
+      semana: Number(entry.semana),
+      fallbackTitle: entry.titulo || publishedRow?.titulo || '',
+      rowId: publishedRow?.id || null,
+      draftRevision:
+        publishedRow?.publication_status === 'draft' &&
+        Number.isInteger(Number(publishedRow?.revision))
+          ? Number(publishedRow.revision)
+          : null,
+      sourceWeekId:
+        publishedRow?.publication_status === 'draft'
+          ? publishedRow?.source_week_id || null
+          : publishedRow?.id || null,
+      isActive: !!publishedRow?.is_active,
+    })
   }
 
   async function recoverLatestLocalDraft() {
+    if (publicationMutationLockRef.current || publicationMutationBusy) {
+      setErrorMsg('Espera a que termine la operación en curso antes de recuperar otro borrador.')
+      return
+    }
     setErrorMsg('')
-    const entries = getHistoryForMesocycle(weekState.mesocycle)
+    const entries = readExactLocalHistory()
       .filter((e) => Number(e?.semana) === Number(weekState.week))
       .sort((a, b) => new Date(b?.savedAt || 0).getTime() - new Date(a?.savedAt || 0).getTime())
     const latest = entries[0]
@@ -2480,9 +3508,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       }
       await generateWeekExcel(data, isExcelFile ? existingBuffer : null, libRows)
       // Guardar en historial automáticamente
+      data = attachExactCycleIdentity(data, weekState.week)
       saveWeekToHistory(weekState.mesocycle, weekState.week, data)
       lastPersistedDraftRef.current = JSON.stringify(data)
-      setHistory(getHistoryForMesocycle(weekState.mesocycle))
+      setHistory(readExactLocalHistory())
       setStatus('previewing')
     } catch (err) {
       setErrorMsg('Error generando Excel: ' + err.message)
@@ -2506,12 +3535,25 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
    */
   async function runScoring(weekDataForScore) {
     if (!weekDataForScore) return null
+    const runId = scoringRunRef.current + 1
+    scoringRunRef.current = runId
+    const capturedRevision = weekEditRevisionRef.current
+    const capturedTargetIdentity = editorTargetIdentityRef.current
     setEvaluating(true)
     setEvalError('')
     setShowFullAnalysis(false)
     try {
-      const data = { ...weekDataForScore }
-      data.titulo = editTitle || data.titulo
+      const candidate = preparePublicationCandidate(weekDataForScore)
+      if (!candidate) throw new Error('No hay una semana válida que evaluar.')
+      const scoringFingerprint = buildPublicationTargetFingerprint({
+        weekData: candidate,
+        mesocycle: weekState.mesocycle,
+        week: weekState.week,
+        phase: weekState.phase || '',
+        offer: serializeWeeklyOfferSelection(dayClassPicker),
+        contextFingerprint: publicationContextFingerprint,
+      })
+      const data = { ...candidate }
       data.sheetName = editSheetName || `S${weekState.week || 1}`
 
       const realDays = Array.isArray(data.dias)
@@ -2541,7 +3583,16 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           mesocycle: weekState.mesocycle,
           week: weekState.week,
           phase: weekState.phase || '',
-          scope: { experienciaEvo: true, draftMode: true, partialWeek: realDays < 6 },
+          previousWeekData: publicationProgressionWeeks.at(-1) || null,
+          historicalWeeksData: publicationProgressionWeeks,
+          scope: {
+            experienciaEvo: true,
+            draftMode: true,
+            partialWeek: realDays < 6,
+            allowedHolidayDays: Array.isArray(candidate?.authorized_holiday_days)
+              ? candidate.authorized_holiday_days
+              : [],
+          },
         }),
       })
       const text = await res.text()
@@ -2554,14 +3605,30 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       if (!res.ok || json?.error) {
         throw new Error(json?.error || `Error ${res.status} al evaluar la semana.`)
       }
+      if (
+        scoringRunRef.current !== runId ||
+        weekEditRevisionRef.current !== capturedRevision ||
+        editorTargetIdentityRef.current !== capturedTargetIdentity
+      ) {
+        return null
+      }
       setEvalResult(json)
+      setEvalFingerprint(scoringFingerprint)
       return json
     } catch (err) {
+      if (
+        scoringRunRef.current !== runId ||
+        weekEditRevisionRef.current !== capturedRevision ||
+        editorTargetIdentityRef.current !== capturedTargetIdentity
+      ) {
+        return null
+      }
       setEvalError(`No se pudo evaluar la semana: ${err?.message || err}`)
       setEvalResult(null)
+      setEvalFingerprint('')
       return null
     } finally {
-      setEvaluating(false)
+      if (scoringRunRef.current === runId) setEvaluating(false)
     }
   }
 
@@ -2629,16 +3696,22 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    if (!claimPublicationMutation(setImportingExcel)) return
     if (!weekState.mesocycle || weekState.week == null) {
       setErrorMsg('Selecciona mesociclo y semana en el panel antes de importar el Excel.')
+      releasePublicationMutation(setImportingExcel)
       return
     }
     if (!/\.xlsx$/i.test(file.name)) {
       setErrorMsg('Sube un .xlsx exportado desde este modal (Descargar Excel).')
+      releasePublicationMutation(setImportingExcel)
       return
     }
+    const initialSnapshot = capturePublicationMutationSnapshot(
+      currentPublicationFingerprintRef.current,
+    )
+    let importedMutationSnapshot = null
     try {
-      setImportingExcel(true)
       setErrorMsg('')
       const buf = await file.arrayBuffer()
       let base
@@ -2653,7 +3726,15 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         return
       }
       base.titulo = String(editTitle || base.titulo || '').trim() || base.titulo
-      const { data, warnings, importReport } = await importProgramingEvoWeekFromXlsxBuffer(buf, base)
+      const imported = await importProgramingEvoWeekFromXlsxBuffer(buf, base)
+      if (!publicationMutationIsStillCurrent(initialSnapshot)) {
+        throw new Error(
+          'La semana cambió mientras se leía el Excel. No se ha aplicado ni guardado la importación.',
+        )
+      }
+      const warnings = imported.warnings || []
+      const importReport = imported.importReport
+      const data = attachExactCycleIdentity(imported.data, weekState.week)
       loadWeekDataIntoEditor(data, weekState.week, data.titulo || editTitle || '')
       setLastImportReport(importReport || null)
 
@@ -2663,29 +3744,43 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       // Persistencia en Supabase por mesociclo+semana (borrador: no activa el Hub al crear fila nueva).
       try {
         const normalized = normalizeWeekDataForEditor(
-          { ...data, mesociclo: targetMeso, semana: targetSemana },
+          attachExactCycleIdentity(
+            { ...data, mesociclo: targetMeso, semana: targetSemana },
+            targetSemana,
+          ),
           { semana: targetSemana, mesociclo: targetMeso },
         )
-        let targetRowId = editingPublishedRowId || null
-        if (!targetRowId && targetMeso && targetSemana != null) {
-          const latest = await getPublishedWeekByMesocycleAndWeek(targetMeso, targetSemana)
-          if (latest?.id) targetRowId = latest.id
-        }
-        if (!targetRowId) {
-          const active = await getActiveWeek()
-          if (active?.id && Number(active?.semana) === targetSemana && String(active?.mesociclo || '') === String(targetMeso || '')) {
-            targetRowId = active.id
-          }
-        }
-        if (targetRowId) {
-          await updatePublishedWeekData(targetRowId, normalized)
-          setEditingPublishedRowId(targetRowId)
-          const latestAfter = await getPublishedWeekByMesocycleAndWeek(targetMeso, targetSemana)
-          setEditingPublishedIsActive(!!latestAfter?.is_active)
-        } else if (targetMeso && targetSemana != null) {
-          const r = await upsertPublishedWeekBySlot(normalized, targetMeso, targetSemana, { activateForHub: false })
-          if (r?.id) {
+        if (targetMeso && targetSemana != null) {
+          const sourceWeekId = editingPublishedSourceId || null
+          const fingerprint = buildPublicationTargetFingerprint({
+            weekData: normalized,
+            mesocycle: targetMeso,
+            week: targetSemana,
+            phase: weekState.phase || '',
+            offer: normalized?.oferta_semanal || serializeWeeklyOfferSelection(dayClassPicker),
+            contextFingerprint: publicationContextFingerprint,
+          })
+          currentPublicationFingerprintRef.current = fingerprint
+          importedMutationSnapshot = capturePublicationMutationSnapshot(fingerprint)
+          const r = await upsertPublishedWeekBySlot(normalized, targetMeso, targetSemana, {
+            activateForHub: false,
+            contentFingerprint: fingerprint,
+            qualityGate: buildPublicationQualityGate({
+              evaluation: null,
+              evaluationFingerprint: '',
+              targetFingerprint: fingerprint,
+              contextReady: false,
+            }),
+            sourceWeekId,
+            draftId: hasEditingDraftVersion ? editingPublishedRowId : null,
+            expectedRevision: hasEditingDraftVersion ? Number(editingDraftRevision) : 0,
+          })
+          if (
+            r?.id &&
+            publicationMutationTargetStillCurrent(importedMutationSnapshot)
+          ) {
             setEditingPublishedRowId(r.id)
+            setEditingDraftRevision(Number(r.revision))
             setEditingPublishedIsActive(false)
           }
         }
@@ -2715,17 +3810,28 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
         await refreshMissingVideosPanel(targetMeso, targetSemana)
       }
 
+      const importedMutationIsCurrent =
+        !importedMutationSnapshot ||
+        publicationMutationIsStillCurrent(importedMutationSnapshot)
       if (warnings.length) {
-        setDraftNotice(`Excel importado y sincronizado. Avisos: ${warnings.join(' · ')}`)
+        setDraftNotice(
+          importedMutationIsCurrent
+            ? `Excel importado y sincronizado. Avisos: ${warnings.join(' · ')}`
+            : `La importación enviada se guardó, pero conservamos tus cambios posteriores en el editor. Avisos: ${warnings.join(' · ')}`,
+        )
         window.setTimeout(() => setDraftNotice(''), 9000)
       } else {
-        setDraftNotice('Excel importado y guardado en Supabase como borrador (coaches siguen con la semana activa).')
+        setDraftNotice(
+          importedMutationIsCurrent
+            ? 'Excel importado y guardado en Supabase como borrador (coaches siguen con la semana activa).'
+            : 'La importación enviada se guardó, pero tus cambios posteriores siguen en el editor y aún no están guardados.',
+        )
         window.setTimeout(() => setDraftNotice(''), 5500)
       }
     } catch (err) {
       setErrorMsg(String(err?.message || err) || 'No se pudo importar el Excel.')
     } finally {
-      setImportingExcel(false)
+      releasePublicationMutation(setImportingExcel)
     }
   }
 
@@ -2754,14 +3860,15 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 <button
                   type="button"
                   onClick={recoverLatestLocalDraft}
-                  className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all"
+                  disabled={publicationMutationBusy}
+                  className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 disabled:opacity-50 transition-all"
                 >
                   Recuperar ultimo borrador local
                 </button>
                 <button
                   type="button"
                   onClick={handleOpenActivePublishedWeekForEdit}
-                  disabled={openingActiveEdit}
+                  disabled={openingActiveEdit || publicationMutationBusy}
                   className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 transition-all disabled:opacity-50"
                 >
                   {openingActiveEdit ? 'Abriendo semana activa…' : 'Editar semana activa del Hub'}
@@ -3321,7 +4428,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                               <button
                                 type="button"
                                 onClick={() => openHistoryEntryForEdit(entry)}
-                                className="text-[9px] text-evo-accent font-bold uppercase hover:bg-evo-accent/10 px-2 py-1 rounded-lg transition-all border border-evo-accent/20"
+                                disabled={publicationMutationBusy}
+                                className="text-[9px] text-evo-accent font-bold uppercase hover:bg-evo-accent/10 disabled:opacity-50 px-2 py-1 rounded-lg transition-all border border-evo-accent/20"
                               >
                                 Editar
                               </button>
@@ -3329,9 +4437,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                                 type="button"
                                 onClick={() => {
                                   deleteWeekFromHistory(weekState.mesocycle, entry.semana, entry.entryId || null)
-                                  setHistory(getHistoryForMesocycle(weekState.mesocycle))
+                                  setHistory(readExactLocalHistory())
                                 }}
-                                className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
+                                disabled={publicationMutationBusy}
+                                className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 disabled:opacity-50 px-2 py-1 rounded-lg transition-all"
                               >
                                 Eliminar
                               </button>
@@ -3402,9 +4511,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {evalResult && !evaluating && typeof evalResult.scoreDisplay === 'number' && (
                     <div
                       className={`rounded-xl border px-4 py-3 space-y-2 ${
-                        evalResult.scoreDisplay >= 80
+                        publicationReady
                           ? 'bg-emerald-50 border-emerald-200'
-                          : evalResult.scoreDisplay >= 60
+                          : evaluationIsCurrent && evalResult.scoreDisplay >= 60
                             ? 'bg-amber-50 border-amber-200'
                             : 'bg-red-50 border-red-200'
                       }`}
@@ -3412,18 +4521,18 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <span
                           className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wide ${
-                            evalResult.scoreDisplay >= 80
+                            publicationReady
                               ? 'bg-emerald-600 text-white'
-                              : evalResult.scoreDisplay >= 60
+                              : evaluationIsCurrent && evalResult.scoreDisplay >= 60
                                 ? 'bg-amber-500 text-white'
                                 : 'bg-red-600 text-white'
                           }`}
                         >
-                          {evalResult.scoreDisplay >= 80
+                          {publicationReady
                             ? `Semana aprobada · ${evalResult.scoreDisplay}/100`
-                            : evalResult.scoreDisplay >= 60
-                              ? `Revisar antes de publicar · ${evalResult.scoreDisplay}/100`
-                              : `Semana bloqueada · ${evalResult.scoreDisplay}/100`}
+                            : !evaluationIsCurrent
+                              ? `Evaluación caducada · ${evalResult.scoreDisplay}/100`
+                              : `Revisión necesaria · ${evalResult.scoreDisplay}/100`}
                         </span>
                         {String(evalResult.reportText || '').trim() && (
                           <button
@@ -3435,6 +4544,18 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                           </button>
                         )}
                       </div>
+
+                      {!publicationReady && (
+                        <ul className="list-disc pl-5 space-y-0.5">
+                          {[...(currentPublicationGate.blockers || []), ...(currentPublicationGate.pending || [])]
+                            .slice(0, 8)
+                            .map((reason, i) => (
+                              <li key={`gate-${i}`} className="text-[11px] text-red-900 leading-snug">
+                                {reason}
+                              </li>
+                            ))}
+                        </ul>
+                      )}
 
                       {/* Amarillo (60-79): alerts */}
                       {evalResult.scoreDisplay >= 60 &&
@@ -3554,7 +4675,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   <summary className={`text-[10px] font-bold uppercase cursor-pointer ${
                     methodReview.errors.length ? 'text-red-800' : 'text-amber-800'
                   }`}>
-                    Método EVO 1.2 · {methodReview.errors.length} errores · {methodReview.warnings.length} avisos
+                    {METHOD_EVO_V1_LABEL} · {methodReview.errors.length} errores · {methodReview.warnings.length} avisos
                   </summary>
                   <ul className="mt-2 list-disc pl-5 space-y-1">
                     {[...methodReview.errors, ...methodReview.warnings].slice(0, 10).map((entry, index) => {
@@ -3610,7 +4731,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                           <button
                             type="button"
                             onClick={() => openHistoryEntryForEdit(entry)}
-                            className="text-[9px] text-evo-accent font-bold uppercase hover:bg-evo-accent/10 px-2 py-1 rounded border border-evo-accent/20"
+                            disabled={publicationMutationBusy}
+                            className="text-[9px] text-evo-accent font-bold uppercase hover:bg-evo-accent/10 disabled:opacity-50 px-2 py-1 rounded border border-evo-accent/20"
                           >
                             Editar
                           </button>
@@ -3618,9 +4740,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                             type="button"
                             onClick={() => {
                               deleteWeekFromHistory(weekState.mesocycle, entry.semana, entry.entryId || null)
-                              setHistory(getHistoryForMesocycle(weekState.mesocycle))
+                              setHistory(readExactLocalHistory())
                             }}
-                            className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded"
+                            disabled={publicationMutationBusy}
+                            className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 disabled:opacity-50 px-2 py-1 rounded"
                           >
                             ✕
                           </button>
@@ -4161,7 +5284,11 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
 
         {/* Footer */}
         <div className="px-8 py-5 border-t border-black/5 flex items-center justify-between flex-shrink-0 bg-gray-50/50 backdrop-blur-md">
-          <button onClick={handleCloseModal} className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest hover:text-[#1A0A1A] transition-all">
+          <button
+            onClick={handleCloseModal}
+            disabled={publicationMutationBusy}
+            className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest hover:text-[#1A0A1A] disabled:opacity-50 transition-all"
+          >
             Cancelar
           </button>
           <div className="flex flex-wrap justify-end items-center gap-3">
@@ -4171,10 +5298,12 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               type="file"
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
+              disabled={publicationMutationBusy}
               onChange={handleImportExcelChange}
             />
             {status === 'previewing' && (
               <button
+                disabled={publicationMutationBusy}
                 onClick={() => {
                   const nextDays = pendingOfferedDays.length
                     ? new Set(pendingOfferedDays)
@@ -4192,7 +5321,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   setProposalNarrative('')
                   setProposalSuggestedFocus('')
                 }}
-                className="px-5 py-2.5 rounded-xl border border-black/10 bg-white text-neutral-600 hover:text-[#1A0A1A] hover:bg-gray-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                className="px-5 py-2.5 rounded-xl border border-black/10 bg-white text-neutral-600 hover:text-[#1A0A1A] hover:bg-gray-50 disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
               >
                 Elegir días / continuar
               </button>
@@ -4213,23 +5342,19 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 <button
                   onClick={handlePublish}
                   disabled={
-                    publishing ||
+                    publicationMutationBusy ||
                     published ||
-                    savingHubDraft ||
-                    pendingOfferedDays.length > 0 ||
-                    (!!evalResult &&
-                      typeof evalResult.scoreDisplay === 'number' &&
-                      evalResult.scoreDisplay < 60)
+                    !publicationReady
                   }
                   className="flex items-center gap-2 px-8 py-3 rounded-xl bg-evo-accent hover:bg-evo-accent-hover disabled:opacity-50 text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-evo-accent/20 active:scale-95"
                   title={
                     pendingOfferedDays.length > 0
                       ? `Completa antes las clases pendientes de: ${pendingOfferedDays.join(', ')}`
-                      : !!evalResult &&
-                          typeof evalResult.scoreDisplay === 'number' &&
-                          evalResult.scoreDisplay < 60
-                        ? 'Corrige los problemas antes de publicar'
-                        : 'Hace visible esta semana para coaches (?coach=1) y la marca como activa en el Hub.'
+                      : !publicationReady
+                        ? currentPublicationGate.blockers?.[0] ||
+                          currentPublicationGate.pending?.[0] ||
+                          'Evalúa y aprueba esta versión exacta antes de publicar.'
+                        : 'Publica esta versión validada de forma atómica y la hace visible para coaches.'
                   }
                 >
                   {published ? '✓ Publicado' : publishing ? 'Publicando...' : 'Publicar Hub'}
@@ -4273,7 +5398,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                           <button
                             type="button"
                             onClick={() => { setMoreMenuOpen(false); handleSaveHubDraft() }}
-                            disabled={savingHubDraft || publishing || !weekState.mesocycle || weekState.week == null}
+                            disabled={publicationMutationBusy || !weekState.mesocycle || weekState.week == null}
                             className="text-left px-3 py-2 rounded-lg hover:bg-sky-50 disabled:opacity-50 text-sky-900 text-[11px] font-bold uppercase tracking-wide"
                             title="Guarda en Supabase para este mesociclo y semana sin cambiar la semana activa para coaches."
                           >
@@ -4283,7 +5408,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                             <button
                               type="button"
                               onClick={() => { setMoreMenuOpen(false); handleSavePublishedEdit() }}
-                              disabled={savingPublishedEdit}
+                              disabled={publicationMutationBusy}
                               className="text-left px-3 py-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50 text-indigo-700 text-[11px] font-bold uppercase tracking-wide"
                             >
                               {savedPublishedEdit ? '✓ Cambios guardados' : savingPublishedEdit ? 'Guardando...' : 'Guardar cambios'}
@@ -4292,7 +5417,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                           <button
                             type="button"
                             onClick={() => { setMoreMenuOpen(false); excelImportInputRef.current?.click() }}
-                            disabled={importingExcel || !weekState.mesocycle || weekState.week == null}
+                            disabled={publicationMutationBusy || !weekState.mesocycle || weekState.week == null}
                             className="text-left px-3 py-2 rounded-lg hover:bg-violet-50 disabled:opacity-50 text-violet-900 text-[11px] font-bold uppercase tracking-wide"
                             title="Solo el Excel descargado desde aquí (mismo orden de columnas). Recupera ediciones hechas en Excel al JSON del modal."
                           >

@@ -42,7 +42,8 @@ export function buildMesocycleProgrammingBlock({ mesocycle, week, totalWeeks, ph
 Estrategia específica del mesociclo de fuerza:
 - Prioriza básicos en la mayoría de días viables de Funcional, distribuidos para no repetir fatiga.
 - Incluye halterofilia en la semana con una progresión reconocible y cargas medias-altas, salvo incompatibilidad real.
-- No alargues el descanso de un solo movimiento por inercia: desde 3 minutos combina un segundo movimiento o accesorio; la excepción son las últimas series de RM de S6.`
+- No alargues el descanso de un solo movimiento por inercia: desde 3 minutos combina un segundo movimiento o accesorio; la excepción son las últimas series de RM de S6.
+- No conviertas los días de fuerza en el mismo molde «fuerza + intervalos»: máximo dos días interválicos no consecutivos y con relaciones trabajo/descanso distintas.`
     : ''
 
   return `════════════════════════════════════════

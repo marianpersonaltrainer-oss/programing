@@ -1,7 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DayCard from './DayCard.jsx'
 import { DAYS_ORDER, MESOCYCLES, AUTOCARGA_PHASES } from '../../constants/evoColors.js'
 import { coachBg, coachBorder, coachText } from '../CoachView/coachTheme.js'
+
+function inferredCycleStartDate(weekNumber = 1) {
+  const today = new Date()
+  const day = today.getDay()
+  const mondayOffset = day === 0 ? -6 : 1 - day
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + mondayOffset)
+  monday.setDate(monday.getDate() - Math.max(0, Number(weekNumber || 1) - 1) * 7)
+  const year = monday.getFullYear()
+  const month = String(monday.getMonth() + 1).padStart(2, '0')
+  const date = String(monday.getDate()).padStart(2, '0')
+  return `${year}-${month}-${date}`
+}
+
+export function resolveWeekPanelFormValues(weekState = {}) {
+  return {
+    mesocycle: weekState.mesocycle || 'fuerza',
+    week: weekState.week || 1,
+    phase: weekState.phase || '',
+    cycleStartDate:
+      weekState.cycleStartDate || inferredCycleStartDate(weekState.week),
+  }
+}
 
 export default function WeekPanel({
   weekState,
@@ -11,16 +33,33 @@ export default function WeekPanel({
   onSetMesocycle,
   onReset,
 }) {
+  const initialForm = resolveWeekPanelFormValues(weekState)
   const [showMesoForm, setShowMesoForm] = useState(!weekState.mesocycle)
-  const [mesoVal, setMesoVal] = useState(weekState.mesocycle || 'fuerza')
-  const [weekVal, setWeekVal] = useState(weekState.week || 1)
-  const [phaseVal, setPhaseVal] = useState(weekState.phase || '')
+  const [mesoVal, setMesoVal] = useState(initialForm.mesocycle)
+  const [weekVal, setWeekVal] = useState(initialForm.week)
+  const [phaseVal, setPhaseVal] = useState(initialForm.phase)
+  const [cycleStartVal, setCycleStartVal] = useState(initialForm.cycleStartDate)
+
+  useEffect(() => {
+    const next = resolveWeekPanelFormValues(weekState)
+    setMesoVal(next.mesocycle)
+    setWeekVal(next.week)
+    setPhaseVal(next.phase)
+    setCycleStartVal(next.cycleStartDate)
+    setShowMesoForm(!weekState.mesocycle)
+  }, [
+    weekState.cycleId,
+    weekState.cycleStartDate,
+    weekState.mesocycle,
+    weekState.phase,
+    weekState.week,
+  ])
 
   const selectedMeso = MESOCYCLES.find((m) => m.value === mesoVal)
   const confirmedCount = Object.values(weekState.sessions).filter((s) => s?.confirmed).length
 
   function handleApplyMeso() {
-    onSetMesocycle(mesoVal, weekVal, phaseVal || null)
+    onSetMesocycle(mesoVal, weekVal, phaseVal || null, cycleStartVal)
     setShowMesoForm(false)
   }
 
@@ -73,6 +112,7 @@ export default function WeekPanel({
                   setMesoVal(e.target.value)
                   setWeekVal(1)
                   setPhaseVal('')
+                  setCycleStartVal(inferredCycleStartDate(1))
                 }}
                 className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
               >
@@ -82,6 +122,20 @@ export default function WeekPanel({
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={`text-[9px] ${coachText.muted} font-bold uppercase tracking-widest ml-1 mb-1 block`}>
+                Inicio real del ciclo
+              </label>
+              <input
+                type="date"
+                value={cycleStartVal}
+                onChange={(e) => setCycleStartVal(e.target.value)}
+                className={`w-full ${coachBg.app} border ${coachBorder} rounded-xl px-4 py-2.5 text-xs !text-[#1A0A1A] font-medium focus:outline-none focus:border-[#A729AD]/50`}
+              />
+              <p className={`text-[9px] ${coachText.muted} mt-1 ml-1`}>
+                Identifica el ciclo exacto para no mezclar otra S{weekVal} antigua.
+              </p>
             </div>
             <div className="flex gap-3">
               <div className="flex-1">

@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import {
+  adminSecretsMatch,
+  checkAdminRateLimit,
+} from './lib/evoAdminAuth.js'
 
 function parseBody(req) {
   const raw = req.body
@@ -29,14 +33,47 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'origin_not_allowed' })
   }
 
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' })
+  }
+
+  const body = parseBody(req)
+  if (body === null) return res.status(400).json({ error: 'JSON inválido' })
+
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
-  if (!serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: 'Falta SUPABASE_SERVICE_ROLE_KEY o URL de Supabase.' })
+  const adminSecret = String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim()
+  if (!serviceKey || !supabaseUrl || !adminSecret) {
+    return res.status(500).json({
+      error:
+        'Falta SUPABASE_SERVICE_ROLE_KEY, URL de Supabase o COACH_GUIDE_ADMIN_SECRET.',
+    })
   }
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
 
-  if (req.method === 'GET') {
+  try {
+    const exceeded = await checkAdminRateLimit(supabase, req, {
+      endpoint: '/api/programming-reference-context',
+      limit: 30,
+      windowMinutes: 10,
+    })
+    if (exceeded) {
+      return res.status(429).json({
+        error: 'rate_limit_exceeded',
+        retry_after_seconds: 600,
+      })
+    }
+  } catch (error) {
+    console.error('[programming-reference-context] rate limit unavailable:', error?.message || error)
+    return res.status(503).json({ error: 'rate_limit_unavailable' })
+  }
+
+  if (!adminSecretsMatch(body.secret, adminSecret)) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+
+  const action = String(body.action || (Object.hasOwn(body, 'contextText') ? 'set' : 'get'))
+  if (action === 'get') {
     const { data, error } = await supabase
       .from('programming_reference_context')
       .select('context_text, source, updated_at')
@@ -50,16 +87,7 @@ export default async function handler(req, res) {
     })
   }
 
-  if (req.method === 'POST') {
-    const body = parseBody(req)
-    if (body === null) return res.status(400).json({ error: 'JSON inválido' })
-
-    const providedSecret = String(body.secret || '').trim()
-    const adminSecret = String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim()
-    if (!adminSecret || !providedSecret || providedSecret !== adminSecret) {
-      return res.status(401).json({ error: 'unauthorized' })
-    }
-
+  if (action === 'set') {
     const contextText = String(body.contextText || '').trim()
     const source = String(body.source || 'manual').trim().slice(0, 120) || 'manual'
 
@@ -76,5 +104,5 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true })
   }
 
-  return res.status(405).json({ error: 'Method Not Allowed' })
+  return res.status(400).json({ error: 'invalid_action' })
 }

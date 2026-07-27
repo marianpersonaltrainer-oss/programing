@@ -28,7 +28,7 @@ describe('systemPromptCore — contrato V1 compartido', () => {
   it('los tres flujos incluyen exactamente una vez el mismo núcleo', () => {
     for (const { name, prompt } of V1_PROMPTS) {
       expect(countOccurrences(prompt, SYSTEM_PROMPT_SHARED_CORE), name).toBe(1)
-      expect(prompt, name).toContain('MÉTODO EVO 1.2.0')
+      expect(prompt, name).toContain('MÉTODO EVO 1.3.0')
     }
   })
 
@@ -104,6 +104,9 @@ describe('systemPromptCore — contrato V1 compartido', () => {
     expect(SYSTEM_PROMPT_EXCEL).toContain('FEEDBACK REAL DE COACHES — SEMANA ANTERIOR')
     expect(SYSTEM_PROMPT_EXCEL).toContain('EvoFit no tiene una plantilla fija')
     expect(SYSTEM_PROMPT_EXCEL).toContain('dos bloques largos')
+    expect(SYSTEM_PROMPT_EXCEL).toContain("2' de trabajo admite 30-45'' de descanso")
+    expect(SYSTEM_PROMPT_EXCEL).toContain('máximo dos días de intervalos metabólicos')
+    expect(SYSTEM_PROMPT_EXCEL).toContain('clean/snatch/jerk')
     expect(SYSTEM_PROMPT_EXCEL).not.toMatch(/EJEMPLO COMPLETO EvoFit/i)
   })
 
@@ -117,6 +120,7 @@ describe('systemPromptCore — contrato V1 compartido', () => {
     expect(SYSTEM_PROMPT_DAY_EDIT).toContain('{ "dia": { ... } }')
     expect(SYSTEM_PROMPT_DAY_EDIT).toContain('Copia carácter a carácter')
     expect(SYSTEM_PROMPT_DAY_EDIT).toContain('correspondencia feedback ↔ sesión')
+    expect(SYSTEM_PROMPT_DAY_EDIT).toContain('No inventes «FESTIVO»')
   })
 
   it('no hay interpolaciones rotas', () => {

@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import { buildEditHistoryEntry } from '../utils/publishedWeekEditLog.js'
+import {
+  assertPublicationGateApproved,
+} from '../utils/publicationQualityGate.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -14,35 +16,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // ── Semanas publicadas ────────────────────────────────────────────────────────
 
-export async function publishWeek(weekData, mesociclo, semana) {
-  const { error: deactivateErr } = await supabase
-    .from('published_weeks')
-    .update({ is_active: false })
-    .eq('mesociclo', mesociclo)
-
-  if (deactivateErr) throw deactivateErr
-
-  const { data, error } = await supabase
-    .from('published_weeks')
-    .insert({
-      mesociclo,
-      semana,
-      titulo: weekData.titulo,
-      data: weekData,
-      is_active: true,
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
-
 export async function getActiveWeek() {
   const { data, error } = await supabase
     .from('published_weeks')
     .select('*')
     .eq('is_active', true)
+    .eq('publication_status', 'published')
     .order('published_at', { ascending: false })
     .limit(1)
     .single()
@@ -51,41 +30,12 @@ export async function getActiveWeek() {
   return data || null
 }
 
-/** Actualiza el JSON `data` de una fila publicada (requiere políticas RLS que permitan UPDATE). */
-export async function updatePublishedWeekData(rowId, weekData) {
-  const { data: row, error: fetchErr } = await supabase
-    .from('published_weeks')
-    .select('data, edit_history')
-    .eq('id', rowId)
-    .single()
-
-  if (fetchErr) throw fetchErr
-
-  const entry = buildEditHistoryEntry(row?.data, weekData, {
-    actor: 'programador',
-    source: 'generar_programacion',
-  })
-  const hist = Array.isArray(row?.edit_history) ? [...row.edit_history] : []
-  if (entry) hist.push(entry)
-  const edit_history = hist.slice(-150)
-
-  const { error } = await supabase
-    .from('published_weeks')
-    .update({
-      data: weekData,
-      titulo: weekData.titulo,
-      edit_history,
-    })
-    .eq('id', rowId)
-
-  if (error) throw error
-}
-
 /** Listado para selectores (export admin, etc.). */
 export async function listPublishedWeeksSummary(limit = 80) {
   const { data, error } = await supabase
     .from('published_weeks')
-    .select('id, titulo, semana, mesociclo, published_at, is_active')
+    .select('id, titulo, semana, mesociclo, cycle_id, cycle_start_date, week_start_date, published_at, is_active, publication_status, version_number')
+    .in('publication_status', ['published', 'superseded'])
     .order('published_at', { ascending: false })
     .limit(limit)
 
@@ -106,13 +56,17 @@ export async function getPublishedWeekById(id) {
 }
 
 /** Devuelve la última fila publicada para (mesociclo, semana), activa o no. */
-export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
+export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana, cycleId) {
   if (!mesociclo || semana == null) return null
+  if (!cycleId) throw new Error('Falta cycleId para abrir una semana publicada exacta.')
   const { data, error } = await supabase
     .from('published_weeks')
-    .select('id, mesociclo, semana, titulo, data, is_active, published_at')
+    .select('*')
     .eq('mesociclo', mesociclo)
     .eq('semana', semana)
+    .eq('cycle_id', cycleId)
+    .in('publication_status', ['published', 'superseded'])
+    .order('version_number', { ascending: false })
     .order('published_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -121,92 +75,130 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana) {
   return data || null
 }
 
-/**
- * Una sola semana visible en el Hub para coaches: desactiva el resto y activa la del slot (mesociclo + semana).
- * Debe ejecutarse tras guardar datos con `upsertPublishedWeekBySlot` si quieres que `getActiveWeek()` devuelva esta semana.
- */
-export async function activatePublishedWeekForHub(mesociclo, semana) {
-  if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
-  const row = await getPublishedWeekByMesocycleAndWeek(mesociclo, semana)
-  if (!row?.id) throw new Error('No se encontró la fila publicada para activar en el Hub')
-  const { error: offErr } = await supabase
-    .from('published_weeks')
-    .update({ is_active: false })
-    .neq('id', '00000000-0000-0000-0000-000000000000')
-  if (offErr) {
-    console.warn(
-      'activatePublishedWeekForHub: no se pudieron desactivar todas las semanas (revisa RLS). Se activa solo esta fila con published_at reciente.',
-      offErr.message,
-    )
+/** Borrador mutable exacto del slot; nunca se usa como histórico de progresión. */
+export async function getPublishedWeekDraftByMesocycleAndWeek(mesociclo, semana, cycleId) {
+  if (!mesociclo || semana == null) return null
+  if (!cycleId) throw new Error('Falta cycleId para abrir un borrador exacto.')
+  const secret = publicationAdminSecret('')
+  if (!secret) return null
+  const json = await callPublishedWeekVersionsApi(
+    {
+      action: 'get_draft',
+      secret,
+      mesocycle: mesociclo,
+      week: Number(semana),
+      cycleId,
+    },
+    { allowEmptyRow: true },
+  )
+  return json?.row || null
+}
+
+export function publicationAdminSecret(explicitSecret = '') {
+  const direct = String(explicitSecret || '').trim()
+  if (direct) return direct
+  try {
+    return String(sessionStorage.getItem('evo_coach_guide_admin_secret') || '').trim()
+  } catch {
+    return ''
   }
-  const now = new Date().toISOString()
-  const { error: onErr } = await supabase
-    .from('published_weeks')
-    .update({ is_active: true, published_at: now })
-    .eq('id', row.id)
-  if (onErr) throw onErr
-  return { id: row.id, mesociclo: row.mesociclo, semana: row.semana }
+}
+
+async function callPublishedWeekVersionsApi(payload, { allowEmptyRow = false } = {}) {
+  const response = await fetch('/api/published-week-versions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const error = new Error(json?.error || `Error ${response.status} al guardar la semana.`)
+    error.code = json?.code || response.status
+    throw error
+  }
+  if (!allowEmptyRow && !json?.row?.id) {
+    throw new Error('El servidor no devolvió una versión de semana válida.')
+  }
+  return json
 }
 
 /**
- * Upsert idempotente por slot lógico (mesociclo + semana).
- * Si existe fila previa en ese slot, actualiza `data`; si no, inserta fila con `is_active: false` hasta que actives.
- *
- * @param {boolean} [options.activateForHub=true] — Si es false, solo guarda JSON: los coaches siguen viendo la semana activa actual.
- *   Pon false para preparar la siguiente semana sin cambiar el Hub; true cuando quieras que ?coach=1 pase a esta semana.
+ * Guarda siempre una versión borrador. Si `activateForHub` es true, invalida
+ * primero cualquier evaluación almacenada, vuelve a sellar el contenido con la
+ * puerta exacta recibida y solo entonces ejecuta la publicación atómica.
  */
 export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, options = {}) {
-  const { activateForHub = true } = options
+  const {
+    activateForHub = false,
+    qualityGate = null,
+    sourceWeekId = null,
+    adminSecret = '',
+    draftId = null,
+    expectedRevision = draftId ? null : 0,
+  } = options
   if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
-  const prev = await getPublishedWeekByMesocycleAndWeek(mesociclo, semana)
-  if (prev?.id) {
-    await updatePublishedWeekData(prev.id, {
-      ...weekData,
-      mesociclo,
-      semana: Number(semana),
-    })
-    if (activateForHub) {
-      await activatePublishedWeekForHub(mesociclo, semana)
-    }
-    return { id: prev.id, mode: 'update', active: !!activateForHub }
+  if (!weekData || typeof weekData !== 'object') throw new Error('Falta el JSON de la semana')
+  if (activateForHub) assertPublicationGateApproved(qualityGate)
+  if (draftId && (!Number.isInteger(Number(expectedRevision)) || Number(expectedRevision) < 1)) {
+    throw new Error('Falta la revisión exacta del borrador que se intenta guardar o publicar.')
   }
-  const { data, error } = await supabase
-    .from('published_weeks')
-    .insert({
-      mesociclo,
-      semana: Number(semana),
-      titulo: weekData?.titulo || `S${Number(semana)}`,
-      data: {
-        ...weekData,
-        mesociclo,
-        semana: Number(semana),
-      },
-      is_active: false,
-    })
-    .select('id')
-    .single()
-  if (error) throw error
-  if (activateForHub) {
-    await activatePublishedWeekForHub(mesociclo, semana)
+  if (!draftId && Number(expectedRevision) !== 0) {
+    throw new Error('Un borrador nuevo debe comenzar con revisión esperada 0.')
   }
-  return { id: data?.id || null, mode: 'insert', active: !!activateForHub }
+  const secret = publicationAdminSecret(adminSecret)
+  if (!secret) {
+    throw new Error(
+      'Falta la clave de administración. Introdúcela en Contenido Coach o Tu método antes de guardar/publicar.',
+    )
+  }
+
+  const normalized = {
+    ...weekData,
+    mesociclo,
+    semana: Number(semana),
+  }
+  const { row, active } = await callPublishedWeekVersionsApi({
+    action: activateForHub ? 'publish' : 'save_draft',
+    secret,
+    mesocycle: mesociclo,
+    week: Number(semana),
+    weekData: normalized,
+    qualityGate: activateForHub ? qualityGate : null,
+    sourceWeekId,
+    draftId: draftId || null,
+    expectedRevision: Number(expectedRevision),
+  })
+  return {
+    ...row,
+    mode: activateForHub ? 'publish-version' : 'save-draft',
+    active: !!active,
+  }
 }
 
 /**
  * Todas las semanas publicadas de un mesociclo (una fila por número de semana, la más reciente por `published_at`).
  * Útil para sincronizar el historial local del generador con el Hub.
  */
-export async function listPublishedWeeksForMesocycle(mesociclo) {
+export async function listPublishedWeekVersionsForMesocycle(mesociclo) {
   if (!mesociclo) return []
   const { data, error } = await supabase
     .from('published_weeks')
-    .select('semana, titulo, data, published_at')
+    .select('id, mesociclo, semana, cycle_id, cycle_start_date, week_start_date, titulo, data, published_at, publication_status, version_number, content_fingerprint')
     .eq('mesociclo', mesociclo)
+    .in('publication_status', ['published', 'superseded'])
     .order('published_at', { ascending: false })
 
   if (error) throw error
+  return data || []
+}
+
+export async function listPublishedWeeksForMesocycle(mesociclo, cycleId = '') {
+  const data = await listPublishedWeekVersionsForMesocycle(mesociclo)
+  const exactRows = cycleId
+    ? data.filter((row) => String(row?.cycle_id || row?.data?.cycle_id || '') === cycleId)
+    : data
   const bySem = new Map()
-  for (const row of data || []) {
+  for (const row of exactRows) {
     const s = Number(row.semana)
     if (!Number.isFinite(s)) continue
     if (!bySem.has(s)) bySem.set(s, row)

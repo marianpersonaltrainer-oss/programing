@@ -1,5 +1,6 @@
 import { extractMainExerciseFromBlockB } from './sessionBlockB'
 import { EVO_SESSION_CLASS_DEFS } from '../constants/evoClasses.js'
+import { METHOD_EVO_V1_LABEL } from '../domain/method/methodEvoV1.js'
 
 const SEVERITY_RANK = { ok: 0, yellow: 1, orange: 2, red: 3 }
 
@@ -100,7 +101,7 @@ function sessionVisibleContractIssue(raw) {
   if (!forbiddenLine && !FULL_HOUR_TIMELINE_RE.test(text)) return null
   return {
     severity: 'red',
-    hint: `Sección visible no permitida por Método EVO 1.2: «${forbiddenLine || "cronograma 0'-60'"}». Empieza en A/B/C o PARTE ÚNICA.`,
+    hint: `Sección visible no permitida por ${METHOD_EVO_V1_LABEL}: «${forbiddenLine || "cronograma 0'-60'"}». Empieza en A/B/C o PARTE ÚNICA.`,
   }
 }
 

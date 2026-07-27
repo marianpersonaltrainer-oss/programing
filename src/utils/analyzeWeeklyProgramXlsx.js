@@ -1,9 +1,15 @@
 import ExcelJS from 'exceljs'
 import { EVO_SESSION_CLASS_DEFS } from '../constants/evoClasses.js'
+import { validateEvoWeek } from '../domain/method/validators/validateEvoWeek.js'
+import { readEvoVisibleSessionDuration } from '../domain/method/validators/evoQualitySignals.js'
 import { EXCEL_DAY_ORDER, buildWeekSkeleton } from './excelGenerationPlan.js'
 import { excelCellPlainString, pickPrimaryProgrammingWeekSheet } from './excelWorkbookRead.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from './importProgramingEvoWeekXlsx.js'
 import { normalizeXlsxBuffer } from './normalizeXlsxBuffer.js'
+import {
+  parseWeeklyOfferSelection,
+  weeklyOfferSelectionToValidationOffer,
+} from './weeklyOffer.js'
 
 const CORE_CLASS_KEYS = ['evofuncional', 'evobasics', 'evofit']
 const CLASS_BY_KEY = Object.fromEntries(EVO_SESSION_CLASS_DEFS.map((c) => [c.key, c]))
@@ -71,6 +77,10 @@ function isRealSessionText(text) {
 
 function extractMinutesSmart(text) {
   const s = String(text || '')
+  const visibleClock = readEvoVisibleSessionDuration(s)
+  if (visibleClock.complete && visibleClock.durations.length) {
+    return Math.round(visibleClock.totalMinutes)
+  }
   let objective = 0
 
   const caps = [...s.matchAll(/\b(?:amrap|for\s*time|time\s*cap)\s*(\d{1,3})\s*['’m]?\b/gi)]
@@ -155,9 +165,16 @@ function sessionStructureKind(text) {
   return 'bloques'
 }
 
-function isIntentionalOffDay(text) {
+export function isIntentionalOffDay(text) {
   const s = normalize(text)
-  return /\b(off|rest|descanso|no programad|open gym|evento|competicion|holiday|festivo)\b/.test(s)
+  if (
+    /^(?:off|rest|rest day|descanso|dia de descanso|no programad[ao](?: esta semana)?|open gym)$/.test(
+      s,
+    )
+  ) {
+    return true
+  }
+  return /^(?:evento|competicion|holiday|festivo)(?:\s*[-—:]\s*[\s\S]+)?$/.test(s)
 }
 
 function hasLmSignal(text) {
@@ -909,6 +926,74 @@ export function deriveProgramValidationOutcome({ blockingReasons, pendingCorrect
   return { key: 'aprobado', label: 'APROBADO' }
 }
 
+export function scoreForValidationOutcome(score, outcome) {
+  const normalizedScore = Math.min(100, Math.max(0, Number(score) || 0))
+  const status = String(outcome?.key || '').trim().toLowerCase()
+  if (status === 'bloqueado') return Math.min(normalizedScore, 49)
+  if (status === 'revision_necesaria') return Math.min(normalizedScore, 79)
+  return normalizedScore
+}
+
+function buildAdminAnalysisOffer(weekData) {
+  return Object.fromEntries(
+    EVO_SESSION_CLASS_DEFS.map((classDef) => [
+      classDef.label,
+      (weekData?.dias || [])
+        .filter((day) => {
+          const text = String(day?.[classDef.key] || '').trim()
+          return isRealSessionText(text) && !isIntentionalOffDay(text)
+        })
+        .map((day) => String(day?.nombre || '').trim().toLowerCase())
+        .filter(Boolean),
+    ]),
+  )
+}
+
+function formatMethodAdminIssue(entry, weekData) {
+  const day = Number.isInteger(entry?.dayIndex)
+    ? String(weekData?.dias?.[entry.dayIndex]?.nombre || '').trim()
+    : ''
+  const classLabel = entry?.classKey
+    ? CLASS_BY_KEY[entry.classKey]?.label || entry.classKey
+    : ''
+  const location = [day, classLabel].filter(Boolean).join(' · ')
+  return `[${entry.code}]${location ? ` ${location}:` : ''} ${entry.message}`
+}
+
+function uniqueTexts(values) {
+  return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))]
+}
+
+/**
+ * Proyección del validador canónico al análisis administrativo.
+ * Los errores son bloqueantes; los avisos quedan como correcciones pendientes.
+ */
+export function buildEvoMethodAdminGate(weekData, options = {}) {
+  const explicitOfferSelection = parseWeeklyOfferSelection(weekData?.oferta_semanal)
+  const explicitOffer = explicitOfferSelection
+    ? weeklyOfferSelectionToValidationOffer(explicitOfferSelection)
+    : null
+  const validation = validateEvoWeek(weekData, {
+    offer: options.offer || explicitOffer || buildAdminAnalysisOffer(weekData),
+    requireCompleteOffer: !!(options.offer || explicitOffer),
+    previousWeeks: options.previousWeekData
+      ? [options.previousWeekData]
+      : options.historicalWeeksData,
+    ...(Object.prototype.hasOwnProperty.call(options, 'allowedHolidayDays')
+      ? { allowedHolidayDays: options.allowedHolidayDays }
+      : {}),
+  })
+  return {
+    validation,
+    blockingReasons: uniqueTexts(
+      validation.errors.map((entry) => formatMethodAdminIssue(entry, weekData)),
+    ),
+    pendingCorrections: uniqueTexts(
+      validation.warnings.map((entry) => formatMethodAdminIssue(entry, weekData)),
+    ),
+  }
+}
+
 function buildCoachReviewSummary({ qualityPoints, realDayProfiles, alerts }) {
   const ordered = Object.entries(qualityPoints).sort((a, b) => a[1] - b[1])
   const weakest = ordered[0]?.[0] || 'fluidez_operativa'
@@ -996,7 +1081,6 @@ function buildClaudeReport({
     `INFORME SCORING S${week} – ${String(mesocycle || '').toUpperCase()} – ${String(phase || 'SIN FASE').toUpperCase()}`,
     `Resultado: ${statusLabel}`,
     `Score (vista): ${scoreDisplay}/100`,
-    scoreRaw !== scoreDisplay ? `Score interno (referencia): ${scoreRaw}` : null,
     `Validación básica: ${basicScoreDisplay}/100`,
     `Calidad de programación: ${qualityScoreDisplay}/100`,
     '',
@@ -1573,15 +1657,28 @@ export async function analyzeWeeklyProgramXlsx({
   const evoExperienceScoring = evaluateEvoExperienceScore({ data })
   const EVO_EXP_WEIGHT = 0.4
   const scoreRaw = Math.round(baseBlendScore * (1 - EVO_EXP_WEIGHT) + evoExperienceScoring.score * EVO_EXP_WEIGHT)
-  const scoreDisplay = Math.min(100, Math.max(0, scoreRaw))
   const basicScoreDisplay = Math.min(100, Math.max(0, basicScoreCapped))
   const qualityScoreDisplay = Math.min(100, Math.max(0, qualityAdjusted))
+
+  const methodAdminGate = buildEvoMethodAdminGate(data, {
+    offer: scope?.offer,
+    previousWeekData,
+    historicalWeeksData,
+    ...(Object.prototype.hasOwnProperty.call(scope || {}, 'allowedHolidayDays')
+      ? { allowedHolidayDays: scope.allowedHolidayDays }
+      : {}),
+  })
+  blockingReasons.push(...methodAdminGate.blockingReasons.filter((entry) => !blockingReasons.includes(entry)))
+  pendingCorrections.push(
+    ...methodAdminGate.pendingCorrections.filter((entry) => !pendingCorrections.includes(entry)),
+  )
 
   const validationOutcome = deriveProgramValidationOutcome({
     blockingReasons,
     pendingCorrections,
     alerts,
   })
+  const scoreDisplay = scoreForValidationOutcome(scoreRaw, validationOutcome)
   const importRecommended =
     blockingReasons.length === 0 && scoreDisplay > 70 && validationOutcome.key !== 'bloqueado'
   const kpi = {
@@ -1700,6 +1797,7 @@ export async function analyzeWeeklyProgramXlsx({
     passed,
     pendingCorrections,
     blockingReasons,
+    methodValidation: methodAdminGate.validation,
     validationOutcome,
     kpi,
     kpiExperiencia: experienciaEvo?.enabled

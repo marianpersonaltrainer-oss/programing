@@ -4,6 +4,7 @@ import { METHOD_EVO_V1_VERSION } from '../domain/method/methodEvoV1.js'
 
 export const METHOD_LEARNED_KEY = `programingevo_method_learned_v${METHOD_EVO_V1_VERSION.replaceAll('.', '_')}`
 export const LEGACY_METHOD_LEARNED_KEYS = [
+  'programingevo_method_learned_v1_2_0',
   'programingevo_method_learned_v1_1_0',
   'programingevo_method_learned_v1_0_0',
   'programingevo_method_learned',
@@ -36,20 +37,40 @@ function safeParse(raw) {
   return null
 }
 
+function migrateLegacyStateToPending(raw, sourceKey) {
+  const parsed = safeParse(raw) || { manual: String(raw || '').trim(), auto: [] }
+  const at = new Date().toISOString()
+  const migrated = Array.isArray(parsed.auto) ? [...parsed.auto] : []
+  const manual = String(parsed.manual || '').trim()
+  if (manual) {
+    migrated.unshift({
+      id: `legacy_reconfirm_${sourceKey}`,
+      at,
+      text: `Pendiente de reconfirmar tras actualizar el Método EVO: ${manual}`,
+    })
+  }
+  return { manual: '', auto: migrated }
+}
+
 /** @returns {MethodLearnedState} */
 export function loadLearnedState() {
   try {
-    let raw = localStorage.getItem(METHOD_LEARNED_KEY)
-    if (raw == null) {
-      for (const key of LEGACY_METHOD_LEARNED_KEYS) {
-        raw = localStorage.getItem(key)
-        if (raw != null) break
-      }
+    const currentRaw = localStorage.getItem(METHOD_LEARNED_KEY)
+    if (currentRaw != null) {
+      const parsed = safeParse(currentRaw)
+      if (parsed) return parsed
+      return { manual: String(currentRaw), auto: [] }
     }
-    if (raw == null) return { manual: '', auto: [] }
-    const parsed = safeParse(raw)
-    if (parsed) return parsed
-    return { manual: String(raw), auto: [] }
+
+    for (const key of LEGACY_METHOD_LEARNED_KEYS) {
+      const legacyRaw = localStorage.getItem(key)
+      if (legacyRaw == null) continue
+      const migrated = migrateLegacyStateToPending(legacyRaw, key)
+      saveLearnedState(migrated)
+      return migrated
+    }
+
+    return { manual: '', auto: [] }
   } catch {
     return { manual: '', auto: [] }
   }

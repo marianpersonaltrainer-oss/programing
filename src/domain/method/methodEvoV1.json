@@ -1,8 +1,8 @@
 {
   "meta": {
     "id": "metodo-evo",
-    "version": "1.2.0",
-    "date": "2026-07-22",
+    "version": "1.3.0",
+    "date": "2026-07-23",
     "status": "active",
     "language": "es"
   },
@@ -208,6 +208,48 @@
       "level": "operational",
       "scope": "basics_movement_banks",
       "text": "La checklist de skills controla qué se enseña, pero no limita el banco del entrenamiento. Fuerza, WOD y accesorios pueden usar movimientos ya conocidos, core, burpees, carries, carrera, máquinas, lunges, saltos sencillos, kettlebell, dumbbell, pelotas y landmine para conservar variedad y condición física."
+    },
+    {
+      "id": "EVO-GEN-019",
+      "level": "hard",
+      "scope": "metabolic_rest",
+      "text": "En intervalos metabólicos, 91-120 segundos de trabajo admiten 30-45 segundos de descanso; 121-180 segundos admiten 45-60; y 181-300 segundos admiten 45-60. Por tanto 2' trabajo/2' descanso y 2'/1' no son válidos; 2'/45'' y 3'/1' sí pueden serlo. Los descansos iguales o superiores al trabajo se reservan únicamente para sprints breves de potencia máxima."
+    },
+    {
+      "id": "EVO-GEN-020",
+      "level": "hard",
+      "scope": "weekly_intervals",
+      "text": "Programar como máximo dos días de intervalos metabólicos por modalidad y semana, nunca consecutivos y con un único bloque interválico principal por sesión. ON/OFF, EMOM metabólico, IGYG con espera pasiva, estaciones con recuperación y cada N minutos descansando lo restante también cuentan; un reloj de fuerza no cuenta."
+    },
+    {
+      "id": "EVO-GEN-021",
+      "level": "hard",
+      "scope": "weekly_architecture",
+      "text": "Construir una huella de partes, formato, trabajo/descanso y experiencia antes de generar. No repetir una arquitectura exacta en días consecutivos, no mantener el mismo esqueleto más de dos días seguidos y no copiar el mismo día de la semana anterior sin una progresión verificable."
+    },
+    {
+      "id": "EVO-GEN-022",
+      "level": "hard",
+      "scope": "duration",
+      "text": "Las partes visibles de una sesión con varias partes no superan 33 minutos; una parte única sencilla no supera 42. Si una propuesta suma 54 minutos u otra duración imposible, se bloquea aunque cada bloque aislado parezca válido."
+    },
+    {
+      "id": "EVO-GEN-023",
+      "level": "hard",
+      "scope": "inventory_flow",
+      "text": "Diseñar para diez personas y los puestos reales: 1 RowErg, 2 Bike, 2 SkiErg, 2 trineos y 3 bancos. Decir «por parejas» no resuelve por sí solo una máquina para cinco parejas; deben existir estaciones, relevos, turnos o salidas escalonadas que eliminen la espera."
+    },
+    {
+      "id": "EVO-GEN-024",
+      "level": "hard",
+      "scope": "olympic_fatigue",
+      "text": "No acumular clean, snatch o jerk en tres o más días de una misma modalidad. Dos días consecutivos requieren que una exposición sea técnica y de bajo volumen; la familia cuenta aunque cambie barra por mancuerna."
+    },
+    {
+      "id": "EVO-GEN-025",
+      "level": "hard",
+      "scope": "holiday",
+      "text": "FESTIVO es un marcador exacto y solo puede aparecer cuando Marian o la oferta activa lo autorizan. No se usa para borrar una clase válida durante una generación o autocorrección."
     }
   ],
   "output_contract": {
@@ -537,12 +579,19 @@
   "validators": [
     {"id": "VAL-OFFER-001", "type": "deterministic", "severity": "error", "checks": "class_day_is_offered"},
     {"id": "VAL-OFFER-002", "type": "deterministic", "severity": "error", "checks": "no_feedback_for_unprogrammed_class"},
+    {"id": "VAL-OFFER-003", "type": "deterministic", "severity": "error", "checks": "holiday_marker_is_exact_and_authorized"},
+    {"id": "VAL-OFFER-004", "type": "deterministic", "severity": "error", "checks": "every_offered_class_has_a_real_session"},
     {"id": "VAL-OUTPUT-001", "type": "deterministic", "severity": "error", "checks": "no_forbidden_visible_sections"},
     {"id": "VAL-OUTPUT-002", "type": "deterministic", "severity": "error", "checks": "valid_block_letters_and_order"},
     {"id": "VAL-OUTPUT-003", "type": "deterministic", "severity": "error", "checks": "block_titles_include_duration"},
     {"id": "VAL-FORMAT-001", "type": "deterministic", "severity": "error", "checks": "amrap_not_for_time_and_no_time_cap"},
     {"id": "VAL-FORMAT-002", "type": "deterministic", "severity": "error", "checks": "for_time_has_time_cap_when_needed"},
     {"id": "VAL-TIME-001", "type": "deterministic", "severity": "error", "checks": "interval_arithmetic_matches_title"},
+    {"id": "VAL-TIME-002", "type": "deterministic", "severity": "error", "checks": "visible_session_duration_fits_operational_limit"},
+    {"id": "VAL-TIME-003", "type": "deterministic_semantic", "severity": "warning", "checks": "visible_session_duration_is_not_implausibly_short"},
+    {"id": "VAL-DENSITY-001", "type": "deterministic", "severity": "error", "checks": "metabolic_work_rest_ratio_is_within_method_limits"},
+    {"id": "VAL-DENSITY-002", "type": "deterministic_semantic", "severity": "error", "checks": "remaining_rest_has_verifiable_work_duration"},
+    {"id": "VAL-DENSITY-003", "type": "deterministic_semantic", "severity": "error", "checks": "at_most_one_principal_metabolic_interval_block_per_session"},
     {"id": "VAL-MATERIAL-001", "type": "deterministic", "severity": "error", "checks": "inventory_and_simultaneity_feasible"},
     {"id": "VAL-FEEDBACK-001", "type": "deterministic_semantic", "severity": "error", "checks": "feedback_entities_exist_in_session"},
     {"id": "VAL-RECORD-001", "type": "deterministic_semantic", "severity": "error", "checks": "rm_only_on_real_test"},
@@ -555,9 +604,15 @@
     {"id": "VAL-MATERIAL-002", "type": "deterministic_semantic", "severity": "warning", "checks": "high_setup_material_is_reused_or_exception_is_explained"},
     {"id": "VAL-MATERIAL-003", "type": "deterministic_semantic", "severity": "warning_or_error", "checks": "simultaneous_classes_respect_shared_equipment_and_plate_demand"},
     {"id": "VAL-STRENGTH-001", "type": "deterministic_semantic", "severity": "error", "checks": "long_strength_cadence_has_second_movement_or_is_week_6_rm_exception"},
-    {"id": "VAL-VARIETY-002", "type": "deterministic_semantic", "severity": "warning_or_error", "checks": "functional_does_not_repeat_interval_wods_across_week"},
+    {"id": "VAL-STRENGTH-002", "type": "deterministic_semantic", "severity": "error", "checks": "strength_rest_matches_repetitions_and_intensity"},
+    {"id": "VAL-VARIETY-002", "type": "deterministic_semantic", "severity": "error", "checks": "each_modality_has_at_most_two_interval_days"},
+    {"id": "VAL-VARIETY-003", "type": "deterministic_semantic", "severity": "error", "checks": "metabolic_interval_days_are_not_consecutive"},
+    {"id": "VAL-VARIETY-004", "type": "deterministic_semantic", "severity": "error", "checks": "interval_profile_is_not_repeated_in_same_week"},
+    {"id": "VAL-ARCHITECTURE-001", "type": "deterministic_semantic", "severity": "error", "checks": "exact_session_architecture_is_not_repeated_on_consecutive_days"},
+    {"id": "VAL-ARCHITECTURE-002", "type": "deterministic_semantic", "severity": "error", "checks": "weekly_session_skeleton_is_not_monotonous"},
     {"id": "VAL-FATIGUE-001", "type": "semantic", "severity": "warning", "checks": "consecutive_and_mixed_route_fatigue"},
-    {"id": "VAL-HISTORY-001", "type": "semantic", "severity": "warning", "checks": "three_or_more_similarity_axes"},
+    {"id": "VAL-FATIGUE-002", "type": "deterministic_semantic", "severity": "warning_or_error", "checks": "olympic_family_does_not_accumulate_across_three_or_more_days"},
+    {"id": "VAL-HISTORY-001", "type": "deterministic_semantic", "severity": "error", "checks": "same_day_architecture_requires_verifiable_progression"},
     {"id": "VAL-HYBRIX-001", "type": "semantic", "severity": "error", "checks": "hybrix_specificity_and_inventory_flow"},
     {"id": "VAL-LOGISTICS-001", "type": "semantic", "severity": "warning", "checks": "explanation_transitions_and_waiting_are_realistic"}
   ]

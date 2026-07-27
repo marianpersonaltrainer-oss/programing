@@ -1,5 +1,14 @@
 import { findComplexEvoBasicsFamiliesInConditioning } from '../evoBasicsSkills.js'
-import { validateHighSetupReuse } from '../evoInventory.js'
+import { EVO_INVENTORY, validateHighSetupReuse } from '../evoInventory.js'
+import {
+  intervalClockMinutesFromBlock,
+  isEvoStrengthBlock,
+  isEvoMetabolicIntervalBlock,
+  validateEvoMetabolicWorkRest,
+  validateEvoSessionEquipmentCapacity,
+  validateEvoStrengthRest,
+  validateEvoVisibleSessionDuration,
+} from './evoQualitySignals.js'
 
 const FORBIDDEN_VISIBLE_LINE_RE =
   /^(BIENVENIDA|MOVILIDAD|CALENTAMIENTO|ACTIVACI[OÓ]N(?:\s+GENERAL)?|PREPARACI[OÓ]N|WOD\s*PREP|TRANSICI[OÓ]N|CIERRE|TIEMPO\s+EFECTIVO)\b/i
@@ -34,21 +43,6 @@ function requestsRmRecord(text) {
     .some((sentence) => /\bRM\b/i.test(sentence) && recordVerb.test(sentence) && !negatedRecord.test(sentence))
 }
 
-function intervalDurationFromBlock(text) {
-  const roundsMatch = String(text).match(/\b(\d+)\s*rondas?\b/i)
-  const workRestMatch = String(text).match(
-    /(\d+(?:[.,]\d+)?)\s*min(?:utos?)?\s*(?:de\s*)?trabajo\s*[/|]\s*(\d+(?:[.,]\d+)?)\s*min(?:utos?)?\s*(?:de\s*)?descanso/i,
-  )
-  if (!roundsMatch || !workRestMatch) return null
-  const rounds = Number(roundsMatch[1])
-  const work = Number(workRestMatch[1].replace(',', '.'))
-  const rest = Number(workRestMatch[2].replace(',', '.'))
-  const omitsLastRest = /sin\s+(?:realizar\s+)?(?:el\s+)?(?:u?ltimo|último)\s+descanso|no\s+se\s+realiza\s+(?:el\s+)?(?:u?ltimo|último)\s+descanso/i.test(
-    text,
-  )
-  return rounds * work + (omitsLastRest ? Math.max(0, rounds - 1) * rest : rounds * rest)
-}
-
 function strengthCadenceMinutes(text) {
   const value = String(text || '')
   const everyMatch = value.match(/\b(?:cada|every)\s+(\d+(?:[.,]\d+)?)(?::(\d{2}))?\s*['′]?\s*(?:x|por)?/i)
@@ -72,7 +66,7 @@ function hasComplementaryStrengthTask(text) {
  */
 export function validateEvoSessionContract(raw, options = {}) {
   const text = String(raw || '').trim()
-  if (!text || /^\(no programada esta semana\)$/i.test(text) || /^FESTIVO\b/i.test(text)) {
+  if (!text || /^\(no programada esta semana\)$/i.test(text) || /^FESTIVO$/i.test(text)) {
     return { valid: true, errors: [], warnings: [] }
   }
 
@@ -142,7 +136,10 @@ export function validateEvoSessionContract(raw, options = {}) {
     }
 
     const shownDuration = readDurationMinutes(title)
-    const calculatedDuration = intervalDurationFromBlock(`${title}\n${body}`)
+    const blockText = `${title}\n${body}`
+    const calculatedDuration = isEvoMetabolicIntervalBlock(blockText)
+      ? intervalClockMinutesFromBlock(blockText)
+      : null
     if (
       shownDuration != null &&
       calculatedDuration != null &&
@@ -156,8 +153,8 @@ export function validateEvoSessionContract(raw, options = {}) {
       )
     }
 
-    if (/\bFUERZA\b/i.test(title)) {
-      const strengthText = `${title}\n${body}`
+    const strengthText = `${title}\n${body}`
+    if (isEvoStrengthBlock({ header: title, body, text: strengthText })) {
       const cadence = strengthCadenceMinutes(strengthText)
       const isWeek6RmException =
         Number(options.mesocycleWeek) === 6 &&
@@ -172,6 +169,23 @@ export function validateEvoSessionContract(raw, options = {}) {
           ),
         )
       }
+    }
+  }
+
+  if (startsWithPartUnique && isEvoMetabolicIntervalBlock(text)) {
+    const shownDuration = readDurationMinutes(firstLine)
+    const calculatedDuration = intervalClockMinutesFromBlock(text)
+    if (
+      shownDuration != null &&
+      calculatedDuration != null &&
+      Math.abs(shownDuration - calculatedDuration) > 0.01
+    ) {
+      errors.push(
+        issue(
+          'VAL-TIME-001',
+          `La duración del intervalo no cuadra: el título muestra ${shownDuration} min y la estructura suma ${calculatedDuration} min.`,
+        ),
+      )
     }
   }
 
@@ -222,7 +236,21 @@ export function validateEvoSessionContract(raw, options = {}) {
     }
   }
 
-  warnings.push(...validateHighSetupReuse(text))
+  for (const validatorResult of [
+    validateEvoMetabolicWorkRest(text),
+    validateEvoStrengthRest(text),
+    validateEvoVisibleSessionDuration(text, { classKey: options.classKey }),
+    validateEvoSessionEquipmentCapacity(text, {
+      inventory: options.inventory || EVO_INVENTORY,
+      classCapacity: options.classCapacity,
+      organizationText: options.organizationText,
+    }),
+  ]) {
+    errors.push(...validatorResult.errors)
+    warnings.push(...validatorResult.warnings)
+  }
+
+  warnings.push(...validateHighSetupReuse(text, options.organizationText))
 
   return { valid: errors.length === 0, errors, warnings }
 }

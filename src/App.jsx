@@ -268,9 +268,18 @@ function ProgrammerApp() {
           <ExcelGeneratorModal
             weekState={weekState}
             onClose={() => setShowExcelModal(false)}
-            onSyncWeekFromHistory={(semana, mesociclo, phase) => {
+            onSyncWeekFromHistory={(semana, mesociclo, phase, cycleStartDate) => {
               const targetMeso = mesociclo || weekState.mesocycle
-              if (targetMeso) setMesocycle(targetMeso, semana, phase ?? weekState.phase)
+              if (targetMeso) {
+                setMesocycle(
+                  targetMeso,
+                  semana,
+                  phase ?? weekState.phase,
+                  cycleStartDate === undefined
+                    ? weekState.cycleStartDate
+                    : cycleStartDate,
+                )
+              }
             }}
           />
         )}

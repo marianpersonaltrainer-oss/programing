@@ -1,4 +1,5 @@
 import { EVO_SESSION_CLASS_DEFS } from '../constants/evoClasses.js'
+import { normalizeProgrammingDate } from './programmingContextSelection.js'
 
 /** Orden fijo del JSON semanal (coincide con el prompt Excel). */
 export const EXCEL_DAY_ORDER = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO']
@@ -42,6 +43,69 @@ export function buildWeekSkeleton(semana, mesociclo) {
     resumen: { estimulo: '', intensidad: '', foco: '', nota: '' },
     dias: EXCEL_DAY_ORDER.map((nombre) => emptyDay(nombre)),
   }
+}
+
+/**
+ * Extrae únicamente cierres/festivos que el programador haya escrito de forma
+ * afirmativa junto al día. No convierte una ausencia de clases en FESTIVO.
+ */
+export function resolveExplicitHolidayDays(instructions) {
+  const dayAlternation = DAY_SLUGS.map(({ slug }) => slug).join('|')
+  const predicateRe =
+    /\b(?:festiv[oa]s?|cierre|cerrad[oa]s?|cerramos|cerrara|cerraran)\b/i
+  const uncertainRe =
+    /\b(?:quiza|quizas|tal\s+vez|puede\s+que|podria|pendiente|por\s+confirmar|no\s+confirmad[oa]|por\s+decidir|aun\s+no\s+(?:se\s+)?sabe)\b/i
+  const openNormallyRe =
+    /\b(?:no\s+(?:es|sera|son|seran)\s+festiv[oa]s?|abrimos|abre|abierto|horario\s+normal|hay\s+clase|funciona(?:mos)?\s+normal)\b/i
+
+  const sentences = normalizeForMatch(instructions)
+    .split(/[.!?;\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const holidays = new Set()
+
+  for (const sentence of sentences) {
+    // Separa “lunes festivo y martes abrimos” en dos predicados, pero conserva
+    // listas nominales como “lunes y martes son festivos”.
+    const boundaryRe = new RegExp(
+      `(?:,|\\by\\b)\\s+(?=(?:el\\s+)?(?:${dayAlternation})\\b)`,
+      'gi',
+    )
+    const clauses = []
+    let start = 0
+    let match
+    while ((match = boundaryRe.exec(sentence)) !== null) {
+      const candidate = sentence.slice(start, match.index).trim()
+      const remainder = sentence.slice(match.index + match[0].length)
+      const nextDayClauseHasItsOwnPredicate =
+        predicateRe.test(remainder) ||
+        openNormallyRe.test(remainder) ||
+        uncertainRe.test(remainder)
+      if (
+        nextDayClauseHasItsOwnPredicate &&
+        (predicateRe.test(candidate) || openNormallyRe.test(candidate))
+      ) {
+        if (candidate) clauses.push(candidate)
+        start = match.index + match[0].length
+      }
+    }
+    const tail = sentence.slice(start).trim()
+    if (tail) clauses.push(tail)
+
+    for (const clause of clauses) {
+      if (
+        !predicateRe.test(clause) ||
+        uncertainRe.test(clause) ||
+        openNormallyRe.test(clause)
+      ) {
+        continue
+      }
+      for (const { canon, slug } of DAY_SLUGS) {
+        if (new RegExp(`\\b${slug}\\b`, 'i').test(clause)) holidays.add(canon)
+      }
+    }
+  }
+  return holidays
 }
 
 /** Días cuyo nombre aparece como palabra en el texto. */
@@ -335,60 +399,129 @@ export function resolveDayCanonFromNombre(raw) {
  */
 function mapPartialDiasByCanon(partialDias, allowed) {
   const byCanon = new Map()
-  if (allowed.size === 1 && partialDias.length === 1) {
-    const item = partialDias[0]
-    if (item && typeof item === 'object') {
-      byCanon.set([...allowed][0], item)
-      return byCanon
-    }
-  }
 
-  const consumed = new Set()
   for (let j = 0; j < partialDias.length; j++) {
     const item = partialDias[j]
     if (!item || typeof item !== 'object') continue
     const canon = resolveDayCanonFromNombre(item.nombre)
     if (canon && allowed.has(canon)) {
       byCanon.set(canon, item)
-      consumed.add(j)
     }
-  }
-
-  for (let j = 0; j < partialDias.length; j++) {
-    if (consumed.has(j)) continue
-    const item = partialDias[j]
-    if (!item || typeof item !== 'object') continue
-    if (j >= EXCEL_DAY_ORDER.length) continue
-    const canon = EXCEL_DAY_ORDER[j]
-    if (!allowed.has(canon) || byCanon.has(canon)) continue
-    byCanon.set(canon, item)
   }
 
   return byCanon
 }
 
-/** Une respuesta parcial del modelo solo en los días permitidos; no pisa cadenas no vacías con vacío del modelo salvo que forceEmpty. */
-export function mergeGeneratedDaysIntoAccumulator(accumulator, partialJson, allowedDayNames) {
+function generatedDayDate(day) {
+  return normalizeProgrammingDate(
+    day?.fecha ?? day?.date ?? day?.week_start_date ?? day?.weekStartDate,
+  )
+}
+
+/**
+ * Impide que una respuesta tardía o mal rotulada se coloque en otro día.
+ * Si la salida incluye fecha, también debe coincidir con la capturada al pedirla.
+ */
+export function assertGeneratedDaysMatchRequest(partialJson, allowedDayNames, expectedDatesByDay = {}) {
   const allowed = allowedDayNames instanceof Set ? allowedDayNames : new Set(allowedDayNames)
   const partialDias = partialJson?.dias
-  if (!Array.isArray(partialDias)) return accumulator
+  if (!Array.isArray(partialDias)) {
+    throw new Error('La respuesta no contiene el array "dias" solicitado.')
+  }
+  if (partialDias.length !== allowed.size) {
+    throw new Error(
+      `La respuesta devolvió ${partialDias.length} día(s), pero esta petición esperaba exactamente ${allowed.size}.`,
+    )
+  }
+
+  const seen = new Set()
+  for (const item of partialDias) {
+    if (!item || typeof item !== 'object') {
+      throw new Error('La respuesta contiene un día vacío o inválido.')
+    }
+    const canon = resolveDayCanonFromNombre(item.nombre)
+    if (!canon) {
+      throw new Error('La respuesta no identifica el día solicitado en "nombre".')
+    }
+    if (!allowed.has(canon)) {
+      throw new Error(
+        `La IA devolvió ${canon}, pero esta petición era para ${[...allowed].join(', ')}. Se descarta para no sobrescribir otro día.`,
+      )
+    }
+    if (seen.has(canon)) throw new Error(`La respuesta repite ${canon}.`)
+    seen.add(canon)
+
+    const expectedDate = normalizeProgrammingDate(expectedDatesByDay?.[canon])
+    const actualDate = generatedDayDate(item)
+    if (expectedDate && actualDate && expectedDate !== actualDate) {
+      throw new Error(
+        `La IA devolvió ${canon} con fecha ${actualDate}, pero la fecha solicitada era ${expectedDate}.`,
+      )
+    }
+  }
+
+  for (const day of allowed) {
+    if (!seen.has(day)) throw new Error(`La respuesta no contiene ${day}.`)
+  }
+  return true
+}
+
+/** Une respuesta parcial del modelo solo en los días permitidos; no pisa cadenas no vacías con vacío del modelo salvo que forceEmpty. */
+export function mergeGeneratedDaysIntoAccumulator(
+  accumulator,
+  partialJson,
+  allowedDayNames,
+  expectedDatesByDay = {},
+  {
+    allowHolidayCreation = false,
+    allowedHolidayDays = [],
+  } = {},
+) {
+  const allowed = allowedDayNames instanceof Set ? allowedDayNames : new Set(allowedDayNames)
+  const authorizedHolidayDays =
+    allowedHolidayDays instanceof Set ? allowedHolidayDays : new Set(allowedHolidayDays)
+  const partialDias = partialJson?.dias
+  assertGeneratedDaysMatchRequest(partialJson, allowed, expectedDatesByDay)
 
   const byCanon = mapPartialDiasByCanon(partialDias, allowed)
 
   for (let i = 0; i < EXCEL_DAY_ORDER.length; i++) {
     const name = EXCEL_DAY_ORDER[i]
     if (!allowed.has(name)) continue
-    const src = byCanon.get(name) ?? partialDias[i]
+    const src = byCanon.get(name)
     if (!src || typeof src !== 'object') continue
     const target = accumulator.dias[i] || emptyDay(name)
     const merged = { ...target }
+    const holidayCreationAuthorized =
+      allowHolidayCreation === true && authorizedHolidayDays.has(name)
+    const blockedHolidayFeedbackKeys = new Set()
+    for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+      if (
+        !holidayCreationAuthorized &&
+        /^FESTIVO\b/i.test(String(src[key] ?? '').trim()) &&
+        !/^FESTIVO\b/i.test(String(target[key] ?? '').trim())
+      ) {
+        blockedHolidayFeedbackKeys.add(feedbackKey)
+      }
+    }
     for (const k of Object.keys(src)) {
       if (k === 'nombre') {
         merged.nombre = src.nombre || name
         continue
       }
+      const classDef = EVO_SESSION_CLASS_DEFS.find(({ key }) => key === k)
+      if (
+        !holidayCreationAuthorized &&
+        classDef &&
+        /^FESTIVO\b/i.test(String(src[k] ?? '').trim()) &&
+        !/^FESTIVO\b/i.test(String(target[k] ?? '').trim())
+      ) {
+        continue
+      }
+      if (blockedHolidayFeedbackKeys.has(k)) continue
       const v = src[k]
       if (k === 'wodbuster' && typeof v === 'string') {
+        if (!holidayCreationAuthorized && /^FESTIVO\b/i.test(v.trim())) continue
         merged[k] = v
         continue
       }

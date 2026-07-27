@@ -8,7 +8,7 @@ import { coachBg, coachBorder, coachText } from './coachTheme.js'
 export default function CoachWeekHistoryBrowser() {
   const [mesos, setMesos] = useState([])
   const [meso, setMeso] = useState('')
-  const [semana, setSemana] = useState('')
+  const [selectedEntryId, setSelectedEntryId] = useState('')
 
   useEffect(() => {
     setMesos(listMesocyclesInHistory())
@@ -18,20 +18,30 @@ export default function CoachWeekHistoryBrowser() {
     if (!meso && mesos.length) setMeso(mesos[mesos.length - 1])
   }, [meso, mesos])
 
-  const entries = useMemo(() => (meso ? getHistoryForMesocycle(meso) : []), [meso])
+  // Vista histórica explícita: aquí sí se muestran otros ciclos y referencias legacy.
+  const entries = useMemo(
+    () =>
+      meso
+        ? getHistoryForMesocycle(meso, {
+            allCycles: true,
+            includeLegacy: true,
+          })
+        : [],
+    [meso],
+  )
 
   useEffect(() => {
     if (!entries.length) {
-      setSemana('')
+      setSelectedEntryId('')
       return
     }
-    setSemana((prev) => {
-      if (prev && entries.some((e) => String(e.semana) === String(prev))) return prev
-      return String(entries[entries.length - 1].semana)
+    setSelectedEntryId((prev) => {
+      if (prev && entries.some((entry) => String(entry.entryId) === String(prev))) return prev
+      return String(entries[0].entryId || '')
     })
   }, [meso, entries])
 
-  const selected = entries.find((e) => String(e.semana) === String(semana))
+  const selected = entries.find((entry) => String(entry.entryId) === String(selectedEntryId))
   const weekData = selected?.weekDataFull
   const dias = weekData?.dias || []
 
@@ -69,15 +79,16 @@ export default function CoachWeekHistoryBrowser() {
               </select>
             </label>
             <label className="flex flex-col gap-1 min-w-[120px]">
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>Semana</span>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>Semana / ciclo</span>
               <select
-                value={semana}
-                onChange={(e) => setSemana(e.target.value)}
+                value={selectedEntryId}
+                onChange={(e) => setSelectedEntryId(e.target.value)}
                 className={`rounded-xl border ${coachBorder} px-3 py-2 text-sm ${coachText.primary} bg-white`}
               >
                 {entries.map((e) => (
-                  <option key={e.semana} value={String(e.semana)}>
+                  <option key={e.entryId} value={String(e.entryId)}>
                     S{e.semana}
+                    {e.cycleStartDate ? ` · ciclo ${e.cycleStartDate}` : ' · referencia antigua'}
                     {e.titulo ? ` — ${e.titulo.slice(0, 42)}${e.titulo.length > 42 ? '…' : ''}` : ''}
                   </option>
                 ))}

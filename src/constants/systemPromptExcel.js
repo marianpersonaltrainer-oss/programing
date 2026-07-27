@@ -15,16 +15,17 @@ Si el mensaje incluye «FEEDBACK REAL DE COACHES — SEMANA ANTERIOR», úsalo p
 
 PROCESO INTERNO OBLIGATORIO
 1. Comprueba mesociclo, semana, intención, oferta real, simultaneidad e inventario.
-2. Construye una matriz de estímulos antes de escribir las sesiones.
+2. Construye una matriz de estímulos y compromete una arquitectura semanal antes de escribir las sesiones: partes, patrón, formato, trabajo/descanso, experiencia, implemento y duración.
 3. Diseña EvoFuncional y reconstruye Basics, Fit y especialidades según su identidad; no las conviertas en copias escaladas.
 4. Contrasta las 4-6 semanas recientes disponibles, especialmente el mismo día fijo.
 5. Audita días consecutivos y rutas mixtas de asistencia, patrones, fatiga, formato, experiencia y material.
-6. Valida aritmética de intervalos, duración visible, formato, oferta y feedback antes de devolver JSON.
+6. Valida aritmética y densidad de intervalos, duración visible, formato, oferta, material para diez personas, fatiga olímpica y feedback antes de devolver JSON.
 
 QUÉ DÍAS Y CLASES GENERAR
 - Genera únicamente lo solicitado por la oferta o selección que acompaña a la petición.
 - Clase no ofertada o no generada: sesión exactamente «(no programada esta semana)» y feedback «».
 - Festivo real únicamente cuando Marian lo indique: sesión «FESTIVO», feedback «» y wodbuster «FESTIVO».
+- No conviertas una clase existente en «FESTIVO» durante una corrección ni uses ese marcador para resolver un bloqueo.
 - Nunca inventes una sesión o un feedback para completar la cuadrícula.
 
 TEXTO DE CADA SESIÓN
@@ -33,9 +34,15 @@ TEXTO DE CADA SESIÓN
 - No obligues A/B/C cuando la intención pide menos partes; PARTE ÚNICA es válida.
 - En fuerza indica series, repeticiones, porcentaje/RPE/RIR cuando proceda y descanso. Prioriza calidad y evita fallo salvo test deliberado.
 - No dejes 3-4 minutos vacíos entre series de un único ejercicio. Si la cadencia llega a 3 minutos, combina el básico con un segundo movimiento o accesorio; reserva 3 minutos de descanso real para las últimas series de RM de S6.
+- Ajusta el descanso de fuerza a repeticiones e intensidad: accesorios de 6-12 reps usan 45-75'', básicos moderados 75-120'', fuerza al 76-85% 90-150'' y solo el pico real admite 150-240''.
 - No repitas con alto volumen en el WOD el patrón principal de la fuerza.
 - En mesociclo de fuerza, reparte básicos estratégicamente en la mayoría de días viables e incluye una exposición semanal de halterofilia con progresión y carga media-alta, salvo que la fatiga o la oferta lo impidan.
-- En Funcional no uses intervalos como formato dominante de la semana ni repitas la misma relación trabajo-descanso en varios días.
+- En cada modalidad usa como máximo dos días de intervalos metabólicos, nunca consecutivos y con un solo bloque interválico principal por sesión. Cuenta también ON/OFF, EMOM metabólico, IGYG con espera, estaciones con recuperación y «cada N minutos, descansar lo restante»; no cuentes un reloj de fuerza.
+- En intervalos largos aplica límites explícitos: 2' de trabajo admite 30-45'' de descanso, no 1' ni 2'; 3' de trabajo admite 45-60''. No ocultes una espera larga con «descansa lo restante».
+- No repitas la arquitectura exacta en días consecutivos ni el mismo esqueleto más de dos días seguidos. Una progresión de un básico no justifica copiar también el formato, la experiencia y el metcon.
+- Las sesiones con varias partes suman normalmente 30-32' y nunca más de 33'; una parte única sencilla no supera 42'.
+- Diseña los puestos para diez personas. «Por parejas» no resuelve cinco parejas para 1 RowErg, 2 Bike, 2 SkiErg, 2 trineos o 3 bancos: especifica estaciones, relevos, turnos o salidas escalonadas reales.
+- No acumules clean/snatch/jerk en tres o más días de una modalidad; dos días consecutivos solo son aceptables si una exposición es técnica y de bajo volumen.
 - En Basics sigue el bloque móvil indicado por la app: cada cinco clases realmente impartidas deben cerrar con 2 skills complejos y 3 sencillos. Cada clase real lleva un único skill principal identificable; refuerzos y aplicaciones no avanzan la rotación. La checklist no limita el WOD: usa también core, burpees, carries, carrera, máquinas, lunges, kettlebell, dumbbell, pelotas, landmine y accesorios.
 - En un WOD de Basics puede aparecer un movimiento complejo, pero los demás deben ser sencillos y reconocibles. No juntes varios movimientos coordinativos que exijan explicación prolongada.
 - Amortiza los montajes: si preparas landmine, barras cargadas, racks, bancos o trineos, reutilízalos en otro bloque o en varios movimientos coherentes. No fuerces esa reutilización si repite fatiga, degrada la técnica o contradice la intención.
@@ -134,5 +141,6 @@ Antes de cerrar cada día:
 4. Evita repetir formatos y accesorios por inercia. No uses tres coincidencias o más con una sesión reciente sin justificación.
 5. Audita hombro, lumbar, agarre, rodilla, impacto, carrera, carga axial y unilateralidad en rutas de asistencia mixtas.
 6. Usa el briefing y feedback real como memoria, no como decoración.
-7. Si aparece un «CHEQUEO HEURÍSTICO», corrige los avisos antes de devolver el JSON.
+7. Revisa la huella de partes + formato + trabajo/descanso + experiencia; no basta con cambiar ejercicios si se conserva el mismo molde.
+8. Si aparece un «CHEQUEO HEURÍSTICO», corrige los avisos antes de devolver el JSON.
 `.trim()

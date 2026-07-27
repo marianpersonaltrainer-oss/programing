@@ -16,14 +16,14 @@ import { METHOD_LEARNED_KEY } from './methodLearnedStorage.js'
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 describe('methodPrompt — Método EVO versionado', () => {
-  it('usa Método EVO 1.2.0 como base canónica', () => {
-    expect(DEFAULT_METHOD).toContain('MÉTODO EVO 1.2.0')
+  it('usa Método EVO 1.3.0 como base canónica', () => {
+    expect(DEFAULT_METHOD).toContain('MÉTODO EVO 1.3.0')
     expect(DEFAULT_METHOD).toContain('EVOFIT')
     expect(DEFAULT_METHOD).toContain('menor complejidad técnica, no menor exigencia')
   })
 
   it('versiona también las decisiones manuales', () => {
-    expect(METHOD_LEARNED_KEY).toBe('programingevo_method_learned_v1_2_0')
+    expect(METHOD_LEARNED_KEY).toBe('programingevo_method_learned_v1_3_0')
   })
 
   it('incluye decisiones manuales confirmadas', () => {
@@ -54,7 +54,7 @@ describe('methodPrompt — Método EVO versionado', () => {
       auto: [{ text: 'AUTO' }],
       maxChars: METHOD_PROMPT_MAX_CHARS,
     })
-    expect(body).toContain('MÉTODO EVO 1.2.0')
+    expect(body).toContain('MÉTODO EVO 1.3.0')
     expect(body.length).toBeLessThanOrEqual(METHOD_PROMPT_MAX_CHARS)
   })
 

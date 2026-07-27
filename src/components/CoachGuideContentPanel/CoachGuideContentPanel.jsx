@@ -245,7 +245,7 @@ export default function CoachGuideContentPanel({ onClose }) {
           </div>
         ) : adminTab === 'upload_program' ? (
           <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
-            <AdminWeeklyProgramUpload />
+            <AdminWeeklyProgramUpload adminSecret={adminSecret} />
             <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
               Cerrar
             </button>

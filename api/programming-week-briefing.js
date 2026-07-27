@@ -33,6 +33,7 @@ import {
   normalizeWeeklyArchitecturePlan,
   replaceWeeklyArchitectureBlock,
 } from '../src/utils/weeklyArchitecturePlan.js'
+import { parseAssistantBriefingJson } from '../src/utils/parseAssistantWeekJson.js'
 import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
@@ -201,49 +202,63 @@ function formatEditHistoryForPack(weeks) {
   return parts.length ? parts.join('\n') : '(Sin historial de ediciones en Supabase para estas semanas.)'
 }
 
-function extractTopLevelJsonObject(text) {
-  const raw = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/s, '')
-  const start = raw.indexOf('{')
-  if (start < 0) return null
-  let depth = 0
-  let inString = false
-  let escape = false
-  for (let i = start; i < raw.length; i++) {
-    const ch = raw[i]
-    if (inString) {
-      if (escape) escape = false
-      else if (ch === '\\') escape = true
-      else if (ch === '"') inString = false
-      continue
-    }
-    if (ch === '"') {
-      inString = true
-      continue
-    }
-    if (ch === '{') depth++
-    else if (ch === '}') {
-      depth--
-      if (depth === 0) return raw.slice(start, i + 1)
-    }
-  }
-  return null
-}
-
 function parseProposalJson(assistantText, options = {}) {
-  const slice = extractTopLevelJsonObject(assistantText)
-  if (!slice) throw new Error('La IA no devolvió un JSON {…} reconocible.')
-  let o
-  try {
-    o = JSON.parse(slice)
-  } catch {
-    throw new Error('La IA devolvió JSON inválido o truncado.')
-  }
+  const o = parseAssistantBriefingJson(assistantText)
   const title = String(o.title || '').trim()
   const narrative = String(o.narrative || '').trim()
   const suggestedFocus = String(o.suggestedFocus || '').trim()
   if (!title || !narrative) throw new Error('JSON incompleto: faltan title o narrative.')
   const weeklyArchitecture = normalizeWeeklyArchitecturePlan(o.weeklyArchitecture, options)
   return { title, narrative, suggestedFocus, weeklyArchitecture }
+}
+
+async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messages }) {
+  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages,
+    }),
+  })
+
+  const rawText = await upstream.text()
+  let data
+  try {
+    data = rawText ? JSON.parse(rawText) : {}
+  } catch {
+    const err = new Error('Anthropic devolvió cuerpo no JSON')
+    err.preview = rawText?.slice(0, 200)
+    err.httpStatus = upstream.status
+    throw err
+  }
+
+  if (!upstream.ok) {
+    const err = new Error(data?.error?.message || `Anthropic HTTP ${upstream.status}`)
+    err.httpStatus = upstream.status
+    throw err
+  }
+
+  const assistantText = extractAnthropicTextBlocks(data)
+  if (!assistantText) {
+    const contentTypes = summarizeAnthropicContentTypes(data)
+    console.error('[programming-week-briefing] Anthropic sin texto utilizable:', {
+      status: upstream.status,
+      model: data?.model || model,
+      contentTypes,
+    })
+    throw new Error(
+      'Anthropic devolvió una respuesta sin texto utilizable para el briefing. Reintenta; si persiste, revisa prompt/modelo.',
+    )
+  }
+
+  return { assistantText, data }
 }
 
 function extractAnthropicTextBlocks(data) {
@@ -507,55 +522,50 @@ export default async function handler(req, res) {
       totalWeeks: Number.isFinite(totalWeeks) ? totalWeeks : null,
     })
 
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2600,
-        system: systemPrompt,
-        messages,
-      }),
-    })
-
-    const rawText = await upstream.text()
+    let assistantText
     let data
     try {
-      data = rawText ? JSON.parse(rawText) : {}
-    } catch {
-      return res.status(502).json({ error: 'Anthropic devolvió cuerpo no JSON', preview: rawText?.slice(0, 200) })
+      ;({ assistantText, data } = await requestBriefingFromAnthropic({
+        apiKey,
+        model,
+        systemPrompt,
+        messages,
+      }))
+    } catch (e) {
+      if (e?.preview) {
+        return res.status(502).json({ error: e.message, preview: e.preview })
+      }
+      return res.status(502).json({ error: e?.message || 'Error al contactar con Anthropic.' })
     }
 
-    if (!upstream.ok) {
-      const msg = data?.error?.message || `Anthropic HTTP ${upstream.status}`
-      return res.status(502).json({ error: msg })
-    }
-
-    const assistantText = extractAnthropicTextBlocks(data)
-    if (!assistantText) {
-      const contentTypes = summarizeAnthropicContentTypes(data)
-      console.error('[programming-week-briefing] Anthropic sin texto utilizable:', {
-        status: upstream.status,
-        model: data?.model || model,
-        contentTypes,
-      })
-      return res.status(502).json({
-        error:
-          'Anthropic devolvió una respuesta sin texto utilizable para el briefing. Reintenta; si persiste, revisa prompt/modelo.',
-      })
-    }
+    const parseOptions = { generationDays, weeklyOffer }
     let proposal
     try {
-      proposal = parseProposalJson(assistantText, {
-        generationDays,
-        weeklyOffer,
-      })
-    } catch (e) {
-      return res.status(502).json({ error: e?.message || 'La IA devolvió una propuesta inválida.' })
+      proposal = parseProposalJson(assistantText, parseOptions)
+    } catch (firstParseErr) {
+      console.warn('[programming-week-briefing] Reintento por propuesta no parseable:', firstParseErr?.message)
+      try {
+        const retryMessages = [
+          ...messages,
+          { role: 'assistant', content: assistantText.trim() },
+          {
+            role: 'user',
+            content:
+              'Reenvía ÚNICAMENTE un objeto JSON válido (sin markdown, sin texto extra) con las claves title, narrative, suggestedFocus y weeklyArchitecture. No repitas el paquete de datos.',
+          },
+        ]
+        ;({ assistantText, data } = await requestBriefingFromAnthropic({
+          apiKey,
+          model,
+          systemPrompt,
+          messages: retryMessages,
+        }))
+        proposal = parseProposalJson(assistantText, parseOptions)
+      } catch (retryErr) {
+        return res.status(502).json({
+          error: retryErr?.message || firstParseErr?.message || 'La IA devolvió una propuesta inválida.',
+        })
+      }
     }
 
     contextPack = replaceWeeklyArchitectureBlock(contextPack, proposal.weeklyArchitecture)

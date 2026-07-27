@@ -163,18 +163,20 @@ function coerceLikelyObject(parsed) {
   return isPlainObject(parsed) ? parsed : null
 }
 
-/**
- * @param {string} assistantText — `data.content[0].text` de Anthropic
- * @returns {object} objeto semanal parseado
- */
-export function parseAssistantWeekJson(assistantText) {
-  const candidateSlices = collectJsonCandidates(assistantText)
-  if (!candidateSlices.length) {
-    throw new Error(
-      'La respuesta no contiene un objeto JSON {…} reconocible. Prueba regenerar con salida SOLO JSON.',
-    )
-  }
+function looksLikeBriefingProposal(v) {
+  if (!isPlainObject(v)) return false
+  return Boolean(String(v.title || '').trim() && String(v.narrative || '').trim())
+}
 
+function coerceBriefingProposal(parsed) {
+  if (looksLikeBriefingProposal(parsed)) return parsed
+  if (isPlainObject(parsed?.proposal) && looksLikeBriefingProposal(parsed.proposal)) {
+    return parsed.proposal
+  }
+  return null
+}
+
+function parseJsonCandidates(candidateSlices, chooseParsed) {
   let lastErr = null
   for (const slice of candidateSlices) {
     const variants = [
@@ -192,7 +194,7 @@ export function parseAssistantWeekJson(assistantText) {
     for (const candidate of variants) {
       try {
         const parsed = JSON.parse(candidate)
-        const chosen = coerceLikelyObject(parsed)
+        const chosen = chooseParsed(parsed)
         if (chosen) return chosen
       } catch (e) {
         lastErr = e
@@ -204,4 +206,31 @@ export function parseAssistantWeekJson(assistantText) {
     lastErr?.message ||
       'JSON inválido. La IA devolvió texto no parseable; vuelve a generar en modo SOLO JSON.',
   )
+}
+
+/**
+ * @param {string} assistantText — propuesta de briefing (title, narrative, suggestedFocus, weeklyArchitecture)
+ * @returns {object}
+ */
+export function parseAssistantBriefingJson(assistantText) {
+  const candidateSlices = collectJsonCandidates(assistantText)
+  if (!candidateSlices.length) {
+    throw new Error('La IA no devolvió un JSON {…} reconocible.')
+  }
+  return parseJsonCandidates(candidateSlices, coerceBriefingProposal)
+}
+
+/**
+ * @param {string} assistantText — `data.content[0].text` de Anthropic
+ * @returns {object} objeto semanal parseado
+ */
+export function parseAssistantWeekJson(assistantText) {
+  const candidateSlices = collectJsonCandidates(assistantText)
+  if (!candidateSlices.length) {
+    throw new Error(
+      'La respuesta no contiene un objeto JSON {…} reconocible. Prueba regenerar con salida SOLO JSON.',
+    )
+  }
+
+  return parseJsonCandidates(candidateSlices, coerceLikelyObject)
 }

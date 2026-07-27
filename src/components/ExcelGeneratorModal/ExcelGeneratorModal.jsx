@@ -605,6 +605,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   /** Briefing conversacional: solo arranca cuando Marian confirma días y contexto. */
   const [briefingStatus, setBriefingStatus] = useState('idle') // idle | loading | ready | error
   const [briefingErrorMsg, setBriefingErrorMsg] = useState('')
+  const [briefingErrorCode, setBriefingErrorCode] = useState('')
+  const [briefingAdminSecretInput, setBriefingAdminSecretInput] = useState('')
+  const [briefingAuthBusy, setBriefingAuthBusy] = useState(false)
   const [briefingContextPack, setBriefingContextPack] = useState('')
   const [briefingApiMessages, setBriefingApiMessages] = useState([])
   const [briefingInputFingerprint, setBriefingInputFingerprint] = useState('')
@@ -1156,6 +1159,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setGenerationDayPicker(buildGenerationDaySelectionFromOffer(offer))
     setBriefingStatus('idle')
     setBriefingErrorMsg('')
+    setBriefingErrorCode('')
+    setBriefingAdminSecretInput('')
+    setBriefingAuthBusy(false)
     setBriefingContextPack('')
     setBriefingApiMessages([])
     setBriefingInputFingerprint('')
@@ -1189,6 +1195,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   ])
 
   async function prepareBriefing() {
+    setBriefingErrorCode('')
     if (!weekState?.mesocycle || weekState.week == null) {
       setBriefingStatus('error')
       setBriefingErrorMsg('Selecciona mesociclo y semana en el panel izquierdo.')
@@ -1209,8 +1216,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const adminSecret = publicationAdminSecret()
     if (!adminSecret) {
       setBriefingStatus('error')
+      setBriefingErrorCode('missing_admin_secret')
       setBriefingErrorMsg(
-        'Introduce primero la clave de administración en Contenido Coach o Tu método. El contexto interno no se carga sin autenticación.',
+        'Falta activar la sesión de administración para cargar el contexto interno.',
       )
       return
     }
@@ -1225,6 +1233,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     setBriefingStatus('loading')
     setBriefingErrorMsg('')
+    setBriefingErrorCode('')
     setProposalAccepted(false)
     setProposalStep('review')
     setRefineDraft('')
@@ -1251,7 +1260,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       ) {
         return
       }
-      if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
+      if (!res.ok) {
+        if (Number(res.status) === 401) {
+          setBriefingErrorCode('invalid_admin_secret')
+          throw new Error('La clave de administración ya no es válida para esta preview.')
+        }
+        throw new Error(errorMessage || `Error ${res.status}`)
+      }
       setBriefingContextPack(String(json.contextPack || ''))
       const contextSelection =
         json.contextSelection && typeof json.contextSelection === 'object'
@@ -1298,6 +1313,46 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       if (briefingRunRef.current !== briefingRunId) return
       setBriefingStatus('error')
       setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
+    }
+  }
+
+  async function activateBriefingAdminSession() {
+    const secret = String(briefingAdminSecretInput || '').trim()
+    if (!secret) {
+      setBriefingErrorCode('missing_admin_secret')
+      setBriefingErrorMsg('Introduce la clave de administración para continuar.')
+      return
+    }
+    setBriefingAuthBusy(true)
+    setBriefingErrorMsg('')
+    setBriefingErrorCode('')
+    try {
+      const { res, errorMessage } = await postJsonWithRetry(
+        '/api/programming-reference-context',
+        { action: 'get', secret },
+        0,
+      )
+      if (!res.ok) {
+        if (Number(res.status) === 401) {
+          setBriefingErrorCode('invalid_admin_secret')
+          setBriefingErrorMsg('La clave no coincide. No es el código de acceso de los coaches.')
+          return
+        }
+        throw new Error(errorMessage || `Error ${res.status}`)
+      }
+      try {
+        sessionStorage.setItem('evo_coach_guide_admin_secret', secret)
+      } catch {
+        throw new Error('El navegador no permite guardar la sesión de administración.')
+      }
+      setBriefingAdminSecretInput('')
+      setBriefingErrorCode('')
+      await prepareBriefing()
+    } catch (e) {
+      setBriefingStatus('error')
+      setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo validar la clave.'))
+    } finally {
+      setBriefingAuthBusy(false)
     }
   }
 
@@ -4155,17 +4210,57 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 <div className="rounded-2xl border border-red-200 bg-red-50/60 p-4 space-y-3">
                   <p className="text-sm font-bold text-red-900">No se pudo preparar la propuesta</p>
                   <p className="text-xs text-red-800/90">{briefingErrorMsg}</p>
-                  <button
-                    type="button"
-                    onClick={prepareBriefing}
-                    className="text-[11px] font-bold uppercase px-4 py-2 rounded-xl bg-white border border-red-300 text-red-900 hover:bg-red-100"
-                  >
-                    Reintentar con estos datos
-                  </button>
+                  {briefingErrorCode === 'missing_admin_secret' ||
+                  briefingErrorCode === 'invalid_admin_secret' ? (
+                    <div className="space-y-2 rounded-xl border border-red-200 bg-white/80 p-3">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-red-950">
+                        Clave de administración
+                      </label>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        value={briefingAdminSecretInput}
+                        disabled={briefingAuthBusy}
+                        onChange={(e) => {
+                          setBriefingAdminSecretInput(e.target.value)
+                          setBriefingErrorMsg('')
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            activateBriefingAdminSession()
+                          }
+                        }}
+                        placeholder="No es el código EVO19"
+                        className="w-full rounded-xl border border-red-200 bg-white px-3 py-2 text-sm !text-[#1A0A1A] focus:border-red-400 focus:outline-none disabled:opacity-60"
+                      />
+                      <p className="text-[9px] leading-relaxed text-red-900/75">
+                        Se valida sin modificar el histórico y queda activa solo en esta pestaña.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={activateBriefingAdminSession}
+                        disabled={briefingAuthBusy || !briefingAdminSecretInput.trim()}
+                        className="text-[11px] font-bold uppercase px-4 py-2 rounded-xl bg-red-900 text-white hover:bg-red-950 disabled:opacity-45"
+                      >
+                        {briefingAuthBusy ? 'Validando…' : 'Validar y preparar propuesta'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={prepareBriefing}
+                      className="text-[11px] font-bold uppercase px-4 py-2 rounded-xl bg-white border border-red-300 text-red-900 hover:bg-red-100"
+                    >
+                      Reintentar con estos datos
+                    </button>
+                  )}
                 </div>
               )}
 
-              {briefingStatus === 'error' && (
+              {briefingStatus === 'error' &&
+                briefingErrorCode !== 'missing_admin_secret' &&
+                briefingErrorCode !== 'invalid_admin_secret' && (
                 <div className="rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 space-y-3">
                   <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Modo manual (sin briefing IA)</p>
                   <p className="text-[10px] text-amber-900/85 leading-relaxed">

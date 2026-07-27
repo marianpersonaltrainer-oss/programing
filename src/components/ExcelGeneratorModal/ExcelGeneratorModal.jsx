@@ -1891,6 +1891,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
 
     setStatus('generating')
+    setGenStep('Cargando biblioteca EVO…')
 
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     let generationLibraryBlock = ''
@@ -1901,8 +1902,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       if (!Array.isArray(synthesisLibraryRows) || synthesisLibraryRows.length === 0) {
         throw new Error('La Biblioteca EVO oficial no devolvió ejercicios.')
       }
-      const autoMap = await fetchLibraryAutoVideoMap(synthesisLibraryRows, { maxResolve: 12 })
-      const block = buildGeneratorLibraryBlock(synthesisLibraryRows, autoMap, {
+      // Sin resolución YouTube en caliente: hasta 12× oembed ralentizaban minutos la UI en «Iniciando…».
+      const block = buildGeneratorLibraryBlock(synthesisLibraryRows, null, {
         maxExercises: EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT,
       })
       if (!block) throw new Error('No se pudo construir el contexto de la Biblioteca EVO.')
@@ -1923,6 +1924,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let synthesisCoachFeedback = []
     let synthesisSelectedWeekIds = []
     let lastYearReferenceBlock = ''
+    setGenStep('Cargando semanas anteriores del mesociclo…')
     try {
       const published = await listPublishedWeekVersionsForMesocycle(weekState.mesocycle)
       const exactSelection = selectProgrammingContextWeeks(
@@ -1961,6 +1963,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       /* síntesis sin semanas previas */
     }
     assertGenerationIsCurrent()
+    setGenStep('Recopilando feedback de coaches…')
     try {
       if (synthesisSelectedWeekIds.length) {
         const { data } = await supabase
@@ -1977,6 +1980,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
     assertGenerationIsCurrent()
     if (!briefingPackIncludesLastYear(pack)) {
+      setGenStep('Consultando referencia del último año…')
       try {
         lastYearReferenceBlock = await buildLastYearReferenceBlock()
       } catch {
@@ -2104,6 +2108,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       return
     }
     try {
+      setGenStep('Preparando prompt de generación…')
       // NO enviar briefing en weekContext: injectWeekContext lo fusiona al system y duplica el tamaño
       // del prompt (~50k system + ~30k briefing → conexión cortada en Vercel / Failed to fetch).
       let weekContextText = ''
@@ -2278,8 +2283,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         const isFirstApiCall = callIdx === 0
         setGenStep(
           total > 1
-            ? `Generando ${chunkDaysText}… (${ci + 1}/${total})${callIdx > 0 ? ' · modo ligero' : ''}`
-            : `Generando ${chunkDaysText}…`,
+            ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · puede tardar 2–5 min${callIdx > 0 ? ' · modo ligero' : ''}`
+            : `Generando ${chunkDaysText}… · puede tardar 2–5 min`,
         )
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock, { isFirstApiCall })
         console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
@@ -4569,7 +4574,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 <p className="text-base font-bold text-[#1A0A1A] text-center uppercase tracking-tight">
                   {genStep || 'Iniciando generación...'}
                 </p>
-                <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">Memoria AI activa · Coherencia EVO</p>
+                <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">
+                  Memoria AI activa · Coherencia EVO
+                  {!genStep.includes('Generando') && genStep ? ' · preparando contexto' : ''}
+                </p>
               </div>
               <div className="flex gap-2.5">
                 {[0, 150, 300].map((delay) => (

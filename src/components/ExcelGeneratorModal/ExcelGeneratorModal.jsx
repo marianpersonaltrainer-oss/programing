@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { flushSync } from 'react-dom'
 import {
   SYSTEM_PROMPT_EXCEL,
   SYSTEM_PROMPT_REGENERATE_FEEDBACK,
@@ -63,6 +64,7 @@ import {
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { EVO_WEEK_RESPONSE_FORMAT } from '../../constants/evoWeekOutputSchema.js'
+import { EVO_BUILD_ID } from '../../constants/evoBuildId.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { buildExcelDayContextSynthesis, excelCanonDayToTargetDay } from '../../utils/buildExcelDayContextSynthesis.js'
 import {
@@ -649,6 +651,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const scoringRunRef = useRef(0)
   const generationRunRef = useRef(0)
   const generationFetchAbortRef = useRef(null)
+  const generationActiveRef = useRef(false)
   const currentGenerationFingerprintRef = useRef('')
   const [showFullAnalysis, setShowFullAnalysis] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -881,6 +884,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }, [currentPlanningInputFingerprint])
 
   useEffect(() => {
+    if (generationActiveRef.current) return
     if (
       currentGenerationFingerprintRef.current &&
       currentGenerationFingerprintRef.current !== currentGenerationRequestFingerprint
@@ -1920,10 +1924,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       )
     }
 
-    setStatus('generating')
-    setGenStep('Cargando biblioteca EVO…')
+    generationActiveRef.current = true
     generationFetchAbortRef.current?.abort()
     generationFetchAbortRef.current = new AbortController()
+    flushSync(() => {
+      setStatus('generating')
+      setGenStep('Cargando biblioteca EVO…')
+    })
 
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     let generationLibraryBlock = ''
@@ -1952,6 +1959,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       )
       setStatus('error')
       setGenStep('')
+      generationActiveRef.current = false
       return
     }
     assertGenerationIsCurrent()
@@ -2603,6 +2611,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         err instanceof StaleGenerationResponseError ||
         generationRunRef.current !== generationRunId
       ) {
+        generationActiveRef.current = false
         return
       }
       setGenStep('')
@@ -2632,6 +2641,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         setErrorMsg(humanizeNetworkLikeError(err, 'No se pudo generar la semana.'))
         setStatus('error')
       }
+    } finally {
+      generationActiveRef.current = false
     }
   }
 
@@ -2661,6 +2672,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     if (status === 'generating') {
       generationRunRef.current += 1
       generationFetchAbortRef.current?.abort()
+      generationActiveRef.current = false
       setGenStep('')
       setStatus('idle')
       setErrorMsg('Generación cancelada.')
@@ -4660,6 +4672,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   Memoria AI activa · Coherencia EVO
                   {genElapsedSec > 0 ? ` · ${genElapsedSec}s` : ''}
                   {!genStep.includes('Generando') && genStep ? ' · preparando contexto' : ''}
+                </p>
+                <p className="text-[10px] text-neutral-500 text-center">
+                  Build {EVO_BUILD_ID}
+                  {!genStep ? ' · si no cambia el texto en 5 s, usa el enlace nuevo del PR #7' : ''}
                 </p>
               </div>
               <div className="flex gap-2.5">

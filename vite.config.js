@@ -1,6 +1,17 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+
+function resolveBuildId() {
+  const fromVercel = String(process.env.VERCEL_GIT_COMMIT_SHA || '').trim().slice(0, 7)
+  if (fromVercel) return fromVercel
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+  } catch {
+    return 'dev'
+  }
+}
 
 /**
  * No importar `package.json` aquí con assert JSON: al empaquetar la config, esbuild puede resolver
@@ -24,5 +35,6 @@ export default defineConfig({
   // el fallo «reading 'sheets'» al cargar el .xlsx en el navegador.
   define: {
     'process.browser': 'true',
+    __EVO_BUILD_ID__: JSON.stringify(resolveBuildId()),
   },
 })

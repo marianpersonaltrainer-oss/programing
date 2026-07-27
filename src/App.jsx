@@ -2,6 +2,8 @@ import { lazy, Suspense, useState } from 'react'
 import WeekPanel from './components/WeekPanel/WeekPanel.jsx'
 import AgentChat from './components/AgentChat/AgentChat.jsx'
 import ExportPanel from './components/ExportPanel/ExportPanel.jsx'
+import SupabaseConfigMissing from './components/SupabaseConfigMissing.jsx'
+import { isSupabaseConfigured } from './lib/supabase.js'
 import { COACH_CODE_KEY, getCoachCodeFieldInitialValue } from './constants/coachAccess.js'
 import EvoLogo from './components/EvoLogo.jsx'
 import { coachBg, coachBorder, coachNav, coachText } from './components/CoachView/coachTheme.js'
@@ -40,6 +42,10 @@ function ModalLoading() {
 }
 
 export default function App() {
+  if (!isSupabaseConfigured) {
+    return <SupabaseConfigMissing />
+  }
+
   if (isCoachMode) {
     return (
       <Suspense fallback={<AppLoading />}>

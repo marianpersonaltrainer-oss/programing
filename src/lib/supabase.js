@@ -215,25 +215,66 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
   }
 }
 
+const PUBLISHED_WEEK_VERSION_SELECT_MODERN =
+  'id, mesociclo, semana, cycle_id, cycle_start_date, week_start_date, titulo, data, published_at, publication_status, version_number, content_fingerprint'
+const PUBLISHED_WEEK_VERSION_SELECT_LEGACY =
+  'id, mesociclo, semana, titulo, data, published_at, is_active, edit_history'
+
 /**
- * Todas las semanas publicadas de un mesociclo (una fila por número de semana, la más reciente por `published_at`).
- * Útil para sincronizar el historial local del generador con el Hub.
+ * Semanas publicadas por id (solo las necesarias para generación / contexto).
+ * @param {string[]} ids
  */
-export async function listPublishedWeekVersionsForMesocycle(mesociclo) {
-  if (!mesociclo) return []
+export async function getPublishedWeekVersionsByIds(ids) {
+  const cleanIds = [...new Set((ids || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!cleanIds.length) return []
+
   let { data, error } = await supabase
     .from('published_weeks')
-    .select('id, mesociclo, semana, cycle_id, cycle_start_date, week_start_date, titulo, data, published_at, publication_status, version_number, content_fingerprint')
-    .eq('mesociclo', mesociclo)
-    .in('publication_status', ['published', 'superseded'])
-    .order('published_at', { ascending: false })
+    .select(PUBLISHED_WEEK_VERSION_SELECT_MODERN)
+    .in('id', cleanIds)
 
   if (error && isMissingPublishedWeeksV2ColumnError(error)) {
     ;({ data, error } = await supabase
       .from('published_weeks')
-      .select('id, mesociclo, semana, titulo, data, published_at, is_active, edit_history')
+      .select(PUBLISHED_WEEK_VERSION_SELECT_LEGACY)
+      .in('id', cleanIds))
+    data = filterPublishedOrSupersededRows(data)
+  }
+
+  if (error) throw error
+  const byId = new Map((data || []).map((row) => [String(row.id), row]))
+  return cleanIds.map((id) => byId.get(id)).filter(Boolean)
+}
+
+/**
+ * Todas las semanas publicadas de un mesociclo (una fila por número de semana, la más reciente por `published_at`).
+ * Útil para sincronizar el historial local del generador con el Hub.
+ * @param {string} mesociclo
+ * @param {{ limit?: number }} [opts]
+ */
+export async function listPublishedWeekVersionsForMesocycle(mesociclo, opts = {}) {
+  if (!mesociclo) return []
+  const limit =
+    typeof opts.limit === 'number' && opts.limit > 0 ? Math.floor(opts.limit) : null
+
+  let query = supabase
+    .from('published_weeks')
+    .select(PUBLISHED_WEEK_VERSION_SELECT_MODERN)
+    .eq('mesociclo', mesociclo)
+    .in('publication_status', ['published', 'superseded'])
+    .order('published_at', { ascending: false })
+  if (limit) query = query.limit(limit)
+
+  let { data, error } = await query
+
+  if (error && isMissingPublishedWeeksV2ColumnError(error)) {
+    let legacyQuery = supabase
+      .from('published_weeks')
+      .select(PUBLISHED_WEEK_VERSION_SELECT_LEGACY)
       .eq('mesociclo', mesociclo)
-      .order('published_at', { ascending: false }))
+      .order('published_at', { ascending: false })
+    if (limit) legacyQuery = legacyQuery.limit(limit)
+    ;({ data, error } = await legacyQuery)
     data = filterPublishedOrSupersededRows(data)
   }
 

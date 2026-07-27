@@ -16,6 +16,7 @@ import {
 } from '../../hooks/useWeekHistory.js'
 import {
   getActiveWeek,
+  getPublishedWeekVersionsByIds,
   getCoachExerciseLibrary,
   getPublishedWeekDraftByMesocycleAndWeek,
   getPublishedWeekByMesocycleAndWeek,
@@ -29,6 +30,7 @@ import {
   supabase,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
+import { withTimeout } from '../../utils/withTimeout.js'
 import { fetchLibraryAutoVideoMap } from '../../utils/fetchLibraryAutoVideoMap.js'
 import {
   buildWeekSkeleton,
@@ -130,7 +132,11 @@ const EXCEL_GENERATION_PACK_MAX_CHARS = 14_000
 /** Tope del bloque «días ya generados» en el user (extracto compacto, no JSON completo). */
 const EXCEL_COHERENCE_JSON_MAX_CHARS = 22_000
 /** Ejercicios listados en biblioteca dentro del system (el resto sigue en Supabase). */
-const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 100
+const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 60
+/** Tiempo máximo de espera del cliente por POST a /api/anthropic (margen sobre maxDuration Vercel). */
+const EXCEL_GENERATION_FETCH_TIMEOUT_MS = 310_000
+/** Tiempo máximo cargando datos de Supabase antes de generar. */
+const EXCEL_GENERATION_PREP_TIMEOUT_MS = 45_000
 
 const ADDENDUM_MAX_CHARS = 3000
 /** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
@@ -631,6 +637,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
   const [status, setStatus]     = useState('idle')
   const [genStep, setGenStep]   = useState('')
+  const [genElapsedSec, setGenElapsedSec] = useState(0)
   const [weekData, setWeekData] = useState(null)
   // Footer: menú "Más opciones" (acciones secundarias) y evaluación de calidad (API real).
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
@@ -641,6 +648,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [evalError, setEvalError] = useState('')
   const scoringRunRef = useRef(0)
   const generationRunRef = useRef(0)
+  const generationFetchAbortRef = useRef(null)
   const currentGenerationFingerprintRef = useRef('')
   const [showFullAnalysis, setShowFullAnalysis] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -883,6 +891,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
     currentGenerationFingerprintRef.current = currentGenerationRequestFingerprint
   }, [currentGenerationRequestFingerprint])
+
+  useEffect(() => {
+    if (status !== 'generating') {
+      setGenElapsedSec(0)
+      return undefined
+    }
+    const started = Date.now()
+    setGenElapsedSec(0)
+    const id = window.setInterval(() => {
+      setGenElapsedSec(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [status])
 
   const briefingIsStale =
     briefingStatus === 'ready' &&
@@ -1718,17 +1739,26 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
       console.log('API Request (Proxy):', { model: body.model, attempt })
 
+      const fetchAbort = generationFetchAbortRef.current
       let response
       try {
         // Modelo: sonnet — generación JSON semanal (SYSTEM_PROMPT_EXCEL); núcleo del producto.
-        response = await fetch('/api/anthropic', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        })
+        response = await withTimeout(
+          fetch('/api/anthropic', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            signal: fetchAbort?.signal,
+          }),
+          EXCEL_GENERATION_FETCH_TIMEOUT_MS,
+          'Tiempo de espera agotado esperando respuesta de la IA (más de 5 min). En Vercel Hobby las funciones se cortan antes: hace falta plan Pro para generar semanas completas.',
+        )
       } catch (e) {
+        if (fetchAbort?.signal?.aborted) {
+          throw new StaleGenerationResponseError()
+        }
         const networkMsg = explainAnthropicFetchFailure(e)
         if (attempt < retries) {
           const wait = Math.min(12, 4 + attempt * 3)
@@ -1892,13 +1922,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     setStatus('generating')
     setGenStep('Cargando biblioteca EVO…')
+    generationFetchAbortRef.current?.abort()
+    generationFetchAbortRef.current = new AbortController()
 
     let systemExcelFull = SYSTEM_PROMPT_EXCEL
     let generationLibraryBlock = ''
     let synthesisLibraryRows = []
     let generationCheckpoint = null
     try {
-      synthesisLibraryRows = await getCoachExerciseLibrary()
+      synthesisLibraryRows = await withTimeout(
+        getCoachExerciseLibrary(),
+        EXCEL_GENERATION_PREP_TIMEOUT_MS,
+        'La biblioteca EVO tardó demasiado en cargar. Comprueba la conexión y recarga la página.',
+      )
       if (!Array.isArray(synthesisLibraryRows) || synthesisLibraryRows.length === 0) {
         throw new Error('La Biblioteca EVO oficial no devolvió ejercicios.')
       }
@@ -1926,24 +1962,58 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     let lastYearReferenceBlock = ''
     setGenStep('Cargando semanas anteriores del mesociclo…')
     try {
-      const published = await listPublishedWeekVersionsForMesocycle(weekState.mesocycle)
-      const exactSelection = selectProgrammingContextWeeks(
-        published,
-        {
+      const ctxSel = briefingContextSelectionRef.current
+      const progressionIds = Array.isArray(ctxSel?.progressionWeekIds)
+        ? ctxSel.progressionWeekIds.filter(Boolean)
+        : []
+      let progressionRows = []
+
+      if (
+        progressionIds.length &&
+        publicationProgressionWeeks.length === progressionIds.length
+      ) {
+        progressionRows = progressionIds.map((id, index) => ({
+          id,
+          semana: publicationProgressionWeeks[index]?.semana,
           mesociclo: weekState.mesocycle,
-          semana: Number(weekState.week),
-          cycle_id: targetCycleId,
-          cycle_start_date: targetCycleStartDate,
-          week_start_date: targetWeekStartDate,
-        },
-        { progressionLimit: 6, historicalLimit: 0 },
-      )
+          data: publicationProgressionWeeks[index],
+        }))
+      } else if (progressionIds.length) {
+        progressionRows = await withTimeout(
+          getPublishedWeekVersionsByIds(progressionIds),
+          EXCEL_GENERATION_PREP_TIMEOUT_MS,
+          'Las semanas anteriores tardaron demasiado en cargar.',
+        )
+      } else {
+        const published = await withTimeout(
+          listPublishedWeekVersionsForMesocycle(weekState.mesocycle, { limit: 24 }),
+          EXCEL_GENERATION_PREP_TIMEOUT_MS,
+          'Las semanas anteriores tardaron demasiado en cargar.',
+        )
+        const exactSelection = selectProgrammingContextWeeks(
+          published,
+          {
+            mesociclo: weekState.mesocycle,
+            semana: Number(weekState.week),
+            cycle_id: targetCycleId,
+            cycle_start_date: targetCycleStartDate,
+            week_start_date: targetWeekStartDate,
+          },
+          { progressionLimit: 6, historicalLimit: 0 },
+        )
+        progressionRows = exactSelection.progressionWeeks
+      }
+
       const selectedProgressionIds = new Set(
         briefingContextSelectionRef.current?.progressionWeekIds || [],
       )
-      const progressionRows = selectedProgressionIds.size
-        ? published.filter((row) => selectedProgressionIds.has(row.id))
-        : exactSelection.progressionWeeks
+      if (!progressionRows.length && selectedProgressionIds.size) {
+        progressionRows = await withTimeout(
+          getPublishedWeekVersionsByIds([...selectedProgressionIds]),
+          EXCEL_GENERATION_PREP_TIMEOUT_MS,
+          'Las semanas anteriores tardaron demasiado en cargar.',
+        )
+      }
       synthesisPreviousWeeks = progressionRows
         .slice(-6)
         .map((r) => ({
@@ -1982,7 +2052,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     if (!briefingPackIncludesLastYear(pack)) {
       setGenStep('Consultando referencia del último año…')
       try {
-        lastYearReferenceBlock = await buildLastYearReferenceBlock()
+        lastYearReferenceBlock = await withTimeout(
+          buildLastYearReferenceBlock(),
+          20_000,
+          'Referencia anual omitida por tiempo de espera.',
+        )
       } catch {
         /* sin referencia anual */
       }
@@ -2277,8 +2351,6 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       async function generateChunkWithFallback(chunk, ci, total) {
         assertGenerationIsCurrent()
         const chunkDaysText = [...chunk].join(' · ')
-        const targetDayKey = excelCanonDayToTargetDay([...chunk][0])
-        const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey)
         const callIdx = generationApiCallIndex
         const isFirstApiCall = callIdx === 0
         setGenStep(
@@ -2286,6 +2358,8 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · puede tardar 2–5 min${callIdx > 0 ? ' · modo ligero' : ''}`
             : `Generando ${chunkDaysText}… · puede tardar 2–5 min`,
         )
+        const targetDayKey = excelCanonDayToTargetDay([...chunk][0])
+        const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey)
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock, { isFirstApiCall })
         console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
           diasEnEstePOST: [...chunk],
@@ -2582,6 +2656,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
   function handleCloseModal() {
     if (publicationMutationLockRef.current || publicationMutationBusy) {
       setErrorMsg('Espera a que termine la operación de publicación o guardado antes de cerrar.')
+      return
+    }
+    if (status === 'generating') {
+      generationRunRef.current += 1
+      generationFetchAbortRef.current?.abort()
+      setGenStep('')
+      setStatus('idle')
+      setErrorMsg('Generación cancelada.')
       return
     }
     if (status === 'previewing' && weekState.mesocycle && weekData != null) {
@@ -4576,6 +4658,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 </p>
                 <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">
                   Memoria AI activa · Coherencia EVO
+                  {genElapsedSec > 0 ? ` · ${genElapsedSec}s` : ''}
                   {!genStep.includes('Generando') && genStep ? ' · preparando contexto' : ''}
                 </p>
               </div>

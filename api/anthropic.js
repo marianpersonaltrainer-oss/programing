@@ -144,6 +144,7 @@ async function checkRateLimitViaSupabase({ ip, endpoint, limit, windowMinutes })
       p_limit: limit,
       p_window_minutes: windowMinutes,
     }),
+    signal: AbortSignal.timeout(8000),
   })
   if (!r.ok) {
     const t = await r.text().catch(() => '')

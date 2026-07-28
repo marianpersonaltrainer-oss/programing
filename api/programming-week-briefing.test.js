@@ -1,4 +1,21 @@
 import { describe, expect, it } from 'vitest'
+import { BRIEFING_OUTPUT_SCHEMA } from './programming-week-briefing.js'
+
+function collectObjectSchemas(schema, path = '$', out = []) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return out
+  if (schema.type === 'object') out.push({ path, schema })
+  for (const [key, value] of Object.entries(schema.properties || {})) {
+    collectObjectSchemas(value, `${path}.properties.${key}`, out)
+  }
+  collectObjectSchemas(schema.items, `${path}.items`, out)
+  for (const [index, value] of (schema.anyOf || []).entries()) {
+    collectObjectSchemas(value, `${path}.anyOf[${index}]`, out)
+  }
+  for (const [index, value] of (schema.oneOf || []).entries()) {
+    collectObjectSchemas(value, `${path}.oneOf[${index}]`, out)
+  }
+  return out
+}
 
 describe('programming-week-briefing.js — método canónico', () => {
   it('no consulta ni permite reactivar method_rules legacy', async () => {
@@ -97,6 +114,21 @@ describe('programming-week-briefing.js — método canónico', () => {
     expect(src).toContain("type: 'json_schema'")
     expect(src).toContain('schema: BRIEFING_OUTPUT_SCHEMA')
     expect(src).toContain('historicalLimit: 4')
+  })
+
+  it('mantiene cerrado cada objeto del JSON Schema aceptado por Anthropic', () => {
+    const objectSchemas = collectObjectSchemas(BRIEFING_OUTPUT_SCHEMA)
+    expect(objectSchemas.map(({ path }) => path)).toEqual([
+      '$',
+      '$.properties.weeklyArchitecture.items',
+      '$.properties.weeklyArchitecture.items.properties.classPlans.items',
+    ])
+    for (const { path, schema } of objectSchemas) {
+      expect(schema.additionalProperties, path).toBe(false)
+      expect([...schema.required].sort(), path).toEqual(
+        Object.keys(schema.properties).sort(),
+      )
+    }
   })
 
   it('separa la carga de contexto de la propuesta IA y paraleliza notas auxiliares', async () => {

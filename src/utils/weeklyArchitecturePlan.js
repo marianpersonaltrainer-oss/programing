@@ -145,7 +145,17 @@ function normalizeOfferClasses(weeklyOffer, day) {
 }
 
 function normalizeClassPlans(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  if (Array.isArray(raw)) {
+    return Object.fromEntries(
+      raw
+        .map((entry) => [
+          String(entry?.classKey ?? entry?.class ?? entry?.key ?? '').trim(),
+          cleanLine(entry?.plan ?? entry?.value, 420),
+        ])
+        .filter(([key, value]) => key && value),
+    )
+  }
+  if (!raw || typeof raw !== 'object') return {}
   return Object.fromEntries(
     Object.entries(raw)
       .map(([key, value]) => [String(key || '').trim(), cleanLine(value, 420)])

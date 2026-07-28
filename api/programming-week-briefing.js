@@ -57,7 +57,7 @@ const BRIEFING_UPSTREAM_TIMEOUT_MS = (() => {
   return 75_000
 })()
 
-const BRIEFING_OUTPUT_SCHEMA = {
+export const BRIEFING_OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -73,8 +73,16 @@ const BRIEFING_OUTPUT_SCHEMA = {
           day: { type: 'string' },
           intent: { type: 'string' },
           classPlans: {
-            type: 'object',
-            additionalProperties: { type: 'string' },
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                classKey: { type: 'string' },
+                plan: { type: 'string' },
+              },
+              required: ['classKey', 'plan'],
+            },
           },
           sharedFatigue: { type: 'string' },
           antiRepetition: { type: 'string' },
@@ -103,7 +111,9 @@ Tu tarea:
    - "weeklyArchitecture": array con un objeto por cada día seleccionado, sin añadir días. Cada objeto contiene exactamente:
      - "day": día en MAYÚSCULAS
      - "intent": intención concreta del día
-     - "classPlans": objeto cuyas claves son EXACTAMENTE las clases seleccionadas para ese día (evofuncional, evobasics, etc.) y cuyo valor resume fuerza/skill + formato metabólico + trabajo/descanso + material
+     - "classPlans": array con un objeto por cada clase seleccionada. Cada objeto contiene exactamente:
+       - "classKey": identificador EXACTO de la clase seleccionada (evofuncional, evobasics, etc.)
+       - "plan": resumen de fuerza/skill + formato metabólico + trabajo/descanso + material
      - "sharedFatigue": fatiga compartida que debe protegerse entre modalidades
      - "antiRepetition": diferencia estructural obligatoria respecto a días contiguos e histórico reciente
 

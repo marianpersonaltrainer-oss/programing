@@ -162,7 +162,7 @@ const BRIEFING_CLIENT_TIMEOUT_MS = BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS
 /** Lectura exacta de las semanas elegidas por el briefing. */
 const BRIEFING_CONTEXT_TIMEOUT_MS = BRIEFING_CONTEXT_CLIENT_TIMEOUT_MS
 /** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */
-const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 35_000
+const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 90_000
 /** Narrativa de propuesta incluida en el prompt (evita bloqueos con textos enormes). */
 const EXCEL_GENERATION_NARRATIVE_MAX_CHARS = 6000
 
@@ -1072,6 +1072,24 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }, 1000)
     return () => window.clearInterval(id)
   }, [status])
+
+  useEffect(() => {
+    if (status !== 'generating') return undefined
+    const step = String(genStep || '')
+    if (!/Montando prompt|Planificando días|Preparando primera/i.test(step)) return undefined
+    const id = window.setInterval(() => {
+      if (genElapsedSec >= 90 && generationActiveRef.current) {
+        setErrorMsg(
+          'La preparación del prompt lleva demasiado tiempo. Cancela, recarga con ?v=5b7fb68 y prueba generando solo 1 día.',
+        )
+        setStatus('error')
+        setGenStep('')
+        generationActiveRef.current = false
+        generationFetchAbortRef.current?.abort()
+      }
+    }, 5000)
+    return () => window.clearInterval(id)
+  }, [status, genStep, genElapsedSec])
 
   const briefingIsStale =
     briefingStatus === 'ready' &&
@@ -2269,6 +2287,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
     assertGenerationIsCurrent()
 
+    try {
     let synthesisPreviousWeeks = []
     let synthesisCoachFeedback = []
     let synthesisSelectedWeekIds = []
@@ -2371,12 +2390,16 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     // la UI; el briefing ya incluye histórico del ciclo.
     lastYearReferenceBlock = ''
     const promptPrepStartedAt = Date.now()
+    let promptPrepDeadlineAt = promptPrepStartedAt + EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS
     const assertPromptPrepNotStale = () => {
-      if (Date.now() - promptPrepStartedAt > EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS) {
+      if (Date.now() > promptPrepDeadlineAt) {
         throw new Error(
           'Montar el prompt tardó demasiado en este navegador. Recarga la página (el briefing guardado es normal) e intenta generar solo 1 día.',
         )
       }
+    }
+    const extendPromptPrepBudget = () => {
+      promptPrepDeadlineAt = Date.now() + 45_000
     }
 
     flushSync(() => setGenStep('Montando prompt (1/3)…'))
@@ -2416,7 +2439,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     flushSync(() => setGenStep('Montando prompt (3/3)…'))
     await yieldToUi()
     assertGenerationIsCurrent()
+    extendPromptPrepBudget()
     assertPromptPrepNotStale()
+
+    flushSync(() => setGenStep('Ensamblando contexto de la semana…'))
+    await yieldToUi()
 
     const mesoInfo = weekState.mesocycle
       ? `Mesociclo: ${weekState.mesocycle} | Semana: ${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` | Fase: ${weekState.phase}` : ''}`
@@ -2464,6 +2491,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     await yieldToUi()
     assertPromptPrepNotStale()
+
+    flushSync(() => setGenStep('Planificando días a generar…'))
+    await yieldToUi()
 
     const planSourceText = [
       String(proposalNarrative || '').slice(0, EXCEL_GENERATION_NARRATIVE_MAX_CHARS),
@@ -2525,10 +2555,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       return
     }
 
-    try {
-      assertPromptPrepNotStale()
-      // Briefing obligatorio: no llamar buildWeekContext (consultas pesadas a published_weeks).
-      const weekContextText = ''
+    assertPromptPrepNotStale()
+    // Briefing obligatorio: no llamar buildWeekContext (consultas pesadas a published_weeks).
+    const weekContextText = ''
       let overlay = null
       if (resumeFromJob?.partialWeek) {
         overlay = resumeFromJob.partialWeek
@@ -2659,8 +2688,17 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         )
       }
 
-      function buildCoherenceBlockFromAccumulator(targetDayKey) {
+      function buildCoherenceBlockFromAccumulator(targetDayKey, { lightweight = false } = {}) {
         const jsonBlock = `CONTEXTO YA GENERADO EN ESTA SEMANA (sesiones ya cerradas o preservadas; al escribir los días nuevos de ESTA petición NO repitas el mismo lift principal, ni formatos de fuerza/WOD consecutivos, ni el mismo patrón muscular consecutivo en EvoFuncional respecto a estos días; mantén en tu salida vacíos los días que no te tocan):\n${buildCompactAccumulatorCoherence(acc)}`
+        const accHasSessions = (acc.dias || []).some((dia) =>
+          EVO_SESSION_CLASS_DEFS.some(({ key }) => {
+            const text = String(dia?.[key] || '').trim()
+            return text && !/no programada esta semana/i.test(text) && !/^FESTIVO\b/i.test(text)
+          }),
+        )
+        if (lightweight || !accHasSessions) {
+          return jsonBlock
+        }
         const synthesisBlock = buildExcelDayContextSynthesis({
           acc,
           targetDay: targetDayKey,
@@ -2700,14 +2738,18 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         const chunkDaysText = [...chunk].join(' · ')
         const callIdx = generationApiCallIndex
         const isFirstApiCall = callIdx === 0
-        setGenStep(
-          total > 1
-            ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · puede tardar 2–5 min${callIdx > 0 ? ' · modo ligero' : ''}`
-            : `Generando ${chunkDaysText}… · puede tardar 2–5 min`,
+        flushSync(() =>
+          setGenStep(
+            total > 1
+              ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · puede tardar 2–5 min${callIdx > 0 ? ' · modo ligero' : ''}`
+              : `Generando ${chunkDaysText}… · puede tardar 2–5 min`,
+          ),
         )
-        await Promise.resolve()
+        await yieldToUi()
         const targetDayKey = excelCanonDayToTargetDay([...chunk][0])
-        const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey)
+        const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey, {
+          lightweight: isFirstApiCall,
+        })
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock, { isFirstApiCall })
         console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
           diasEnEstePOST: [...chunk],
@@ -2751,12 +2793,14 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
       if (dayChunks.length) {
         const firstDay = [...dayChunks[0]][0]
-        setGenStep(
-          dayChunks.length > 1
-            ? `Generando ${firstDay}… (1/${dayChunks.length}) · puede tardar 2–5 min`
-            : `Generando ${firstDay}… · puede tardar 2–5 min`,
+        flushSync(() =>
+          setGenStep(
+            dayChunks.length > 1
+              ? `Preparando primera llamada (${firstDay})… (1/${dayChunks.length})`
+              : `Preparando primera llamada (${firstDay})…`,
+          ),
         )
-        await Promise.resolve()
+        await yieldToUi()
       }
 
       for (let ci = 0; ci < dayChunks.length; ci++) {

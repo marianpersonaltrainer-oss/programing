@@ -80,4 +80,19 @@ describe('programming-week-briefing.js — método canónico', () => {
     expect(src).toContain("error?.name === 'AbortError'")
     expect(src).toContain('pulsa «Reintentar»')
   })
+
+  it('separa la carga de contexto de la propuesta IA y paraleliza notas auxiliares', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const { dirname, join } = await import('node:path')
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+    const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
+
+    expect(src).toContain("['prepare', 'context', 'proposal']")
+    expect(src).toContain("if (action === 'context')")
+    expect(src).toContain("if (action !== 'proposal')")
+    expect(src).toContain('contextSelection = normalizeContextSelection(body.contextSelection)')
+    expect(src).toContain('Promise.all([')
+    expect(src).toContain('MAX_CONTEXT_PACK_CHARS')
+  })
 })

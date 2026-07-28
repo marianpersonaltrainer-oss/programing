@@ -643,6 +643,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [isExcelFile, setIsExcelFile] = useState(false)
   /** Briefing conversacional: solo arranca cuando Marian confirma días y contexto. */
   const [briefingStatus, setBriefingStatus] = useState('idle') // idle | loading | ready | error
+  const [briefingPhase, setBriefingPhase] = useState('idle') // idle | context | proposal | verify
+  const [briefingElapsedSec, setBriefingElapsedSec] = useState(0)
   const [briefingErrorMsg, setBriefingErrorMsg] = useState('')
   const [briefingErrorCode, setBriefingErrorCode] = useState('')
   const [briefingAdminSecretInput, setBriefingAdminSecretInput] = useState('')
@@ -926,6 +928,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
     currentGenerationFingerprintRef.current = currentGenerationRequestFingerprint
   }, [currentGenerationRequestFingerprint])
+
+  useEffect(() => {
+    if (briefingStatus !== 'loading') {
+      setBriefingElapsedSec(0)
+      return undefined
+    }
+    const started = Date.now()
+    setBriefingElapsedSec(0)
+    const id = window.setInterval(() => {
+      setBriefingElapsedSec(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [briefingStatus])
 
   useEffect(() => {
     if (status !== 'generating') {
@@ -1216,6 +1231,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setBriefingStatus('idle')
     setBriefingErrorMsg('')
     setBriefingErrorCode('')
+    setBriefingPhase('idle')
     setBriefingAdminSecretInput('')
     setBriefingAuthBusy(false)
     setBriefingContextPack('')
@@ -1288,6 +1304,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const offerSnapshot = serializeWeeklyOfferSelection(dayClassPicker)
 
     setBriefingStatus('loading')
+    setBriefingPhase('context')
     setBriefingErrorMsg('')
     setBriefingErrorCode('')
     setProposalAccepted(false)
@@ -1297,20 +1314,68 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setProposalNarrative('')
     setProposalSuggestedFocus('')
     try {
+      const baseBriefingPayload = {
+        secret: adminSecret,
+        mesociclo: weekState.mesocycle,
+        semana: Number(weekState.week),
+        phase: weekState.phase || '',
+        totalWeeks: weekState.totalWeeks ?? null,
+        cycleId: targetCycleId || null,
+        cycleStartDate: targetCycleStartDate || null,
+        targetWeekStartDate: targetWeekStartDate || null,
+        generationDays: daysSnapshot,
+        weeklyOffer: offerSnapshot,
+      }
+      const {
+        res: contextRes,
+        json: contextJson,
+        errorMessage: contextErrorMessage,
+      } = await postJsonWithRetry(
+        '/api/programming-week-briefing',
+        {
+          ...baseBriefingPayload,
+          action: 'context',
+        },
+        0,
+        {
+          timeoutMs: 45_000,
+          timeoutMessage:
+            'El histórico ha tardado demasiado en cargar. La petición se ha cerrado; pulsa «Reintentar».',
+        },
+      )
+      if (
+        briefingRunRef.current !== briefingRunId ||
+        currentPlanningFingerprintRef.current !== inputFingerprint
+      ) {
+        return
+      }
+      if (!contextRes.ok) {
+        if (Number(contextRes.status) === 401) {
+          setBriefingErrorCode('invalid_admin_secret')
+          throw new Error('La clave de administración ya no es válida para esta preview.')
+        }
+        throw new Error(contextErrorMessage || `Error ${contextRes.status}`)
+      }
+      const preparedContextPack = String(contextJson.contextPack || '')
+      const preparedContextSelection =
+        contextJson.contextSelection && typeof contextJson.contextSelection === 'object'
+          ? contextJson.contextSelection
+          : null
+      if (!preparedContextPack || !preparedContextSelection) {
+        throw new Error('Supabase no devolvió un contexto verificable para esta semana.')
+      }
+      setBriefingContextPack(preparedContextPack)
+      briefingContextSelectionRef.current = preparedContextSelection
+
+      setBriefingPhase('proposal')
       const { res, json, errorMessage } = await postJsonWithRetry(
         '/api/programming-week-briefing',
         {
-          secret: adminSecret,
-          mesociclo: weekState.mesocycle,
-          semana: Number(weekState.week),
-          phase: weekState.phase || '',
-          totalWeeks: weekState.totalWeeks ?? null,
-          cycleId: targetCycleId || null,
-          cycleStartDate: targetCycleStartDate || null,
-          targetWeekStartDate: targetWeekStartDate || null,
+          ...baseBriefingPayload,
+          action: 'proposal',
+          contextPack: preparedContextPack,
+          contextSelection: preparedContextSelection,
           userInstructions: instructionsSnapshot,
-          generationDays: daysSnapshot,
-          weeklyOffer: offerSnapshot,
         },
         0,
         {
@@ -1331,14 +1396,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         }
         throw new Error(errorMessage || `Error ${res.status}`)
       }
-      setBriefingContextPack(String(json.contextPack || ''))
+      setBriefingContextPack(String(json.contextPack || preparedContextPack))
       const contextSelection =
         json.contextSelection && typeof json.contextSelection === 'object'
           ? json.contextSelection
-          : null
+          : preparedContextSelection
       briefingContextSelectionRef.current = contextSelection
       let exactProgression = []
       let exactContextReady = false
+      setBriefingPhase('verify')
       if (
         contextSelection?.mode === 'exact-cycle-date' &&
         targetCycleStartDate
@@ -1377,9 +1443,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setBriefingApiMessages(Array.isArray(json.initialMessages) ? json.initialMessages : [])
       setBriefingInputFingerprint(inputFingerprint)
       setBriefingStatus('ready')
+      setBriefingPhase('idle')
     } catch (e) {
       if (briefingRunRef.current !== briefingRunId) return
       setBriefingStatus('error')
+      setBriefingPhase('idle')
       setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
     }
   }
@@ -4387,11 +4455,24 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               {briefingStatus === 'loading' && (
                 <div className="flex flex-col items-center justify-center py-16 px-4 space-y-3">
                   <div className="w-12 h-12 rounded-full border-2 border-evo-accent/30 border-t-evo-accent animate-spin" />
-                  <p className="text-sm font-bold text-[#1A0A1A] text-center">Analizando datos de Supabase…</p>
+                  <p className="text-sm font-bold text-[#1A0A1A] text-center">
+                    {briefingPhase === 'context'
+                      ? 'Cargando las semanas útiles…'
+                      : briefingPhase === 'verify'
+                        ? 'Verificando el histórico exacto…'
+                        : 'Contexto listo. Diseñando el enfoque con IA…'}
+                  </p>
                   <p className="text-[11px] text-neutral-700 text-center max-w-lg leading-relaxed">
-                    Semanas ya publicadas en Supabase del mesociclo que tienes en el panel, cambios guardados en el Hub,
-                    check-ins de coaches, pases de turno, reglas del método y notas por sesión. También tendrá en cuenta
-                    el contexto escrito arriba, los días seleccionados y la oferta real de clases.
+                    {briefingPhase === 'context'
+                      ? 'Se seleccionan solo las semanas anteriores que sirven para la progresión y unas pocas referencias de variedad, junto con los cambios y notas recientes.'
+                      : briefingPhase === 'verify'
+                        ? 'Comprobando que las semanas elegidas pertenecen al ciclo y a las fechas correctas antes de permitir la generación.'
+                        : 'La IA está convirtiendo ese contexto, tus instrucciones, los días y la oferta real de clases en una arquitectura semanal. Esta suele ser la parte más lenta.'}
+                  </p>
+                  <p className="text-[10px] font-semibold text-neutral-500">
+                    {briefingElapsedSec > 0
+                      ? `Tiempo transcurrido: ${formatGenElapsed(briefingElapsedSec)}`
+                      : 'Iniciando…'}
                   </p>
                 </div>
               )}

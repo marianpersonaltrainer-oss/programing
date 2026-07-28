@@ -37,6 +37,7 @@ import { parseAssistantBriefingJson } from '../src/utils/parseAssistantWeekJson.
 import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
+const MAX_CONTEXT_PACK_CHARS = 90_000
 const BRIEFING_UPSTREAM_TIMEOUT_MS = (() => {
   const configured = Number(process.env.PROGRAMMING_BRIEFING_TIMEOUT_MS)
   if (Number.isFinite(configured) && configured >= 30_000 && configured <= 170_000) {
@@ -112,6 +113,23 @@ function parseBody(req) {
   }
   if (typeof raw === 'object') return raw
   return null
+}
+
+function normalizeContextSelection(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const cleanIds = (ids) =>
+    Array.isArray(ids)
+      ? [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))].slice(0, 20)
+      : []
+  const mode = value.mode === 'exact-cycle-date' ? value.mode : 'legacy-slot'
+  const snapshotAt = String(value.snapshotAt || '').trim()
+  return {
+    mode,
+    snapshotAt,
+    progressionWeekIds: cleanIds(value.progressionWeekIds),
+    historicalWeekIds: cleanIds(value.historicalWeekIds),
+    selectedWeekIds: cleanIds(value.selectedWeekIds),
+  }
 }
 
 function sliceText(s, max) {
@@ -331,45 +349,60 @@ async function fetchContextPack(supabase, target) {
   const historicalWeeks = selection.historicalReferenceWeeks
   const selectedWeeks = [...progressionWeeks, ...historicalWeeks]
   const weekIds = selection.selectedWeekIds
-  let sessionRows = []
-  if (weekIds.length) {
-    const { data: fb, error: fErr } = await supabase
+  const loadSessionRows = async () => {
+    if (!weekIds.length) return []
+    const { data, error } = await supabase
       .from('coach_session_feedback')
       .select(
         'day_key, class_label, coach_name, session_how, changed_something, changed_details, notes_next_week, week_id, created_at',
       )
       .in('week_id', weekIds)
       .order('created_at', { ascending: false })
-      .limit(200)
-    if (fErr) logOptionalTableSkip('coach_session_feedback', fErr)
-    else sessionRows = filterFeedbackForSelectedWeekIds(fb || [], weekIds)
+      .limit(80)
+    if (error) {
+      logOptionalTableSkip('coach_session_feedback', error)
+      return []
+    }
+    return filterFeedbackForSelectedWeekIds(data || [], weekIds)
   }
 
-  let checkins = []
-  {
+  const loadCheckins = async () => {
     const sinceCheckins = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-    const { data, error: cErr } = await supabase
+    const { data, error } = await supabase
       .from('weekly_checkins')
       .select('coach_name, week_iso, mood_score, feedback_text, highlights, improvements, created_at')
       .gte('created_at', sinceCheckins)
       .order('created_at', { ascending: false })
-      .limit(80)
-    if (cErr) logOptionalTableSkip('weekly_checkins', cErr)
-    else checkins = data || []
+      .limit(30)
+    if (error) {
+      logOptionalTableSkip('weekly_checkins', error)
+      return []
+    }
+    return data || []
   }
 
-  let handoffs = []
-  {
+  const loadHandoffs = async () => {
     const sinceHandoffs = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
-    const { data, error: hErr } = await supabase
+    const { data, error } = await supabase
       .from('daily_handoffs')
       .select('coach_name, class_type, class_time, energy_level, had_incident, note, created_at')
       .gte('created_at', sinceHandoffs)
       .order('created_at', { ascending: false })
-      .limit(120)
-    if (hErr) logOptionalTableSkip('daily_handoffs', hErr)
-    else handoffs = data || []
+      .limit(40)
+    if (error) {
+      logOptionalTableSkip('daily_handoffs', error)
+      return []
+    }
+    return data || []
   }
+
+  // Estas tres lecturas no dependen entre sí. Hacerlas en paralelo evita
+  // sumar tres esperas de red antes de empezar el briefing.
+  const [sessionRows, checkins, handoffs] = await Promise.all([
+    loadSessionRows(),
+    loadCheckins(),
+    loadHandoffs(),
+  ])
 
   const blocks = [
     `## Progresión verificada del ciclo objetivo (${mesociclo || 'sin mesociclo'}; solo semanas estrictamente anteriores)`,
@@ -403,7 +436,7 @@ async function fetchContextPack(supabase, target) {
   )
 
   return {
-    text: blocks.join('\n'),
+    text: blocks.join('\n').slice(0, MAX_CONTEXT_PACK_CHARS),
     selection: {
       mode: selection.mode,
       snapshotAt,
@@ -484,6 +517,10 @@ export default async function handler(req, res) {
   const weeklyOffer = body.weeklyOffer && typeof body.weeklyOffer === 'object'
     ? body.weeklyOffer
     : null
+  const action = String(body.action || 'prepare').trim().toLowerCase()
+  if (!['prepare', 'context', 'proposal'].includes(action)) {
+    return res.status(400).json({ error: 'Acción de briefing no válida.' })
+  }
   const targetCycle = {
     mesociclo,
     semana,
@@ -494,8 +531,8 @@ export default async function handler(req, res) {
 
   try {
     let messages
-    let contextPack = String(body.contextPack || '').trim()
-    let contextSelection = null
+    let contextPack = String(body.contextPack || '').trim().slice(0, MAX_CONTEXT_PACK_CHARS)
+    let contextSelection = normalizeContextSelection(body.contextSelection)
 
     if (messagesIn && messagesIn.length > 0) {
       messages = messagesIn
@@ -509,9 +546,21 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan mesociclo o semana para el briefing inicial.' })
       }
 
-      const fetchedContext = await fetchContextPack(supabase, targetCycle)
-      contextPack = fetchedContext.text
-      contextSelection = fetchedContext.selection
+      if (action !== 'proposal') {
+        const fetchedContext = await fetchContextPack(supabase, targetCycle)
+        contextPack = fetchedContext.text
+        contextSelection = fetchedContext.selection
+        if (action === 'context') {
+          return res.status(200).json({
+            contextPack,
+            contextSelection,
+          })
+        }
+      } else if (!contextPack || !contextSelection) {
+        return res.status(400).json({
+          error: 'Falta el contexto preparado para diseñar la propuesta.',
+        })
+      }
       const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
       const weeklyOfferDays = weeklyOffer?.dias
       const weeklyOfferLines = generationDays.map((day) => {

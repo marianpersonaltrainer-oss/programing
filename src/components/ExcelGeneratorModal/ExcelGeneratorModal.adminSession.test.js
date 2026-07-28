@@ -33,4 +33,14 @@ describe('ExcelGeneratorModal admin session recovery', () => {
     expect(source).toContain('signal: requestAbort.signal')
     expect(source).toContain('pantalla no se quede bloqueada')
   })
+
+  it('muestra por separado contexto, propuesta IA y verificación con tiempo transcurrido', () => {
+    expect(source).toContain("action: 'context'")
+    expect(source).toContain("action: 'proposal'")
+    expect(source).toContain("setBriefingPhase('context')")
+    expect(source).toContain("setBriefingPhase('proposal')")
+    expect(source).toContain("setBriefingPhase('verify')")
+    expect(source).toContain('Tiempo transcurrido:')
+    expect(source).toContain('Esta suele ser la parte más lenta.')
+  })
 })

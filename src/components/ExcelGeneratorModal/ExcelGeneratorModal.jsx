@@ -136,8 +136,8 @@ const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 60
 const EXCEL_GENERATION_FETCH_TIMEOUT_MS = 310_000
 /** Tiempo máximo cargando datos de Supabase antes de generar. */
 const EXCEL_GENERATION_PREP_TIMEOUT_MS = 45_000
-/** El briefing debe terminar antes que la función Vercel (180 s). */
-const BRIEFING_CLIENT_TIMEOUT_MS = 165_000
+/** El briefing usa un modelo ligero y debe terminar antes del corte servidor (75 s). */
+const BRIEFING_CLIENT_TIMEOUT_MS = 85_000
 /** Lectura exacta de las semanas elegidas por el briefing. */
 const BRIEFING_CONTEXT_TIMEOUT_MS = 20_000
 /** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */

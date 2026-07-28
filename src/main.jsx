@@ -2,14 +2,25 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { ensureFreshBuild } from './utils/ensureFreshBuild.js'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+async function bootstrap() {
+  await ensureFreshBuild()
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}
+
+bootstrap()
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'EVO_SW_ACTIVATED') {
+      window.location.reload()
+    }
+  })
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')

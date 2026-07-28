@@ -1,11 +1,19 @@
 /* ProgramingEvo — service worker mínimo para criterios de PWA (instalar / pantalla de inicio).
- * v20260727 — sube la versión al cambiar lógica para que los clientes pillen el nuevo SW. */
+ * v20260728c — recarga clientes tras deploy. */
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    (async () => {
+      await self.clients.claim()
+      const clients = await self.clients.matchAll({ type: 'window' })
+      for (const client of clients) {
+        client.postMessage({ type: 'EVO_SW_ACTIVATED' })
+      }
+    })(),
+  )
 })
 
 self.addEventListener('fetch', (event) => {

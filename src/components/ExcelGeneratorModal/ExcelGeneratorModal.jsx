@@ -32,6 +32,7 @@ import {
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import { withTimeout } from '../../utils/withTimeout.js'
+import { yieldToUi } from '../../utils/yieldToUi.js'
 import { fetchLibraryAutoVideoMap } from '../../utils/fetchLibraryAutoVideoMap.js'
 import {
   buildWeekSkeleton,
@@ -135,6 +136,10 @@ const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 60
 const EXCEL_GENERATION_FETCH_TIMEOUT_MS = 310_000
 /** Tiempo máximo cargando datos de Supabase antes de generar. */
 const EXCEL_GENERATION_PREP_TIMEOUT_MS = 45_000
+/** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */
+const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 35_000
+/** Narrativa de propuesta incluida en el prompt (evita bloqueos con textos enormes). */
+const EXCEL_GENERATION_NARRATIVE_MAX_CHARS = 6000
 
 const ADDENDUM_MAX_CHARS = 3000
 /** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
@@ -2069,14 +2074,28 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     // No consultar tabla `weeks` en generación: en prod puede colgar (RLS/red) y bloquea minutos
     // la UI; el briefing ya incluye histórico del ciclo.
     lastYearReferenceBlock = ''
-    setGenStep('Montando prompt de generación…')
-    await Promise.resolve()
+    const promptPrepStartedAt = Date.now()
+    const assertPromptPrepNotStale = () => {
+      if (Date.now() - promptPrepStartedAt > EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS) {
+        throw new Error(
+          'Montar el prompt tardó demasiado en este navegador. Recarga la página (el briefing guardado es normal) e intenta generar solo 1 día.',
+        )
+      }
+    }
+
+    flushSync(() => setGenStep('Montando prompt (1/3)…'))
+    await yieldToUi()
     assertGenerationIsCurrent()
+    assertPromptPrepNotStale()
 
     const methodBlock = buildMethodPromptAppendix()
     if (methodBlock) {
       systemExcelFull += `\n\n${methodBlock}`
     }
+    flushSync(() => setGenStep('Montando prompt (2/3)…'))
+    await yieldToUi()
+    assertGenerationIsCurrent()
+    assertPromptPrepNotStale()
 
     const mesoProgrammingBlock = buildMesocycleProgrammingBlock({
       mesocycle: weekState.mesocycle,
@@ -2098,6 +2117,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     // ya orientan la semana; meterlos en system duplicaba ~20k y provocaba timeouts / Failed to fetch.
 
     systemExcelFull = buildLeanSystemExcelForGeneration(systemExcelFull)
+    flushSync(() => setGenStep('Montando prompt (3/3)…'))
+    await yieldToUi()
+    assertGenerationIsCurrent()
+    assertPromptPrepNotStale()
 
     const mesoInfo = weekState.mesocycle
       ? `Mesociclo: ${weekState.mesocycle} | Semana: ${weekState.week}/${weekState.totalWeeks}${weekState.phase ? ` | Fase: ${weekState.phase}` : ''}`
@@ -2112,7 +2135,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
             'PROPUESTA APROBADA POR LA PROGRAMADORA:',
             `Título: ${proposalTitle}`,
             '',
-            proposalNarrative,
+            String(proposalNarrative || '').slice(0, EXCEL_GENERATION_NARRATIVE_MAX_CHARS),
             '',
             `Enfoque sugerido: ${proposalSuggestedFocus}`,
           ]
@@ -2143,7 +2166,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       .filter(Boolean)
       .join('\n\n')
 
-    const planSourceText = [proposalNarrative, addendumClean].filter(Boolean).join('\n\n')
+    await yieldToUi()
+    assertPromptPrepNotStale()
+
+    const planSourceText = [
+      String(proposalNarrative || '').slice(0, EXCEL_GENERATION_NARRATIVE_MAX_CHARS),
+      addendumClean,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
     const selectedCanon = new Set(selectedGenerationDays)
     const { daysToGenerate, daysPreserved: textPreservedDays } = resolveDaysToGenerateFromSelection(
       selectedCanon,
@@ -2189,32 +2220,22 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     if (selectedClassKeys.size === 0) {
       setErrorMsg('Marca al menos una clase en algún día seleccionado para generar.')
       setStatus('error')
+      generationActiveRef.current = false
       return
     }
+
     try {
-      // NO enviar briefing en weekContext: injectWeekContext lo fusiona al system y duplica el tamaño
-      // del prompt (~50k system + ~30k briefing → conexión cortada en Vercel / Failed to fetch).
-      let weekContextText = ''
-      if (!pack) {
-        try {
-          const ctx = await buildWeekContext(weekState)
-          if (ctx && ctx.length <= 8000) {
-            weekContextText = ctx
-          } else if (ctx) {
-            weekContextText = `${ctx.slice(0, 7800).trimEnd()}…\n[contexto histórico recortado]`
-          }
-        } catch (ctxErr) {
-          console.warn('[ExcelGeneratorModal] buildWeekContext falló; se continúa sin ese bloque:', ctxErr?.message || ctxErr)
-        }
-      }
+      assertPromptPrepNotStale()
+      // Briefing obligatorio: no llamar buildWeekContext (consultas pesadas a published_weeks).
+      const weekContextText = ''
       let overlay = null
       if (weekData && Array.isArray(weekData.dias)) {
         overlay = weekData
       }
       // Sin getActiveWeek() aquí: `select *` sobre published_weeks colgaba la generación en prod.
 
-      setGenStep('Iniciando generación por días…')
-      await Promise.resolve()
+      flushSync(() => setGenStep('Iniciando generación por días…'))
+      await yieldToUi()
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
 
@@ -4678,9 +4699,11 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {genElapsedSec > 0 ? ` · ${formatGenElapsed(genElapsedSec)}` : ''}
                   {!genStep.includes('Generando') && genStep ? ' · preparando' : ''}
                 </p>
-                <p className="text-[10px] text-neutral-500 text-center">
+                <p className="text-[10px] text-neutral-500 text-center max-w-md">
                   Build {EVO_BUILD_ID}
-                  {!genStep ? ' · si no cambia el texto en 5 s, usa el enlace nuevo del PR #7' : ''}
+                  {!genStep.includes('Generando') && genElapsedSec >= 30
+                    ? ' · si sigue en preparación, cancela y recarga; el briefing guardado reaparece (es normal, no es caché vieja)'
+                    : ''}
                 </p>
               </div>
               <div className="flex gap-2.5">

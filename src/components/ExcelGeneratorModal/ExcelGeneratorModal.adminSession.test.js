@@ -24,4 +24,23 @@ describe('ExcelGeneratorModal admin session recovery', () => {
     expect(source).toContain("briefingErrorCode !== 'missing_admin_secret'")
     expect(source).toContain("briefingErrorCode !== 'invalid_admin_secret'")
   })
+
+  it('cierra las esperas de briefing, contexto y cuerpo de generación', () => {
+    expect(source).toContain('BRIEFING_CLIENT_TIMEOUT_MS')
+    expect(source).toContain('BRIEFING_CONTEXT_TIMEOUT_MS')
+    expect(source).toContain('getPublishedWeekVersionsByIds([...expectedIds])')
+    expect(source).toContain('responseText = await response.text()')
+    expect(source).toContain('signal: requestAbort.signal')
+    expect(source).toContain('pantalla no se quede bloqueada')
+  })
+
+  it('muestra por separado contexto, propuesta IA y verificación con tiempo transcurrido', () => {
+    expect(source).toContain("action: 'context'")
+    expect(source).toContain("action: 'proposal'")
+    expect(source).toContain("setBriefingPhase('context')")
+    expect(source).toContain("setBriefingPhase('proposal')")
+    expect(source).toContain("setBriefingPhase('verify')")
+    expect(source).toContain('Tiempo transcurrido:')
+    expect(source).toContain('Esta suele ser la parte más lenta.')
+  })
 })

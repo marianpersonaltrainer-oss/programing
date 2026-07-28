@@ -136,6 +136,10 @@ const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 60
 const EXCEL_GENERATION_FETCH_TIMEOUT_MS = 310_000
 /** Tiempo máximo cargando datos de Supabase antes de generar. */
 const EXCEL_GENERATION_PREP_TIMEOUT_MS = 45_000
+/** El briefing usa un modelo ligero y debe terminar antes del corte servidor (75 s). */
+const BRIEFING_CLIENT_TIMEOUT_MS = 85_000
+/** Lectura exacta de las semanas elegidas por el briefing. */
+const BRIEFING_CONTEXT_TIMEOUT_MS = 20_000
 /** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */
 const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 35_000
 /** Narrativa de propuesta incluida en el prompt (evita bloqueos con textos enormes). */
@@ -559,13 +563,28 @@ function humanizeNetworkLikeError(err, fallback = 'Error de red') {
   return raw || fallback
 }
 
-async function postJsonWithRetry(url, payload, retries = 2) {
+async function postJsonWithRetry(
+  url,
+  payload,
+  retries = 2,
+  {
+    timeoutMs = BRIEFING_CLIENT_TIMEOUT_MS,
+    timeoutMessage = 'La petición tardó demasiado en responder. Vuelve a intentarlo.',
+  } = {},
+) {
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController()
+    let didTimeout = false
+    const timeoutId = setTimeout(() => {
+      didTimeout = true
+      controller.abort()
+    }, timeoutMs)
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       })
       const rawText = await res.text()
       let json = {}
@@ -588,12 +607,15 @@ async function postJsonWithRetry(url, payload, retries = 2) {
       }
       return { res, json, errorMessage }
     } catch (e) {
+      const requestError = didTimeout ? new Error(timeoutMessage) : e
       if (attempt < retries) {
         const waitMs = (attempt + 1) * 2500
         await new Promise((r) => setTimeout(r, waitMs))
         continue
       }
-      throw e
+      throw requestError
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
   throw new Error('No se pudo completar la petición tras varios intentos.')
@@ -621,6 +643,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [isExcelFile, setIsExcelFile] = useState(false)
   /** Briefing conversacional: solo arranca cuando Marian confirma días y contexto. */
   const [briefingStatus, setBriefingStatus] = useState('idle') // idle | loading | ready | error
+  const [briefingPhase, setBriefingPhase] = useState('idle') // idle | context | proposal | verify
+  const [briefingElapsedSec, setBriefingElapsedSec] = useState(0)
   const [briefingErrorMsg, setBriefingErrorMsg] = useState('')
   const [briefingErrorCode, setBriefingErrorCode] = useState('')
   const [briefingAdminSecretInput, setBriefingAdminSecretInput] = useState('')
@@ -904,6 +928,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
     currentGenerationFingerprintRef.current = currentGenerationRequestFingerprint
   }, [currentGenerationRequestFingerprint])
+
+  useEffect(() => {
+    if (briefingStatus !== 'loading') {
+      setBriefingElapsedSec(0)
+      return undefined
+    }
+    const started = Date.now()
+    setBriefingElapsedSec(0)
+    const id = window.setInterval(() => {
+      setBriefingElapsedSec(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [briefingStatus])
 
   useEffect(() => {
     if (status !== 'generating') {
@@ -1194,6 +1231,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setBriefingStatus('idle')
     setBriefingErrorMsg('')
     setBriefingErrorCode('')
+    setBriefingPhase('idle')
     setBriefingAdminSecretInput('')
     setBriefingAuthBusy(false)
     setBriefingContextPack('')
@@ -1266,6 +1304,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const offerSnapshot = serializeWeeklyOfferSelection(dayClassPicker)
 
     setBriefingStatus('loading')
+    setBriefingPhase('context')
     setBriefingErrorMsg('')
     setBriefingErrorCode('')
     setProposalAccepted(false)
@@ -1275,7 +1314,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setProposalNarrative('')
     setProposalSuggestedFocus('')
     try {
-      const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
+      const baseBriefingPayload = {
         secret: adminSecret,
         mesociclo: weekState.mesocycle,
         semana: Number(weekState.week),
@@ -1284,10 +1323,66 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         cycleId: targetCycleId || null,
         cycleStartDate: targetCycleStartDate || null,
         targetWeekStartDate: targetWeekStartDate || null,
-        userInstructions: instructionsSnapshot,
         generationDays: daysSnapshot,
         weeklyOffer: offerSnapshot,
-      })
+      }
+      const {
+        res: contextRes,
+        json: contextJson,
+        errorMessage: contextErrorMessage,
+      } = await postJsonWithRetry(
+        '/api/programming-week-briefing',
+        {
+          ...baseBriefingPayload,
+          action: 'context',
+        },
+        0,
+        {
+          timeoutMs: 45_000,
+          timeoutMessage:
+            'El histórico ha tardado demasiado en cargar. La petición se ha cerrado; pulsa «Reintentar».',
+        },
+      )
+      if (
+        briefingRunRef.current !== briefingRunId ||
+        currentPlanningFingerprintRef.current !== inputFingerprint
+      ) {
+        return
+      }
+      if (!contextRes.ok) {
+        if (Number(contextRes.status) === 401) {
+          setBriefingErrorCode('invalid_admin_secret')
+          throw new Error('La clave de administración ya no es válida para esta preview.')
+        }
+        throw new Error(contextErrorMessage || `Error ${contextRes.status}`)
+      }
+      const preparedContextPack = String(contextJson.contextPack || '')
+      const preparedContextSelection =
+        contextJson.contextSelection && typeof contextJson.contextSelection === 'object'
+          ? contextJson.contextSelection
+          : null
+      if (!preparedContextPack || !preparedContextSelection) {
+        throw new Error('Supabase no devolvió un contexto verificable para esta semana.')
+      }
+      setBriefingContextPack(preparedContextPack)
+      briefingContextSelectionRef.current = preparedContextSelection
+
+      setBriefingPhase('proposal')
+      const { res, json, errorMessage } = await postJsonWithRetry(
+        '/api/programming-week-briefing',
+        {
+          ...baseBriefingPayload,
+          action: 'proposal',
+          contextPack: preparedContextPack,
+          contextSelection: preparedContextSelection,
+          userInstructions: instructionsSnapshot,
+        },
+        0,
+        {
+          timeoutMessage:
+            'La IA ha tardado demasiado en preparar la propuesta. La petición se ha cerrado para que la pantalla no se quede bloqueada; pulsa «Reintentar».',
+        },
+      )
       if (
         briefingRunRef.current !== briefingRunId ||
         currentPlanningFingerprintRef.current !== inputFingerprint
@@ -1301,23 +1396,28 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         }
         throw new Error(errorMessage || `Error ${res.status}`)
       }
-      setBriefingContextPack(String(json.contextPack || ''))
+      setBriefingContextPack(String(json.contextPack || preparedContextPack))
       const contextSelection =
         json.contextSelection && typeof json.contextSelection === 'object'
           ? json.contextSelection
-          : null
+          : preparedContextSelection
       briefingContextSelectionRef.current = contextSelection
       let exactProgression = []
       let exactContextReady = false
+      setBriefingPhase('verify')
       if (
         contextSelection?.mode === 'exact-cycle-date' &&
         targetCycleStartDate
       ) {
         try {
-          const versions = await listPublishedWeekVersionsForMesocycle(
-            weekState.mesocycle,
-          )
           const expectedIds = new Set(contextSelection.progressionWeekIds || [])
+          const versions = expectedIds.size
+            ? await withTimeout(
+                getPublishedWeekVersionsByIds([...expectedIds]),
+                BRIEFING_CONTEXT_TIMEOUT_MS,
+                'Las semanas anteriores tardaron demasiado en cargar.',
+              )
+            : []
           exactProgression = versions
             .filter((row) => expectedIds.has(row.id))
             .sort((a, b) => Number(a?.semana || 0) - Number(b?.semana || 0))
@@ -1343,9 +1443,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setBriefingApiMessages(Array.isArray(json.initialMessages) ? json.initialMessages : [])
       setBriefingInputFingerprint(inputFingerprint)
       setBriefingStatus('ready')
+      setBriefingPhase('idle')
     } catch (e) {
       if (briefingRunRef.current !== briefingRunId) return
       setBriefingStatus('error')
+      setBriefingPhase('idle')
       setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
     }
   }
@@ -1365,6 +1467,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         '/api/programming-reference-context',
         { action: 'get', secret },
         0,
+        {
+          timeoutMs: 20_000,
+          timeoutMessage:
+            'La validación de acceso ha tardado demasiado. Recarga la página y vuelve a intentarlo.',
+        },
       )
       if (!res.ok) {
         if (Number(res.status) === 401) {
@@ -1670,20 +1777,28 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setErrorMsg('')
     try {
       const nextMessages = [...briefingApiMessages, { role: 'user', content: line }]
-      const { res, json, errorMessage } = await postJsonWithRetry('/api/programming-week-briefing', {
-        secret: adminSecret,
-        messages: nextMessages,
-        contextPack: briefingContextPack,
-        mesociclo: weekState.mesocycle,
-        semana: Number(weekState.week),
-        phase: weekState.phase || '',
-        totalWeeks: weekState.totalWeeks ?? null,
-        cycleId: targetCycleId || null,
-        cycleStartDate: targetCycleStartDate || null,
-        targetWeekStartDate: targetWeekStartDate || null,
-        generationDays: [...selectedGenerationDays],
-        weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
-      })
+      const { res, json, errorMessage } = await postJsonWithRetry(
+        '/api/programming-week-briefing',
+        {
+          secret: adminSecret,
+          messages: nextMessages,
+          contextPack: briefingContextPack,
+          mesociclo: weekState.mesocycle,
+          semana: Number(weekState.week),
+          phase: weekState.phase || '',
+          totalWeeks: weekState.totalWeeks ?? null,
+          cycleId: targetCycleId || null,
+          cycleStartDate: targetCycleStartDate || null,
+          targetWeekStartDate: targetWeekStartDate || null,
+          generationDays: [...selectedGenerationDays],
+          weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+        },
+        0,
+        {
+          timeoutMessage:
+            'La IA ha tardado demasiado en actualizar la propuesta. La petición se ha cerrado; vuelve a intentarlo.',
+        },
+      )
       if (
         briefingRunRef.current !== briefingRunId ||
         currentPlanningFingerprintRef.current !== planningFingerprint
@@ -1753,36 +1868,54 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       console.log('API Request (Proxy):', { model: body.model, attempt })
 
       const fetchAbort = generationFetchAbortRef.current
+      const requestAbort = new AbortController()
+      let didTimeout = false
+      const abortFromGeneration = () => requestAbort.abort()
+      if (fetchAbort?.signal?.aborted) {
+        throw new StaleGenerationResponseError()
+      }
+      fetchAbort?.signal?.addEventListener('abort', abortFromGeneration, { once: true })
+      const requestTimeoutId = setTimeout(() => {
+        didTimeout = true
+        requestAbort.abort()
+      }, EXCEL_GENERATION_FETCH_TIMEOUT_MS)
       let response
+      let responseText
       try {
         // Modelo: sonnet — generación JSON semanal (SYSTEM_PROMPT_EXCEL); núcleo del producto.
-        response = await withTimeout(
-          fetch('/api/anthropic', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-            signal: fetchAbort?.signal,
-          }),
-          EXCEL_GENERATION_FETCH_TIMEOUT_MS,
-          'Tiempo de espera agotado esperando respuesta de la IA (más de 5 min). En Vercel Hobby las funciones se cortan antes: hace falta plan Pro para generar semanas completas.',
-        )
+        response = await fetch('/api/anthropic', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal: requestAbort.signal,
+        })
+        // El proxy envía cabeceras y latidos antes de terminar. El límite debe
+        // cubrir también el cuerpo; proteger solo fetch() dejaba la UI colgada.
+        responseText = await response.text()
       } catch (e) {
         if (fetchAbort?.signal?.aborted) {
           throw new StaleGenerationResponseError()
         }
-        const networkMsg = explainAnthropicFetchFailure(e)
+        const networkMsg = didTimeout
+          ? 'Tiempo de espera agotado esperando la respuesta completa de la IA (más de 5 min). La petición se canceló para que la pantalla no se quede bloqueada.'
+          : explainAnthropicFetchFailure(e)
         if (attempt < retries) {
           const wait = Math.min(12, 4 + attempt * 3)
-          setGenStep(`Conexión inestable con la IA — reintentando en ${wait}s…`)
+          setGenStep(
+            `${
+              didTimeout ? 'La IA tardó demasiado' : 'Conexión inestable con la IA'
+            } — reintentando en ${wait}s…`,
+          )
           await new Promise((r) => setTimeout(r, wait * 1000))
           continue
         }
         throw new Error(networkMsg)
+      } finally {
+        clearTimeout(requestTimeoutId)
+        fetchAbort?.signal?.removeEventListener('abort', abortFromGeneration)
       }
-
-      const responseText = await response.text()
 
       let data
       try {
@@ -2386,7 +2519,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           generationCallIndex: callIdx,
         })
         try {
-          const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 5, {
+          const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 1, {
             generationCallIndex: callIdx,
           })
           assertGenerationIsCurrent()
@@ -2465,7 +2598,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             `\n\nREINTENTO FORZADO (${d}): este día estaba marcado para generar por el selector del cliente. ` +
             `Devuelve contenido REAL para ${d} en las columnas seleccionadas; no uses «(no programada esta semana)» en esas columnas.`
           setGenStep(`Reintentando ${d} (faltaba contenido)…`)
-          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 5, {
+          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 1, {
             model: SUPPORT_MODEL,
             maxTokens: 5000,
             generationCallIndex: generationApiCallIndex,
@@ -2555,7 +2688,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             `\nSi aparece una sección visible de bienvenida, movilidad, calentamiento, preparación, transición o cierre, elimínala y empieza directamente en A/B/C o PARTE ÚNICA.` +
             `\nObjetivo global: subir score semanal hacia ${QA_TARGET_SCORE}/10 o más.` +
             `\n- ${dayHints || 'Evitar repetición dominante y mejorar coherencia de ese día.'}`
-          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 5, {
+          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 1, {
             model: SUPPORT_MODEL,
             maxTokens: 5000,
             generationCallIndex: generationApiCallIndex,
@@ -4322,11 +4455,24 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               {briefingStatus === 'loading' && (
                 <div className="flex flex-col items-center justify-center py-16 px-4 space-y-3">
                   <div className="w-12 h-12 rounded-full border-2 border-evo-accent/30 border-t-evo-accent animate-spin" />
-                  <p className="text-sm font-bold text-[#1A0A1A] text-center">Analizando datos de Supabase…</p>
+                  <p className="text-sm font-bold text-[#1A0A1A] text-center">
+                    {briefingPhase === 'context'
+                      ? 'Cargando las semanas útiles…'
+                      : briefingPhase === 'verify'
+                        ? 'Verificando el histórico exacto…'
+                        : 'Contexto listo. Diseñando el enfoque con IA…'}
+                  </p>
                   <p className="text-[11px] text-neutral-700 text-center max-w-lg leading-relaxed">
-                    Semanas ya publicadas en Supabase del mesociclo que tienes en el panel, cambios guardados en el Hub,
-                    check-ins de coaches, pases de turno, reglas del método y notas por sesión. También tendrá en cuenta
-                    el contexto escrito arriba, los días seleccionados y la oferta real de clases.
+                    {briefingPhase === 'context'
+                      ? 'Se seleccionan solo las semanas anteriores que sirven para la progresión y unas pocas referencias de variedad, junto con los cambios y notas recientes.'
+                      : briefingPhase === 'verify'
+                        ? 'Comprobando que las semanas elegidas pertenecen al ciclo y a las fechas correctas antes de permitir la generación.'
+                        : 'La IA está convirtiendo ese contexto, tus instrucciones, los días y la oferta real de clases en una arquitectura semanal. Esta suele ser la parte más lenta.'}
+                  </p>
+                  <p className="text-[10px] font-semibold text-neutral-500">
+                    {briefingElapsedSec > 0
+                      ? `Tiempo transcurrido: ${formatGenElapsed(briefingElapsedSec)}`
+                      : 'Iniciando…'}
                   </p>
                 </div>
               )}

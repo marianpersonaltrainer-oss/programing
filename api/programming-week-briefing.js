@@ -17,7 +17,10 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
-import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
+import {
+  DEFAULT_SUPPORT_MODEL,
+  resolveProgrammingModel,
+} from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import {
   adminSecretsMatch,
@@ -36,7 +39,52 @@ import {
 import { parseAssistantBriefingJson } from '../src/utils/parseAssistantWeekJson.js'
 import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
 
-const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
+// El briefing decide arquitectura, no redacta sesiones. Evitar aquí el contrato de
+// salida y la política de feedback mantiene identidad, modalidades, progresión y
+// logística sin duplicar reglas que se vuelven a inyectar en la generación final.
+const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({
+  includeValidators: false,
+  includeOutputContract: false,
+  includeFeedbackPolicy: false,
+})
+const MAX_CONTEXT_PACK_CHARS = 48_000
+const BRIEFING_MAX_TOKENS = 2400
+const BRIEFING_UPSTREAM_TIMEOUT_MS = (() => {
+  const configured = Number(process.env.PROGRAMMING_BRIEFING_TIMEOUT_MS)
+  if (Number.isFinite(configured) && configured >= 20_000 && configured <= 90_000) {
+    return Math.floor(configured)
+  }
+  return 75_000
+})()
+
+const BRIEFING_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' },
+    narrative: { type: 'string' },
+    suggestedFocus: { type: 'string' },
+    weeklyArchitecture: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          day: { type: 'string' },
+          intent: { type: 'string' },
+          classPlans: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+          },
+          sharedFatigue: { type: 'string' },
+          antiRepetition: { type: 'string' },
+        },
+        required: ['day', 'intent', 'classPlans', 'sharedFatigue', 'antiRepetition'],
+      },
+    },
+  },
+  required: ['title', 'narrative', 'suggestedFocus', 'weeklyArchitecture'],
+}
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
@@ -107,6 +155,23 @@ function parseBody(req) {
   return null
 }
 
+function normalizeContextSelection(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const cleanIds = (ids) =>
+    Array.isArray(ids)
+      ? [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))].slice(0, 20)
+      : []
+  const mode = value.mode === 'exact-cycle-date' ? value.mode : 'legacy-slot'
+  const snapshotAt = String(value.snapshotAt || '').trim()
+  return {
+    mode,
+    snapshotAt,
+    progressionWeekIds: cleanIds(value.progressionWeekIds),
+    historicalWeekIds: cleanIds(value.historicalWeekIds),
+    selectedWeekIds: cleanIds(value.selectedWeekIds),
+  }
+}
+
 function sliceText(s, max) {
   const t = String(s || '').trim()
   if (!t) return ''
@@ -132,7 +197,7 @@ function compactPublishedWeek(row) {
     for (const k of ['evofuncional', 'evobasics', 'evofit', 'evohybrix', 'evofuerza', 'evogimnastica', 'evotodos']) {
       const v = String(dia[k] || '').trim()
       if (v && !/^\(no programada/i.test(v) && !/^FESTIVO/i.test(v)) {
-        bits.push(`${k}: ${sliceText(v.replace(/\s+/g, ' '), 380)}`)
+        bits.push(`${k}: ${sliceText(v.replace(/\s+/g, ' '), 300)}`)
       }
     }
     if (bits.length) lines.push(`${nm}: ${bits.join(' | ')}`)
@@ -213,20 +278,46 @@ function parseProposalJson(assistantText, options = {}) {
 }
 
 async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messages }) {
-  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages,
-    }),
-  })
+  const upstreamAbort = new AbortController()
+  const timeoutId = setTimeout(
+    () => upstreamAbort.abort(),
+    BRIEFING_UPSTREAM_TIMEOUT_MS,
+  )
+  let upstream
+  try {
+    upstream = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: BRIEFING_MAX_TOKENS,
+        system: systemPrompt,
+        messages,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: BRIEFING_OUTPUT_SCHEMA,
+          },
+        },
+      }),
+      signal: upstreamAbort.signal,
+    })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error(
+        'La IA tardó demasiado en preparar la propuesta. La petición se ha cerrado; pulsa «Reintentar».',
+      )
+      timeoutError.httpStatus = 504
+      throw timeoutError
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   const rawText = await upstream.text()
   let data
@@ -298,51 +389,66 @@ async function fetchContextPack(supabase, target) {
 
   const selection = selectProgrammingContextWeeks(rows || [], target, {
     progressionLimit: 6,
-    historicalLimit: 6,
+    historicalLimit: 4,
   })
   const progressionWeeks = selection.progressionWeeks
   const historicalWeeks = selection.historicalReferenceWeeks
   const selectedWeeks = [...progressionWeeks, ...historicalWeeks]
   const weekIds = selection.selectedWeekIds
-  let sessionRows = []
-  if (weekIds.length) {
-    const { data: fb, error: fErr } = await supabase
+  const loadSessionRows = async () => {
+    if (!weekIds.length) return []
+    const { data, error } = await supabase
       .from('coach_session_feedback')
       .select(
         'day_key, class_label, coach_name, session_how, changed_something, changed_details, notes_next_week, week_id, created_at',
       )
       .in('week_id', weekIds)
       .order('created_at', { ascending: false })
-      .limit(200)
-    if (fErr) logOptionalTableSkip('coach_session_feedback', fErr)
-    else sessionRows = filterFeedbackForSelectedWeekIds(fb || [], weekIds)
+      .limit(80)
+    if (error) {
+      logOptionalTableSkip('coach_session_feedback', error)
+      return []
+    }
+    return filterFeedbackForSelectedWeekIds(data || [], weekIds)
   }
 
-  let checkins = []
-  {
+  const loadCheckins = async () => {
     const sinceCheckins = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-    const { data, error: cErr } = await supabase
+    const { data, error } = await supabase
       .from('weekly_checkins')
       .select('coach_name, week_iso, mood_score, feedback_text, highlights, improvements, created_at')
       .gte('created_at', sinceCheckins)
       .order('created_at', { ascending: false })
-      .limit(80)
-    if (cErr) logOptionalTableSkip('weekly_checkins', cErr)
-    else checkins = data || []
+      .limit(30)
+    if (error) {
+      logOptionalTableSkip('weekly_checkins', error)
+      return []
+    }
+    return data || []
   }
 
-  let handoffs = []
-  {
+  const loadHandoffs = async () => {
     const sinceHandoffs = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
-    const { data, error: hErr } = await supabase
+    const { data, error } = await supabase
       .from('daily_handoffs')
       .select('coach_name, class_type, class_time, energy_level, had_incident, note, created_at')
       .gte('created_at', sinceHandoffs)
       .order('created_at', { ascending: false })
-      .limit(120)
-    if (hErr) logOptionalTableSkip('daily_handoffs', hErr)
-    else handoffs = data || []
+      .limit(40)
+    if (error) {
+      logOptionalTableSkip('daily_handoffs', error)
+      return []
+    }
+    return data || []
   }
+
+  // Estas tres lecturas no dependen entre sí. Hacerlas en paralelo evita
+  // sumar tres esperas de red antes de empezar el briefing.
+  const [sessionRows, checkins, handoffs] = await Promise.all([
+    loadSessionRows(),
+    loadCheckins(),
+    loadHandoffs(),
+  ])
 
   const blocks = [
     `## Progresión verificada del ciclo objetivo (${mesociclo || 'sin mesociclo'}; solo semanas estrictamente anteriores)`,
@@ -376,7 +482,7 @@ async function fetchContextPack(supabase, target) {
   )
 
   return {
-    text: blocks.join('\n'),
+    text: blocks.join('\n').slice(0, MAX_CONTEXT_PACK_CHARS),
     selection: {
       mode: selection.mode,
       snapshotAt,
@@ -438,8 +544,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' })
   }
 
+  // La propuesta es una arquitectura compacta previa. Reservamos Sonnet/Opus
+  // para redactar y revisar las sesiones completas; Haiku reduce la latencia de
+  // esta puerta sin quitarle el método ni el histórico seleccionado.
   const model = resolveProgrammingModel(
-    process.env.VITE_CLAUDE_MODEL || process.env.PROGRAMMING_MODEL || DEFAULT_PROGRAMMING_MODEL,
+    process.env.PROGRAMMING_BRIEFING_MODEL || DEFAULT_SUPPORT_MODEL,
   )
 
   const messagesIn = Array.isArray(body.messages) ? body.messages : null
@@ -457,6 +566,10 @@ export default async function handler(req, res) {
   const weeklyOffer = body.weeklyOffer && typeof body.weeklyOffer === 'object'
     ? body.weeklyOffer
     : null
+  const action = String(body.action || 'prepare').trim().toLowerCase()
+  if (!['prepare', 'context', 'proposal'].includes(action)) {
+    return res.status(400).json({ error: 'Acción de briefing no válida.' })
+  }
   const targetCycle = {
     mesociclo,
     semana,
@@ -467,8 +580,8 @@ export default async function handler(req, res) {
 
   try {
     let messages
-    let contextPack = String(body.contextPack || '').trim()
-    let contextSelection = null
+    let contextPack = String(body.contextPack || '').trim().slice(0, MAX_CONTEXT_PACK_CHARS)
+    let contextSelection = normalizeContextSelection(body.contextSelection)
 
     if (messagesIn && messagesIn.length > 0) {
       messages = messagesIn
@@ -482,9 +595,21 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan mesociclo o semana para el briefing inicial.' })
       }
 
-      const fetchedContext = await fetchContextPack(supabase, targetCycle)
-      contextPack = fetchedContext.text
-      contextSelection = fetchedContext.selection
+      if (action !== 'proposal') {
+        const fetchedContext = await fetchContextPack(supabase, targetCycle)
+        contextPack = fetchedContext.text
+        contextSelection = fetchedContext.selection
+        if (action === 'context') {
+          return res.status(200).json({
+            contextPack,
+            contextSelection,
+          })
+        }
+      } else if (!contextPack || !contextSelection) {
+        return res.status(400).json({
+          error: 'Falta el contexto preparado para diseñar la propuesta.',
+        })
+      }
       const userInstructions = String(body.userInstructions || '').trim().slice(0, 3000)
       const weeklyOfferDays = weeklyOffer?.dias
       const weeklyOfferLines = generationDays.map((day) => {
@@ -535,7 +660,9 @@ export default async function handler(req, res) {
       if (e?.preview) {
         return res.status(502).json({ error: e.message, preview: e.preview })
       }
-      return res.status(502).json({ error: e?.message || 'Error al contactar con Anthropic.' })
+      return res
+        .status(Number(e?.httpStatus) || 502)
+        .json({ error: e?.message || 'Error al contactar con Anthropic.' })
     }
 
     const parseOptions = { generationDays, weeklyOffer }
@@ -562,7 +689,7 @@ export default async function handler(req, res) {
         }))
         proposal = parseProposalJson(assistantText, parseOptions)
       } catch (retryErr) {
-        return res.status(502).json({
+        return res.status(Number(retryErr?.httpStatus) || 502).json({
           error: retryErr?.message || firstParseErr?.message || 'La IA devolvió una propuesta inválida.',
         })
       }

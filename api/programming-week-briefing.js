@@ -38,6 +38,17 @@ import {
 } from '../src/utils/weeklyArchitecturePlan.js'
 import { parseAssistantBriefingJson } from '../src/utils/parseAssistantWeekJson.js'
 import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
+import {
+  BRIEFING_UPSTREAM_CALL_MS,
+  BRIEFING_SERVER_TOTAL_BUDGET_MS,
+  canRetryBriefingAnthropic,
+} from './lib/briefingTimeBudget.js'
+import { startJsonStream } from './lib/jsonStreamResponse.js'
+import { buildDeterministicBriefingProposal } from '../src/utils/buildDeterministicBriefingProposal.js'
+
+export function newBriefingRequestId() {
+  return `brief_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
 
 // El briefing decide arquitectura, no redacta sesiones. Evitar aquí el contrato de
 // salida y la política de feedback mantiene identidad, modalidades, progresión y
@@ -49,13 +60,7 @@ const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({
 })
 const MAX_CONTEXT_PACK_CHARS = 48_000
 const BRIEFING_MAX_TOKENS = 2400
-const BRIEFING_UPSTREAM_TIMEOUT_MS = (() => {
-  const configured = Number(process.env.PROGRAMMING_BRIEFING_TIMEOUT_MS)
-  if (Number.isFinite(configured) && configured >= 20_000 && configured <= 90_000) {
-    return Math.floor(configured)
-  }
-  return 75_000
-})()
+const BRIEFING_UPSTREAM_TIMEOUT_MS = BRIEFING_UPSTREAM_CALL_MS
 
 export const BRIEFING_OUTPUT_SCHEMA = {
   type: 'object',
@@ -287,6 +292,37 @@ function parseProposalJson(assistantText, options = {}) {
   return { title, narrative, suggestedFocus, weeklyArchitecture }
 }
 
+export function resolveBriefingProposal({
+  assistantText,
+  parseOptions,
+  fallbackOptions,
+  startedAtMs,
+  allowAnthropicRetry,
+}) {
+  try {
+    return {
+      proposal: parseProposalJson(assistantText, parseOptions),
+      source: 'anthropic',
+      usedRetry: false,
+    }
+  } catch (firstParseErr) {
+    if (allowAnthropicRetry && canRetryBriefingAnthropic(startedAtMs)) {
+      return { needsRetry: true, firstParseErr, assistantText }
+    }
+    const proposal = buildDeterministicBriefingProposal({
+      ...fallbackOptions,
+      userInstructions: fallbackOptions?.userInstructions || '',
+      suggestedFocus: fallbackOptions?.suggestedFocus || firstParseErr?.message || '',
+    })
+    return {
+      proposal,
+      source: 'deterministic_fallback',
+      usedRetry: false,
+      parseWarning: firstParseErr?.message || 'parse_failed',
+    }
+  }
+}
+
 async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messages }) {
   const upstreamAbort = new AbortController()
   const timeoutId = setTimeout(
@@ -508,6 +544,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
+  const requestId = newBriefingRequestId()
+  const handlerStartedAt = Date.now()
+
   const originValue = getRequestOrigin(req)
   const isDev = process.env.NODE_ENV === 'development'
   if (!(isDev && !originValue) && !isEvoOriginAllowed(originValue)) {
@@ -613,6 +652,9 @@ export default async function handler(req, res) {
           return res.status(200).json({
             contextPack,
             contextSelection,
+            requestId,
+            phase: 'context_loaded',
+            durationMs: Date.now() - handlerStartedAt,
           })
         }
       } else if (!contextPack || !contextSelection) {
@@ -657,6 +699,19 @@ export default async function handler(req, res) {
       totalWeeks: Number.isFinite(totalWeeks) ? totalWeeks : null,
     })
 
+    const parseOptions = { generationDays, weeklyOffer }
+    const fallbackOptions = {
+      mesociclo,
+      semana,
+      generationDays,
+      weeklyOffer,
+      userInstructions: String(body.userInstructions || '').trim(),
+      suggestedFocus: String(body.suggestedFocus || '').trim(),
+    }
+
+    const useStream = action === 'proposal' || !messagesIn?.length
+    const stream = useStream ? startJsonStream(res, { requestId }) : null
+
     let assistantText
     let data
     try {
@@ -668,23 +723,43 @@ export default async function handler(req, res) {
       }))
     } catch (e) {
       if (e?.preview) {
-        return res.status(502).json({ error: e.message, preview: e.preview })
+        const bodyErr = { error: e.message, preview: e.preview, requestId, phase: 'proposal_ia' }
+        if (stream) {
+          stream.finishError(Number(e?.httpStatus) || 502, bodyErr)
+          return
+        }
+        return res.status(Number(e?.httpStatus) || 502).json(bodyErr)
       }
-      return res
-        .status(Number(e?.httpStatus) || 502)
-        .json({ error: e?.message || 'Error al contactar con Anthropic.' })
+      const bodyErr = {
+        error: e?.message || 'Error al contactar con Anthropic.',
+        requestId,
+        phase: 'proposal_ia',
+        durationMs: Date.now() - handlerStartedAt,
+      }
+      if (stream) {
+        stream.finishError(Number(e?.httpStatus) || 502, bodyErr)
+        return
+      }
+      return res.status(Number(e?.httpStatus) || 502).json(bodyErr)
     }
 
-    const parseOptions = { generationDays, weeklyOffer }
-    let proposal
-    try {
-      proposal = parseProposalJson(assistantText, parseOptions)
-    } catch (firstParseErr) {
-      console.warn('[programming-week-briefing] Reintento por propuesta no parseable:', firstParseErr?.message)
+    let proposalResolution = resolveBriefingProposal({
+      assistantText,
+      parseOptions,
+      fallbackOptions,
+      startedAtMs: handlerStartedAt,
+      allowAnthropicRetry: true,
+    })
+
+    if (proposalResolution.needsRetry) {
+      console.warn(
+        '[programming-week-briefing] Reintento Anthropic por propuesta no parseable:',
+        proposalResolution.firstParseErr?.message,
+      )
       try {
         const retryMessages = [
           ...messages,
-          { role: 'assistant', content: assistantText.trim() },
+          { role: 'assistant', content: proposalResolution.assistantText.trim() },
           {
             role: 'user',
             content:
@@ -697,12 +772,37 @@ export default async function handler(req, res) {
           systemPrompt,
           messages: retryMessages,
         }))
-        proposal = parseProposalJson(assistantText, parseOptions)
-      } catch (retryErr) {
-        return res.status(Number(retryErr?.httpStatus) || 502).json({
-          error: retryErr?.message || firstParseErr?.message || 'La IA devolvió una propuesta inválida.',
+        proposalResolution = resolveBriefingProposal({
+          assistantText,
+          parseOptions,
+          fallbackOptions,
+          startedAtMs: handlerStartedAt,
+          allowAnthropicRetry: false,
         })
+        proposalResolution.usedRetry = true
+      } catch (retryErr) {
+        const proposal = buildDeterministicBriefingProposal(fallbackOptions)
+        proposalResolution = {
+          proposal,
+          source: 'deterministic_after_retry_error',
+          usedRetry: true,
+          parseWarning: retryErr?.message || proposalResolution.firstParseErr?.message,
+        }
       }
+    }
+
+    const proposal = proposalResolution.proposal
+    if (!proposal) {
+      const bodyErr = {
+        error: proposalResolution.firstParseErr?.message || 'La IA devolvió una propuesta inválida.',
+        requestId,
+        phase: 'proposal_ia',
+      }
+      if (stream) {
+        stream.finishError(502, bodyErr)
+        return
+      }
+      return res.status(502).json(bodyErr)
     }
 
     contextPack = replaceWeeklyArchitectureBlock(contextPack, proposal.weeklyArchitecture)
@@ -711,6 +811,14 @@ export default async function handler(req, res) {
       contextPack: contextPack || undefined,
       contextSelection: contextSelection || undefined,
       model: data?.model || model,
+      requestId,
+      phase: 'proposal_ready',
+      proposalSource: proposalResolution.source,
+      usedAnthropicRetry: !!proposalResolution.usedRetry,
+      parseWarning: proposalResolution.parseWarning || null,
+      durationMs: Date.now() - handlerStartedAt,
+      providerRequestId: data?.id || null,
+      contextPackChars: String(contextPack || '').length,
     }
     if (!messagesIn?.length && messages?.[0]) {
       payload.initialMessages = [
@@ -718,9 +826,18 @@ export default async function handler(req, res) {
         { role: 'assistant', content: assistantText.trim() },
       ]
     }
+    if (stream) {
+      stream.finishSuccess(payload)
+      return
+    }
     return res.status(200).json(payload)
   } catch (e) {
     console.error('[programming-week-briefing]', e)
-    return res.status(500).json({ error: e?.message || 'Error al generar briefing' })
+    return res.status(500).json({
+      error: e?.message || 'Error al generar briefing',
+      requestId,
+      phase: 'error',
+      durationMs: Date.now() - handlerStartedAt,
+    })
   }
 }

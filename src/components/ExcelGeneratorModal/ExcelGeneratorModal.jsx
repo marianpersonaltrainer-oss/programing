@@ -100,7 +100,10 @@ import {
   weeklyOfferSelectionFromWeekData,
   weeklyOfferSelectionToValidationOffer,
 } from '../../utils/weeklyOffer.js'
-import { extractWeeklyArchitectureBlock } from '../../utils/weeklyArchitecturePlan.js'
+import {
+  extractWeeklyArchitectureBlock,
+  replaceWeeklyArchitectureBlock,
+} from '../../utils/weeklyArchitecturePlan.js'
 import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
 import {
   addProgrammingDays,
@@ -112,6 +115,24 @@ import {
   buildGenerationRequestFingerprint,
   StaleGenerationResponseError,
 } from '../../utils/generationRequestFingerprint.js'
+import {
+  BRIEFING_CONTEXT_CLIENT_TIMEOUT_MS,
+  BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS,
+} from '../../constants/briefingTimeBudget.js'
+import {
+  classifyJsonApiResponse,
+  isRetriableApiHttpStatus,
+} from '../../utils/parseJsonApiResponse.js'
+import {
+  appendJobRequestId,
+  buildGenerationJobStorageKey,
+  clearGenerationJob,
+  createGenerationJob,
+  jobHasResumableProgress,
+  loadGenerationJob,
+  saveGenerationJob,
+} from '../../utils/excelGenerationJobStorage.js'
+import { buildDeterministicBriefingProposal } from '../../utils/buildDeterministicBriefingProposal.js'
 import { weekInstructionsStorageKey } from '../../utils/weekInstructionsStorage.js'
 import {
   editorOpenTargetMatchesWeekState,
@@ -136,10 +157,10 @@ const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 60
 const EXCEL_GENERATION_FETCH_TIMEOUT_MS = 310_000
 /** Tiempo máximo cargando datos de Supabase antes de generar. */
 const EXCEL_GENERATION_PREP_TIMEOUT_MS = 45_000
-/** El briefing usa un modelo ligero y debe terminar antes del corte servidor (75 s). */
-const BRIEFING_CLIENT_TIMEOUT_MS = 85_000
+/** El briefing propuesta IA: hasta 2×75 s upstream + margen (no cortar a 85 s). */
+const BRIEFING_CLIENT_TIMEOUT_MS = BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS
 /** Lectura exacta de las semanas elegidas por el briefing. */
-const BRIEFING_CONTEXT_TIMEOUT_MS = 20_000
+const BRIEFING_CONTEXT_TIMEOUT_MS = BRIEFING_CONTEXT_CLIENT_TIMEOUT_MS
 /** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */
 const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 35_000
 /** Narrativa de propuesta incluida en el prompt (evita bloqueos con textos enormes). */
@@ -587,25 +608,19 @@ async function postJsonWithRetry(
         signal: controller.signal,
       })
       const rawText = await res.text()
-      let json = {}
-      try {
-        json = rawText ? JSON.parse(rawText) : {}
-      } catch {
-        json = {}
-      }
-      const errorMessage =
-        (typeof json?.error === 'string' && json.error) ||
-        (typeof json?.error === 'object' && json?.error?.message) ||
-        (typeof json?.message === 'string' && json.message) ||
-        rawText?.trim()?.slice(0, 500) ||
-        `Error ${res.status}`
-      const retriable = [429, 502, 503, 504, 529].includes(Number(res.status))
-      if (!res.ok && retriable && attempt < retries) {
+      const classified = classifyJsonApiResponse(res, rawText)
+      const retriable = isRetriableApiHttpStatus(classified.httpStatus)
+      if (!classified.ok && retriable && attempt < retries) {
         const waitMs = (attempt + 1) * 2500
         await new Promise((r) => setTimeout(r, waitMs))
         continue
       }
-      return { res, json, errorMessage }
+      return {
+        res: { ...res, ok: classified.ok, status: classified.httpStatus },
+        json: classified.json,
+        errorMessage: classified.errorMessage,
+        httpStatus: classified.httpStatus,
+      }
     } catch (e) {
       const requestError = didTimeout ? new Error(timeoutMessage) : e
       if (attempt < retries) {
@@ -619,6 +634,34 @@ async function postJsonWithRetry(
     }
   }
   throw new Error('No se pudo completar la petición tras varios intentos.')
+}
+
+async function verifyPublicationContextFromSelection(contextSelection) {
+  if (contextSelection?.mode !== 'exact-cycle-date') {
+    return { verified: false, progression: [] }
+  }
+  const expectedIds = new Set(contextSelection.progressionWeekIds || [])
+  if (!expectedIds.size) {
+    return { verified: true, progression: [] }
+  }
+  try {
+    const versions = await withTimeout(
+      getPublishedWeekVersionsByIds([...expectedIds]),
+      BRIEFING_CONTEXT_TIMEOUT_MS,
+      'Las semanas anteriores tardaron demasiado en cargar.',
+    )
+    const exactProgression = versions
+      .filter((row) => expectedIds.has(row.id))
+      .sort((a, b) => Number(a?.semana || 0) - Number(b?.semana || 0))
+      .map((row) => row?.data)
+      .filter(Boolean)
+    return {
+      verified: exactProgression.length === expectedIds.size,
+      progression: exactProgression,
+    }
+  } catch {
+    return { verified: false, progression: [] }
+  }
 }
 
 async function fetchServerReferenceContext() {
@@ -664,6 +707,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   /** review | refine | addons */
   const [proposalStep, setProposalStep] = useState('review')
   const [proposalAccepted, setProposalAccepted] = useState(false)
+  /** ai | manual | deterministic */
+  const [proposalSource, setProposalSource] = useState('none')
+  const [briefingRequestId, setBriefingRequestId] = useState('')
+  const [generationJobId, setGenerationJobId] = useState('')
+  const [resumableGenerationJob, setResumableGenerationJob] = useState(null)
+  const [aiCheckStatus, setAiCheckStatus] = useState('idle') // idle | checking | ok | error
+  const [aiCheckMessage, setAiCheckMessage] = useState('')
+  const generationJobStorageKeyRef = useRef('')
   const [addendum, setAddendum] = useState(() => readStoredWeekInstructions(weekState))
   const addendumStorageKey = weekInstructionsStorageKey(weekState)
   const addendumStorageKeyRef = useRef(addendumStorageKey)
@@ -685,6 +736,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const generationRunRef = useRef(0)
   const generationFetchAbortRef = useRef(null)
   const generationActiveRef = useRef(false)
+  const activeGenerationJobRef = useRef(null)
   const currentGenerationFingerprintRef = useRef('')
   const [showFullAnalysis, setShowFullAnalysis] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -904,6 +956,72 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       weekState.week,
     ],
   )
+
+  useEffect(() => {
+    if (!weekState.mesocycle || weekState.week == null) {
+      setResumableGenerationJob(null)
+      return
+    }
+    const key = buildGenerationJobStorageKey({
+      mesocycle: weekState.mesocycle,
+      week: weekState.week,
+      phase: weekState.phase || '',
+      targetWeekStartDate,
+      generationDays: selectedGenerationDays,
+      weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+      instructions: addendum,
+      selectedContextWeekIds: briefingContextSelectionRef.current?.selectedWeekIds || [],
+      contextRevision: briefingInputFingerprint,
+      weeklyArchitecture: extractWeeklyArchitectureBlock(briefingContextPack),
+    })
+    generationJobStorageKeyRef.current = key
+    const job = loadGenerationJob(key)
+    setResumableGenerationJob(jobHasResumableProgress(job) ? job : null)
+    if (job?.jobId) setGenerationJobId(job.jobId)
+  }, [
+    addendum,
+    briefingContextPack,
+    briefingInputFingerprint,
+    dayClassPicker,
+    selectedGenerationDays,
+    targetWeekStartDate,
+    weekState.mesocycle,
+    weekState.phase,
+    weekState.week,
+  ])
+
+  async function checkAiConnection() {
+    const secret = publicationAdminSecret()
+    if (!secret) {
+      setAiCheckStatus('error')
+      setAiCheckMessage('Activa la sesión de administración antes de comprobar la IA.')
+      return
+    }
+    setAiCheckStatus('checking')
+    setAiCheckMessage('')
+    try {
+      const { res, json, errorMessage } = await postJsonWithRetry(
+        '/api/programming-ai-check',
+        { secret },
+        0,
+        {
+          timeoutMs: 35_000,
+          timeoutMessage: 'La comprobación de IA tardó demasiado.',
+        },
+      )
+      if (!res.ok) {
+        throw new Error(errorMessage || `Error ${res.status}`)
+      }
+      setAiCheckStatus('ok')
+      setAiCheckMessage(
+        `Conexión OK · modelo ${json.model || '—'} · ${json.latencyMs ?? '—'} ms` +
+          (json.providerRequestId ? ` · req ${json.providerRequestId}` : ''),
+      )
+    } catch (e) {
+      setAiCheckStatus('error')
+      setAiCheckMessage(humanizeNetworkLikeError(e, 'No se pudo comprobar la conexión con la IA.'))
+    }
+  }
 
   useEffect(() => {
     if (
@@ -1258,6 +1376,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setEvalResult(null)
     setEvalFingerprint('')
     setEvalError('')
+    setProposalSource('none')
+    setBriefingRequestId('')
+    setGenerationJobId('')
+    setResumableGenerationJob(null)
+    setAiCheckStatus('idle')
+    setAiCheckMessage('')
   }, [
     weekState.cycleId,
     weekState.cycleStartDate,
@@ -1313,6 +1437,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setProposalTitle('')
     setProposalNarrative('')
     setProposalSuggestedFocus('')
+    let loadedContextPack = ''
+    let contextWasVerified = false
     try {
       const baseBriefingPayload = {
         secret: adminSecret,
@@ -1367,6 +1493,25 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setBriefingContextPack(preparedContextPack)
       briefingContextSelectionRef.current = preparedContextSelection
 
+      setBriefingPhase('verify')
+      const { verified: exactContextReady, progression: exactProgression } =
+        await verifyPublicationContextFromSelection(preparedContextSelection)
+      if (
+        briefingRunRef.current !== briefingRunId ||
+        currentPlanningFingerprintRef.current !== inputFingerprint
+      ) {
+        return
+      }
+      setPublicationProgressionWeeks(exactProgression)
+      setPublicationContextVerified(exactContextReady)
+      loadedContextPack = preparedContextPack
+      contextWasVerified = exactContextReady
+      if (!exactContextReady) {
+        throw new Error(
+          'No se pudo verificar el histórico exacto del ciclo en Supabase. Revisa fechas del ciclo o usa modo manual con contexto recargado.',
+        )
+      }
+
       setBriefingPhase('proposal')
       const { res, json, errorMessage } = await postJsonWithRetry(
         '/api/programming-week-briefing',
@@ -1377,10 +1522,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           contextSelection: preparedContextSelection,
           userInstructions: instructionsSnapshot,
         },
-        0,
+        1,
         {
+          timeoutMs: BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS,
           timeoutMessage:
-            'La IA ha tardado demasiado en preparar la propuesta. La petición se ha cerrado para que la pantalla no se quede bloqueada; pulsa «Reintentar».',
+            'La IA ha tardado demasiado en preparar la propuesta. La petición se ha cerrado; puedes usar propuesta manual o reintentar.',
         },
       )
       if (
@@ -1394,7 +1540,14 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           setBriefingErrorCode('invalid_admin_secret')
           throw new Error('La clave de administración ya no es válida para esta preview.')
         }
-        throw new Error(errorMessage || `Error ${res.status}`)
+        setBriefingStatus('error')
+        setBriefingPhase('idle')
+        setBriefingErrorMsg(
+          errorMessage ||
+            'La propuesta automática falló, pero el contexto ya está cargado. Usa «Propuesta manual» para continuar.',
+        )
+        setBriefingInputFingerprint(inputFingerprint)
+        return
       }
       setBriefingContextPack(String(json.contextPack || preparedContextPack))
       const contextSelection =
@@ -1402,53 +1555,29 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           ? json.contextSelection
           : preparedContextSelection
       briefingContextSelectionRef.current = contextSelection
-      let exactProgression = []
-      let exactContextReady = false
-      setBriefingPhase('verify')
-      if (
-        contextSelection?.mode === 'exact-cycle-date' &&
-        targetCycleStartDate
-      ) {
-        try {
-          const expectedIds = new Set(contextSelection.progressionWeekIds || [])
-          const versions = expectedIds.size
-            ? await withTimeout(
-                getPublishedWeekVersionsByIds([...expectedIds]),
-                BRIEFING_CONTEXT_TIMEOUT_MS,
-                'Las semanas anteriores tardaron demasiado en cargar.',
-              )
-            : []
-          exactProgression = versions
-            .filter((row) => expectedIds.has(row.id))
-            .sort((a, b) => Number(a?.semana || 0) - Number(b?.semana || 0))
-            .map((row) => row?.data)
-            .filter(Boolean)
-          exactContextReady = exactProgression.length === expectedIds.size
-        } catch {
-          exactProgression = []
-          exactContextReady = false
-        }
-      }
-      if (
-        briefingRunRef.current !== briefingRunId ||
-        currentPlanningFingerprintRef.current !== inputFingerprint
-      ) {
-        return
-      }
-      setPublicationProgressionWeeks(exactProgression)
-      setPublicationContextVerified(exactContextReady)
+      setBriefingRequestId(String(json.requestId || ''))
       setProposalTitle(String(json.proposal?.title || '').trim())
       setProposalNarrative(String(json.proposal?.narrative || '').trim())
       setProposalSuggestedFocus(String(json.proposal?.suggestedFocus || '').trim())
+      setProposalSource(json.proposalSource === 'anthropic' ? 'ai' : 'deterministic')
       setBriefingApiMessages(Array.isArray(json.initialMessages) ? json.initialMessages : [])
       setBriefingInputFingerprint(inputFingerprint)
       setBriefingStatus('ready')
       setBriefingPhase('idle')
     } catch (e) {
       if (briefingRunRef.current !== briefingRunId) return
+      if (contextWasVerified && loadedContextPack) {
+        setBriefingStatus('error')
+        setBriefingPhase('idle')
+        setBriefingErrorMsg(
+          `${humanizeNetworkLikeError(e, 'La propuesta automática falló.')}` +
+            ' El contexto del ciclo sigue cargado: puedes usar «Propuesta manual» y generar.',
+        )
+        return
+      }
       setBriefingStatus('error')
       setBriefingPhase('idle')
-      setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo generar la propuesta.'))
+      setBriefingErrorMsg(humanizeNetworkLikeError(e, 'No se pudo cargar el contexto ni la propuesta.'))
     }
   }
 
@@ -2013,6 +2142,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   async function handleGenerate(opts) {
     const correctionNote =
       opts && typeof opts.correctionNote === 'string' ? opts.correctionNote.trim() : ''
+    const resumeFromJob = opts?.resumeFromJob && jobHasResumableProgress(opts.resumeFromJob)
+      ? opts.resumeFromJob
+      : null
     if (!weekState.mesocycle) {
       setErrorMsg('Primero selecciona el tipo de Mesociclo y la Semana en el panel de la izquierda (aparece como "Configuración pendiente").')
       setStatus('error')
@@ -2022,6 +2154,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setErrorMsg('')
 
     const pack = String(briefingContextPack || '').trim()
+    const contextReady = publicationContextVerified && !!pack
+    const proposalReady =
+      proposalAccepted &&
+      !!String(proposalTitle || '').trim() &&
+      !!String(proposalNarrative || '').trim()
     if (!targetCycleStartDate) {
       setErrorMsg(
         'Indica la fecha real de inicio del ciclo antes de generar; sin ella no se puede separar esta progresión de ciclos antiguos.',
@@ -2034,15 +2171,17 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setStatus('error')
       return
     }
-    if (briefingStatus !== 'ready' || !pack || !publicationContextVerified) {
+    if (!contextReady) {
       setErrorMsg(
-        'Actualiza primero la propuesta: la generación necesita el contexto exacto del ciclo y su histórico verificado.',
+        'El histórico del ciclo no está verificado. Pulsa «Actualizar propuesta» o recarga el contexto antes de generar.',
       )
       setStatus('error')
       return
     }
-    if (!proposalAccepted) {
-      setErrorMsg('Pulsa «Me parece bien» y luego «Generar semana» (o ajusta el enfoque con la IA).')
+    if (!proposalReady) {
+      setErrorMsg(
+        'Acepta la propuesta (IA o manual): necesitas título, narrativa y pulsar «Me parece bien» o «Usar propuesta manual».',
+      )
       setStatus('error')
       return
     }
@@ -2069,6 +2208,30 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     generationActiveRef.current = true
     generationFetchAbortRef.current?.abort()
     generationFetchAbortRef.current = new AbortController()
+    const jobStorageKey =
+      generationJobStorageKeyRef.current ||
+      buildGenerationJobStorageKey({
+        mesocycle: weekState.mesocycle,
+        week: weekState.week,
+        phase: weekState.phase || '',
+        targetWeekStartDate,
+        generationDays: selectedGenerationDays,
+        weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+        instructions: addendum,
+        selectedContextWeekIds: briefingContextSelectionRef.current?.selectedWeekIds || [],
+        contextRevision: briefingInputFingerprint,
+        weeklyArchitecture: extractWeeklyArchitectureBlock(briefingContextPack),
+      })
+    generationJobStorageKeyRef.current = jobStorageKey
+    if (resumeFromJob) {
+      activeGenerationJobRef.current = resumeFromJob
+      setGenerationJobId(resumeFromJob.jobId)
+    } else {
+      const freshJob = createGenerationJob({ fingerprint: capturedGenerationFingerprint })
+      activeGenerationJobRef.current = freshJob
+      setGenerationJobId(freshJob.jobId)
+      saveGenerationJob(jobStorageKey, freshJob)
+    }
     flushSync(() => {
       setStatus('generating')
       setGenStep('Cargando biblioteca EVO…')
@@ -2313,6 +2476,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       selectedCanon,
       planSourceText,
     )
+    if (resumeFromJob?.completedDays?.length) {
+      for (const completedDay of resumeFromJob.completedDays) {
+        daysToGenerate.delete(completedDay)
+      }
+    }
     const explicitHolidayDays = resolveExplicitHolidayDays(addendumClean)
     const holidayMergeOptions = {
       allowHolidayCreation: explicitHolidayDays.size > 0,
@@ -2362,7 +2530,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       // Briefing obligatorio: no llamar buildWeekContext (consultas pesadas a published_weeks).
       const weekContextText = ''
       let overlay = null
-      if (weekData && Array.isArray(weekData.dias)) {
+      if (resumeFromJob?.partialWeek) {
+        overlay = resumeFromJob.partialWeek
+      } else if (weekData && Array.isArray(weekData.dias)) {
         overlay = weekData
       }
       // Sin getActiveWeek() aquí: `select *` sobre published_weeks colgaba la generación en prod.
@@ -2389,6 +2559,32 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           },
           { previousWeeks: synthesisPreviousWeeks },
         )
+        const completedDays = EXCEL_DAY_ORDER.filter((dayName) => {
+          const idx = EXCEL_DAY_ORDER.indexOf(dayName)
+          const dia = generationCheckpoint?.dias?.[idx]
+          if (!dia) return false
+          return EVO_SESSION_CLASS_DEFS.some(({ key }) => {
+            const text = String(dia?.[key] || '').trim()
+            return text && !/no programada esta semana/i.test(text) && !/^FESTIVO\b/i.test(text)
+          })
+        })
+        let job = activeGenerationJobRef.current
+        if (job) {
+          job = appendJobRequestId(
+            {
+              ...job,
+              phase: 'generating',
+              completedDays,
+              partialWeek: generationCheckpoint,
+              failedDay: null,
+              error: null,
+            },
+            briefingRequestId || job.jobId,
+          )
+          activeGenerationJobRef.current = job
+          saveGenerationJob(generationJobStorageKeyRef.current, job)
+          setResumableGenerationJob(job)
+        }
       }
       const daysPreserved = new Set(textPreservedDays)
       if (Array.isArray(overlay?.dias)) {
@@ -2757,6 +2953,9 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       /* Conservar edición de fila publicada: sigue pudiendo «Guardar cambios» y contexto sigue siendo opcional al regenerar. */
       setSavedPublishedEdit(false)
       setGenStep('')
+      clearGenerationJob(generationJobStorageKeyRef.current)
+      activeGenerationJobRef.current = null
+      setResumableGenerationJob(null)
       setStatus('previewing')
       // PASO 2 — Scoring automático tras generar (sin intervención de la usuaria).
       runScoring(combined)
@@ -2774,6 +2973,17 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return
       }
       setGenStep('')
+      if (activeGenerationJobRef.current) {
+        const failedJob = {
+          ...activeGenerationJobRef.current,
+          phase: 'failed',
+          error: humanizeNetworkLikeError(err, 'La generación se interrumpió.'),
+          partialWeek: generationCheckpoint || activeGenerationJobRef.current.partialWeek,
+        }
+        activeGenerationJobRef.current = failedJob
+        saveGenerationJob(generationJobStorageKeyRef.current, failedJob)
+        setResumableGenerationJob(jobHasResumableProgress(failedJob) ? failedJob : null)
+      }
       if (generationCheckpoint && weekHasMeaningfulSessionContent(generationCheckpoint)) {
         const completedDays = (generationCheckpoint.dias || []).filter((dia) =>
           EVO_SESSION_CLASS_DEFS.some(({ key }) => {
@@ -4582,7 +4792,30 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                           setStatus('error')
                           return
                         }
+                        if (!publicationContextVerified || !String(briefingContextPack || '').trim()) {
+                          setErrorMsg('Primero carga y verifica el contexto del ciclo (Actualizar propuesta).')
+                          setStatus('error')
+                          return
+                        }
                         setErrorMsg('')
+                        const det = buildDeterministicBriefingProposal({
+                          mesociclo: weekState.mesocycle,
+                          semana: Number(weekState.week),
+                          generationDays: selectedGenerationDays,
+                          weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+                          userInstructions: addendum,
+                          suggestedFocus: proposalSuggestedFocus,
+                          title: proposalTitle,
+                        })
+                        const nextPack = replaceWeeklyArchitectureBlock(
+                          briefingContextPack,
+                          det.weeklyArchitecture,
+                        )
+                        setBriefingContextPack(nextPack)
+                        setProposalTitle(det.title)
+                        setProposalNarrative(det.narrative)
+                        setProposalSuggestedFocus(det.suggestedFocus)
+                        setProposalSource('manual')
                         setProposalAccepted(true)
                         setProposalStep('addons')
                       }}
@@ -4676,21 +4909,59 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 </div>
               )}
 
-              {((briefingStatus === 'ready' && proposalStep === 'addons') ||
-                (briefingStatus === 'error' && proposalAccepted && proposalStep === 'addons')) && (
+              {proposalAccepted &&
+                proposalStep === 'addons' &&
+                publicationContextVerified &&
+                String(briefingContextPack || '').trim() && (
+                <>
+                {resumableGenerationJob ? (
+                  <button
+                    type="button"
+                    onClick={() => handleGenerate({ resumeFromJob: resumableGenerationJob })}
+                    disabled={selectedGenerationDayCount === 0 || briefingIsStale}
+                    className="w-full px-6 py-3 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-950 text-[12px] font-bold uppercase tracking-wide hover:bg-amber-100 disabled:opacity-45"
+                  >
+                    Continuar generación ({resumableGenerationJob.completedDays?.length || 0} día
+                    {(resumableGenerationJob.completedDays?.length || 0) === 1 ? '' : 's'} hecho
+                    {(resumableGenerationJob.completedDays?.length || 0) === 1 ? '' : 's'})
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={handleGenerate}
+                  onClick={() => handleGenerate()}
                   disabled={selectedGenerationDayCount === 0 || briefingIsStale}
                   className="w-full px-6 py-3.5 rounded-xl bg-evo-accent text-white text-[12px] font-bold uppercase tracking-wide shadow-md hover:bg-evo-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {briefingIsStale
                     ? 'Actualiza la propuesta antes de generar'
-                    : selectedGenerationDayCount
-                      ? `Generar ${selectedGenerationDayCount} ${selectedGenerationDayCount === 1 ? 'día' : 'días'}`
-                      : 'Selecciona al menos un día'}
+                    : resumableGenerationJob
+                      ? 'Reiniciar generación completa'
+                      : selectedGenerationDayCount
+                        ? `Generar ${selectedGenerationDayCount} ${selectedGenerationDayCount === 1 ? 'día' : 'días'}`
+                        : 'Selecciona al menos un día'}
                 </button>
+                </>
               )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={checkAiConnection}
+                  disabled={aiCheckStatus === 'checking'}
+                  className="px-4 py-2 rounded-xl border border-black/10 bg-white text-[10px] font-bold uppercase tracking-wide text-neutral-800 hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {aiCheckStatus === 'checking' ? 'Comprobando IA…' : 'Comprobar conexión con la IA'}
+                </button>
+                {aiCheckMessage ? (
+                  <span
+                    className={`text-[10px] font-semibold ${
+                      aiCheckStatus === 'ok' ? 'text-emerald-700' : 'text-red-700'
+                    }`}
+                  >
+                    {aiCheckMessage}
+                  </span>
+                ) : null}
+              </div>
 
               {briefingStatus === 'ready' && (
                 <details className="rounded-xl border border-black/10 bg-neutral-50/80 px-4 py-2.5 text-left">
@@ -4847,6 +5118,8 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 </p>
                 <p className="text-[10px] text-neutral-500 text-center max-w-md">
                   Build {EVO_BUILD_ID}
+                  {generationJobId ? ` · job ${generationJobId}` : ''}
+                  {briefingRequestId ? ` · briefing ${briefingRequestId}` : ''}
                   {!genStep.includes('Generando') && genElapsedSec >= 30
                     ? ' · si sigue en preparación, cancela y recarga; el briefing guardado reaparece (es normal, no es caché vieja)'
                     : ''}

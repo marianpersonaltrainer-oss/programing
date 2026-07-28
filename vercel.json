@@ -42,6 +42,10 @@
       "maxDuration": 300,
       "memory": 3008
     },
+    "api/programming-ai-check.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
     "api/programming-week-briefing.js": {
       "maxDuration": 180,
       "memory": 1024

@@ -1,5 +1,5 @@
 /* ProgramingEvo — service worker mínimo para criterios de PWA (instalar / pantalla de inicio).
- * v20260728c — recarga clientes tras deploy. */
+ * v20260728d — recarga clientes tras deploy. */
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())
 })

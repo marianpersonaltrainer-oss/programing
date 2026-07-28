@@ -76,6 +76,34 @@ describe('weekly architecture plan', () => {
     ).toThrow(/no cubre: MARTES/)
   })
 
+  it('acepta la lista cerrada de clases que exige Structured Outputs', () => {
+    const structuredPlan = structuredClone(plan)
+    structuredPlan[0].classPlans = [
+      {
+        classKey: 'evofuncional',
+        plan: 'Back Squat en series + AMRAP por parejas; barra y balón; descanso natural',
+      },
+      {
+        classKey: 'evofit',
+        plan: 'Skill landmine + circuito continuo; sin intervalos',
+      },
+    ]
+    structuredPlan[1].classPlans = [
+      {
+        classKey: 'evofuncional',
+        plan: 'Técnica de tracción + for time corto; cajón y autocarga',
+      },
+    ]
+
+    const normalized = normalizeWeeklyArchitecturePlan(structuredPlan, {
+      generationDays: ['LUNES', 'MARTES'],
+      weeklyOffer: offer,
+    })
+
+    expect(normalized[0].classPlans).toEqual(plan[0].classPlans)
+    expect(normalized[1].classPlans).toEqual(plan[1].classPlans)
+  })
+
   it('rechaza clases que no existen en la oferta confirmada', () => {
     const bad = structuredClone(plan)
     bad[0].classPlans.evobasics = 'Clase inventada'

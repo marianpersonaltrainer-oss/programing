@@ -81,6 +81,24 @@ describe('programming-week-briefing.js — método canónico', () => {
     expect(src).toContain('pulsa «Reintentar»')
   })
 
+  it('usa una petición compacta y estructurada para la arquitectura previa', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const { dirname, join } = await import('node:path')
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+    const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
+
+    expect(src).toContain('DEFAULT_SUPPORT_MODEL')
+    expect(src).toContain('PROGRAMMING_BRIEFING_MODEL')
+    expect(src).toContain('BRIEFING_MAX_TOKENS = 2400')
+    expect(src).toContain('MAX_CONTEXT_PACK_CHARS = 48_000')
+    expect(src).toContain('includeOutputContract: false')
+    expect(src).toContain('includeFeedbackPolicy: false')
+    expect(src).toContain("type: 'json_schema'")
+    expect(src).toContain('schema: BRIEFING_OUTPUT_SCHEMA')
+    expect(src).toContain('historicalLimit: 4')
+  })
+
   it('separa la carga de contexto de la propuesta IA y paraleliza notas auxiliares', async () => {
     const { readFileSync } = await import('node:fs')
     const { fileURLToPath } = await import('node:url')

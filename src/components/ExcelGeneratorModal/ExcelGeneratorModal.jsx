@@ -67,10 +67,6 @@ import { EVO_WEEK_RESPONSE_FORMAT } from '../../constants/evoWeekOutputSchema.js
 import { EVO_BUILD_ID } from '../../constants/evoBuildId.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { buildExcelDayContextSynthesis, excelCanonDayToTargetDay } from '../../utils/buildExcelDayContextSynthesis.js'
-import {
-  buildLastYearReferenceBlock,
-  briefingPackIncludesLastYear,
-} from '../../utils/buildLastYearReferenceBlock.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
 import {
   buildWeekSessionClassReview,
@@ -144,6 +140,14 @@ const ADDENDUM_MAX_CHARS = 3000
 /** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
 const QA_AUTO_FIX_MAX_PASSES = 2
 const QA_TARGET_SCORE = 8.2
+
+function formatGenElapsed(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${String(r).padStart(2, '0')}`
+}
 
 function buildGenerationDaySelectionFromOffer(offerSelection) {
   return Object.fromEntries(
@@ -2044,31 +2048,28 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setGenStep('Recopilando feedback de coaches…')
     try {
       if (synthesisSelectedWeekIds.length) {
-        const { data } = await supabase
+        const feedbackQuery = supabase
           .from('coach_session_feedback')
           .select('class_label, notes_next_week, created_at, week_id')
           .in('week_id', synthesisSelectedWeekIds)
           .not('notes_next_week', 'is', null)
           .order('created_at', { ascending: false })
           .limit(40)
+        const { data } = await withTimeout(
+          feedbackQuery,
+          12_000,
+          'Feedback de coaches omitido por tiempo de espera.',
+        )
         synthesisCoachFeedback = Array.isArray(data) ? data : []
       }
     } catch {
       /* síntesis sin feedback */
     }
     assertGenerationIsCurrent()
-    if (!briefingPackIncludesLastYear(pack)) {
-      setGenStep('Consultando referencia del último año…')
-      try {
-        lastYearReferenceBlock = await withTimeout(
-          buildLastYearReferenceBlock(),
-          20_000,
-          'Referencia anual omitida por tiempo de espera.',
-        )
-      } catch {
-        /* sin referencia anual */
-      }
-    }
+    // No consultar tabla `weeks` en generación: en prod puede colgar (RLS/red) y bloquea minutos
+    // la UI; el briefing ya incluye histórico del ciclo.
+    lastYearReferenceBlock = ''
+    setGenStep('Preparando prompt de generación…')
     assertGenerationIsCurrent()
 
     const methodBlock = buildMethodPromptAppendix()
@@ -2190,7 +2191,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       return
     }
     try {
-      setGenStep('Preparando prompt de generación…')
       // NO enviar briefing en weekContext: injectWeekContext lo fusiona al system y duplica el tamaño
       // del prompt (~50k system + ~30k briefing → conexión cortada en Vercel / Failed to fetch).
       let weekContextText = ''
@@ -2612,6 +2612,11 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         generationRunRef.current !== generationRunId
       ) {
         generationActiveRef.current = false
+        setGenStep('')
+        setStatus((current) => (current === 'generating' ? 'idle' : current))
+        setErrorMsg(
+          'La generación se detuvo (cambió la configuración o llevaba demasiado tiempo). Pulsa «Generar semana» otra vez.',
+        )
         return
       }
       setGenStep('')
@@ -4670,7 +4675,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 </p>
                 <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">
                   Memoria AI activa · Coherencia EVO
-                  {genElapsedSec > 0 ? ` · ${genElapsedSec}s` : ''}
+                  {genElapsedSec > 0 ? ` · ${formatGenElapsed(genElapsedSec)}` : ''}
                   {!genStep.includes('Generando') && genStep ? ' · preparando contexto' : ''}
                 </p>
                 <p className="text-[10px] text-neutral-500 text-center">

@@ -17,7 +17,10 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenerationBlocks.js'
-import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
+import {
+  DEFAULT_SUPPORT_MODEL,
+  resolveProgrammingModel,
+} from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import {
   adminSecretsMatch,
@@ -36,15 +39,52 @@ import {
 import { parseAssistantBriefingJson } from '../src/utils/parseAssistantWeekJson.js'
 import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
 
-const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
-const MAX_CONTEXT_PACK_CHARS = 90_000
+// El briefing decide arquitectura, no redacta sesiones. Evitar aquí el contrato de
+// salida y la política de feedback mantiene identidad, modalidades, progresión y
+// logística sin duplicar reglas que se vuelven a inyectar en la generación final.
+const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({
+  includeValidators: false,
+  includeOutputContract: false,
+  includeFeedbackPolicy: false,
+})
+const MAX_CONTEXT_PACK_CHARS = 48_000
+const BRIEFING_MAX_TOKENS = 2400
 const BRIEFING_UPSTREAM_TIMEOUT_MS = (() => {
   const configured = Number(process.env.PROGRAMMING_BRIEFING_TIMEOUT_MS)
-  if (Number.isFinite(configured) && configured >= 30_000 && configured <= 170_000) {
+  if (Number.isFinite(configured) && configured >= 20_000 && configured <= 90_000) {
     return Math.floor(configured)
   }
-  return 155_000
+  return 75_000
 })()
+
+const BRIEFING_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' },
+    narrative: { type: 'string' },
+    suggestedFocus: { type: 'string' },
+    weeklyArchitecture: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          day: { type: 'string' },
+          intent: { type: 'string' },
+          classPlans: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+          },
+          sharedFatigue: { type: 'string' },
+          antiRepetition: { type: 'string' },
+        },
+        required: ['day', 'intent', 'classPlans', 'sharedFatigue', 'antiRepetition'],
+      },
+    },
+  },
+  required: ['title', 'narrative', 'suggestedFocus', 'weeklyArchitecture'],
+}
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
@@ -157,7 +197,7 @@ function compactPublishedWeek(row) {
     for (const k of ['evofuncional', 'evobasics', 'evofit', 'evohybrix', 'evofuerza', 'evogimnastica', 'evotodos']) {
       const v = String(dia[k] || '').trim()
       if (v && !/^\(no programada/i.test(v) && !/^FESTIVO/i.test(v)) {
-        bits.push(`${k}: ${sliceText(v.replace(/\s+/g, ' '), 380)}`)
+        bits.push(`${k}: ${sliceText(v.replace(/\s+/g, ' '), 300)}`)
       }
     }
     if (bits.length) lines.push(`${nm}: ${bits.join(' | ')}`)
@@ -254,9 +294,15 @@ async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messa
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: BRIEFING_MAX_TOKENS,
         system: systemPrompt,
         messages,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: BRIEFING_OUTPUT_SCHEMA,
+          },
+        },
       }),
       signal: upstreamAbort.signal,
     })
@@ -343,7 +389,7 @@ async function fetchContextPack(supabase, target) {
 
   const selection = selectProgrammingContextWeeks(rows || [], target, {
     progressionLimit: 6,
-    historicalLimit: 6,
+    historicalLimit: 4,
   })
   const progressionWeeks = selection.progressionWeeks
   const historicalWeeks = selection.historicalReferenceWeeks
@@ -498,8 +544,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' })
   }
 
+  // La propuesta es una arquitectura compacta previa. Reservamos Sonnet/Opus
+  // para redactar y revisar las sesiones completas; Haiku reduce la latencia de
+  // esta puerta sin quitarle el método ni el histórico seleccionado.
   const model = resolveProgrammingModel(
-    process.env.VITE_CLAUDE_MODEL || process.env.PROGRAMMING_MODEL || DEFAULT_PROGRAMMING_MODEL,
+    process.env.PROGRAMMING_BRIEFING_MODEL || DEFAULT_SUPPORT_MODEL,
   )
 
   const messagesIn = Array.isArray(body.messages) ? body.messages : null

@@ -2069,7 +2069,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     // No consultar tabla `weeks` en generación: en prod puede colgar (RLS/red) y bloquea minutos
     // la UI; el briefing ya incluye histórico del ciclo.
     lastYearReferenceBlock = ''
-    setGenStep('Preparando prompt de generación…')
+    setGenStep('Montando prompt de generación…')
+    await Promise.resolve()
     assertGenerationIsCurrent()
 
     const methodBlock = buildMethodPromptAppendix()
@@ -2209,23 +2210,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       let overlay = null
       if (weekData && Array.isArray(weekData.dias)) {
         overlay = weekData
-      } else {
-        try {
-          const row = await getActiveWeek()
-          if (
-            publishedWeekMatchesExactTarget(row, {
-              mesocycle: weekState.mesocycle,
-              week: weekState.week,
-              cycleId: targetCycleId,
-              cycleStartDate: targetCycleStartDate,
-            })
-          ) {
-            overlay = row.data
-          }
-        } catch {
-          overlay = null
-        }
       }
+      // Sin getActiveWeek() aquí: `select *` sobre published_weeks colgaba la generación en prod.
+
+      setGenStep('Iniciando generación por días…')
+      await Promise.resolve()
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
 
@@ -2366,6 +2355,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
             ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · puede tardar 2–5 min${callIdx > 0 ? ' · modo ligero' : ''}`
             : `Generando ${chunkDaysText}… · puede tardar 2–5 min`,
         )
+        await Promise.resolve()
         const targetDayKey = excelCanonDayToTargetDay([...chunk][0])
         const coherenceBlock = buildCoherenceBlockFromAccumulator(targetDayKey)
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock, { isFirstApiCall })
@@ -2407,6 +2397,16 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           }
           throw err
         }
+      }
+
+      if (dayChunks.length) {
+        const firstDay = [...dayChunks[0]][0]
+        setGenStep(
+          dayChunks.length > 1
+            ? `Generando ${firstDay}… (1/${dayChunks.length}) · puede tardar 2–5 min`
+            : `Generando ${firstDay}… · puede tardar 2–5 min`,
+        )
+        await Promise.resolve()
       }
 
       for (let ci = 0; ci < dayChunks.length; ci++) {
@@ -4676,7 +4676,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                 <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">
                   Memoria AI activa · Coherencia EVO
                   {genElapsedSec > 0 ? ` · ${formatGenElapsed(genElapsedSec)}` : ''}
-                  {!genStep.includes('Generando') && genStep ? ' · preparando contexto' : ''}
+                  {!genStep.includes('Generando') && genStep ? ' · preparando' : ''}
                 </p>
                 <p className="text-[10px] text-neutral-500 text-center">
                   Build {EVO_BUILD_ID}

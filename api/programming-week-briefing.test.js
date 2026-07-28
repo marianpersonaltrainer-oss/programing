@@ -67,4 +67,17 @@ describe('programming-week-briefing.js — método canónico', () => {
       src.indexOf('fetchContextPack(supabase, targetCycle)'),
     )
   })
+
+  it('cancela Anthropic antes del límite de Vercel para no dejar el briefing colgado', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const { dirname, join } = await import('node:path')
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+    const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
+
+    expect(src).toContain('BRIEFING_UPSTREAM_TIMEOUT_MS')
+    expect(src).toContain('signal: upstreamAbort.signal')
+    expect(src).toContain("error?.name === 'AbortError'")
+    expect(src).toContain('pulsa «Reintentar»')
+  })
 })

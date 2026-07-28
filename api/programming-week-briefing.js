@@ -37,6 +37,13 @@ import { parseAssistantBriefingJson } from '../src/utils/parseAssistantWeekJson.
 import { loadPublishedWeeksForContext } from './lib/loadPublishedWeeksForContext.js'
 
 const BRIEFING_METHOD_CONTEXT = buildMethodEvoV1Prompt({ includeValidators: false })
+const BRIEFING_UPSTREAM_TIMEOUT_MS = (() => {
+  const configured = Number(process.env.PROGRAMMING_BRIEFING_TIMEOUT_MS)
+  if (Number.isFinite(configured) && configured >= 30_000 && configured <= 170_000) {
+    return Math.floor(configured)
+  }
+  return 155_000
+})()
 
 const SYSTEM = `Eres el copiloto de programación de Evolution Boutique Fitness (EVO), Granada.
 Marian va a generar la próxima semana de clases. Recibes un paquete de datos REALES: semanas ya publicadas
@@ -213,20 +220,40 @@ function parseProposalJson(assistantText, options = {}) {
 }
 
 async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messages }) {
-  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages,
-    }),
-  })
+  const upstreamAbort = new AbortController()
+  const timeoutId = setTimeout(
+    () => upstreamAbort.abort(),
+    BRIEFING_UPSTREAM_TIMEOUT_MS,
+  )
+  let upstream
+  try {
+    upstream = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages,
+      }),
+      signal: upstreamAbort.signal,
+    })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error(
+        'La IA tardó demasiado en preparar la propuesta. La petición se ha cerrado; pulsa «Reintentar».',
+      )
+      timeoutError.httpStatus = 504
+      throw timeoutError
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   const rawText = await upstream.text()
   let data
@@ -535,7 +562,9 @@ export default async function handler(req, res) {
       if (e?.preview) {
         return res.status(502).json({ error: e.message, preview: e.preview })
       }
-      return res.status(502).json({ error: e?.message || 'Error al contactar con Anthropic.' })
+      return res
+        .status(Number(e?.httpStatus) || 502)
+        .json({ error: e?.message || 'Error al contactar con Anthropic.' })
     }
 
     const parseOptions = { generationDays, weeklyOffer }
@@ -562,7 +591,7 @@ export default async function handler(req, res) {
         }))
         proposal = parseProposalJson(assistantText, parseOptions)
       } catch (retryErr) {
-        return res.status(502).json({
+        return res.status(Number(retryErr?.httpStatus) || 502).json({
           error: retryErr?.message || firstParseErr?.message || 'La IA devolvió una propuesta inválida.',
         })
       }

@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- **Node.js 20.x** (coincide con `engines` en `package.json`) → https://nodejs.org
+- **Node.js 22.x** (coincide con `engines` en `package.json`) → https://nodejs.org
 
 ## Instalación
 
@@ -18,17 +18,15 @@ Edita `.env` con:
 
 | Variable | Dónde se usa |
 |----------|----------------|
-| `ANTHROPIC_API_KEY` | Solo en la función serverless `api/anthropic.js` (Vercel o `vercel dev`). No uses prefijo `VITE_`: así la clave no entra en el JavaScript del navegador. |
+| `OPENAI_API_KEY` | Solo en las funciones serverless (Vercel o `vercel dev`). No uses prefijo `VITE_`: así la clave no entra en el JavaScript del navegador. |
 | `VITE_SUPABASE_URL` | Cliente (modo coach, publicar semana). |
 | `VITE_SUPABASE_ANON_KEY` | Cliente (mismo uso que la URL). |
 
-Opcional en el cliente: `VITE_CLAUDE_MODEL` (por defecto `claude-sonnet-4-20250514`). El antiguo `claude-3-5-sonnet-20241022` ya no existe en la API de Anthropic.
-
-La clave de Anthropic está en https://console.anthropic.com
+Opcional: `VITE_OPENAI_MODEL` y `VITE_OPENAI_SUPPORT_MODEL`. Claude solo puede habilitarse como respaldo con `AI_ANTHROPIC_FALLBACK=true` y `ANTHROPIC_API_KEY`.
 
 ## Desarrollo
 
-**Solo interfaz (sin llamadas a `/api/anthropic`):**
+**Solo interfaz (sin llamadas a las funciones IA):**
 
 ```bash
 npm run dev
@@ -36,7 +34,7 @@ npm run dev
 
 Abre http://localhost:5173
 
-**Con chat IA y generador Excel funcionando** hace falta ejecutar las funciones serverless locales. Usa la CLI de Vercel (lee `ANTHROPIC_API_KEY` del `.env` para la API):
+**Con chat IA y generador Excel funcionando** hace falta ejecutar las funciones serverless locales. Usa la CLI de Vercel (lee `OPENAI_API_KEY` del `.env` solo en servidor):
 
 ```bash
 npx vercel dev
@@ -49,4 +47,4 @@ npm run build
 npm run preview
 ```
 
-En **Vercel**, define `ANTHROPIC_API_KEY` y las variables `VITE_*` en el panel del proyecto (Production / Preview). No marques `ANTHROPIC_API_KEY` como variable expuesta al cliente.
+En **Vercel**, define `OPENAI_API_KEY` y las variables `VITE_*` en el panel del proyecto (Production / Preview). No marques `OPENAI_API_KEY` como variable expuesta al cliente.

@@ -1,6 +1,6 @@
 /**
  * POST /api/programming-week-briefing
- * Ensambla datos de Supabase (service role) y llama a Anthropic para la propuesta conversacional
+ * Ensambla datos de Supabase y usa la capa común de proveedores para la propuesta
  * del modal «Generar programación semanal».
  *
  * Body JSON:
@@ -20,7 +20,8 @@ import { buildMesocycleProgrammingBlock } from '../src/constants/mesocycleGenera
 import {
   DEFAULT_SUPPORT_MODEL,
   resolveProgrammingModel,
-} from '../src/constants/anthropicModels.js'
+} from '../src/constants/aiModels.js'
+import { getAiProviderConfig, hasConfiguredAiProvider, requestAiStructuredOutput } from './lib/ai/provider.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import {
   adminSecretsMatch,
@@ -302,7 +303,7 @@ export function resolveBriefingProposal({
   try {
     return {
       proposal: parseProposalJson(assistantText, parseOptions),
-      source: 'anthropic',
+      source: 'ai_provider',
       usedRetry: false,
     }
   } catch (firstParseErr) {
@@ -323,98 +324,13 @@ export function resolveBriefingProposal({
   }
 }
 
-async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messages }) {
-  const upstreamAbort = new AbortController()
-  const timeoutId = setTimeout(
-    () => upstreamAbort.abort(),
-    BRIEFING_UPSTREAM_TIMEOUT_MS,
-  )
-  let upstream
-  try {
-    upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: BRIEFING_MAX_TOKENS,
-        system: systemPrompt,
-        messages,
-        output_config: {
-          format: {
-            type: 'json_schema',
-            schema: BRIEFING_OUTPUT_SCHEMA,
-          },
-        },
-      }),
-      signal: upstreamAbort.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      const timeoutError = new Error(
-        'La IA tardó demasiado en preparar la propuesta. La petición se ha cerrado; pulsa «Reintentar».',
-      )
-      timeoutError.httpStatus = 504
-      throw timeoutError
-    }
-    throw error
-  } finally {
-    clearTimeout(timeoutId)
-  }
-
-  const rawText = await upstream.text()
-  let data
-  try {
-    data = rawText ? JSON.parse(rawText) : {}
-  } catch {
-    const err = new Error('Anthropic devolvió cuerpo no JSON')
-    err.preview = rawText?.slice(0, 200)
-    err.httpStatus = upstream.status
-    throw err
-  }
-
-  if (!upstream.ok) {
-    const err = new Error(data?.error?.message || `Anthropic HTTP ${upstream.status}`)
-    err.httpStatus = upstream.status
-    throw err
-  }
-
-  const assistantText = extractAnthropicTextBlocks(data)
-  if (!assistantText) {
-    const contentTypes = summarizeAnthropicContentTypes(data)
-    console.error('[programming-week-briefing] Anthropic sin texto utilizable:', {
-      status: upstream.status,
-      model: data?.model || model,
-      contentTypes,
-    })
-    throw new Error(
-      'Anthropic devolvió una respuesta sin texto utilizable para el briefing. Reintenta; si persiste, revisa prompt/modelo.',
-    )
-  }
-
-  return { assistantText, data }
-}
-
-function extractAnthropicTextBlocks(data) {
-  const blocks = Array.isArray(data?.content) ? data.content : []
-  return blocks
-    .map((block) => {
-      if (!block || typeof block !== 'object') return ''
-      if (block.type && block.type !== 'text') return ''
-      return typeof block.text === 'string' ? block.text : ''
-    })
-    .filter(Boolean)
-    .join('\n')
-    .trim()
-}
-
-function summarizeAnthropicContentTypes(data) {
-  const blocks = Array.isArray(data?.content) ? data.content : []
-  if (!blocks.length) return '(sin content)'
-  return blocks.map((b) => String(b?.type || 'unknown')).join(', ')
+async function requestBriefingFromProvider({ providerConfig, model, systemPrompt, messages }) {
+  const result = await requestAiStructuredOutput({
+    providerConfig, model, system: systemPrompt, messages,
+    schema: BRIEFING_OUTPUT_SCHEMA, schemaName: 'evo_week_briefing',
+    maxTokens: BRIEFING_MAX_TOKENS, timeoutMs: BRIEFING_UPSTREAM_TIMEOUT_MS,
+  })
+  return { assistantText: result.assistantText, data: { ...result, id: result.providerRequestId } }
 }
 
 /**
@@ -558,9 +474,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'JSON inválido' })
   }
 
-  const apiKey = (process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '').trim()
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY en el servidor.' })
+  const providerConfig = getAiProviderConfig()
+  if (!hasConfiguredAiProvider(providerConfig)) {
+    return res.status(500).json({ error: 'Falta OPENAI_API_KEY en el servidor.' })
   }
 
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -593,9 +509,8 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' })
   }
 
-  // La propuesta es una arquitectura compacta previa. Reservamos Sonnet/Opus
-  // para redactar y revisar las sesiones completas; Haiku reduce la latencia de
-  // esta puerta sin quitarle el método ni el histórico seleccionado.
+  // La propuesta es una arquitectura compacta previa. Un modelo de soporte reduce
+  // la latencia de esta puerta sin quitarle el método ni el histórico seleccionado.
   const model = resolveProgrammingModel(
     process.env.PROGRAMMING_BRIEFING_MODEL || DEFAULT_SUPPORT_MODEL,
   )
@@ -715,8 +630,8 @@ export default async function handler(req, res) {
     let assistantText
     let data
     try {
-      ;({ assistantText, data } = await requestBriefingFromAnthropic({
-        apiKey,
+      ;({ assistantText, data } = await requestBriefingFromProvider({
+        providerConfig,
         model,
         systemPrompt,
         messages,
@@ -725,22 +640,23 @@ export default async function handler(req, res) {
       if (e?.preview) {
         const bodyErr = { error: e.message, preview: e.preview, requestId, phase: 'proposal_ia' }
         if (stream) {
-          stream.finishError(Number(e?.httpStatus) || 502, bodyErr)
+          stream.finishError(Number(e?.status || e?.httpStatus) || 502, bodyErr)
           return
         }
-        return res.status(Number(e?.httpStatus) || 502).json(bodyErr)
+        return res.status(Number(e?.status || e?.httpStatus) || 502).json(bodyErr)
       }
       const bodyErr = {
-        error: e?.message || 'Error al contactar con Anthropic.',
+        error: e?.message || 'Error al contactar con el proveedor de IA.',
+        errorCode: e?.code || 'provider_error',
         requestId,
         phase: 'proposal_ia',
         durationMs: Date.now() - handlerStartedAt,
       }
       if (stream) {
-        stream.finishError(Number(e?.httpStatus) || 502, bodyErr)
+        stream.finishError(Number(e?.status || e?.httpStatus) || 502, bodyErr)
         return
       }
-      return res.status(Number(e?.httpStatus) || 502).json(bodyErr)
+      return res.status(Number(e?.status || e?.httpStatus) || 502).json(bodyErr)
     }
 
     let proposalResolution = resolveBriefingProposal({
@@ -753,7 +669,7 @@ export default async function handler(req, res) {
 
     if (proposalResolution.needsRetry) {
       console.warn(
-        '[programming-week-briefing] Reintento Anthropic por propuesta no parseable:',
+        '[programming-week-briefing] Reintento del proveedor por propuesta no parseable:',
         proposalResolution.firstParseErr?.message,
       )
       try {
@@ -766,8 +682,8 @@ export default async function handler(req, res) {
               'Reenvía ÚNICAMENTE un objeto JSON válido (sin markdown, sin texto extra) con las claves title, narrative, suggestedFocus y weeklyArchitecture. No repitas el paquete de datos.',
           },
         ]
-        ;({ assistantText, data } = await requestBriefingFromAnthropic({
-          apiKey,
+        ;({ assistantText, data } = await requestBriefingFromProvider({
+          providerConfig,
           model,
           systemPrompt,
           messages: retryMessages,

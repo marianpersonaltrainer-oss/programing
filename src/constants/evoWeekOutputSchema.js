@@ -14,7 +14,7 @@ for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
 dayProperties.wodbuster = stringField()
 
 /**
- * Esquema canónico para Structured Outputs de Anthropic.
+ * Esquema canónico neutral para Structured Outputs.
  *
  * Todos los campos son obligatorios para que el esquema no acumule parámetros
  * opcionales y para que cada llamada parcial conserve exactamente la misma forma.
@@ -53,4 +53,3 @@ export const EVO_WEEK_OUTPUT_SCHEMA = {
 }
 
 export const EVO_WEEK_RESPONSE_FORMAT = 'evo_week'
-

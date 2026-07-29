@@ -87,6 +87,17 @@ function getServerConfig() {
   }
 }
 
+export function getMissingGenerationStepConfig(config) {
+  const missing = []
+  if (!config?.supabaseUrl) missing.push('SUPABASE_URL')
+  if (!config?.serviceKey) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+  if (!config?.adminSecret) missing.push('COACH_GUIDE_ADMIN_SECRET')
+  if (!hasConfiguredAiProvider(config)) {
+    missing.push(config?.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY')
+  }
+  return missing
+}
+
 function newRequestId() {
   return `genstep_${randomUUID().replaceAll('-', '')}`
 }
@@ -504,13 +515,16 @@ export function createProgrammingGenerationStepHandler({
     requestId = cleanText(body.requestId, 200) || requestId
 
     const config = getServerConfigImpl()
-    if (
-      !config?.supabaseUrl ||
-      !config?.serviceKey ||
-      !config?.adminSecret ||
-      !hasConfiguredAiProvider(config)
-    ) {
-      return respond(500, { error: 'generation_step_server_not_configured' })
+    const missingConfiguration = getMissingGenerationStepConfig(config)
+    if (missingConfiguration.length) {
+      return respond(500, {
+        error: 'generation_step_server_not_configured',
+        message:
+          `La generación no está configurada en este deployment de Vercel. ` +
+          `Activa para Preview: ${missingConfiguration.join(', ')} y vuelve a desplegar.`,
+        missingConfiguration,
+        retriable: false,
+      })
     }
     if (!adminSecretsMatch(body.secret, config.adminSecret)) {
       return respond(401, { error: 'unauthorized' })

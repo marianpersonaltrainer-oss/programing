@@ -38,4 +38,23 @@ describe('excelGenerationJobStorage', () => {
     expect(loaded?.jobId).toBe(job.jobId)
     expect(jobHasResumableProgress(loaded)).toBe(true)
   })
+
+  it('permite reintentar una sincronización final pero no reabre un job cancelado', () => {
+    expect(
+      jobHasResumableProgress({
+        serverJobId: 'job-sync',
+        phase: 'sync_pending',
+        completedDays: ['LUNES'],
+        partialWeek: { dias: [{ nombre: 'LUNES', evofuncional: 'test' }] },
+      }),
+    ).toBe(true)
+    expect(
+      jobHasResumableProgress({
+        serverJobId: 'job-cancelled',
+        phase: 'cancelled',
+        completedDays: ['LUNES'],
+        partialWeek: { dias: [{ nombre: 'LUNES', evofuncional: 'test' }] },
+      }),
+    ).toBe(false)
+  })
 })

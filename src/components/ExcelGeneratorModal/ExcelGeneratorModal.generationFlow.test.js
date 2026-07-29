@@ -1,38 +1,159 @@
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { describe, expect, it, vi } from 'vitest'
+import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+import { buildProgrammingGenerationRecoveryState } from '../../utils/programmingGenerationRecovery.js'
+import { runPersistentDayGeneration } from '../../utils/persistentDayGeneration.js'
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-const modalSrc = readFileSync(
-  join(root, 'src/components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'),
-  'utf8',
-)
+function generatedDay(day, marker, selectedClasses = ['evofuncional']) {
+  const dia = { nombre: day }
+  for (const { key, feedbackKey } of EVO_SESSION_CLASS_DEFS) {
+    dia[key] =
+      selectedClasses.includes(key)
+        ? `A) Fuerza ${marker}\nB) Metcon controlado de doce minutos`
+        : '(no programada esta semana)'
+    dia[feedbackKey] = selectedClasses.includes(key) ? `Escala ${marker}.` : ''
+  }
+  dia.wodbuster = ''
+  return { dia }
+}
 
-describe('ExcelGeneratorModal generation flow contract', () => {
-  it('permite generar con contexto verificado aunque falle la propuesta IA', () => {
-    expect(modalSrc).toContain('const contextReady = publicationContextVerified && !!pack')
-    expect(modalSrc).not.toContain("briefingStatus !== 'ready' || !pack || !publicationContextVerified")
-    expect(modalSrc).toContain('buildDeterministicBriefingProposal')
-    expect(modalSrc).toContain('Continuar generación')
+function snapshotAfterTwoDays() {
+  const monday = generatedDay('LUNES', 'lunes')
+  const tuesday = generatedDay('MARTES', 'martes')
+  return {
+    job: {
+      id: 'job-flow',
+      idempotencyKey: 'idem-flow',
+      fingerprint: 'fp-flow',
+      status: 'generating',
+      target: {
+        mesocycle: 'FUERZA',
+        week: 4,
+        cycleId: 'FUERZA:2026-07-06',
+        weekStartDate: '2026-07-27',
+      },
+      configuration: {
+        generationDays: [
+          'LUNES',
+          'MARTES',
+          'MIÉRCOLES',
+          'JUEVES',
+          'VIERNES',
+        ],
+        weeklyOffer: {
+          version: 1,
+          dias: {
+            LUNES: ['evofuncional'],
+            MARTES: ['evofuncional'],
+            MIÉRCOLES: ['evofuncional', 'evobasics', 'evofit'],
+            JUEVES: ['evofuncional', 'evohybrix'],
+            VIERNES: ['evofuncional', 'evofit'],
+          },
+        },
+        briefingContextPack: 'Contexto Supabase verificado.',
+        briefingInputFingerprint: 'planning-flow',
+        contextSelection: { selectedWeekIds: ['s1', 's2'] },
+        contextVerified: true,
+        proposalSource: 'manual',
+        proposalTitle: 'Progresión de fuerza',
+        proposalNarrative: 'Continuidad técnica con carga controlada.',
+        proposalAccepted: true,
+      },
+      completedDays: ['LUNES', 'MARTES'],
+      partialWeek: {
+        titulo: 'Progresión de fuerza',
+        semana: 4,
+        mesociclo: 'FUERZA',
+        dias: [monday.dia, tuesday.dia],
+      },
+      currentDay: 'MIÉRCOLES',
+      revision: 4,
+    },
+    steps: [
+      { day: 'LUNES', status: 'completed', result: monday },
+      { day: 'MARTES', status: 'completed', result: tuesday },
+    ],
+  }
+}
+
+describe('ExcelGeneratorModal generation flow', () => {
+  it('recarga una semana real de cinco días, restaura el planning y genera solo los tres pendientes', async () => {
+    const recovery = buildProgrammingGenerationRecoveryState(
+      snapshotAfterTwoDays(),
+    )
+    const classesByDay = {
+      MIÉRCOLES: ['evofuncional', 'evobasics', 'evofit'],
+      JUEVES: ['evofuncional', 'evohybrix'],
+      VIERNES: ['evofuncional', 'evofit'],
+    }
+    const generateDay = vi.fn(async (day) =>
+      generatedDay(day, day.toLowerCase(), classesByDay[day]),
+    )
+    let editorWeek = recovery.job.partialWeek
+
+    const result = await runPersistentDayGeneration({
+      days: recovery.configuration.generationDays,
+      completedDays: recovery.job.completedDays,
+      generateDay,
+      persistDay: async ({ result: generated }) => {
+        editorWeek = {
+          ...editorWeek,
+          dias: [...editorWeek.dias, generated.dia],
+        }
+      },
+    })
+
+    expect(recovery).toMatchObject({
+      contextReady: true,
+      proposalReady: true,
+      canResume: true,
+      pendingDays: ['MIÉRCOLES', 'JUEVES', 'VIERNES'],
+    })
+    expect(generateDay).toHaveBeenCalledTimes(3)
+    expect(generateDay).toHaveBeenNthCalledWith(
+      1,
+      'MIÉRCOLES',
+      expect.objectContaining({
+        completedDays: ['LUNES', 'MARTES'],
+      }),
+    )
+    expect(result.completedDays).toEqual([
+      'LUNES',
+      'MARTES',
+      'MIÉRCOLES',
+      'JUEVES',
+      'VIERNES',
+    ])
+    expect(editorWeek.dias.map((day) => day.nombre)).toEqual([
+      'LUNES',
+      'MARTES',
+      'MIÉRCOLES',
+      'JUEVES',
+      'VIERNES',
+    ])
+    expect(editorWeek.dias[2].evofuncional).toMatch(/miércoles/)
+    expect(editorWeek.dias[2].evobasics).toMatch(/miércoles/)
+    expect(editorWeek.dias[3].evohybrix).toMatch(/jueves/)
+    expect(editorWeek.dias[4].evofit).toMatch(/viernes/)
   })
 
-  it('usa timeout de propuesta coherente con dos llamadas upstream', () => {
-    expect(modalSrc).toContain('BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS')
-    expect(modalSrc).toContain('classifyJsonApiResponse')
-  })
+  it('no inicia el día siguiente hasta que el anterior está persistido', async () => {
+    const order = []
+    await runPersistentDayGeneration({
+      days: ['LUNES', 'MARTES'],
+      generateDay: async (day) => {
+        order.push(`generate:${day}`)
+        return generatedDay(day, day.toLowerCase())
+      },
+      persistDay: async ({ day }) => {
+        order.push(`persist:${day}`)
+      },
+    })
 
-  it('expone comprobación de IA y job id', () => {
-    expect(modalSrc).toContain('/api/programming-ai-check')
-    expect(modalSrc).toContain('Comprobar conexión con la IA')
-    expect(modalSrc).toContain('saveGenerationJob')
-    expect(modalSrc).toContain('generationJobId')
-  })
-
-  it('verifica contexto antes de llamar a la propuesta IA', () => {
-    const verifyIdx = modalSrc.indexOf('verifyPublicationContextFromSelection')
-    const proposalIdx = modalSrc.indexOf("action: 'proposal'")
-    expect(verifyIdx).toBeGreaterThan(0)
-    expect(proposalIdx).toBeGreaterThan(verifyIdx)
+    expect(order).toEqual([
+      'generate:LUNES',
+      'persist:LUNES',
+      'generate:MARTES',
+      'persist:MARTES',
+    ])
   })
 })

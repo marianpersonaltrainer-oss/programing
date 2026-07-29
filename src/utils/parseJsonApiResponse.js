@@ -14,11 +14,11 @@ export function parseJsonApiResponseText(rawText) {
 
 export function extractApiErrorMessage(json, fallback = 'Error desconocido') {
   if (!json || typeof json !== 'object') return fallback
-  if (typeof json.error === 'string' && json.error.trim()) return json.error.trim()
   if (typeof json.error?.message === 'string' && json.error.message.trim()) {
     return json.error.message.trim()
   }
   if (typeof json.message === 'string' && json.message.trim()) return json.message.trim()
+  if (typeof json.error === 'string' && json.error.trim()) return json.error.trim()
   return fallback
 }
 

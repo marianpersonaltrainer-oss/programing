@@ -52,7 +52,6 @@ import {
   getAnthropicProxyErrorMessage,
 } from '../../utils/parseAnthropicProxyBody.js'
 import { extractAnthropicTextBlocks } from '../../utils/extractAnthropicTextBlocks.js'
-import { parseAssistantWeekJson } from '../../utils/parseAssistantWeekJson.js'
 import { parseAssistantDayJson } from '../../utils/parseAssistantDayJson.js'
 import { mergeDayFromAiPatch, listSessionFieldsChanged } from '../../utils/mergeDayFromAiPatch.js'
 import { sanitizePromptTextForLLM } from '../../utils/sanitizePromptTextForLLM.js'
@@ -64,7 +63,6 @@ import {
   buildReferenceMesocycleSystemAppendix,
 } from '../../utils/referenceMesocycleContextStorage.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
-import { EVO_WEEK_RESPONSE_FORMAT } from '../../constants/evoWeekOutputSchema.js'
 import { EVO_BUILD_ID } from '../../constants/evoBuildId.js'
 import { buildWeekContext } from '../../utils/buildWeekContext.js'
 import { buildExcelDayContextSynthesis, excelCanonDayToTargetDay } from '../../utils/buildExcelDayContextSynthesis.js'
@@ -126,12 +124,24 @@ import {
 import {
   appendJobRequestId,
   buildGenerationJobStorageKey,
-  clearGenerationJob,
   createGenerationJob,
   jobHasResumableProgress,
   loadGenerationJob,
   saveGenerationJob,
 } from '../../utils/excelGenerationJobStorage.js'
+import {
+  createRemoteGenerationJob,
+  findRemoteGenerationJobByTarget,
+  finishRemoteGenerationJob,
+  generateRemoteDayStep,
+  getRemoteGenerationJob,
+  remoteSnapshotToLocalJob,
+} from '../../utils/programmingGenerationJobApi.js'
+import { runPersistentDayGeneration } from '../../utils/persistentDayGeneration.js'
+import {
+  buildProgrammingGenerationRecoveryState,
+} from '../../utils/programmingGenerationRecovery.js'
+import { buildDayGenerationSystemPrompt } from '../../utils/dayGenerationSystemPrompt.js'
 import { buildDeterministicBriefingProposal } from '../../utils/buildDeterministicBriefingProposal.js'
 import { weekInstructionsStorageKey } from '../../utils/weekInstructionsStorage.js'
 import {
@@ -146,30 +156,25 @@ import {
 } from '../../utils/publicationMutationSnapshot.js'
 
 /** Techo de salida por POST (1 día; bajar reduce coste sin cortar un día completo). */
-const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 5500
+const EXCEL_GENERATION_MAX_TOKENS_PER_CALL = 4200
 /** Briefing en el mensaje de usuario (NO en weekContext→system: duplicaba ~30k y cortaba la conexión). */
-const EXCEL_GENERATION_PACK_MAX_CHARS = 14_000
+const EXCEL_GENERATION_PACK_MAX_CHARS = 9_000
 /** Tope del bloque «días ya generados» en el user (extracto compacto, no JSON completo). */
-const EXCEL_COHERENCE_JSON_MAX_CHARS = 22_000
+const EXCEL_COHERENCE_JSON_MAX_CHARS = 8_000
 /** Ejercicios listados en biblioteca dentro del system (el resto sigue en Supabase). */
-const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 60
-/** Tiempo máximo de espera del cliente por POST a /api/anthropic (margen sobre maxDuration Vercel). */
-const EXCEL_GENERATION_FETCH_TIMEOUT_MS = 310_000
+const EXCEL_LIBRARY_MAX_EXERCISES_IN_PROMPT = 36
 /** Tiempo máximo cargando datos de Supabase antes de generar. */
-const EXCEL_GENERATION_PREP_TIMEOUT_MS = 45_000
+const EXCEL_GENERATION_PREP_TIMEOUT_MS = 30_000
 /** El briefing propuesta IA: hasta 2×75 s upstream + margen (no cortar a 85 s). */
 const BRIEFING_CLIENT_TIMEOUT_MS = BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS
 /** Lectura exacta de las semanas elegidas por el briefing. */
 const BRIEFING_CONTEXT_TIMEOUT_MS = BRIEFING_CONTEXT_CLIENT_TIMEOUT_MS
 /** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */
-const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 90_000
+const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 30_000
 /** Narrativa de propuesta incluida en el prompt (evita bloqueos con textos enormes). */
-const EXCEL_GENERATION_NARRATIVE_MAX_CHARS = 6000
+const EXCEL_GENERATION_NARRATIVE_MAX_CHARS = 3000
 
 const ADDENDUM_MAX_CHARS = 3000
-/** Pasadas de auto-corrección heurística (cada una = otra llamada Sonnet/Haiku). */
-const QA_AUTO_FIX_MAX_PASSES = 2
-const QA_TARGET_SCORE = 8.2
 
 function formatGenElapsed(seconds) {
   const s = Math.max(0, Math.floor(Number(seconds) || 0))
@@ -715,6 +720,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [aiCheckStatus, setAiCheckStatus] = useState('idle') // idle | checking | ok | error
   const [aiCheckMessage, setAiCheckMessage] = useState('')
   const generationJobStorageKeyRef = useRef('')
+  const generationHydrationRunRef = useRef(0)
+  const generationTargetIdentityRef = useRef('')
+  const [generationRecoveryNonce, setGenerationRecoveryNonce] = useState(0)
   const [addendum, setAddendum] = useState(() => readStoredWeekInstructions(weekState))
   const addendumStorageKey = weekInstructionsStorageKey(weekState)
   const addendumStorageKeyRef = useRef(addendumStorageKey)
@@ -736,6 +744,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const generationRunRef = useRef(0)
   const generationFetchAbortRef = useRef(null)
   const generationActiveRef = useRef(false)
+  const generationPauseRequestedRef = useRef(false)
   const activeGenerationJobRef = useRef(null)
   const currentGenerationFingerprintRef = useRef('')
   const [showFullAnalysis, setShowFullAnalysis] = useState(false)
@@ -838,6 +847,24 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     (targetCycleStartDate && weekState.mesocycle
       ? `${weekState.mesocycle}:${targetCycleStartDate}`
       : '')
+  const generationRecoveryTarget = useMemo(
+    () => ({
+      mesocycle: String(weekState.mesocycle || '').trim(),
+      week: Number(weekState.week),
+      cycleId: targetCycleId || null,
+      weekStartDate: targetWeekStartDate || null,
+    }),
+    [
+      targetCycleId,
+      targetWeekStartDate,
+      weekState.mesocycle,
+      weekState.week,
+    ],
+  )
+  const generationRecoveryTargetIdentity = useMemo(
+    () => hashPublicationValue(generationRecoveryTarget),
+    [generationRecoveryTarget],
+  )
   const exactLocalHistoryOptions = useMemo(
     () => ({
       cycleId: targetCycleId,
@@ -957,39 +984,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     ],
   )
 
-  useEffect(() => {
-    if (!weekState.mesocycle || weekState.week == null) {
-      setResumableGenerationJob(null)
-      return
-    }
-    const key = buildGenerationJobStorageKey({
-      mesocycle: weekState.mesocycle,
-      week: weekState.week,
-      phase: weekState.phase || '',
-      targetWeekStartDate,
-      generationDays: selectedGenerationDays,
-      weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
-      instructions: addendum,
-      selectedContextWeekIds: briefingContextSelectionRef.current?.selectedWeekIds || [],
-      contextRevision: briefingInputFingerprint,
-      weeklyArchitecture: extractWeeklyArchitectureBlock(briefingContextPack),
-    })
-    generationJobStorageKeyRef.current = key
-    const job = loadGenerationJob(key)
-    setResumableGenerationJob(jobHasResumableProgress(job) ? job : null)
-    if (job?.jobId) setGenerationJobId(job.jobId)
-  }, [
-    addendum,
-    briefingContextPack,
-    briefingInputFingerprint,
-    dayClassPicker,
-    selectedGenerationDays,
-    targetWeekStartDate,
-    weekState.mesocycle,
-    weekState.phase,
-    weekState.week,
-  ])
-
   async function checkAiConnection() {
     const secret = publicationAdminSecret()
     if (!secret) {
@@ -1005,7 +999,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         { secret },
         0,
         {
-          timeoutMs: 35_000,
+          timeoutMs: 55_000,
           timeoutMessage: 'La comprobación de IA tardó demasiado.',
         },
       )
@@ -1078,9 +1072,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const step = String(genStep || '')
     if (!/Montando prompt|Planificando días|Preparando primera/i.test(step)) return undefined
     const id = window.setInterval(() => {
-      if (genElapsedSec >= 90 && generationActiveRef.current) {
+      if (genElapsedSec >= 45 && generationActiveRef.current) {
         setErrorMsg(
-          'La preparación del prompt lleva demasiado tiempo. Cancela, recarga con ?v=5b7fb68 y prueba generando solo 1 día.',
+          'La preparación local tardó demasiado. El trabajo guardado se conserva; cancela y pulsa «Continuar generación».',
         )
         setStatus('error')
         setGenStep('')
@@ -1092,7 +1086,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }, [status, genStep, genElapsedSec])
 
   const briefingIsStale =
-    briefingStatus === 'ready' &&
+    (briefingStatus === 'ready' || briefingStatus === 'error') &&
+    proposalAccepted &&
     !!briefingInputFingerprint &&
     briefingInputFingerprint !== currentPlanningInputFingerprint
 
@@ -1283,7 +1278,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       offerPendingDays: pendingOfferedDays,
       staleFeedbackKeys: [...staleFeedbackKeys],
       contextReady:
-        briefingStatus === 'ready' &&
+        ['ready', 'error'].includes(briefingStatus) &&
         !briefingIsStale &&
         !!briefingContextPack &&
         proposalAccepted &&
@@ -1361,6 +1356,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }, [readExactLocalHistory, weekState.mesocycle])
 
   useEffect(() => {
+    generationHydrationRunRef.current += 1
+    generationTargetIdentityRef.current = generationRecoveryTargetIdentity
+    generationJobStorageKeyRef.current = ''
+    activeGenerationJobRef.current = null
     const offer = buildCurrentWeeklyOfferSelection()
     setDayClassPicker(offer)
     setGenerationDayPicker(buildGenerationDaySelectionFromOffer(offer))
@@ -1401,10 +1400,161 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setAiCheckStatus('idle')
     setAiCheckMessage('')
   }, [
+    generationRecoveryTargetIdentity,
     weekState.cycleId,
     weekState.cycleStartDate,
     weekState.mesocycle,
     weekState.phase,
+    weekState.week,
+  ])
+
+  useEffect(() => {
+    if (
+      !generationRecoveryTarget.mesocycle ||
+      !Number.isInteger(generationRecoveryTarget.week) ||
+      generationRecoveryTarget.week < 1 ||
+      (!generationRecoveryTarget.cycleId &&
+        !generationRecoveryTarget.weekStartDate)
+    ) {
+      return undefined
+    }
+
+    const secret = publicationAdminSecret()
+    if (!secret) return undefined
+
+    let cancelled = false
+    const hydrationRunId = generationHydrationRunRef.current + 1
+    generationHydrationRunRef.current = hydrationRunId
+    generationTargetIdentityRef.current = generationRecoveryTargetIdentity
+
+    findRemoteGenerationJobByTarget({
+      secret,
+      target: generationRecoveryTarget,
+    })
+      .then((snapshot) => {
+        if (
+          cancelled ||
+          generationActiveRef.current ||
+          generationHydrationRunRef.current !== hydrationRunId ||
+          generationTargetIdentityRef.current !==
+            generationRecoveryTargetIdentity
+        ) {
+          return
+        }
+
+        const recovery = buildProgrammingGenerationRecoveryState(snapshot)
+        if (!recovery) return
+        const { job: remoteJob, configuration } = recovery
+        const restoredOffer = recovery.offerSelection
+
+        if (restoredOffer) {
+          setDayClassPicker(restoredOffer)
+          setGenerationDayPicker(recovery.generationDaySelection)
+        }
+
+        setAddendum(String(configuration.instructions || ''))
+        setBriefingContextPack(
+          String(configuration.briefingContextPack || ''),
+        )
+        setBriefingInputFingerprint(
+          String(configuration.briefingInputFingerprint || ''),
+        )
+        briefingContextSelectionRef.current =
+          configuration.contextSelection &&
+          typeof configuration.contextSelection === 'object'
+            ? configuration.contextSelection
+            : null
+        setPublicationContextVerified(
+          recovery.contextReady,
+        )
+        setPublicationProgressionWeeks([])
+        setProposalTitle(String(configuration.proposalTitle || '').trim())
+        setProposalNarrative(
+          String(configuration.proposalNarrative || '').trim(),
+        )
+        setProposalSuggestedFocus(
+          String(configuration.proposalSuggestedFocus || '').trim(),
+        )
+        setProposalSource(
+          ['ai', 'manual', 'deterministic'].includes(
+            configuration.proposalSource,
+          )
+            ? configuration.proposalSource
+            : 'deterministic',
+        )
+        setProposalAccepted(configuration.proposalAccepted === true)
+        setProposalStep(
+          configuration.proposalAccepted === true ? 'addons' : 'review',
+        )
+        setBriefingStatus(
+          configuration.contextVerified === true ? 'ready' : 'idle',
+        )
+        setBriefingPhase('idle')
+        setBriefingErrorMsg('')
+
+        const storageKey =
+          remoteJob.fingerprint ||
+          buildGenerationJobStorageKey({
+            mesocycle: generationRecoveryTarget.mesocycle,
+            week: generationRecoveryTarget.week,
+            targetWeekStartDate:
+              generationRecoveryTarget.weekStartDate || '',
+            generationDays: configuration.generationDays || [],
+            weeklyOffer: configuration.weeklyOffer || {},
+            instructions: configuration.instructions || '',
+            selectedContextWeekIds:
+              configuration.contextSelection?.selectedWeekIds || [],
+            contextRevision:
+              configuration.briefingInputFingerprint || '',
+            weeklyArchitecture: extractWeeklyArchitectureBlock(
+              configuration.briefingContextPack || '',
+            ),
+          })
+        generationJobStorageKeyRef.current = storageKey
+        saveGenerationJob(storageKey, remoteJob)
+        setGenerationJobId(remoteJob.jobId)
+        activeGenerationJobRef.current = remoteJob
+
+        if (
+          remoteJob.phase === 'complete' &&
+          weekHasMeaningfulSessionContent(remoteJob.partialWeek)
+        ) {
+          const recovered = attachExactCycleIdentity(
+            remoteJob.partialWeek,
+            weekState.week,
+          )
+          setWeekData(recovered)
+          setRawJson(JSON.stringify(recovered, null, 2))
+          setEditTitle(recovered.titulo || '')
+          setEditSheetName(`S${weekState.week || 1}`)
+          lastPersistedDraftRef.current = JSON.stringify(recovered)
+          saveWeekToHistory(weekState.mesocycle, weekState.week, recovered)
+          setHistory(readExactLocalHistory())
+          setResumableGenerationJob(null)
+          setStatus('previewing')
+          return
+        }
+
+        setResumableGenerationJob(recovery.canResume ? remoteJob : null)
+      })
+      .catch(() => {
+        /*
+         * Sin job remoto para este objetivo: el flujo normal permitirá crear
+         * uno después de verificar el contexto. Nunca se sobreescribe aquí una
+         * generación que ya haya empezado.
+         */
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    attachExactCycleIdentity,
+    generationRecoveryNonce,
+    generationRecoveryTarget,
+    generationRecoveryTargetIdentity,
+    readExactLocalHistory,
+    weekState.mesocycle,
     weekState.week,
   ])
 
@@ -1587,6 +1737,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       if (contextWasVerified && loadedContextPack) {
         setBriefingStatus('error')
         setBriefingPhase('idle')
+        setBriefingInputFingerprint(inputFingerprint)
         setBriefingErrorMsg(
           `${humanizeNetworkLikeError(e, 'La propuesta automática falló.')}` +
             ' El contexto del ciclo sigue cargado: puedes usar «Propuesta manual» y generar.',
@@ -1635,6 +1786,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       }
       setBriefingAdminSecretInput('')
       setBriefingErrorCode('')
+      try {
+        const existing = await findRemoteGenerationJobByTarget({
+          secret,
+          target: generationRecoveryTarget,
+        })
+        if (existing?.job?.id) {
+          setBriefingStatus('idle')
+          setGenerationRecoveryNonce((current) => current + 1)
+          return
+        }
+      } catch {
+        // No hay trabajo previo para este ciclo/semana: preparar uno nuevo.
+      }
       await prepareBriefing()
     } catch (e) {
       setBriefingStatus('error')
@@ -1970,15 +2134,18 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   }
 
   /**
-   * Una llamada API = un POST. La semana se parte en tramos de 1 día (varias llamadas)
-   * para evitar timeouts con briefing + system largos en serverless.
-   * @param {{ model?: string, maxTokens?: number, generationCallIndex?: number }} [apiOpts]
+   * Una llamada API = un único día persistido.
+   *
+   * El endpoint reclama el día de forma idempotente, llama una sola vez a
+   * Anthropic con Structured Outputs y guarda el resultado antes de responder.
+   * El navegador no reintenta en segundo plano: si el proveedor falla, la
+   * usuaria conserva lo anterior y decide cuándo continuar ese día.
    */
   async function callApi(
     userMessage,
     systemFull = SYSTEM_PROMPT_EXCEL,
     weekContext = '',
-    retries = 5,
+    _retries = 0,
     apiOpts = {},
   ) {
     const generationCallIndex = Number(apiOpts.generationCallIndex) || 0
@@ -1986,181 +2153,66 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const maxTokens =
       apiOpts.maxTokens ??
       Math.min(AI_CONFIG.maxTokens, EXCEL_GENERATION_MAX_TOKENS_PER_CALL)
-    let retryingMalformedOutput = false
+    const day = String(apiOpts.day || '').trim().toUpperCase()
+    const jobId = String(apiOpts.jobId || '').trim()
+    const secret = String(apiOpts.secret || '').trim()
+    const selectedClassKeys = Array.isArray(apiOpts.selectedClassKeys)
+      ? apiOpts.selectedClassKeys
+      : []
+    if (!day || !jobId || !secret || selectedClassKeys.length === 0) {
+      throw new Error(
+        'El trabajo persistente no tiene día, clases o autenticación válidos. No se llamó a la IA.',
+      )
+    }
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      // Tras error de red, apretar más el prompt (evita repetir el fallo por petición gigante).
-      const effectiveGenIdx =
-        attempt === 0 ? generationCallIndex : Math.max(generationCallIndex, attempt)
-      const body = {
+    const compactWeekContext = trimWeekContextForAnthropicRetry(
+      buildWeekContextForGenerationCall(weekContext, generationCallIndex),
+      0,
+    )
+    const system = [
+      buildDayGenerationSystemPrompt(
+        buildExcelSystemForGenerationCall(systemFull, generationCallIndex, 0),
+      ),
+      compactWeekContext,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    const response = await generateRemoteDayStep(
+      {
+        secret,
+        jobId,
+        day,
+        selectedClasses: selectedClassKeys,
+        requestId: `${jobId}:${day}:generation-v1`,
         model,
-        // Si una salida estructurada se corta por tokens, Anthropic recomienda
-        // reintentar con un techo mayor. El coste solo aumenta si se usa.
-        max_tokens: Math.min(8000, maxTokens + attempt * 500),
-        system: buildExcelSystemForGenerationCall(systemFull, effectiveGenIdx, attempt),
-        weekContext: trimWeekContextForAnthropicRetry(
-          buildWeekContextForGenerationCall(weekContext, effectiveGenIdx),
-          attempt,
-        ),
-        messages: [
-          {
-            role: 'user',
-            content: retryingMalformedOutput
-              ? `${userMessage}\n\nREINTENTO TÉCNICO: devuelve únicamente el objeto solicitado. No incluyas razonamiento, introducciones, comentarios ni texto fuera de los campos JSON.`
-              : userMessage,
-          },
-        ],
-        responseFormat: EVO_WEEK_RESPONSE_FORMAT,
-      }
-      console.log('API Request (Proxy):', { model: body.model, attempt })
-
-      const fetchAbort = generationFetchAbortRef.current
-      const requestAbort = new AbortController()
-      let didTimeout = false
-      const abortFromGeneration = () => requestAbort.abort()
-      if (fetchAbort?.signal?.aborted) {
-        throw new StaleGenerationResponseError()
-      }
-      fetchAbort?.signal?.addEventListener('abort', abortFromGeneration, { once: true })
-      const requestTimeoutId = setTimeout(() => {
-        didTimeout = true
-        requestAbort.abort()
-      }, EXCEL_GENERATION_FETCH_TIMEOUT_MS)
-      let response
-      let responseText
-      try {
-        // Modelo: sonnet — generación JSON semanal (SYSTEM_PROMPT_EXCEL); núcleo del producto.
-        response = await fetch('/api/anthropic', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-          signal: requestAbort.signal,
-        })
-        // El proxy envía cabeceras y latidos antes de terminar. El límite debe
-        // cubrir también el cuerpo; proteger solo fetch() dejaba la UI colgada.
-        responseText = await response.text()
-      } catch (e) {
-        if (fetchAbort?.signal?.aborted) {
-          throw new StaleGenerationResponseError()
-        }
-        const networkMsg = didTimeout
-          ? 'Tiempo de espera agotado esperando la respuesta completa de la IA (más de 5 min). La petición se canceló para que la pantalla no se quede bloqueada.'
-          : explainAnthropicFetchFailure(e)
-        if (attempt < retries) {
-          const wait = Math.min(12, 4 + attempt * 3)
-          setGenStep(
-            `${
-              didTimeout ? 'La IA tardó demasiado' : 'Conexión inestable con la IA'
-            } — reintentando en ${wait}s…`,
-          )
-          await new Promise((r) => setTimeout(r, wait * 1000))
-          continue
-        }
-        throw new Error(networkMsg)
-      } finally {
-        clearTimeout(requestTimeoutId)
-        fetchAbort?.signal?.removeEventListener('abort', abortFromGeneration)
-      }
-
-      let data
-      try {
-        data = parseAnthropicProxyBody(responseText)
-      } catch {
-        throw new Error('La respuesta del servidor no es JSON válido.')
-      }
-
-      const failed = !response.ok || isAnthropicProxyFailure(data)
-      const errType = data?.error?.type
-      const retriable =
-        response.status === 529 ||
-        response.status === 503 ||
-        response.status === 429 ||
-        response.status === 504 ||
-        response.status === 502 ||
-        (failed && (errType === 'upstream_timeout' || errType === 'rate_limit_error'))
-      if (retriable && attempt < retries) {
-        const wait = (attempt + 1) * 15
-        const hint =
-          response.status === 504 ||
-          response.status === 502 ||
-          errType === 'upstream_timeout'
-            ? 'Tiempo límite del servidor (504/502)'
-            : 'API saturada o en mantenimiento'
-        setGenStep(`${hint} — reintentando en ${wait}s…`)
-        await new Promise((r) => setTimeout(r, wait * 1000))
-        continue
-      }
-
-      if (failed) {
-        let err = data
-        if (!err || typeof err !== 'object') {
-          err = {
-            error: {
-              message:
-                responseText?.trim()?.slice(0, 500) ||
-                `Error ${response.status} (el servidor no devolvió JSON; revisa logs en Vercel → Functions)`,
-            },
-          }
-        }
-        console.error('API Error Response:', err)
-        if (
-          response.status === 403 &&
-          (err?.error === 'origin_not_allowed' || data?.error === 'origin_not_allowed')
-        ) {
-          throw new Error(
-            'El dominio desde el que abres la app no está autorizado para la API de generación. ' +
-              'Si usas un dominio propio, en Vercel define EVO_ALLOWED_ORIGIN_PREFIXES con la URL exacta (https://…) y redeploy. ' +
-              'Las URLs de preview también deben añadirse de forma explícita para evitar que otro dominio reutilice la API.',
-          )
-        }
-        if (response.status === 504 || response.status === 502 || errType === 'upstream_timeout') {
-          throw new Error(
-            'Tiempo de espera agotado: la IA tardó más de lo permitido en esta petición (límite del servidor / Anthropic). ' +
-              'En Vercel el proyecto usa maxDuration 300 s; si ves esto a menudo, genera menos días a la vez o revisa la carga del modelo. ' +
-              'Plan Hobby (~10 s de función) no basta para esta generación: hace falta Pro u otro plan con funciones largas.',
-          )
-        }
-        const apiMsg = getAnthropicProxyErrorMessage(err, responseText, response.status)
-        throw new Error(apiMsg || `Error ${response.status}`)
-      }
-
-      if (data?.stop_reason === 'max_tokens') {
-        if (attempt < retries) {
-          retryingMalformedOutput = true
-          setGenStep('La respuesta se quedó incompleta — reintentando con más espacio…')
-          await new Promise((r) => setTimeout(r, 1200))
-          continue
-        }
-        throw new Error('La IA no pudo completar el día dentro del límite de respuesta.')
-      }
-      if (data?.stop_reason === 'refusal') {
-        throw new Error('La IA rechazó esta petición de generación. Revisa el contexto añadido y vuelve a intentarlo.')
-      }
-
-      const text = extractAnthropicTextBlocks(data)
-      try {
-        return parseAssistantWeekJson(text)
-      } catch (e) {
-        if (attempt < retries) {
-          retryingMalformedOutput = true
-          setGenStep('La IA devolvió un formato incompleto — reparando y reintentando…')
-          await new Promise((r) => setTimeout(r, 1200))
-          continue
-        }
-        throw new Error(
-          `No se pudo recuperar el formato de la respuesta tras varios intentos: ${e.message}`,
-        )
+        maxTokens,
+        systemPrompt: system,
+        userPrompt: userMessage,
+        partialWeek: apiOpts.partialWeek || null,
+      },
+      { signal: generationFetchAbortRef.current?.signal },
+    )
+    if (!response?.result?.dia) {
+      throw new Error('El servidor guardó una respuesta sin el día esperado.')
+    }
+    if (response?.snapshot?.job) {
+      const remoteJob = remoteSnapshotToLocalJob(
+        response.snapshot,
+        activeGenerationJobRef.current || {},
+      )
+      if (remoteJob) {
+        activeGenerationJobRef.current = remoteJob
+        saveGenerationJob(generationJobStorageKeyRef.current, remoteJob)
+        setResumableGenerationJob(remoteJob)
       }
     }
-    throw new Error('API saturada después de varios intentos. Inténtalo de nuevo en unos minutos.')
+    return { dias: [response.result.dia], remoteSnapshot: response.snapshot }
   }
 
   async function handleGenerate(opts) {
     const correctionNote =
       opts && typeof opts.correctionNote === 'string' ? opts.correctionNote.trim() : ''
-    const resumeFromJob = opts?.resumeFromJob && jobHasResumableProgress(opts.resumeFromJob)
+    let resumeFromJob = opts?.resumeFromJob && jobHasResumableProgress(opts.resumeFromJob)
       ? opts.resumeFromJob
       : null
     if (!weekState.mesocycle) {
@@ -2208,10 +2260,19 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setStatus('error')
       return
     }
+    const generationAdminSecret = publicationAdminSecret()
+    if (!generationAdminSecret) {
+      setErrorMsg(
+        'Activa la sesión de administración antes de generar. La clave solo se usa para proteger el trabajo guardado.',
+      )
+      setStatus('error')
+      return
+    }
 
     const capturedGenerationFingerprint = currentGenerationRequestFingerprint
     const generationRunId = generationRunRef.current + 1
     generationRunRef.current = generationRunId
+    generationHydrationRunRef.current += 1
     currentGenerationFingerprintRef.current = capturedGenerationFingerprint
     const assertGenerationIsCurrent = () => {
       if (generationRunRef.current !== generationRunId) {
@@ -2224,10 +2285,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
 
     generationActiveRef.current = true
+    generationPauseRequestedRef.current = false
     generationFetchAbortRef.current?.abort()
     generationFetchAbortRef.current = new AbortController()
     const jobStorageKey =
-      generationJobStorageKeyRef.current ||
+      (resumeFromJob && String(resumeFromJob.fingerprint || '').trim()) ||
       buildGenerationJobStorageKey({
         mesocycle: weekState.mesocycle,
         week: weekState.week,
@@ -2241,25 +2303,116 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         weeklyArchitecture: extractWeeklyArchitectureBlock(briefingContextPack),
       })
     generationJobStorageKeyRef.current = jobStorageKey
+    let localJob
     if (resumeFromJob) {
-      activeGenerationJobRef.current = resumeFromJob
-      setGenerationJobId(resumeFromJob.jobId)
+      localJob = resumeFromJob
     } else {
-      const freshJob = createGenerationJob({ fingerprint: capturedGenerationFingerprint })
-      activeGenerationJobRef.current = freshJob
-      setGenerationJobId(freshJob.jobId)
-      saveGenerationJob(jobStorageKey, freshJob)
+      localJob = createGenerationJob({
+        fingerprint: jobStorageKey,
+      })
+      saveGenerationJob(jobStorageKey, localJob)
     }
     flushSync(() => {
       setStatus('generating')
-      setGenStep('Cargando biblioteca EVO…')
+      setGenStep('Creando trabajo recuperable…')
     })
 
-    let systemExcelFull = SYSTEM_PROMPT_EXCEL
-    let generationLibraryBlock = ''
-    let synthesisLibraryRows = []
-    let generationCheckpoint = null
     try {
+      const remoteSnapshot = localJob.serverJobId
+        ? await getRemoteGenerationJob({
+            secret: generationAdminSecret,
+            jobId: localJob.serverJobId,
+          })
+        : await createRemoteGenerationJob({
+            secret: generationAdminSecret,
+            idempotencyKey: localJob.idempotencyKey,
+            fingerprint: jobStorageKey,
+            generationDays: selectedGenerationDays,
+            target: {
+              mesocycle: weekState.mesocycle,
+              week: Number(weekState.week),
+              phase: weekState.phase || '',
+              cycleId: targetCycleId || null,
+              cycleStartDate: targetCycleStartDate || null,
+              weekStartDate: targetWeekStartDate || null,
+            },
+            configuration: {
+              weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+              generationDays: selectedGenerationDays,
+              instructions: addendum,
+              proposalSource,
+              proposalTitle,
+              proposalNarrative,
+              proposalSuggestedFocus,
+              proposalAccepted,
+              briefingContextPack,
+              briefingInputFingerprint,
+              contextSelection:
+                briefingContextSelectionRef.current &&
+                typeof briefingContextSelectionRef.current === 'object'
+                  ? briefingContextSelectionRef.current
+                  : null,
+              contextVerified: publicationContextVerified,
+              buildId: EVO_BUILD_ID,
+            },
+          })
+      const durableJob = remoteSnapshotToLocalJob(remoteSnapshot, localJob)
+      if (!durableJob) throw new Error('El servidor no devolvió un trabajo válido.')
+      localJob = durableJob
+      resumeFromJob = durableJob.partialWeek ? durableJob : resumeFromJob
+      activeGenerationJobRef.current = durableJob
+      setGenerationJobId(durableJob.jobId)
+      setResumableGenerationJob(durableJob)
+      saveGenerationJob(jobStorageKey, durableJob)
+    } catch (jobError) {
+      setErrorMsg(
+        `No se pudo crear el trabajo recuperable: ${humanizeNetworkLikeError(
+          jobError,
+          'error de persistencia',
+        )}. No se ha iniciado ninguna llamada a la IA.`,
+      )
+      setStatus('error')
+      setGenStep('')
+      generationActiveRef.current = false
+      return
+    }
+
+    const finalizeDurableWeek = async (job, partialWeek, completedDays) => {
+      if (!job) return null
+      const finish = (candidate) =>
+        finishRemoteGenerationJob({
+          secret: generationAdminSecret,
+          jobId: candidate.serverJobId || candidate.jobId,
+          expectedRevision: candidate.serverRevision,
+          completedDays,
+          partialWeek,
+          currentDay: null,
+        })
+      try {
+        const snapshot = await finish(job)
+        return remoteSnapshotToLocalJob(snapshot, job) || job
+      } catch (finishError) {
+        if (Number(finishError?.httpStatus) !== 409) throw finishError
+        const latestSnapshot = await getRemoteGenerationJob({
+          secret: generationAdminSecret,
+          jobId: job.serverJobId || job.jobId,
+        })
+        const latestJob = remoteSnapshotToLocalJob(latestSnapshot, job)
+        if (!latestJob) throw finishError
+        const snapshot = await finish(latestJob)
+        return remoteSnapshotToLocalJob(snapshot, latestJob) || latestJob
+      }
+    }
+
+    let generationCheckpoint = null
+    let generationCurrentDay = null
+    try {
+      flushSync(() => setGenStep('Cargando biblioteca EVO…'))
+
+      let systemExcelFull = SYSTEM_PROMPT_EXCEL
+      let generationLibraryBlock = ''
+      let synthesisLibraryRows = []
+      try {
       synthesisLibraryRows = await withTimeout(
         getCoachExerciseLibrary(),
         EXCEL_GENERATION_PREP_TIMEOUT_MS,
@@ -2275,19 +2428,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       if (!block) throw new Error('No se pudo construir el contexto de la Biblioteca EVO.')
       generationLibraryBlock = block
     } catch (libraryError) {
-      setErrorMsg(
-        `La generación se ha detenido porque no está disponible la Biblioteca EVO oficial: ${
+      throw new Error(
+        `La Biblioteca EVO oficial no está disponible: ${
           libraryError?.message || libraryError
         }. Recarga la biblioteca y vuelve a intentarlo.`,
+        { cause: libraryError },
       )
-      setStatus('error')
-      setGenStep('')
-      generationActiveRef.current = false
-      return
     }
     assertGenerationIsCurrent()
 
-    try {
     let synthesisPreviousWeeks = []
     let synthesisCoachFeedback = []
     let synthesisSelectedWeekIds = []
@@ -2527,10 +2676,82 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     })
 
     if (daysToGenerate.size === 0) {
+      if (
+        resumeFromJob?.partialWeek &&
+        weekHasMeaningfulSessionContent(resumeFromJob.partialWeek)
+      ) {
+        const recovered = attachEvoMethodMetadata(
+          {
+            ...attachExactCycleIdentity(
+              resumeFromJob.partialWeek,
+              weekState.week,
+            ),
+            titulo:
+              String(resumeFromJob.partialWeek?.titulo || '').trim() ||
+              `S${weekState.week} – MESOCICLO ${(weekState.mesocycle || '').toUpperCase()}`,
+            semana: weekState.week,
+            mesociclo: weekState.mesocycle,
+            cycle_id: targetCycleId || null,
+            cycle_start_date: targetCycleStartDate || null,
+            week_start_date: targetWeekStartDate || null,
+            oferta_semanal: serializeWeeklyOfferSelection(dayClassPicker),
+            authorized_holiday_days: [...explicitHolidayDays],
+          },
+          { previousWeeks: synthesisPreviousWeeks },
+        )
+        setWeekData(recovered)
+        setRawJson(JSON.stringify(recovered, null, 2))
+        setEditTitle(recovered.titulo || '')
+        setEditSheetName(`S${weekState.week || 1}`)
+        lastPersistedDraftRef.current = JSON.stringify(recovered)
+        saveWeekToHistory(weekState.mesocycle, weekState.week, recovered)
+        setHistory(readExactLocalHistory())
+        let finalizedJob = resumeFromJob
+        let finalizeError = null
+        try {
+          finalizedJob =
+            (await finalizeDurableWeek(
+              resumeFromJob,
+              recovered,
+              EXCEL_DAY_ORDER.filter((day) => selectedCanon.has(day)),
+            )) || resumeFromJob
+        } catch (error) {
+          finalizeError = error
+        }
+        activeGenerationJobRef.current = {
+          ...finalizedJob,
+          phase: finalizeError ? 'sync_pending' : 'complete',
+          partialWeek: recovered,
+          error: finalizeError
+            ? humanizeNetworkLikeError(
+                finalizeError,
+                'Falta sincronizar el cierre remoto.',
+              )
+            : null,
+        }
+        saveGenerationJob(
+          generationJobStorageKeyRef.current,
+          activeGenerationJobRef.current,
+        )
+        setResumableGenerationJob(
+          finalizeError ? activeGenerationJobRef.current : null,
+        )
+        setGenStep('')
+        setStatus('previewing')
+        if (finalizeError) {
+          setErrorMsg(
+            'La semana está completa y visible, pero falta confirmar su cierre remoto. Pulsa «Continuar generación» para reintentar solo esa sincronización.',
+          )
+        }
+        runScoring(recovered)
+        generationActiveRef.current = false
+        return
+      }
       setErrorMsg(
         'No hay días para generar: marca al menos un día en el selector de arriba.',
       )
       setStatus('error')
+      generationActiveRef.current = false
       return
     }
 
@@ -2571,7 +2792,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
       const acc = buildWeekSkeleton(weekState.week, weekState.mesocycle)
 
-      function rememberGenerationProgress() {
+      async function rememberGenerationProgress() {
         const snapshot = JSON.parse(JSON.stringify(acc))
         generationCheckpoint = attachEvoMethodMetadata(
           {
@@ -2592,11 +2813,25 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           const idx = EXCEL_DAY_ORDER.indexOf(dayName)
           const dia = generationCheckpoint?.dias?.[idx]
           if (!dia) return false
-          return EVO_SESSION_CLASS_DEFS.some(({ key }) => {
+          const requiredKeys = [...(classesByDay[dayName] || new Set())]
+          if (!requiredKeys.length) return false
+          return requiredKeys.every((key) => {
             const text = String(dia?.[key] || '').trim()
             return text && !/no programada esta semana/i.test(text) && !/^FESTIVO\b/i.test(text)
           })
         })
+        setWeekData(generationCheckpoint)
+        setRawJson(JSON.stringify(generationCheckpoint, null, 2))
+        setEditTitle(generationCheckpoint.titulo || '')
+        setEditSheetName(`S${weekState.week || 1}`)
+        lastPersistedDraftRef.current = JSON.stringify(generationCheckpoint)
+        saveWeekToHistory(
+          weekState.mesocycle,
+          weekState.week,
+          attachExactCycleIdentity(generationCheckpoint, weekState.week),
+        )
+        setHistory(readExactLocalHistory())
+
         let job = activeGenerationJobRef.current
         if (job) {
           job = appendJobRequestId(
@@ -2665,7 +2900,7 @@ ${perDayPlanLines.map((x) => `  - ${x}`).join('\n')}
           : '\n\n(Mismas reglas de calidad y anti-repetición que en la primera petición de esta generación; no repitas lift/formato/WOD entre días.)'
         const core = `${baseContext}\n\n${planSummary}${heavyRules}\n\nGENERACIÓN DE DÍAS EN ESTA PETICIÓN: ${list}.
 
-Devuelve JSON con titulo, semana, mesociclo, resumen y dias. Como esta petición genera un solo día, el array dias debe contener EXACTAMENTE 1 objeto para ${list}, con "nombre" en MAYÚSCULAS.
+Devuelve EXACTAMENTE el objeto estructurado {"dia": {...}} para ${list}, con "nombre" en MAYÚSCULAS. No incluyas titulo, semana, mesociclo, resumen, array dias ni ningún otro campo raíz.
 
 Antes de redactar, haz internamente una mini-matriz de semana (no la imprimas) con: patrón dominante del día, formato de fuerza, formato WOD, complejidad logística/material. Úsala para evitar repetición entre días consecutivos.
 
@@ -2674,18 +2909,6 @@ Para el resto de días no inventes sesiones: el cliente conservará lo ya hecho 
 
 Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         return coherenceBlock ? `${core}\n\n${coherenceBlock}` : core
-      }
-
-      function isTimeoutLikeGenerationError(err) {
-        const m = String(err?.message || '').toLowerCase()
-        return (
-          m.includes('504') ||
-          m.includes('502') ||
-          m.includes('timeout') ||
-          m.includes('upstream_timeout') ||
-          m.includes('failed to fetch') ||
-          m.includes('conexión cortada')
-        )
       }
 
       function buildCoherenceBlockFromAccumulator(targetDayKey, { lightweight = false } = {}) {
@@ -2733,16 +2956,18 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
 
       let generationApiCallIndex = 0
 
-      async function generateChunkWithFallback(chunk, ci, total) {
+      async function generateChunk(chunk, ci, total) {
         assertGenerationIsCurrent()
         const chunkDaysText = [...chunk].join(' · ')
+        const day = [...chunk][0]
+        generationCurrentDay = day
         const callIdx = generationApiCallIndex
         const isFirstApiCall = callIdx === 0
         flushSync(() =>
           setGenStep(
             total > 1
-              ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · puede tardar 2–5 min${callIdx > 0 ? ' · modo ligero' : ''}`
-              : `Generando ${chunkDaysText}… · puede tardar 2–5 min`,
+              ? `Generando ${chunkDaysText}… (${ci + 1}/${total}) · límite <90 s`
+              : `Generando ${chunkDaysText}… · límite <90 s`,
           ),
         )
         await yieldToUi()
@@ -2756,39 +2981,31 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           juevesEnEstePOST: chunk.has('JUEVES'),
           generationCallIndex: callIdx,
         })
-        try {
-          const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 1, {
-            generationCallIndex: callIdx,
+        const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 0, {
+          generationCallIndex: callIdx,
+          secret: generationAdminSecret,
+          jobId: activeGenerationJobRef.current?.serverJobId,
+          day,
+          selectedClassKeys: [...(classesByDay[day] || new Set())],
+          partialWeek: JSON.parse(JSON.stringify(acc)),
+        })
+        assertGenerationIsCurrent()
+        generationApiCallIndex += 1
+        mergeGeneratedDaysIntoAccumulator(
+          acc,
+          part,
+          chunk,
+          expectedDatesByDay,
+          holidayMergeOptions,
+        )
+        const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
+        if (ji >= 0 && chunk.has('JUEVES')) {
+          const jf = String(acc.dias[ji]?.evofuncional ?? '')
+          console.log('[ProgramingEvo][Excel merge] tras chunk', ci + 1, 'JUEVES evofuncional length:', jf.length, {
+            preview: jf.slice(0, 100),
           })
-          assertGenerationIsCurrent()
-          generationApiCallIndex += 1
-          mergeGeneratedDaysIntoAccumulator(
-            acc,
-            part,
-            chunk,
-            expectedDatesByDay,
-            holidayMergeOptions,
-          )
-          rememberGenerationProgress()
-          const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
-          if (ji >= 0 && chunk.has('JUEVES')) {
-            const jf = String(acc.dias[ji]?.evofuncional ?? '')
-            console.log('[ProgramingEvo][Excel merge] tras chunk', ci + 1, 'JUEVES evofuncional length:', jf.length, {
-              preview: jf.slice(0, 100),
-            })
-          }
-        } catch (err) {
-          if (chunk.size > 1 && isTimeoutLikeGenerationError(err)) {
-            const splitDays = [...chunk]
-            setGenStep(`Respuesta lenta en ${splitDays.join(' · ')}; reintentando por día…`)
-            for (let si = 0; si < splitDays.length; si++) {
-              const singleChunk = new Set([splitDays[si]])
-              await generateChunkWithFallback(singleChunk, ci, total)
-            }
-            return
-          }
-          throw err
         }
+        return part
       }
 
       if (dayChunks.length) {
@@ -2803,157 +3020,22 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         await yieldToUi()
       }
 
-      for (let ci = 0; ci < dayChunks.length; ci++) {
-        const chunk = dayChunks[ci]
-        await generateChunkWithFallback(chunk, ci, dayChunks.length)
-      }
+      const orderedPendingDays = dayChunks.map((chunk) => [...chunk][0])
+      await runPersistentDayGeneration({
+        days: orderedPendingDays,
+        completedDays: [],
+        signal: generationFetchAbortRef.current?.signal,
+        generateDay: (day, { index, total }) =>
+          generateChunk(new Set([day]), index, total),
+        persistDay: async () => {
+          await rememberGenerationProgress()
+          generationCurrentDay = null
+        },
+      })
 
-      /**
-       * Guardia de robustez:
-       * si un día marcado para generar quedó vacío o en "(no programada esta semana)"
-       * en TODAS las columnas seleccionadas, reintenta ese día una vez con instrucción explícita.
-       */
-      function isNoProgramadaLike(text) {
-        const t = String(text || '').trim()
-        if (!t) return true
-        return /no programada esta semana/i.test(t)
-      }
-      function dayMissingSelectedProgramming(dayCanon) {
-        const idx = EXCEL_DAY_ORDER.indexOf(dayCanon)
-        if (idx < 0) return false
-        const dia = acc?.dias?.[idx]
-        if (!dia || typeof dia !== 'object') return true
-        const keys = [...(classesByDay[dayCanon] || new Set())]
-        if (!keys.length) return false
-        return keys.every((k) => isNoProgramadaLike(dia[k]))
-      }
-
-      const missingDays = [...daysToGenerate].filter((d) => dayMissingSelectedProgramming(d))
-      if (missingDays.length) {
-        console.warn('[ProgramingEvo][Excel] días marcados sin contenido real tras primera pasada; reintento forzado:', missingDays)
-        for (const d of missingDays) {
-          const forceCoherence = buildCoherenceBlockFromAccumulator(excelCanonDayToTargetDay(d))
-          const forceMsg =
-            buildChunkMessage(new Set([d]), forceCoherence) +
-            `\n\nREINTENTO FORZADO (${d}): este día estaba marcado para generar por el selector del cliente. ` +
-            `Devuelve contenido REAL para ${d} en las columnas seleccionadas; no uses «(no programada esta semana)» en esas columnas.`
-          setGenStep(`Reintentando ${d} (faltaba contenido)…`)
-          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 1, {
-            model: SUPPORT_MODEL,
-            maxTokens: 5000,
-            generationCallIndex: generationApiCallIndex,
-          })
-          assertGenerationIsCurrent()
-          generationApiCallIndex += 1
-          mergeGeneratedDaysIntoAccumulator(
-            acc,
-            part,
-            new Set([d]),
-            expectedDatesByDay,
-            holidayMergeOptions,
-          )
-          rememberGenerationProgress()
-        }
-      }
-
-      /**
-       * Semáforo bloqueante (fase QA):
-       * Si detectamos días conflictivos (rojo o acumulado alto), reintenta SOLO esos días una vez
-       * con instrucciones de corrección, en vez de llevar toda la semana a edición manual.
-       */
-      function buildCriticalHintsByDay(includeYellow = false) {
-        const out = new Map()
-        const foco = String(acc?.resumen?.foco || '')
-        for (const sk of [...selectedClassKeys]) {
-          const label = EVO_SESSION_CLASS_DEFS.find((d) => d.key === sk)?.label || sk
-          const r = buildWeekSessionClassReview(acc.dias || [], sk, { resumenFoco: foco })
-          for (const row of r.rows || []) {
-            if (row.placeholder) continue
-            if (
-              !(
-                row.severity === 'red' ||
-                row.severity === 'orange' ||
-                (includeYellow && row.severity === 'yellow')
-              )
-            ) {
-              continue
-            }
-            if (!daysToGenerate.has(EXCEL_DAY_ORDER[row.dayIdx])) continue
-            const prev = out.get(row.dayIdx) || []
-            prev.push(`${label}: ${row.hints.join(' · ')}`)
-            out.set(row.dayIdx, prev)
-          }
-        }
-        return out
-      }
-
-      for (let qaPass = 1; qaPass <= QA_AUTO_FIX_MAX_PASSES; qaPass += 1) {
-        const qualityBeforePass = summarizeWeekQuality(
-          acc.dias || [],
-          [...selectedClassKeys],
-          String(acc?.resumen?.foco || ''),
-        )
-        const shouldChaseScore = qualityBeforePass.score < QA_TARGET_SCORE
-        /** Desde la primera pasada si hace falta subir score (menos trabajo manual para el cliente). */
-        const includeYellow = shouldChaseScore
-        const criticalHintsByDay = buildCriticalHintsByDay(includeYellow)
-        const blockingIdxSet = new Set([
-          ...(qualityBeforePass.blockingDayIdx || []),
-          ...[...criticalHintsByDay.keys()],
-        ])
-        let blockingCanonDays = [...blockingIdxSet]
-          .map((idx) => EXCEL_DAY_ORDER[idx])
-          .filter((d) => d && daysToGenerate.has(d))
-
-        // En pasadas orientadas a score, priorizar días con más avisos para subir calidad rápido.
-        if (includeYellow && blockingCanonDays.length > 3) {
-          blockingCanonDays = blockingCanonDays
-            .sort((a, b) => (criticalHintsByDay.get(EXCEL_DAY_ORDER.indexOf(b)) || []).length - (criticalHintsByDay.get(EXCEL_DAY_ORDER.indexOf(a)) || []).length)
-            .slice(0, 3)
-        }
-
-        if (!blockingCanonDays.length) break
-
-        setGenStep(
-          `Auto-corrección QA ${qaPass}/${QA_AUTO_FIX_MAX_PASSES} (score ${qualityBeforePass.score}/10 → objetivo ${QA_TARGET_SCORE}) en ${blockingCanonDays.join(' · ')}…`,
-        )
-        for (const d of blockingCanonDays) {
-          const dayIdx = EXCEL_DAY_ORDER.indexOf(d)
-          const dayHints = (criticalHintsByDay.get(dayIdx) || []).slice(0, 5).join('\n- ')
-          const forceCoherence = buildCoherenceBlockFromAccumulator(excelCanonDayToTargetDay(d))
-          const forceMsg =
-            buildChunkMessage(new Set([d]), forceCoherence) +
-            `\n\nAUTO-CORRECCIÓN DE CALIDAD (${d}) — pasada ${qaPass}/${QA_AUTO_FIX_MAX_PASSES}: reescribe este día para eliminar avisos rojos/naranjas y no toques otros días.` +
-            `\nPrioridad: variar lift/formato dominante, quitar repeticiones cercanas y mantener logística viable.` +
-            `\nSi aparece una sección visible de bienvenida, movilidad, calentamiento, preparación, transición o cierre, elimínala y empieza directamente en A/B/C o PARTE ÚNICA.` +
-            `\nObjetivo global: subir score semanal hacia ${QA_TARGET_SCORE}/10 o más.` +
-            `\n- ${dayHints || 'Evitar repetición dominante y mejorar coherencia de ese día.'}`
-          const part = await callApi(forceMsg, systemExcelFull, weekContextText, 1, {
-            model: SUPPORT_MODEL,
-            maxTokens: 5000,
-            generationCallIndex: generationApiCallIndex,
-          })
-          assertGenerationIsCurrent()
-          generationApiCallIndex += 1
-          mergeGeneratedDaysIntoAccumulator(
-            acc,
-            part,
-            new Set([d]),
-            expectedDatesByDay,
-            holidayMergeOptions,
-          )
-          rememberGenerationProgress()
-        }
-
-        const qualityAfterPass = summarizeWeekQuality(
-          acc.dias || [],
-          [...selectedClassKeys],
-          String(acc?.resumen?.foco || ''),
-        )
-        if (!qualityAfterPass.hasBlocking && qualityAfterPass.score >= QA_TARGET_SCORE) {
-          break
-        }
-      }
+      // La primera versión se muestra en cuanto están los días solicitados.
+      // El scoring determinista se ejecuta después en el editor; cualquier
+      // mejora generativa será una acción explícita, nunca una espera oculta.
 
       for (let i = 0; i < EXCEL_DAY_ORDER.length; i += 1) {
         const dayName = EXCEL_DAY_ORDER[i]
@@ -2994,13 +3076,54 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       setEditTitle(combined.titulo || '')
       setEditSheetName(`S${weekState.week || 1}`)
       lastPersistedDraftRef.current = JSON.stringify(combined)
+      saveWeekToHistory(
+        weekState.mesocycle,
+        weekState.week,
+        attachExactCycleIdentity(combined, weekState.week),
+      )
+      setHistory(readExactLocalHistory())
       /* Conservar edición de fila publicada: sigue pudiendo «Guardar cambios» y contexto sigue siendo opcional al regenerar. */
       setSavedPublishedEdit(false)
       setGenStep('')
-      clearGenerationJob(generationJobStorageKeyRef.current)
-      activeGenerationJobRef.current = null
-      setResumableGenerationJob(null)
+      let completedJob = activeGenerationJobRef.current
+      let durableFinalizeError = null
+      if (completedJob) {
+        try {
+          completedJob =
+            (await finalizeDurableWeek(
+              completedJob,
+              combined,
+              EXCEL_DAY_ORDER.filter((day) => selectedCanon.has(day)),
+            )) || completedJob
+        } catch (finishError) {
+          durableFinalizeError = finishError
+        }
+      }
+      if (completedJob) {
+        completedJob = {
+          ...completedJob,
+          phase: durableFinalizeError ? 'sync_pending' : 'complete',
+          partialWeek: combined,
+          failedDay: null,
+          error: durableFinalizeError
+            ? humanizeNetworkLikeError(
+                durableFinalizeError,
+                'Falta sincronizar el cierre remoto.',
+              )
+            : null,
+        }
+        activeGenerationJobRef.current = completedJob
+        saveGenerationJob(generationJobStorageKeyRef.current, completedJob)
+      }
+      setResumableGenerationJob(
+        durableFinalizeError && completedJob ? completedJob : null,
+      )
       setStatus('previewing')
+      if (durableFinalizeError) {
+        setErrorMsg(
+          'La semana está completa y visible, pero no se pudo confirmar su cierre remoto. Pulsa «Sincronizar cierre» para reintentar sin volver a generar ningún día.',
+        )
+      }
       // PASO 2 — Scoring automático tras generar (sin intervención de la usuaria).
       runScoring(combined)
     } catch (err) {
@@ -3010,23 +3133,55 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       ) {
         generationActiveRef.current = false
         setGenStep('')
-        setStatus((current) => (current === 'generating' ? 'idle' : current))
-        setErrorMsg(
-          'La generación se detuvo (cambió la configuración o llevaba demasiado tiempo). Pulsa «Generar semana» otra vez.',
-        )
+        if (generationPauseRequestedRef.current) {
+          setStatus('error')
+          setErrorMsg(
+            'Pausa solicitada. El día que ya estaba en curso terminará en el servidor y quedará guardado; en cuanto libere el trabajo aparecerá «Continuar generación».',
+          )
+        } else {
+          setStatus((current) =>
+            current === 'generating' ? 'idle' : current,
+          )
+          setErrorMsg(
+            'La generación se detuvo porque cambió la configuración. Pulsa «Generar semana» otra vez.',
+          )
+        }
         return
       }
       setGenStep('')
       if (activeGenerationJobRef.current) {
+        const failureMessage = humanizeNetworkLikeError(
+          err,
+          'La generación se interrumpió.',
+        )
         const failedJob = {
           ...activeGenerationJobRef.current,
           phase: 'failed',
-          error: humanizeNetworkLikeError(err, 'La generación se interrumpió.'),
+          failedDay: generationCurrentDay,
+          error: failureMessage,
           partialWeek: generationCheckpoint || activeGenerationJobRef.current.partialWeek,
         }
         activeGenerationJobRef.current = failedJob
         saveGenerationJob(generationJobStorageKeyRef.current, failedJob)
         setResumableGenerationJob(jobHasResumableProgress(failedJob) ? failedJob : null)
+        try {
+          const remoteSnapshot =
+            err?.payload?.snapshot?.job
+              ? err.payload.snapshot
+              : await getRemoteGenerationJob({
+                  secret: generationAdminSecret,
+                  jobId: failedJob.serverJobId || failedJob.jobId,
+                })
+          const remoteFailedJob = remoteSnapshotToLocalJob(remoteSnapshot, failedJob)
+          if (remoteFailedJob) {
+            activeGenerationJobRef.current = remoteFailedJob
+            saveGenerationJob(generationJobStorageKeyRef.current, remoteFailedJob)
+            setResumableGenerationJob(remoteFailedJob)
+          }
+        } catch {
+          // El endpoint del día persiste el fallo que conserva el lease. Esta
+          // relectura solo actualiza la caché y no debe ocultar el error original.
+        }
       }
       if (generationCheckpoint && weekHasMeaningfulSessionContent(generationCheckpoint)) {
         const completedDays = (generationCheckpoint.dias || []).filter((dia) =>
@@ -3077,18 +3232,69 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
     window.setTimeout(() => setDraftNotice(''), 6000)
   }
 
-  function handleCloseModal() {
+  async function handleCloseModal() {
     if (publicationMutationLockRef.current || publicationMutationBusy) {
       setErrorMsg('Espera a que termine la operación de publicación o guardado antes de cerrar.')
       return
     }
     if (status === 'generating') {
       generationRunRef.current += 1
+      generationPauseRequestedRef.current = true
       generationFetchAbortRef.current?.abort()
       generationActiveRef.current = false
       setGenStep('')
-      setStatus('idle')
-      setErrorMsg('Generación cancelada.')
+      setStatus('error')
+      setResumableGenerationJob(null)
+      setErrorMsg(
+        'Pausa solicitada. Esperando a que el servidor guarde o cierre el día en curso…',
+      )
+
+      const pausedJob = activeGenerationJobRef.current
+      const pausedTarget = generationTargetIdentityRef.current
+      if (pausedJob?.serverJobId && publicationAdminSecret()) {
+        for (let attempt = 0; attempt < 32; attempt += 1) {
+          if (
+            generationTargetIdentityRef.current !== pausedTarget ||
+            generationActiveRef.current
+          ) {
+            return
+          }
+          try {
+            const snapshot = await getRemoteGenerationJob({
+              secret: publicationAdminSecret(),
+              jobId: pausedJob.serverJobId,
+            })
+            const stillRunning = (snapshot?.steps || []).some(
+              (step) => step?.status === 'running',
+            )
+            const remoteJob = remoteSnapshotToLocalJob(snapshot, pausedJob)
+            if (remoteJob && !stillRunning) {
+              activeGenerationJobRef.current = remoteJob
+              saveGenerationJob(
+                generationJobStorageKeyRef.current,
+                remoteJob,
+              )
+              setResumableGenerationJob(
+                jobHasResumableProgress(remoteJob) ? remoteJob : null,
+              )
+              setGenerationJobId(remoteJob.jobId)
+              generationPauseRequestedRef.current = false
+              setErrorMsg(
+                remoteJob.phase === 'failed'
+                  ? 'El día en curso terminó con un error concreto. El progreso anterior está guardado; pulsa «Continuar generación» para reintentar solo ese día.'
+                  : 'Generación pausada. El progreso del día en curso ya está guardado; pulsa «Continuar generación» cuando quieras.',
+              )
+              return
+            }
+          } catch {
+            // Una lectura transitoria no cancela el sondeo acotado.
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 2_500))
+        }
+      }
+      setErrorMsg(
+        'La pausa está registrada, pero el servidor todavía no confirmó el cierre del día. Cierra y vuelve a abrir el generador: recuperará el trabajo por ciclo y semana sin repetir días guardados.',
+      )
       return
     }
     if (status === 'previewing' && weekState.mesocycle && weekData != null) {
@@ -3223,7 +3429,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         staleFeedbackKeys: [...staleFeedbackKeys],
         warmupIssues: warmupIssues.map((x) => `${x.dayLabel} · ${x.classLabel}: ${x.hint}`),
         contextReady:
-          briefingStatus === 'ready' &&
+          ['ready', 'error'].includes(briefingStatus) &&
           !briefingIsStale &&
           !!briefingContextPack &&
           proposalAccepted &&
@@ -4860,6 +5066,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                         setProposalNarrative(det.narrative)
                         setProposalSuggestedFocus(det.suggestedFocus)
                         setProposalSource('manual')
+                        setBriefingInputFingerprint(
+                          currentPlanningInputFingerprint,
+                        )
                         setProposalAccepted(true)
                         setProposalStep('addons')
                       }}
@@ -5137,9 +5346,9 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               <div className="flex items-center gap-2 text-[10px] text-indigo-600 font-bold bg-indigo-50/50 rounded-2xl px-5 py-4 border border-indigo-100/50 uppercase tracking-tight shadow-sm">
                 <span className="text-sm">💡</span>
                 <span>
-                  Generaremos únicamente los días y clases que hayas marcado. ~1–5 min (una llamada por día; desde el
-                  día 2 la IA recibe un prompt más ligero para gastar menos). En Vercel hace falta plan Pro para tiempos
-                  largos.
+                  Generaremos únicamente los días y clases que hayas marcado. Cada día tiene un límite inferior a 90 segundos
+                  y se guarda antes de empezar el siguiente. Si se corta la conexión, podrás continuar desde el primer
+                  día pendiente.
                 </span>
               </div>
             </>
@@ -5156,10 +5365,52 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {genStep || 'Iniciando generación...'}
                 </p>
                 <p className="text-[11px] text-neutral-600 text-center font-bold uppercase tracking-widest">
-                  Memoria AI activa · Coherencia EVO
+                  Progreso persistente · Coherencia EVO
                   {genElapsedSec > 0 ? ` · ${formatGenElapsed(genElapsedSec)}` : ''}
                   {!genStep.includes('Generando') && genStep ? ' · preparando' : ''}
                 </p>
+                {resumableGenerationJob?.completedDays?.length ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 space-y-2 max-w-xl mx-auto">
+                    <p className="text-[10px] text-emerald-800 text-center font-bold uppercase tracking-wide">
+                      Guardado: {resumableGenerationJob.completedDays.join(' · ')}
+                    </p>
+                    {resumableGenerationJob.completedDays.map((dayName) => {
+                      const day = (weekData?.dias || []).find(
+                        (row) =>
+                          String(row?.nombre || '').trim().toUpperCase() ===
+                          dayName,
+                      )
+                      const firstSession = EVO_SESSION_CLASS_DEFS
+                        .map(({ key, label }) => ({
+                          label,
+                          text: String(day?.[key] || '').trim(),
+                        }))
+                        .find(
+                          ({ text }) =>
+                            text &&
+                            !/no programada esta semana/i.test(text) &&
+                            !/^FESTIVO\b/i.test(text),
+                        )
+                      return (
+                        <div key={dayName} className="text-left">
+                          <p className="text-[9px] font-black text-emerald-900 uppercase">
+                            {dayName}
+                            {firstSession ? ` · ${firstSession.label}` : ''}
+                          </p>
+                          {firstSession ? (
+                            <p className="text-[9px] text-emerald-900/75 line-clamp-2 whitespace-pre-line">
+                              {firstSession.text.slice(0, 220)}
+                            </p>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-neutral-500 text-center">
+                    El primer día aparecerá aquí en cuanto quede guardado.
+                  </p>
+                )}
                 <p className="text-[10px] text-neutral-500 text-center max-w-md">
                   Build {EVO_BUILD_ID}
                   {generationJobId ? ` · job ${generationJobId}` : ''}
@@ -5994,6 +6245,20 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               disabled={publicationMutationBusy}
               onChange={handleImportExcelChange}
             />
+            {status === 'previewing' &&
+              resumableGenerationJob?.phase === 'sync_pending' && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleGenerate({
+                      resumeFromJob: resumableGenerationJob,
+                    })
+                  }
+                  className="px-5 py-2.5 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-950 text-[10px] font-bold uppercase tracking-widest hover:bg-amber-100"
+                >
+                  Sincronizar cierre
+                </button>
+              )}
             {status === 'previewing' && (
               <button
                 disabled={publicationMutationBusy}

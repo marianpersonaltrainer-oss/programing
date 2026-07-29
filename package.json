@@ -4,12 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:ci": "vitest run && vite build",
     "test:prompts": "vitest run src/constants/systemPromptCore.test.js src/domain/method/methodEvoV1.test.js src/utils/coachSupportContext.test.js",
     "test:method": "vitest run src/utils/methodPrompt.test.js src/utils/weeklyOffer.test.js api/programming-week-briefing.test.js api/programming-week-briefing.handler.test.js api/lib/briefingTimeBudget.test.js src/utils/parseJsonApiResponse.test.js src/utils/buildDeterministicBriefingProposal.test.js src/utils/excelGenerationJobStorage.test.js src/components/ExcelGeneratorModal/ExcelGeneratorModal.generationFlow.test.js",
     "test:evo-rules": "vitest run src/domain/method/evoBasicsSkills.test.js src/domain/method/methodEvoV1.test.js src/utils/methodPrompt.test.js src/constants/systemPromptCore.test.js",

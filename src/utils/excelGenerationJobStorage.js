@@ -10,8 +10,10 @@ export function buildGenerationJobStorageKey(input) {
 /**
  * @typedef {object} ExcelGenerationJob
  * @property {string} jobId
+ * @property {string|null} serverJobId
+ * @property {number} serverRevision
  * @property {string} fingerprint
- * @property {'prep'|'generating'|'validating'|'complete'|'failed'|'interrupted'} phase
+ * @property {'prep'|'generating'|'validating'|'complete'|'failed'|'interrupted'|'sync_pending'|'cancelled'} phase
  * @property {string[]} completedDays
  * @property {string|null} failedDay
  * @property {string|null} error
@@ -66,6 +68,8 @@ export function createGenerationJob({ fingerprint, idempotencyKey = null }) {
   const jobId = `gen_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   return {
     jobId,
+    serverJobId: null,
+    serverRevision: 0,
     fingerprint,
     phase: 'prep',
     completedDays: [],
@@ -81,7 +85,13 @@ export function createGenerationJob({ fingerprint, idempotencyKey = null }) {
 
 export function jobHasResumableProgress(job) {
   if (!job) return false
-  if (job.phase === 'complete') return false
+  if (job.phase === 'complete' || job.phase === 'cancelled') return false
+  if (
+    job.serverJobId &&
+    ['prep', 'generating', 'failed', 'interrupted', 'sync_pending'].includes(job.phase)
+  ) {
+    return true
+  }
   return Array.isArray(job.completedDays) && job.completedDays.length > 0 && !!job.partialWeek
 }
 

@@ -2600,6 +2600,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     const addendumClean = sanitizePromptTextForLLM(addendum || '').trim().slice(0, ADDENDUM_MAX_CHARS)
 
+    const regenerating = !!weekData
+
     const approvedBlock =
       regenerating && !proposalAccepted
         ? ''

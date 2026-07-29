@@ -15,5 +15,6 @@ describe('configuración neutral de proveedores', () => {
     expect(disabled.anthropicFallback).toBe(false)
     expect(hasConfiguredAiProvider(disabled)).toBe(false)
     expect(enabled.anthropicFallback).toBe(true)
+    expect(enabled.anthropicFallbackModel).toBe('claude-sonnet-4-6')
   })
 })

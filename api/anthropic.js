@@ -278,8 +278,14 @@ export default async function handler(req, res) {
   }
 
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim()
+  const anthropicApiKey = String(process.env.ANTHROPIC_API_KEY || '').trim()
+  const anthropicFallbackEnabled =
+    String(process.env.AI_ANTHROPIC_FALLBACK || '').toLowerCase() === 'true' &&
+    Boolean(anthropicApiKey)
+  const anthropicFallbackModel =
+    String(process.env.ANTHROPIC_FALLBACK_MODEL || 'claude-sonnet-4-6').trim()
 
-  if (!apiKey) {
+  if (!apiKey && !anthropicFallbackEnabled) {
     return res.status(500).json({
       error: {
         message:
@@ -322,28 +328,58 @@ export default async function handler(req, res) {
       upstreamAbort.abort()
     }, ANTHROPIC_UPSTREAM_TIMEOUT_MS)
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const requestOpenAi = () => fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: resolvedModel,
+          max_output_tokens: max_tokens || 8000,
+          instructions: system === undefined ? undefined : injectWeekContext(system, weekContext),
+          input: messages,
+          text:
+            responseFormat === EVO_WEEK_RESPONSE_FORMAT
+              ? {
+                  format: { type: 'json_schema', name: EVO_WEEK_RESPONSE_FORMAT, strict: true, schema: EVO_WEEK_OUTPUT_SCHEMA },
+                }
+              : undefined,
+        }),
+        signal: upstreamAbort.signal,
+      })
+    const requestAnthropicFallback = () => fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: resolvedModel,
-        max_output_tokens: max_tokens || 8000,
-        instructions: system === undefined ? undefined : injectWeekContext(system, weekContext),
-        input: messages,
-        text:
+        model: anthropicFallbackModel,
+        max_tokens: max_tokens || 8000,
+        system: system === undefined ? undefined : injectWeekContext(system, weekContext),
+        messages,
+        output_config:
           responseFormat === EVO_WEEK_RESPONSE_FORMAT
-            ? {
-                format: { type: 'json_schema', name: EVO_WEEK_RESPONSE_FORMAT, strict: true, schema: EVO_WEEK_OUTPUT_SCHEMA },
-              }
+            ? { format: { type: 'json_schema', schema: EVO_WEEK_OUTPUT_SCHEMA } }
             : undefined,
       }),
       signal: upstreamAbort.signal,
     })
 
-    const rawText = await response.text()
+    let providerUsed = 'openai'
+    let response
+    try {
+      response = apiKey ? await requestOpenAi() : await requestAnthropicFallback()
+      if (!apiKey) providerUsed = 'anthropic'
+    } catch (openAiError) {
+      if (!anthropicFallbackEnabled || upstreamAbort.signal.aborted) throw openAiError
+      providerUsed = 'anthropic'
+      response = await requestAnthropicFallback()
+    }
+
+    let rawText = await response.text()
     let data
     try {
       data = rawText ? JSON.parse(rawText) : {}
@@ -359,6 +395,21 @@ export default async function handler(req, res) {
           },
         }),
       )
+    }
+
+    if (!response.ok && providerUsed === 'openai' && anthropicFallbackEnabled) {
+      console.warn('legacy_ai_openai_failed_using_anthropic_fallback', {
+        status: response.status,
+        model: resolvedModel,
+      })
+      providerUsed = 'anthropic'
+      response = await requestAnthropicFallback()
+      rawText = await response.text()
+      try {
+        data = rawText ? JSON.parse(rawText) : {}
+      } catch {
+        data = { error: { type: 'invalid_provider_body', message: 'Claude devolvió un cuerpo no JSON.' } }
+      }
     }
 
     if (!response.ok) {
@@ -377,7 +428,7 @@ export default async function handler(req, res) {
       )
     }
 
-    if (response.ok) {
+    if (response.ok && providerUsed === 'openai') {
       const outputText = Array.isArray(data?.output)
         ? data.output.flatMap((item) => Array.isArray(item?.content) ? item.content : [])
             .filter((part) => part?.type === 'output_text').map((part) => part.text || '').join('\n').trim()

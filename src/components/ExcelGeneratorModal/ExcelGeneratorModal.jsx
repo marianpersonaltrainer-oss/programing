@@ -1536,6 +1536,12 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
         }
 
         setResumableGenerationJob(recovery.canResume ? remoteJob : null)
+        if (
+          remoteJob.error &&
+          /regenerating is not defined/i.test(String(remoteJob.error))
+        ) {
+          setErrorMsg('')
+        }
       })
       .catch(() => {
         /*
@@ -2600,10 +2606,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
     const addendumClean = sanitizePromptTextForLLM(addendum || '').trim().slice(0, ADDENDUM_MAX_CHARS)
 
-    const regenerating = !!weekData
-
     const approvedBlock =
-      regenerating && !proposalAccepted
+      weekData && !proposalAccepted
         ? ''
         : [
             'PROPUESTA APROBADA POR LA PROGRAMADORA:',

@@ -16,17 +16,35 @@ function resolveBuildId() {
 const EVO_BUILD_ID = resolveBuildId()
 const EVO_BUILD_GUARD_STORAGE_KEY = 'evo_deploy_build_id'
 
-/** Recarga antes del bundle JS si el HTML (deploy nuevo) no coincide con lo guardado en localStorage. */
-function evoBuildGuardHtmlPlugin(buildId) {
-  const inlineScript = `<script id="evo-build-guard">(function(){var BUILD=${JSON.stringify(buildId)};var KEY=${JSON.stringify(EVO_BUILD_GUARD_STORAGE_KEY)};try{var prev=localStorage.getItem(KEY);if(prev&&prev!==BUILD){localStorage.setItem(KEY,BUILD);var go=function(){var u=new URL(location.href);u.searchParams.set("v",BUILD);location.replace(u.toString());};if("serviceWorker"in navigator){navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister();}));}).then(go);return;}go();return;}if(!prev)localStorage.setItem(KEY,BUILD);}catch(e){}})();</script>`
-
+function evoBuildMetaPlugin(buildId) {
   return {
-    name: 'evo-build-guard-html',
+    name: 'evo-build-meta',
     transformIndexHtml(html) {
       return html.replace(
         '<head>',
-        `<head>\n    <meta name="evo-build-id" content="${buildId}" />\n    ${inlineScript}`,
+        `<head>\n    <meta name="evo-build-id" content="${buildId}" />`,
       )
+    },
+  }
+}
+
+/** No cargar el bundle hasta comprobar en red que coincide con el deploy actual. */
+function evoDeferredAppLoaderPlugin() {
+  return {
+    name: 'evo-deferred-app-loader',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        const moduleMatch = html.match(
+          /<script type="module" crossorigin src="(\/assets\/index-[^"]+\.js)"><\/script>/,
+        )
+        if (!moduleMatch) return html
+
+        const appSrc = moduleMatch[1]
+        const script = `<script id="evo-app-loader">(function(){var SRC=${JSON.stringify(appSrc)};var KEY=${JSON.stringify(EVO_BUILD_GUARD_STORAGE_KEY)};function reload(id){try{localStorage.setItem(KEY,id);}catch(e){}var u=new URL(location.href);u.searchParams.set("v",id);u.searchParams.set("_",String(Date.now()));location.replace(u.toString());}function loadApp(){var s=document.createElement("script");s.type="module";s.crossOrigin="anonymous";s.src=SRC;document.head.appendChild(s);}function maybeReload(server,local,prev){if(!server)return false;if(server!==local||(prev&&prev!==server)){if("serviceWorker"in navigator){navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister();}));}).then(function(){reload(server);});return true;}reload(server);return true;}if(!prev){try{localStorage.setItem(KEY,server);}catch(e){}}return false;}fetch(location.origin+"/?_evo="+Date.now(),{cache:"no-store",credentials:"same-origin",headers:{Accept:"text/html"}}).then(function(r){return r.text();}).then(function(html){var m=html.match(/meta name="evo-build-id" content="([^"]+)"/);var server=m&&m[1]?m[1].trim():"";var local=(document.querySelector('meta[name="evo-build-id"]')||{}).content||"";var prev=null;try{prev=localStorage.getItem(KEY);}catch(e){}if(maybeReload(server,local,prev))return;loadApp();}).catch(function(){loadApp();});})();</script>`
+
+        return html.replace(moduleMatch[0], script)
+      },
     },
   }
 }
@@ -41,17 +59,13 @@ function evoBuildGuardHtmlPlugin(buildId) {
  */
 export default defineConfig({
   plugins: [
-    evoBuildGuardHtmlPlugin(EVO_BUILD_ID),
-    // ExcelJS en navegador necesita process/Buffer (su carga comprueba `process.browser` para elegir
-    // el parser correcto; sin ello `xlsx.load` falla con «reading 'sheets'»). Usamos el build de
-    // navegador propio de ExcelJS (auto-contenido) + estos polyfills.
+    evoBuildMetaPlugin(EVO_BUILD_ID),
     nodePolyfills({
       globals: { Buffer: true, global: true, process: true },
     }),
     react(),
+    evoDeferredAppLoaderPlugin(),
   ],
-  // ExcelJS elige el parser de navegador (TextDecoder) cuando `process.browser` es true; fijarlo evita
-  // el fallo «reading 'sheets'» al cargar el .xlsx en el navegador.
   define: {
     'process.browser': 'true',
     __EVO_BUILD_ID__: JSON.stringify(EVO_BUILD_ID),

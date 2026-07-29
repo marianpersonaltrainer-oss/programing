@@ -15,6 +15,12 @@ async function bootstrap() {
 
 bootstrap()
 
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    void ensureFreshBuild()
+  }
+})
+
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'EVO_SW_ACTIVATED') {

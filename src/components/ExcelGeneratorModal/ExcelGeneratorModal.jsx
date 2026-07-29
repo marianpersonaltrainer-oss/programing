@@ -170,7 +170,7 @@ const BRIEFING_CLIENT_TIMEOUT_MS = BRIEFING_PROPOSAL_CLIENT_TIMEOUT_MS
 /** Lectura exacta de las semanas elegidas por el briefing. */
 const BRIEFING_CONTEXT_TIMEOUT_MS = BRIEFING_CONTEXT_CLIENT_TIMEOUT_MS
 /** Tiempo máximo montando el prompt en el navegador antes de pasar a la IA. */
-const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 30_000
+const EXCEL_GENERATION_PROMPT_PREP_TIMEOUT_MS = 90_000
 /** Narrativa de propuesta incluida en el prompt (evita bloqueos con textos enormes). */
 const EXCEL_GENERATION_NARRATIVE_MAX_CHARS = 3000
 
@@ -1072,9 +1072,9 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     const step = String(genStep || '')
     if (!/Montando prompt|Planificando días|Preparando primera/i.test(step)) return undefined
     const id = window.setInterval(() => {
-      if (genElapsedSec >= 45 && generationActiveRef.current) {
+      if (genElapsedSec >= 90 && generationActiveRef.current) {
         setErrorMsg(
-          'La preparación local tardó demasiado. El trabajo guardado se conserva; cancela y pulsa «Continuar generación».',
+          'La preparación local tardó demasiado. Cancela, recarga la página (Cmd+Shift+R) y prueba generando solo 1 día; el trabajo guardado se conserva.',
         )
         setStatus('error')
         setGenStep('')

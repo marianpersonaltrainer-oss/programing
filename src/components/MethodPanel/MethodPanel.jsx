@@ -13,9 +13,9 @@ import {
 import { extractDriveFolderId } from '../../utils/driveFolderId.js'
 import { DEFAULT_METHOD } from '../../utils/methodPrompt.js'
 import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
+import { persistCoachAdminSecret, readCoachAdminSecret } from '../../utils/coachAdminSecretStorage.js'
 
 const DRIVE_FOLDER_LS_KEY = 'programingevo_drive_programming_folder_id'
-const COACH_ADMIN_SECRET_SESSION_KEY = 'evo_coach_guide_admin_secret'
 
 export const DEFAULT_LEARNED_PLACEHOLDER = `Anota aquí decisiones que hayas revisado y confirmado: frases que funcionan en sala, errores a no repetir o criterios que concretan el método sin contradecirlo.
 
@@ -58,7 +58,7 @@ export default function MethodPanel({ onClose }) {
       setDriveFolderInput('')
     }
     try {
-      setDriveAdminSecret(sessionStorage.getItem(COACH_ADMIN_SECRET_SESSION_KEY) || '')
+      setDriveAdminSecret(readCoachAdminSecret())
     } catch {
       setDriveAdminSecret('')
     }
@@ -143,11 +143,7 @@ export default function MethodPanel({ onClose }) {
         setDriveImportMsg(String(json.error || json.detail || `Error ${res.status}`))
         return
       }
-      try {
-        sessionStorage.setItem(COACH_ADMIN_SECRET_SESSION_KEY, secret)
-      } catch {
-        /* ignore */
-      }
+      persistCoachAdminSecret(secret)
       if (driveFolderInput.trim()) {
         try {
           localStorage.setItem(DRIVE_FOLDER_LS_KEY, driveFolderInput.trim())
@@ -303,6 +299,9 @@ export default function MethodPanel({ onClose }) {
                 onChange={(e) => {
                   setDriveAdminSecret(e.target.value)
                   setDriveImportMsg('')
+                }}
+                onBlur={(e) => {
+                  persistCoachAdminSecret(e.target.value)
                 }}
                 placeholder="Clave admin (COACH_GUIDE_ADMIN_SECRET)"
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-[#1A0A1A] focus:border-slate-400 focus:outline-none"

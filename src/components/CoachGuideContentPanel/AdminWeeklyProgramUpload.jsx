@@ -161,7 +161,7 @@ class AdminWeeklyProgramUploadBoundary extends Component {
   }
 }
 
-function AdminWeeklyProgramUploadInner({ adminSecret = '' }) {
+function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }) {
   const [file, setFile] = useState(null)
   const [batchFiles, setBatchFiles] = useState([])
   const [mesocycle, setMesocycle] = useState('autocarga')
@@ -669,6 +669,27 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '' }) {
 
   return (
     <section className="space-y-4">
+      <div className="rounded-xl border border-[#6A1F6D]/60 bg-[#221427]/80 px-4 py-3 space-y-2">
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[#FFFF4C]/90 font-bold">
+            Clave de administración (obligatoria para guardar)
+          </span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={adminSecret}
+            onChange={(e) => onAdminSecretChange?.(e.target.value)}
+            placeholder="Pega aquí COACH_GUIDE_ADMIN_SECRET (Vercel → programing-evo → Environment Variables)"
+            className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9] placeholder:text-[#F6E8F9]/40"
+          />
+        </label>
+        <p className="text-[10px] text-[#F6E8F9AA] leading-relaxed">
+          {adminSecret.trim()
+            ? 'Clave guardada en esta sesión. Ya puedes usar «Guardar borrador en Hub».'
+            : 'Copia el valor de COACH_GUIDE_ADMIN_SECRET en Vercel y pégalo aquí. Se guarda al escribir (no hace falta ir a otra pestaña).'}
+        </p>
+      </div>
+
       <p className="text-sm text-[#F6E8F9CC]">
         Sube un Excel y analízalo. Por defecto puedes <span className="font-semibold text-[#F6E8F9]">guardar borrador en Supabase</span> para la
         semana y ciclo exactos <span className="font-semibold">sin cambiar</span> la versión que ven los coaches. Las importaciones quedan siempre

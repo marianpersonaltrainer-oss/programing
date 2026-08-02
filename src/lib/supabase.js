@@ -7,6 +7,7 @@ import {
   isMissingPublishedWeeksV2ColumnError,
   withInferredPublicationStatus,
 } from '../utils/publishedWeeksLegacy.js'
+import { readCoachAdminSecret } from '../utils/coachAdminSecretStorage.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -142,11 +143,7 @@ export async function getPublishedWeekDraftByMesocycleAndWeek(mesociclo, semana,
 export function publicationAdminSecret(explicitSecret = '') {
   const direct = String(explicitSecret || '').trim()
   if (direct) return direct
-  try {
-    return String(sessionStorage.getItem('evo_coach_guide_admin_secret') || '').trim()
-  } catch {
-    return ''
-  }
+  return readCoachAdminSecret()
 }
 
 async function callPublishedWeekVersionsApi(payload, { allowEmptyRow = false } = {}) {

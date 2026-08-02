@@ -7,6 +7,7 @@ import {
   isMissingPublishedWeeksV2ColumnError,
   withInferredPublicationStatus,
 } from '../utils/publishedWeeksLegacy.js'
+import { readCoachAdminSecret } from '../utils/coachAdminSecretStorage.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -142,11 +143,7 @@ export async function getPublishedWeekDraftByMesocycleAndWeek(mesociclo, semana,
 export function publicationAdminSecret(explicitSecret = '') {
   const direct = String(explicitSecret || '').trim()
   if (direct) return direct
-  try {
-    return String(sessionStorage.getItem('evo_coach_guide_admin_secret') || '').trim()
-  } catch {
-    return ''
-  }
+  return readCoachAdminSecret()
 }
 
 async function callPublishedWeekVersionsApi(payload, { allowEmptyRow = false } = {}) {
@@ -180,6 +177,9 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
     adminSecret = '',
     draftId = null,
     expectedRevision = draftId ? null : 0,
+    adminDirectPublish = false,
+    contextFingerprint = '',
+    selectedWeekIds = [],
   } = options
   if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
   if (!weekData || typeof weekData !== 'object') throw new Error('Falta el JSON de la semana')
@@ -212,6 +212,9 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
     sourceWeekId,
     draftId: draftId || null,
     expectedRevision: Number(expectedRevision),
+    adminDirectPublish: activateForHub && adminDirectPublish,
+    contextFingerprint,
+    selectedWeekIds,
   })
   return {
     ...row,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCoachGuideSettings } from '../../lib/supabase.js'
 import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
+import { persistCoachAdminSecret, readCoachAdminSecret } from '../../utils/coachAdminSecretStorage.js'
 import CoachSessionFeedbackAdmin from './CoachSessionFeedbackAdmin.jsx'
 import CoachExerciseLibraryAdmin from './CoachExerciseLibraryAdmin.jsx'
 import CoachWeekExportAdmin from './CoachWeekExportAdmin.jsx'
@@ -23,13 +24,12 @@ export default function CoachGuideContentPanel({ onClose }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [adminSecret, setAdminSecret] = useState(() => {
-    try {
-      return sessionStorage.getItem('evo_coach_guide_admin_secret') || ''
-    } catch {
-      return ''
-    }
-  })
+  const [adminSecret, setAdminSecret] = useState(() => readCoachAdminSecret())
+
+  function handleAdminSecretChange(value) {
+    setAdminSecret(value)
+    persistCoachAdminSecret(value)
+  }
   const [activeNotice, setActiveNotice] = useState('')
   const [contactChannel, setContactChannel] = useState('')
   const [contactPerson, setContactPerson] = useState('')
@@ -111,11 +111,7 @@ export default function CoachGuideContentPanel({ onClose }) {
       if (!res.ok) {
         throw new Error(json.error || `Error ${res.status}`)
       }
-      try {
-        sessionStorage.setItem('evo_coach_guide_admin_secret', adminSecret.trim())
-      } catch {
-        /* ignore */
-      }
+      persistCoachAdminSecret(adminSecret)
       onClose?.()
     } catch (err) {
       setError(err?.message || 'Error al guardar')
@@ -245,7 +241,7 @@ export default function CoachGuideContentPanel({ onClose }) {
           </div>
         ) : adminTab === 'upload_program' ? (
           <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
-            <AdminWeeklyProgramUpload adminSecret={adminSecret} />
+            <AdminWeeklyProgramUpload adminSecret={adminSecret} onAdminSecretChange={handleAdminSecretChange} />
             <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
               Cerrar
             </button>
@@ -265,7 +261,7 @@ export default function CoachGuideContentPanel({ onClose }) {
                 type="password"
                 autoComplete="off"
                 value={adminSecret}
-                onChange={(e) => setAdminSecret(e.target.value)}
+                onChange={(e) => handleAdminSecretChange(e.target.value)}
                 className={coachField}
                 placeholder="COACH_GUIDE_ADMIN_SECRET (servidor)"
               />
@@ -295,7 +291,7 @@ export default function CoachGuideContentPanel({ onClose }) {
               type="password"
               autoComplete="off"
               value={adminSecret}
-              onChange={(e) => setAdminSecret(e.target.value)}
+              onChange={(e) => handleAdminSecretChange(e.target.value)}
               className={coachField}
               placeholder="COACH_GUIDE_ADMIN_SECRET (servidor)"
             />

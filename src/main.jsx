@@ -2,45 +2,21 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
-import { ensureFreshBuild } from './utils/ensureFreshBuild.js'
 
-async function bootstrap() {
-  await ensureFreshBuild()
-  createRoot(document.getElementById('root')).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
-}
-
-bootstrap()
-
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    void ensureFreshBuild()
-  }
-})
-
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data?.type === 'EVO_SW_ACTIVATED') {
-      window.location.reload()
-    }
-  })
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((reg) => {
-        reg.addEventListener('updatefound', () => {
-          const w = reg.installing
-          if (!w) return
-          w.addEventListener('statechange', () => {
-            if (w.state === 'installed' && navigator.serviceWorker.controller) {
-              window.location.reload()
-            }
-          })
-        })
-      })
-      .catch(() => {})
-  })
-}
+/**
+ * Arranque estándar de Vite: sin service worker y sin comprobaciones de build en cliente.
+ *
+ * La frescura del despliegue la garantizan las cabeceras HTTP de `vercel.json`:
+ *   - index.html  -> no-cache  (el navegador siempre pide el HTML nuevo)
+ *   - /assets/*   -> immutable (los nombres llevan hash, cambian en cada build)
+ *
+ * Historial: hubo un service worker (`public/sw.js`) más `ensureFreshBuild()` más un cargador
+ * diferido en `vite.config.js`. Los tres reaccionaban a un despliegue nuevo recargando la página,
+ * y encadenados provocaban recargas repetidas y mezcla de dos versiones en pantalla.
+ * No volver a añadir recargas automáticas en cliente: si el HTML no se cachea, no hacen falta.
+ */
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)

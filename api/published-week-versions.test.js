@@ -53,6 +53,12 @@ describe('endpoint protegido de versiones publicadas', () => {
     expect(source).not.toContain('loadMutableDraft')
   })
 
+  it('permite publicación directa admin desde Contenido Coach', () => {
+    expect(source).toContain('body.adminDirectPublish === true')
+    expect(source).toContain('attachAdminPublicationContext')
+    expect(source).toContain('validateAdminDirectPublication')
+  })
+
   it('no concede las RPC de escritura a anon ni authenticated', () => {
     expect(migration).not.toContain('to anon, authenticated, service_role')
     expect(migration.match(/\) to service_role;/g)).toHaveLength(3)

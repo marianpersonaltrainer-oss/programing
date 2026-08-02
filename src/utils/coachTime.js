@@ -1,5 +1,5 @@
 import { formatInTimeZone } from 'date-fns-tz'
-import { es } from 'date-fns/locale'
+import { es } from 'date-fns/locale/es'
 
 const MADRID_TZ = 'Europe/Madrid'
 

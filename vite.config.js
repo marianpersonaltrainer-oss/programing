@@ -14,8 +14,11 @@ function resolveBuildId() {
 }
 
 const EVO_BUILD_ID = resolveBuildId()
-const EVO_BUILD_GUARD_STORAGE_KEY = 'evo_deploy_build_id'
 
+/**
+ * Inyecta <meta name="evo-build-id"> en el HTML. Solo informativo: sirve para comprobar a simple
+ * vista qué build está sirviendo Vercel. No dispara ninguna recarga.
+ */
 function evoBuildMetaPlugin(buildId) {
   return {
     name: 'evo-build-meta',
@@ -28,27 +31,6 @@ function evoBuildMetaPlugin(buildId) {
   }
 }
 
-/** No cargar el bundle hasta comprobar en red que coincide con el deploy actual. */
-function evoDeferredAppLoaderPlugin() {
-  return {
-    name: 'evo-deferred-app-loader',
-    transformIndexHtml: {
-      order: 'post',
-      handler(html, ctx) {
-        const moduleMatch = html.match(
-          /<script type="module" crossorigin src="(\/assets\/index-[^"]+\.js)"><\/script>/,
-        )
-        if (!moduleMatch) return html
-
-        const appSrc = moduleMatch[1]
-        const script = `<script id="evo-app-loader">(function(){var FALLBACK_SRC=${JSON.stringify(appSrc)};var KEY=${JSON.stringify(EVO_BUILD_GUARD_STORAGE_KEY)};function reload(id){try{localStorage.setItem(KEY,id);}catch(e){}var u=new URL(location.href);u.searchParams.set("v",id);u.searchParams.set("_",String(Date.now()));location.replace(u.toString());}function loadApp(src,buildId){var s=document.createElement("script");s.type="module";s.crossOrigin="anonymous";s.src=src+(src.indexOf("?")>=0?"&":"?")+"b="+encodeURIComponent(buildId||"");document.head.appendChild(s);}function maybeReload(server,local,prev,serverSrc,localSrc){if(!server)return false;if(server!==local||(prev&&prev!==server)||(serverSrc&&localSrc&&serverSrc!==localSrc)){if("serviceWorker"in navigator){navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister();}));}).then(function(){reload(server);});return true;}reload(server);return true;}if(!prev){try{localStorage.setItem(KEY,server);}catch(e){}}return false;}fetch(location.origin+"/?_evo="+Date.now(),{cache:"no-store",credentials:"same-origin",headers:{Accept:"text/html"}}).then(function(r){return r.text();}).then(function(html){var m=html.match(/meta name="evo-build-id" content="([^"]+)"/);var server=m&&m[1]?m[1].trim():"";var local=(document.querySelector('meta[name="evo-build-id"]')||{}).content||"";var sm=html.match(/script type="module" crossorigin src="(\\/assets\\/index-[^"]+\\.js)"/);var serverSrc=sm&&sm[1]?sm[1]:FALLBACK_SRC;var prev=null;try{prev=localStorage.getItem(KEY);}catch(e){}if(maybeReload(server,local,prev,serverSrc,FALLBACK_SRC))return;loadApp(serverSrc,server);}).catch(function(){loadApp(FALLBACK_SRC,"");});})();</script>`
-
-        return html.replace(moduleMatch[0], script)
-      },
-    },
-  }
-}
-
 /**
  * No importar `package.json` aquí con assert JSON: al empaquetar la config, esbuild puede resolver
  * rutas relativas tipo `../../package.json` desde este directorio; un JSON inválido fuera del repo rompe el build.
@@ -56,6 +38,13 @@ function evoDeferredAppLoaderPlugin() {
  *
  * nodePolyfills: ExcelJS necesita en navegador los polyfills de Node (process/stream/buffer); sin ellos
  * `wb.xlsx.load()` falla al parsear el workbook («Cannot read properties of undefined (reading 'sheets')»).
+ *
+ * NOTA DE MANTENIMIENTO — no volver a añadir "cargadores diferidos" ni comprobaciones de build en
+ * cliente. Aquí vivió un plugin (`evo-deferred-app-loader`) que, antes de cargar el bundle, pedía el
+ * HTML por red y recargaba con location.replace() si el build id no coincidía. Sumado al service
+ * worker y a ensureFreshBuild() daba hasta tres recargas encadenadas tras cada despliegue, con la
+ * apariencia de dos versiones solapadas. La frescura la resuelven las cabeceras de vercel.json:
+ * index.html con no-cache y /assets/* inmutable con nombres con hash.
  */
 export default defineConfig({
   plugins: [
@@ -64,7 +53,6 @@ export default defineConfig({
       globals: { Buffer: true, global: true, process: true },
     }),
     react(),
-    evoDeferredAppLoaderPlugin(),
   ],
   define: {
     'process.browser': 'true',

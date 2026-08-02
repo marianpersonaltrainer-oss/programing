@@ -8,6 +8,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:api": "vercel dev --listen 127.0.0.1:3000 --yes",
+    "dev:web": "vite --host 127.0.0.1 --port 5173",
+    "dev:local": "node scripts/dev-local.mjs",
+    "dev:full": "npm run dev:local",
     "build": "vite build",
     "preview": "vite preview",
     "test:prompts": "vitest run src/constants/systemPromptCore.test.js src/domain/method/methodEvoV1.test.js src/utils/coachSupportContext.test.js",

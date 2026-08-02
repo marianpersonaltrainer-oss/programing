@@ -513,7 +513,29 @@ function humanizeNetworkLikeError(err, fallback = 'Error de red') {
       ? `Límite de uso de la API alcanzado. Debes recargar saldo o esperar hasta ${until}.`
       : 'Límite de uso de la API alcanzado. Recarga saldo de Anthropic o espera al próximo ciclo de facturación.'
   }
+  if (/api key is invalid|invalid x-api-key|clave api de anthropic no es válida/i.test(raw)) {
+    return raw.includes('Modo manual')
+      ? raw
+      : `${raw} Revisa ANTHROPIC_API_KEY en Vercel (Production y Preview) o usa el bloque «Modo manual» más abajo.`
+  }
   return raw || fallback
+}
+
+function explainInvalidServerJson(responseText, httpStatus) {
+  const preview = String(responseText || '').trim().slice(0, 120).toLowerCase()
+  if (preview.startsWith('<!doctype') || preview.startsWith('<html') || preview.includes('<html')) {
+    return (
+      'Las APIs locales no están activas (el servidor devolvió HTML, no JSON). ' +
+      'En la terminal ejecuta: cd /Users/apple/Desktop/programingevo-motor-recovery && npm run dev:local. ' +
+      'Después abre http://127.0.0.1:5173/ en Safari o Chrome.'
+    )
+  }
+  if (Number(httpStatus) === 404) {
+    return (
+      'API no encontrada (404). Arranca el entorno local con npm run dev:local y usa http://127.0.0.1:5173/ (no 5174).'
+    )
+  }
+  return 'La respuesta del servidor no es JSON válido.'
 }
 
 async function postJsonWithRetry(url, payload, retries = 2) {
@@ -587,6 +609,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const addendumStorageKeyRef = useRef(addendumStorageKey)
   const [refineDraft, setRefineDraft] = useState('')
   const [refineBusy, setRefineBusy] = useState(false)
+  const modalBodyRef = useRef(null)
+  const proposalReadyRef = useRef(null)
 
   const [status, setStatus]     = useState('idle')
   const [genStep, setGenStep]   = useState('')
@@ -753,6 +777,13 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setHistory(getHistoryForMesocycle(weekState.mesocycle))
     }
   }, [weekState.mesocycle])
+
+  useEffect(() => {
+    if (briefingStatus !== 'ready') return
+    window.requestAnimationFrame(() => {
+      proposalReadyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [briefingStatus, proposalStep])
 
   useEffect(() => {
     const offer = buildCurrentWeeklyOfferSelection()
@@ -1117,7 +1148,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       try {
         data = parseAnthropicProxyBody(responseText)
       } catch {
-        throw new Error('La respuesta del servidor no es JSON válido.')
+        throw new Error(explainInvalidServerJson(responseText, response.status))
       }
 
       const failed = !response.ok || isAnthropicProxyFailure(data)
@@ -2134,7 +2165,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       try {
         data = parseAnthropicProxyBody(responseText)
       } catch {
-        throw new Error('La respuesta del servidor no es JSON válido.')
+        throw new Error(explainInvalidServerJson(responseText, response.status))
       }
 
       if (!response.ok || isAnthropicProxyFailure(data)) {
@@ -2241,7 +2272,7 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
         try {
           data = parseAnthropicProxyBody(responseText)
         } catch {
-          throw new Error('La respuesta del servidor no es JSON válido.')
+          throw new Error(explainInvalidServerJson(responseText, response.status))
         }
         if (!response.ok || isAnthropicProxyFailure(data)) {
           throw new Error(getAnthropicProxyErrorMessage(data, responseText, response.status))
@@ -2813,7 +2844,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 py-4 space-y-4">
+        <div ref={modalBodyRef} className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 py-4 space-y-4">
           {status === 'previewing' && missingVideoRows.length > 0 ? (
             <section className="rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -3174,7 +3205,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
               )}
 
               {briefingStatus === 'ready' && proposalStep !== 'refine' && (
-                <div className="rounded-2xl border border-evo-accent/25 bg-gradient-to-br from-[#faf7fc] to-white p-5 shadow-sm space-y-4">
+                <div
+                  ref={proposalReadyRef}
+                  className="rounded-2xl border border-evo-accent/25 bg-gradient-to-br from-[#faf7fc] to-white p-5 shadow-sm space-y-4"
+                >
                   <p className="text-[10px] font-bold text-evo-accent uppercase tracking-widest">Propuesta de enfoque</p>
                   <h3 className="text-lg font-bold text-[#1A0A1A] leading-tight">{proposalTitle}</h3>
                   <p className="text-sm text-[#1A0A1A]/90 leading-relaxed">&ldquo;{proposalNarrative}&rdquo;</p>

@@ -7,7 +7,7 @@ export default function Pe2Login({ onSignIn, loading, error }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await onSignIn(email.trim(), password)
+    await onSignIn(email.trim(), password.trim())
   }
 
   return (

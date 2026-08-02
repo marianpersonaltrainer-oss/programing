@@ -30,7 +30,7 @@ export const config = {
 }
 
 /** Traduce errores conocidos de Anthropic a mensaje útil en español. */
-function userFacingMessage(data, httpStatus) {
+export function anthropicUserFacingMessage(data, httpStatus) {
   const raw =
     (data && typeof data.error === 'object' && data.error.message) ||
     (typeof data?.message === 'string' && data.message) ||
@@ -51,9 +51,16 @@ function userFacingMessage(data, httpStatus) {
     )
   }
 
-  if (httpStatus === 401 || lower.includes('invalid x-api-key') || lower.includes('authentication')) {
+  if (
+    httpStatus === 401 ||
+    lower.includes('invalid x-api-key') ||
+    lower.includes('api key is invalid') ||
+    lower.includes('authentication')
+  ) {
     return (
-      'La clave API no es válida o fue revocada. Revisa ANTHROPIC_API_KEY en Vercel → Environment Variables (Production) y haz Redeploy.'
+      'La clave API de Anthropic no es válida o fue revocada. En Vercel → Settings → Environment Variables, revisa ANTHROPIC_API_KEY ' +
+      '(marca Production y Preview con la misma clave válida de console.anthropic.com) y haz Redeploy. ' +
+      'Mientras tanto puedes usar el bloque «Modo manual» más abajo para probar la generación sin briefing IA.'
     )
   }
 
@@ -370,7 +377,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       console.error('Anthropic API Error:', response.status, data)
-      const message = userFacingMessage(data, response.status)
+      const message = anthropicUserFacingMessage(data, response.status)
       const baseError =
         data && typeof data.error === 'object' && !Array.isArray(data.error)
           ? { ...data.error, message }

@@ -18,7 +18,12 @@ export async function getPe2Profile(userId) {
 }
 
 export async function signInPe2(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedPassword = String(password || '').trim()
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password: normalizedPassword,
+  })
   if (error) throw error
   const profile = await getPe2Profile(data.user?.id)
   return { session: data.session, user: data.user, profile }

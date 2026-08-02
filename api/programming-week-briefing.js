@@ -16,6 +16,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { anthropicUserFacingMessage } from './anthropic.js'
 import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import { filterBriefingContextWeeks } from './lib/briefingContextFilter.js'
@@ -523,7 +524,7 @@ export default async function handler(req, res) {
     }
 
     if (!upstream.ok) {
-      const msg = data?.error?.message || `Anthropic HTTP ${upstream.status}`
+      const msg = anthropicUserFacingMessage(data, upstream.status)
       return res.status(502).json({ error: msg })
     }
 

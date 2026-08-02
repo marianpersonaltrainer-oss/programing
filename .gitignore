@@ -1,13 +1,1 @@
-node_modules
-dist
-.env
-.env.local
-.DS_Store
-.vercel
-.env.vercel.pull
-.env.vercel.dev
-supabase/.temp/
-
-# Material local del usuario (no código)
-Plantillas y entrenos/
-.venv/
+.env.staging

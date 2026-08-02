@@ -177,6 +177,9 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
     adminSecret = '',
     draftId = null,
     expectedRevision = draftId ? null : 0,
+    adminDirectPublish = false,
+    contextFingerprint = '',
+    selectedWeekIds = [],
   } = options
   if (!mesociclo || semana == null) throw new Error('Falta mesociclo o semana')
   if (!weekData || typeof weekData !== 'object') throw new Error('Falta el JSON de la semana')
@@ -209,6 +212,9 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
     sourceWeekId,
     draftId: draftId || null,
     expectedRevision: Number(expectedRevision),
+    adminDirectPublish: activateForHub && adminDirectPublish,
+    contextFingerprint,
+    selectedWeekIds,
   })
   return {
     ...row,

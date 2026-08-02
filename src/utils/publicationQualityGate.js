@@ -179,3 +179,25 @@ export function assertPublicationGateApproved(gate) {
       : 'Publicación bloqueada: la evaluación vigente no está aprobada.',
   )
 }
+
+/** Puerta de publicación directa desde Contenido Coach (decisión admin explícita). */
+export function buildAdminCoachDirectPublishGate({
+  targetFingerprint,
+  validatedAt = new Date().toISOString(),
+}) {
+  const fingerprint = String(targetFingerprint || '').trim()
+  if (!fingerprint) {
+    throw new Error('Falta la huella del contenido para publicar.')
+  }
+  return {
+    version: PUBLICATION_GATE_VERSION,
+    status: 'approved',
+    source_status: 'aprobado',
+    score: PUBLICATION_MIN_SCORE,
+    blockers: [],
+    pending: [],
+    content_fingerprint: fingerprint,
+    validation_fingerprint: fingerprint,
+    validated_at: validatedAt,
+  }
+}

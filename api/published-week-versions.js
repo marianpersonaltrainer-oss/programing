@@ -124,6 +124,39 @@ async function saveDraft(supabase, args) {
   return data
 }
 
+function attachAdminPublicationContext(weekData, body) {
+  const normalized = { ...weekData }
+  if (normalized.publication_context?.context_snapshot_at) return normalized
+  const selectedWeekIds = sortedIds(body.selectedWeekIds)
+  normalized.publication_context = {
+    version: 1,
+    fingerprint: String(body.contextFingerprint || ''),
+    mode: 'exact-cycle-date',
+    context_snapshot_at: new Date().toISOString(),
+    progression_week_ids: selectedWeekIds,
+    historical_week_ids: [],
+    selected_week_ids: selectedWeekIds,
+  }
+  return normalized
+}
+
+function validateAdminDirectPublication(weekData, mesocycle, week) {
+  const cycleStartDate = getProgrammingCycleStartDate(weekData)
+  const weekStartDate = getProgrammingWeekStartDate(weekData)
+  const expectedCycleId = `${mesocycle}:${cycleStartDate}`
+  const expectedWeekStartDate = addProgrammingDays(cycleStartDate, (week - 1) * 7)
+  if (!cycleStartDate) {
+    throw new Error('exact_cycle_start_date_required')
+  }
+  if (
+    String(weekData?.cycle_id || '') !== expectedCycleId ||
+    weekStartDate !== expectedWeekStartDate
+  ) {
+    throw new Error('exact_cycle_identity_mismatch')
+  }
+  validateExactWeekShape(weekData)
+}
+
 async function validateExactPublication(supabase, weekData, gate, mesocycle, week) {
   assertPublicationGateApproved(gate)
   if (String(gate?.source_status || '').toLowerCase() !== 'aprobado') {
@@ -316,13 +349,20 @@ export default async function handler(req, res) {
   const normalized = { ...weekData, mesociclo: mesocycle, semana: week }
   try {
     if (action === 'publish') {
-      await validateExactPublication(
-        supabase,
-        normalized,
-        body.qualityGate,
-        mesocycle,
-        week,
-      )
+      if (body.adminDirectPublish === true) {
+        assertPublicationGateApproved(body.qualityGate)
+        const prepared = attachAdminPublicationContext(normalized, body)
+        validateAdminDirectPublication(prepared, mesocycle, week)
+        Object.assign(normalized, prepared)
+      } else {
+        await validateExactPublication(
+          supabase,
+          normalized,
+          body.qualityGate,
+          mesocycle,
+          week,
+        )
+      }
     }
 
     if (action === 'save_draft') {

@@ -1,5 +1,6 @@
 import { Component, useMemo, useState } from 'react'
 import {
+  getPublishedWeekDraftByMesocycleAndWeek,
   listPublishedWeekVersionsForMesocycle,
   upsertPublishedWeekBySlot,
 } from '../../lib/supabase.js'
@@ -10,9 +11,11 @@ import {
 } from '../../utils/normalizeWeekDataForEditor.js'
 import { validateEvoWeek } from '../../domain/method/validators/validateEvoWeek.js'
 import {
+  buildAdminCoachDirectPublishGate,
   buildPublicationQualityGate,
   buildPublicationTargetFingerprint,
   hashPublicationValue,
+  publicationGateIsApproved,
 } from '../../utils/publicationQualityGate.js'
 import {
   parseWeeklyOfferSelection,
@@ -185,6 +188,7 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
   /** Tras analizar: guardar JSON en Supabase sin cambiar qué semana ven los coaches. */
   const [subirHubAutomatico, setSubirHubAutomatico] = useState(false)
   const [hubDraftVersion, setHubDraftVersion] = useState(null)
+  const [hubActivating, setHubActivating] = useState(false)
 
   const canAnalyze = !!file && !!cycleStartDate && !busy
   const canBatchAnalyze = batchFiles.length > 0 && !batchBusy
@@ -600,6 +604,186 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     }
   }
 
+  function buildHubPayloadForPublish() {
+    const base = buildHubPayload()
+    if (!base) return null
+    const selectedWeekIds = analysisContextRows?.selectedWeekIds || []
+    return {
+      ...base,
+      publication_context: {
+        version: 1,
+        fingerprint: currentAdminContextFingerprint,
+        mode: analysisContextRows?.mode || 'exact-cycle-date',
+        context_snapshot_at: new Date().toISOString(),
+        progression_week_ids: selectedWeekIds,
+        historical_week_ids: [],
+        selected_week_ids: selectedWeekIds,
+      },
+    }
+  }
+
+  function resolvePublishQualityGate() {
+    if (publicationGateIsApproved(currentAdminQualityGate)) {
+      return currentAdminQualityGate
+    }
+    return buildAdminCoachDirectPublishGate({
+      targetFingerprint: currentAdminTargetFingerprint,
+    })
+  }
+
+  function buildPublishConfirmMessage() {
+    const score = Number(result?.score ?? result?.scoreDisplay ?? 0)
+    const blockers = [
+      ...(currentAdminQualityGate.blockers || []),
+      ...(currentAdminQualityGate.pending || []),
+    ].slice(0, 4)
+    if (publicationGateIsApproved(currentAdminQualityGate)) {
+      return `¿Publicar esta semana para coaches? Sustituirá la semana visible en el Hub (?coach) por ${mesocycle} · S${week} (ciclo ${cycleStartDate}).`
+    }
+    const blockersText = blockers.length ? `\n\nAvisos del análisis:\n- ${blockers.join('\n- ')}` : ''
+    return `¿Publicar para coaches aunque la nota sea ${score}/100? Los entrenadores verán esta programación de inmediato.${blockersText}`
+  }
+
+  async function handlePublicarCoachesHub() {
+    setError('')
+    setImportMsg('')
+    if (!result?.parsedWeekData) {
+      setError('Primero analiza el Excel con el botón morado.')
+      return
+    }
+    const normalized = buildHubPayloadForPublish()
+    if (!normalized) {
+      setError('No se pudo preparar los datos. Vuelve a analizar el archivo.')
+      return
+    }
+    if (!weekHasMeaningfulSessionContent(normalized)) {
+      setError(
+        'No hay texto de sesión reconocible (solo celdas vacías o «no programada»). Revisa mesociclo/semana o el Excel.',
+      )
+      return
+    }
+    if (!window.confirm(buildPublishConfirmMessage())) return
+    setHubActivating(true)
+    try {
+      const published = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
+        activateForHub: true,
+        adminSecret,
+        qualityGate: resolvePublishQualityGate(),
+        adminDirectPublish: true,
+        contextFingerprint: currentAdminContextFingerprint,
+        selectedWeekIds: analysisContextRows?.selectedWeekIds || [],
+        draftId: hubDraftVersion?.id || null,
+        expectedRevision: hubDraftVersion?.id
+          ? Number(hubDraftVersion.revision)
+          : 0,
+      })
+      if (!published?.active) {
+        throw new Error('El servidor no confirmó la activación en el Hub.')
+      }
+      setHubDraftVersion({
+        id: published.id,
+        revision: Number(published.revision),
+      })
+      setImportMsg(
+        'Semana activa en el Hub. Los coaches ya ven esta programación en ?coach=1.',
+      )
+      try {
+        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload-publish' } }))
+      } catch {
+        /* noop */
+      }
+    } catch (e) {
+      const msg = e?.message || String(e)
+      setError(
+        `No se pudo publicar: ${msg}${/policy|rls|permission|42501/i.test(msg) ? ' — Revisa políticas RLS de published_weeks.' : ''}`,
+      )
+    } finally {
+      setHubActivating(false)
+    }
+  }
+
+  async function handleSoloActivarSemanaSlot() {
+    setError('')
+    setImportMsg('')
+    let draftId = hubDraftVersion?.id || null
+    let draftRevision = hubDraftVersion?.revision ?? null
+    let normalized = buildHubPayloadForPublish()
+
+    if (!draftId && cycleStartDate) {
+      try {
+        const draft = await getPublishedWeekDraftByMesocycleAndWeek(
+          mesocycle,
+          Number(week),
+          `${mesocycle}:${cycleStartDate}`,
+        )
+        if (draft?.id) {
+          draftId = draft.id
+          draftRevision = Number(draft.revision)
+          if (!normalized && draft.data) {
+            normalized = normalizeWeekDataForEditor(
+              {
+                ...draft.data,
+                publication_context: {
+                  version: 1,
+                  fingerprint: currentAdminContextFingerprint,
+                  mode: 'exact-cycle-date',
+                  context_snapshot_at: new Date().toISOString(),
+                  progression_week_ids: analysisContextRows?.selectedWeekIds || [],
+                  historical_week_ids: [],
+                  selected_week_ids: analysisContextRows?.selectedWeekIds || [],
+                },
+              },
+              { semana: Number(week), mesociclo: mesocycle },
+            )
+          }
+        }
+      } catch {
+        /* noop */
+      }
+    }
+
+    if (!draftId || !normalized) {
+      setError(
+        'No hay borrador guardado para este ciclo y semana. Primero «Guardar borrador en Hub» o usa «Publicar para coaches».',
+      )
+      return
+    }
+    const go = window.confirm(
+      `¿Activar en el Hub el borrador ya guardado (${mesocycle} · S${week})? Los coaches dejarán de ver la semana activa anterior.`,
+    )
+    if (!go) return
+    setHubActivating(true)
+    try {
+      const published = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
+        activateForHub: true,
+        adminSecret,
+        qualityGate: resolvePublishQualityGate(),
+        adminDirectPublish: true,
+        contextFingerprint: currentAdminContextFingerprint,
+        selectedWeekIds: analysisContextRows?.selectedWeekIds || [],
+        draftId,
+        expectedRevision: Number(draftRevision),
+      })
+      if (!published?.active) {
+        throw new Error('El servidor no confirmó la activación en el Hub.')
+      }
+      setHubDraftVersion({
+        id: published.id,
+        revision: Number(published.revision),
+      })
+      setImportMsg('Borrador activado: los coaches ven ya la semana guardada en este slot.')
+      try {
+        window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-activate-only' } }))
+      } catch {
+        /* noop */
+      }
+    } catch (e) {
+      setError(e?.message || String(e))
+    } finally {
+      setHubActivating(false)
+    }
+  }
+
   async function handleGuardarBorradorHub() {
     setError('')
     setImportMsg('')
@@ -638,7 +822,7 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
         revision: Number(savedDraft.revision),
       })
       setImportMsg(
-        'Borrador guardado en Supabase para este ciclo y semana. Los coaches siguen viendo la versión activa; abre «Generar programación semanal» para completar la revisión y publicar.',
+        'Borrador guardado en Supabase para este ciclo y semana. Los coaches siguen viendo la versión activa; usa «Publicar para coaches» cuando quieras que la vean.',
       )
       try {
         window.dispatchEvent(new CustomEvent('evo-active-week-updated', { detail: { source: 'admin-weekly-upload-draft' } }))
@@ -691,9 +875,9 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
       </div>
 
       <p className="text-sm text-[#F6E8F9CC]">
-        Sube un Excel y analízalo. Por defecto puedes <span className="font-semibold text-[#F6E8F9]">guardar borrador en Supabase</span> para la
-        semana y ciclo exactos <span className="font-semibold">sin cambiar</span> la versión que ven los coaches. Las importaciones quedan siempre
-        como borrador: abre después «Generar programación semanal» para revisar contexto, oferta y feedback antes de publicar.
+        Sube un Excel y analízalo. Puedes <span className="font-semibold text-[#F6E8F9]">guardar borrador</span> (coaches no lo ven aún) o{' '}
+        <span className="font-semibold text-[#F6E8F9]">publicar para coaches</span> en un clic, como antes. «Solo activar este slot» publica un
+        borrador ya guardado sin volver a subir el Excel.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -841,15 +1025,39 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
           {busy ? 'Analizando…' : 'Analizar antes de importar'}
         </button>
         {showSubirHubButton ? (
-          <button
-            type="button"
-            onClick={handleGuardarBorradorHub}
-            disabled={importing || busy}
-            title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
-            className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
-          >
-            {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={handleGuardarBorradorHub}
+              disabled={importing || busy || hubActivating}
+              title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
+              className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
+            >
+              {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
+            </button>
+            <button
+              type="button"
+              onClick={handlePublicarCoachesHub}
+              disabled={!canSubirAlHub || importing || busy || hubActivating}
+              title={
+                canSubirAlHub
+                  ? 'Sustituye la semana activa en el Hub por esta (coaches + ?coach=1).'
+                  : 'Falta contenido de sesión reconocible en el análisis.'
+              }
+              className="h-11 px-5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-amber-900/40"
+            >
+              {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSoloActivarSemanaSlot}
+              disabled={importing || busy || hubActivating}
+              className="h-11 px-4 rounded-lg border border-[#F6E8F9]/30 text-[#F6E8F9] font-evo-display uppercase text-[10px] disabled:opacity-50"
+              title="Activa en el Hub la semana ya guardada en Supabase para este meso/S (sin volver a pasar el Excel)."
+            >
+              {hubActivating ? 'Activando…' : 'Solo activar este slot'}
+            </button>
+          </>
         ) : null}
         <button
           type="button"
@@ -931,35 +1139,44 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
                 Paso 2 · Supabase y Hub
               </p>
               <p className="text-xs text-[#E8FDE8]/90 mt-1 leading-relaxed">
-                <span className="font-semibold text-white">Guardar borrador</span> escribe esta semana en Supabase para el mesociclo y número
-                elegidos <span className="font-semibold">sin</span> cambiar lo que los coaches ven. Por seguridad, un Excel importado no se publica
-                desde este panel: debe abrirse y validarse dentro de «Generar programación semanal».
+                <span className="font-semibold text-white">Guardar borrador</span> escribe esta semana en Supabase{' '}
+                <span className="font-semibold">sin</span> cambiar lo que ven los coaches.{' '}
+                <span className="font-semibold text-amber-200">Publicar para coaches</span> la hace visible de inmediato en ?coach=1.
               </p>
             </div>
             {showSubirHubButton ? (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={handleGuardarBorradorHub}
-                  disabled={importing || busy}
+                  disabled={importing || busy || hubActivating}
                   className="flex-1 min-h-[3rem] rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-evo-display font-bold uppercase tracking-wide text-sm shadow-md disabled:opacity-50 disabled:pointer-events-none transition-all"
                 >
                   {importing ? 'Guardando borrador…' : 'Guardar borrador en Hub'}
                 </button>
-                <p className="text-[10px] text-amber-200/90">
-                  Importación = borrador. La publicación final solo está disponible en el generador tras comprobar el ciclo exacto.
-                </p>
+                <button
+                  type="button"
+                  onClick={handlePublicarCoachesHub}
+                  disabled={!canSubirAlHub || importing || busy || hubActivating}
+                  className="flex-1 min-h-[3rem] rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-[0.99] text-white font-evo-display font-bold uppercase tracking-wide text-sm shadow-md disabled:opacity-50 disabled:pointer-events-none transition-all"
+                >
+                  {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
+                </button>
               </div>
             ) : (
               <p className="text-xs text-amber-200/95 border border-amber-500/30 rounded-lg px-3 py-2 bg-amber-950/40">
                 Analiza de nuevo tras elegir archivo y mesociclo/semana; si ya analizaste y falla esto, revisa el mensaje de error superior.
               </p>
             )}
-            {showSubirHubButton && !busy && !importing ? (
+            {showSubirHubButton && !busy && !importing && !hubActivating ? (
               <p className="text-[10px] text-[#F6E8F9]/70">
-                {(currentAdminQualityGate.blockers || [])[0] ||
-                  (currentAdminQualityGate.pending || [])[0] ||
-                  'El análisis está completo; guarda el archivo como borrador y finaliza la revisión en el generador.'}
+                {canSubirAlHub
+                  ? publicationGateIsApproved(currentAdminQualityGate)
+                    ? 'Listo para publicar: sesiones detectadas y evaluación aprobada.'
+                    : `Nota ${result?.score ?? '—'}/100: puedes publicar igualmente con confirmación (decisión admin).`
+                  : (currentAdminQualityGate.blockers || [])[0] ||
+                    (currentAdminQualityGate.pending || [])[0] ||
+                    'Revisa el análisis antes de guardar o publicar.'}
               </p>
             ) : null}
           </div>

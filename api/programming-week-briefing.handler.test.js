@@ -40,7 +40,7 @@ describe('programming-week-briefing handler logic', () => {
       startedAtMs: Date.now(),
       allowAnthropicRetry: true,
     })
-    expect(result.source).toBe('anthropic')
+    expect(result.source).toBe('ai_provider')
     expect(result.proposal.title).toBe('PROPUESTA S6')
   })
 

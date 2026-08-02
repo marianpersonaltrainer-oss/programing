@@ -18,7 +18,7 @@ dayProperties.wodbuster = stringField()
  *
  * Mantiene la misma forma de día que el editor y el Excel actuales, pero evita
  * transportar título, mesociclo, resumen y el array semanal completo.
- * Anthropic Structured Outputs exige que todos los objetos estén cerrados y que
+ * Structured Outputs exige que todos los objetos estén cerrados y que
  * `required` enumere todas sus propiedades.
  */
 export const EVO_DAY_OUTPUT_SCHEMA = {

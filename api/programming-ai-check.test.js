@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EVO_DAY_OUTPUT_SCHEMA } from '../src/constants/evoDayOutputSchema.js'
-import { DEFAULT_PROGRAMMING_MODEL } from '../src/constants/anthropicModels.js'
+import { DEFAULT_PROGRAMMING_MODEL } from '../src/constants/aiModels.js'
 import {
   ANTHROPIC_STRUCTURED_ERROR_CODES,
   AnthropicStructuredRequestError,
@@ -147,7 +147,7 @@ describe('POST /api/programming-ai-check', () => {
     expect(requestStructuredImpl).toHaveBeenCalledTimes(1)
     expect(requestStructuredImpl).toHaveBeenCalledWith(
       expect.objectContaining({
-        apiKey: 'anthropic-key',
+        providerConfig: { provider: 'anthropic', anthropicApiKey: 'anthropic-key' },
         model: DEFAULT_PROGRAMMING_MODEL,
         schema: EVO_DAY_OUTPUT_SCHEMA,
         maxTokens: AI_CHECK_MAX_TOKENS,

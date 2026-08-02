@@ -19,7 +19,7 @@ export function explainAnthropicFetchFailure(err) {
       'Suele pasar cuando la petición tarda demasiado: en Vercel **Hobby** las funciones se cortan a ~10 s (hace falta **plan Pro** para generar semanas). ' +
       'También puede ser red/VPN, o un prompt demasiado grande en el primer día. ' +
       'Prueba sin VPN, recarga fuerte (Cmd+Shift+R) y vuelve a generar; el sistema reintenta con un prompt más ligero. ' +
-      'Revisa ANTHROPIC_API_KEY en Production si persiste.'
+      'Revisa OPENAI_API_KEY en Production si persiste.'
     )
   }
   return m || 'Error de red desconocido.'

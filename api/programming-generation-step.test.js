@@ -14,6 +14,7 @@ import {
   STEP_TOTAL_BUDGET_MS,
   NOT_PROGRAMMED,
   createProgrammingGenerationStepHandler,
+  getMissingGenerationStepConfig,
 } from './programming-generation-step.js'
 
 function makeGeneratedOutput(day = 'LUNES', selectedClasses = ['evofuncional']) {
@@ -296,6 +297,22 @@ afterEach(() => {
 })
 
 describe('POST /api/programming-generation-step', () => {
+  it('identifica de forma segura las variables ausentes en Preview sin exponer valores', () => {
+    expect(getMissingGenerationStepConfig({ provider: 'openai' })).toEqual([
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'COACH_GUIDE_ADMIN_SECRET',
+      'OPENAI_API_KEY',
+    ])
+    expect(getMissingGenerationStepConfig({
+      provider: 'openai',
+      supabaseUrl: 'configured',
+      serviceKey: 'configured',
+      adminSecret: 'configured',
+      openaiApiKey: 'configured',
+    })).toEqual([])
+  })
+
   it('reclama, genera una vez, normaliza, persiste el acumulador y después responde', async () => {
     const { handler, supabase, requestStructuredImpl } = makeHandler()
     const res = makeResponse()

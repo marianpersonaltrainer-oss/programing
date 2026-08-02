@@ -2,10 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { EVO_SESSION_CLASS_DEFS } from '../src/constants/evoClasses.js'
 import { EVO_DAY_OUTPUT_SCHEMA } from '../src/constants/evoDayOutputSchema.js'
-import { DEFAULT_PROGRAMMING_MODEL } from '../src/constants/anthropicModels.js'
-import {
-  requestAnthropicStructuredOutput,
-} from './lib/anthropicStructuredRequest.js'
+import { DEFAULT_PROGRAMMING_MODEL } from '../src/constants/aiModels.js'
+import { getAiProviderConfig, hasConfiguredAiProvider, requestAiStructuredOutput } from './lib/ai/provider.js'
 import {
   getGenerationJobSnapshot,
   sanitizeGenerationJob,
@@ -85,10 +83,19 @@ function getServerConfig() {
     ).trim(),
     serviceKey: String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
     adminSecret: String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim(),
-    anthropicApiKey: String(
-      process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '',
-    ).trim(),
+    ...getAiProviderConfig(),
   }
+}
+
+export function getMissingGenerationStepConfig(config) {
+  const missing = []
+  if (!config?.supabaseUrl) missing.push('SUPABASE_URL')
+  if (!config?.serviceKey) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+  if (!config?.adminSecret) missing.push('COACH_GUIDE_ADMIN_SECRET')
+  if (!hasConfiguredAiProvider(config)) {
+    missing.push(config?.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY')
+  }
+  return missing
 }
 
 function newRequestId() {
@@ -463,7 +470,7 @@ function sendJson(res, status, payload, {
 export function createProgrammingGenerationStepHandler({
   createClientImpl = createClient,
   checkRateLimitImpl = checkAdminRateLimit,
-  requestStructuredImpl = requestAnthropicStructuredOutput,
+  requestStructuredImpl = requestAiStructuredOutput,
   getServerConfigImpl = getServerConfig,
   newRequestIdImpl = newRequestId,
   nowImpl = Date.now,
@@ -508,13 +515,16 @@ export function createProgrammingGenerationStepHandler({
     requestId = cleanText(body.requestId, 200) || requestId
 
     const config = getServerConfigImpl()
-    if (
-      !config?.supabaseUrl ||
-      !config?.serviceKey ||
-      !config?.adminSecret ||
-      !config?.anthropicApiKey
-    ) {
-      return respond(500, { error: 'generation_step_server_not_configured' })
+    const missingConfiguration = getMissingGenerationStepConfig(config)
+    if (missingConfiguration.length) {
+      return respond(500, {
+        error: 'generation_step_server_not_configured',
+        message:
+          `La generación no está configurada en este deployment de Vercel. ` +
+          `Activa para Preview: ${missingConfiguration.join(', ')} y vuelve a desplegar.`,
+        missingConfiguration,
+        retriable: false,
+      })
     }
     if (!adminSecretsMatch(body.secret, config.adminSecret)) {
       return respond(401, { error: 'unauthorized' })
@@ -680,7 +690,7 @@ export function createProgrammingGenerationStepHandler({
       }
       const ai = await withTimeout(
         requestStructuredImpl({
-          apiKey: config.anthropicApiKey,
+          providerConfig: config,
           model,
           system: systemPrompt,
           messages: [
@@ -696,10 +706,16 @@ export function createProgrammingGenerationStepHandler({
         upstreamBudgetMs,
         {
           code: 'generation_step_upstream_timeout',
-          message: 'Anthropic no respondió dentro del presupuesto del día.',
+          message: 'El proveedor de IA no respondió dentro del presupuesto del día.',
         },
       )
       providerRequestId = ai?.providerRequestId || null
+      console.info('ai_generation_phase_complete', {
+        provider: ai?.provider || config.provider,
+        model: ai?.model || model,
+        phase: `day:${day}`,
+        durationMs: Math.max(0, nowImpl() - startedAt),
+      })
 
       const result = validateAndNormalizeGeneratedDay(ai?.output, {
         expectedDay: day,
@@ -754,6 +770,14 @@ export function createProgrammingGenerationStepHandler({
       providerRequestId =
         providerRequestId || error?.providerRequestId || null
       let effectiveError = error
+      console.warn('ai_generation_phase_failed', {
+        provider: error?.provider || config?.provider || 'unknown',
+        model,
+        phase: day ? `day:${day}` : 'preflight',
+        durationMs: Math.max(0, nowImpl() - startedAt),
+        errorType: errorCode(error),
+        providerRequestId,
+      })
 
       if (leaseToken && supabase) {
         const persistedError = normalizeErrorForPersistence(error, {

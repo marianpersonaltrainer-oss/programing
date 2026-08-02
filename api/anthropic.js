@@ -1,6 +1,6 @@
 /**
  * VERCEL SERVERLESS FUNCTION: api/anthropic.js
- * Puente seguro entre el front y https://api.anthropic.com/v1/messages .
+ * Endpoint histórico conservado como contrato del front; el proveedor principal es OpenAI.
  *
  * Importante: en Vercel `req.body` a veces llega como string JSON o vacío; hay que parsearlo
  * igual que en coach-exercise-library.js. Desestructurar `undefined` lanza TypeError → 500.
@@ -14,7 +14,7 @@
  */
 
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
-import { resolveProgrammingModel } from '../src/constants/anthropicModels.js'
+import { resolveProgrammingModel } from '../src/constants/aiModels.js'
 import {
   EVO_WEEK_OUTPUT_SCHEMA,
   EVO_WEEK_RESPONSE_FORMAT,
@@ -29,7 +29,7 @@ export const config = {
   maxDuration: 300,
 }
 
-/** Traduce errores conocidos de Anthropic a mensaje útil en español. */
+/** Traduce errores del proveedor a mensajes útiles sin exponer secretos. */
 function userFacingMessage(data, httpStatus) {
   const raw =
     (data && typeof data.error === 'object' && data.error.message) ||
@@ -45,23 +45,23 @@ function userFacingMessage(data, httpStatus) {
     errType === 'insufficient_quota'
   ) {
     return (
-      'La cuenta de Anthropic asociada a tu clave API no tiene créditos suficientes. ' +
-      'Entra en https://console.anthropic.com/settings/plans , recarga créditos o cambia de plan, y vuelve a intentarlo. ' +
-      'En Vercel debe estar la misma clave que uses en esa cuenta (variable ANTHROPIC_API_KEY en Production).'
+      'La cuenta de OpenAI asociada a la clave no tiene saldo o cuota disponible. ' +
+      'Revisa Billing y Usage en la plataforma de OpenAI y vuelve a intentarlo. ' +
+      'En Vercel debe estar OPENAI_API_KEY configurada solo en el servidor.'
     )
   }
 
   if (httpStatus === 401 || lower.includes('invalid x-api-key') || lower.includes('authentication')) {
     return (
-      'La clave API no es válida o fue revocada. Revisa ANTHROPIC_API_KEY en Vercel → Environment Variables (Production) y haz Redeploy.'
+      'La clave API no es válida o fue revocada. Revisa OPENAI_API_KEY en Vercel → Environment Variables (Production) y haz Redeploy.'
     )
   }
 
   if (httpStatus === 429 || lower.includes('rate limit')) {
-    return 'Límite de uso de la API alcanzado. Espera unos minutos o revisa tu plan en Anthropic.'
+    return 'Límite de uso de la API alcanzado. Espera unos minutos o revisa Usage y los límites de tu proyecto OpenAI.'
   }
 
-  return raw || 'Error al contactar con la API de Anthropic.'
+  return raw || 'Error al contactar con la API de OpenAI.'
 }
 
 function parseRequestBody(req) {
@@ -277,17 +277,19 @@ export default async function handler(req, res) {
     })
   }
 
-  const apiKey = (
-    process.env.ANTHROPIC_API_KEY ||
-    process.env.VITE_ANTHROPIC_API_KEY ||
-    ''
-  ).trim()
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim()
+  const anthropicApiKey = String(process.env.ANTHROPIC_API_KEY || '').trim()
+  const anthropicFallbackEnabled =
+    String(process.env.AI_ANTHROPIC_FALLBACK || '').toLowerCase() === 'true' &&
+    Boolean(anthropicApiKey)
+  const anthropicFallbackModel =
+    String(process.env.ANTHROPIC_FALLBACK_MODEL || 'claude-sonnet-4-6').trim()
 
-  if (!apiKey) {
+  if (!apiKey && !anthropicFallbackEnabled) {
     return res.status(500).json({
       error: {
         message:
-          'Falta clave de Anthropic en el servidor. En Vercel: Settings → Environment Variables → añade ANTHROPIC_API_KEY para Production y Redeploy.',
+          'Falta OPENAI_API_KEY en el servidor. Añádela como variable de servidor en Vercel y haz Redeploy.',
       },
     })
   }
@@ -326,51 +328,92 @@ export default async function handler(req, res) {
       upstreamAbort.abort()
     }, ANTHROPIC_UPSTREAM_TIMEOUT_MS)
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const requestOpenAi = () => fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: resolvedModel,
+          max_output_tokens: max_tokens || 8000,
+          instructions: system === undefined ? undefined : injectWeekContext(system, weekContext),
+          input: messages,
+          text:
+            responseFormat === EVO_WEEK_RESPONSE_FORMAT
+              ? {
+                  format: { type: 'json_schema', name: EVO_WEEK_RESPONSE_FORMAT, strict: true, schema: EVO_WEEK_OUTPUT_SCHEMA },
+                }
+              : undefined,
+        }),
+        signal: upstreamAbort.signal,
+      })
+    const requestAnthropicFallback = () => fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': anthropicApiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: resolvedModel,
+        model: anthropicFallbackModel,
         max_tokens: max_tokens || 8000,
         system: system === undefined ? undefined : injectWeekContext(system, weekContext),
         messages,
         output_config:
           responseFormat === EVO_WEEK_RESPONSE_FORMAT
-            ? {
-                format: {
-                  type: 'json_schema',
-                  schema: EVO_WEEK_OUTPUT_SCHEMA,
-                },
-              }
+            ? { format: { type: 'json_schema', schema: EVO_WEEK_OUTPUT_SCHEMA } }
             : undefined,
       }),
       signal: upstreamAbort.signal,
     })
 
-    const rawText = await response.text()
+    let providerUsed = 'openai'
+    let response
+    try {
+      response = apiKey ? await requestOpenAi() : await requestAnthropicFallback()
+      if (!apiKey) providerUsed = 'anthropic'
+    } catch (openAiError) {
+      if (!anthropicFallbackEnabled || upstreamAbort.signal.aborted) throw openAiError
+      providerUsed = 'anthropic'
+      response = await requestAnthropicFallback()
+    }
+
+    let rawText = await response.text()
     let data
     try {
       data = rawText ? JSON.parse(rawText) : {}
     } catch {
-      console.error('Anthropic no-JSON body:', rawText?.slice(0, 500))
+      console.error('OpenAI no-JSON body:', rawText?.slice(0, 500))
       clearHeartbeat()
       return res.end(
         JSON.stringify({
           error: {
             message:
-              'La API de Anthropic devolvió un cuerpo que no es JSON. Revisa el modelo y los logs de Vercel (Functions → anthropic).',
+              'La API de OpenAI devolvió un cuerpo que no es JSON. Revisa modelo y logs de Vercel.',
             preview: String(rawText || '').slice(0, 200),
           },
         }),
       )
     }
 
+    if (!response.ok && providerUsed === 'openai' && anthropicFallbackEnabled) {
+      console.warn('legacy_ai_openai_failed_using_anthropic_fallback', {
+        status: response.status,
+        model: resolvedModel,
+      })
+      providerUsed = 'anthropic'
+      response = await requestAnthropicFallback()
+      rawText = await response.text()
+      try {
+        data = rawText ? JSON.parse(rawText) : {}
+      } catch {
+        data = { error: { type: 'invalid_provider_body', message: 'Claude devolvió un cuerpo no JSON.' } }
+      }
+    }
+
     if (!response.ok) {
-      console.error('Anthropic API Error:', response.status, data)
+      console.error('OpenAI API Error:', response.status, data)
       const message = userFacingMessage(data, response.status)
       const baseError =
         data && typeof data.error === 'object' && !Array.isArray(data.error)
@@ -385,10 +428,21 @@ export default async function handler(req, res) {
       )
     }
 
+    if (response.ok && providerUsed === 'openai') {
+      const outputText = Array.isArray(data?.output)
+        ? data.output.flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+            .filter((part) => part?.type === 'output_text').map((part) => part.text || '').join('\n').trim()
+        : ''
+      data = {
+        ...data,
+        content: outputText ? [{ type: 'text', text: outputText }] : [],
+        usage: data?.usage ? { input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens } : null,
+      }
+    }
     const textPayload = extractAnthropicTextBlocks(data)
     if (!textPayload) {
       const contentTypes = summarizeAnthropicContentTypes(data)
-      console.error('Anthropic response without text blocks:', {
+      console.error('OpenAI response without text:', {
         status: response.status,
         model: data?.model || model || 'unknown',
         contentTypes,
@@ -399,7 +453,7 @@ export default async function handler(req, res) {
           error: {
             type: 'anthropic_empty_text',
             message:
-              'Anthropic devolvió una respuesta sin bloques de texto utilizables. Reintenta; si persiste, revisa el prompt/modelo.',
+              'OpenAI devolvió una respuesta sin texto utilizable. Reintenta; si persiste, revisa el prompt/modelo.',
             details: {
               content_types: contentTypes,
             },
@@ -430,7 +484,7 @@ export default async function handler(req, res) {
             error: {
               type: 'upstream_timeout',
               message:
-                'La API de Anthropic tardó demasiado en responder y se canceló la llamada para evitar corte brusco de la función. Reintenta: el cliente divide y reintenta automáticamente.',
+                'La API de OpenAI tardó demasiado en responder y se canceló la llamada para evitar corte brusco de la función. Reintenta: el cliente divide y reintenta automáticamente.',
             },
           }),
         )
@@ -439,7 +493,7 @@ export default async function handler(req, res) {
         error: {
           type: 'upstream_timeout',
           message:
-            'La API de Anthropic tardó demasiado en responder y se canceló la llamada para evitar corte brusco de la función. Reintenta: el cliente divide y reintenta automáticamente.',
+            'La API de OpenAI tardó demasiado en responder y se canceló la llamada para evitar corte brusco de la función. Reintenta: el cliente divide y reintenta automáticamente.',
         },
       })
     }
@@ -450,7 +504,7 @@ export default async function handler(req, res) {
         JSON.stringify({
           error: {
             message:
-              'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y que el proyecto use Node 20. Detalle técnico (sin claves): ' +
+              'Error interno al llamar a OpenAI. Revisa OPENAI_API_KEY y que el proyecto use Node 22. Detalle técnico (sin claves): ' +
               msg,
           },
         }),
@@ -459,7 +513,7 @@ export default async function handler(req, res) {
     return res.status(500).json({
       error: {
         message:
-          'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y que el proyecto use Node 20. Detalle técnico (sin claves): ' +
+          'Error interno al llamar a OpenAI. Revisa OPENAI_API_KEY y que el proyecto use Node 22. Detalle técnico (sin claves): ' +
           msg,
       },
     })

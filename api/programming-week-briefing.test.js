@@ -93,9 +93,8 @@ describe('programming-week-briefing.js — método canónico', () => {
     const src = readFileSync(join(root, 'api/programming-week-briefing.js'), 'utf8')
 
     expect(src).toContain('BRIEFING_UPSTREAM_TIMEOUT_MS')
-    expect(src).toContain('signal: upstreamAbort.signal')
-    expect(src).toContain("error?.name === 'AbortError'")
-    expect(src).toContain('pulsa «Reintentar»')
+    expect(src).toContain('timeoutMs: BRIEFING_UPSTREAM_TIMEOUT_MS')
+    expect(src).toContain('requestAiStructuredOutput')
   })
 
   it('usa una petición compacta y estructurada para la arquitectura previa', async () => {
@@ -111,12 +110,12 @@ describe('programming-week-briefing.js — método canónico', () => {
     expect(src).toContain('MAX_CONTEXT_PACK_CHARS = 48_000')
     expect(src).toContain('includeOutputContract: false')
     expect(src).toContain('includeFeedbackPolicy: false')
-    expect(src).toContain("type: 'json_schema'")
+    expect(src).toContain("schemaName: 'evo_week_briefing'")
     expect(src).toContain('schema: BRIEFING_OUTPUT_SCHEMA')
     expect(src).toContain('historicalLimit: 4')
   })
 
-  it('mantiene cerrado cada objeto del JSON Schema aceptado por Anthropic', () => {
+  it('mantiene cerrado cada objeto del JSON Schema aceptado por Structured Outputs', () => {
     const objectSchemas = collectObjectSchemas(BRIEFING_OUTPUT_SCHEMA)
     expect(objectSchemas.map(({ path }) => path)).toEqual([
       '$',

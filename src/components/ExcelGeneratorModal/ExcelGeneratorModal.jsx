@@ -574,6 +574,9 @@ function stripCodeFences(text) {
 
 function humanizeNetworkLikeError(err, fallback = 'Error de red') {
   const raw = String(err?.message || '').trim()
+  if (/generation_step_server_not_configured/i.test(raw)) {
+    return 'La generación no está configurada en este Preview. Activa OPENAI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL y COACH_GUIDE_ADMIN_SECRET para Preview en Vercel y haz Redeploy.'
+  }
   if (/failed to fetch|networkerror|load failed/i.test(raw)) {
     return explainAnthropicFetchFailure(err)
   }
@@ -584,7 +587,7 @@ function humanizeNetworkLikeError(err, fallback = 'Error de red') {
       ''
     return until
       ? `Límite de uso de la API alcanzado. Debes recargar saldo o esperar hasta ${until}.`
-      : 'Límite de uso de la API alcanzado. Recarga saldo de Anthropic o espera al próximo ciclo de facturación.'
+      : 'Límite de uso de la API alcanzado. Revisa saldo y límites del proyecto OpenAI o espera al próximo ciclo de facturación.'
   }
   return raw || fallback
 }

@@ -1,20 +1,13 @@
 /**
  * POST /api/programming-ai-check
- * Petición mínima pero representativa del mismo camino Anthropic Structured Outputs
+ * Petición mínima pero representativa del camino común de Structured Outputs
  * que utiliza la generación real de un día EVO.
  */
 import { createClient } from '@supabase/supabase-js'
-import {
-  DEFAULT_PROGRAMMING_MODEL,
-  resolveProgrammingModel,
-} from '../src/constants/anthropicModels.js'
+import { DEFAULT_PROGRAMMING_MODEL, resolveProgrammingModel } from '../src/constants/aiModels.js'
 import { EVO_DAY_OUTPUT_SCHEMA } from '../src/constants/evoDayOutputSchema.js'
-import {
-  ANTHROPIC_STRUCTURED_ERROR_CODES,
-  AnthropicStructuredRequestError,
-  isAnthropicStructuredRequestError,
-  requestAnthropicStructuredOutput,
-} from './lib/anthropicStructuredRequest.js'
+import { AI_ERROR_CODES, AiProviderError } from './lib/ai/providerErrors.js'
+import { getAiProviderConfig, hasConfiguredAiProvider, requestAiStructuredOutput } from './lib/ai/provider.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import {
   adminSecretsMatch,
@@ -40,9 +33,7 @@ function parseBody(req) {
 
 function getServerConfig() {
   return {
-    apiKey: String(
-      process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '',
-    ).trim(),
+    ...getAiProviderConfig(),
     adminSecret: String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim(),
     serviceKey: String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
     supabaseUrl: String(
@@ -68,8 +59,8 @@ function assertRepresentativeDay(output, providerRequestId) {
   const dayFields = daySchema.required
 
   const invalid = (message) => {
-    throw new AnthropicStructuredRequestError(message, {
-      code: ANTHROPIC_STRUCTURED_ERROR_CODES.INVALID_OUTPUT,
+    throw new AiProviderError(message, {
+      code: AI_ERROR_CODES.INVALID_OUTPUT,
       status: 502,
       providerRequestId,
       retriable: false,
@@ -149,7 +140,7 @@ export function createProgrammingAiCheckHandler({
   createClientImpl = createClient,
   checkRateLimitImpl = checkAdminRateLimit,
   checkGenerationPersistenceImpl = checkGenerationPersistence,
-  requestStructuredImpl = requestAnthropicStructuredOutput,
+  requestStructuredImpl = requestAiStructuredOutput,
   startJsonStreamImpl = startJsonStream,
   getServerConfigImpl = getServerConfig,
   newRequestIdImpl = newRequestId,
@@ -175,9 +166,9 @@ export function createProgrammingAiCheckHandler({
     }
 
     const config = getServerConfigImpl()
-    if (!config?.apiKey) {
+    if (!hasConfiguredAiProvider(config) && !config?.apiKey) {
       return res.status(500).json({
-        error: 'Falta ANTHROPIC_API_KEY en el servidor.',
+        error: 'Falta OPENAI_API_KEY en el servidor.',
         requestId,
       })
     }
@@ -238,7 +229,7 @@ export function createProgrammingAiCheckHandler({
 
     try {
       const result = await requestStructuredImpl({
-        apiKey: config.apiKey,
+        providerConfig: config.apiKey ? { provider: 'anthropic', anthropicApiKey: config.apiKey } : config,
         model: resolvedModel,
         system:
           'Comprobación de conectividad EVO. Responde únicamente con la salida estructurada solicitada.',
@@ -273,9 +264,7 @@ export function createProgrammingAiCheckHandler({
     } catch (error) {
       providerRequestId = providerRequestId || error?.providerRequestId || null
       const latencyMs = Math.max(0, Number(nowImpl()) - Number(startedAt))
-      const status = isAnthropicStructuredRequestError(error)
-        ? errorStatus(error)
-        : 502
+      const status = errorStatus(error)
 
       logger.warn?.('programming_ai_check_failed', {
         requestId,
@@ -287,7 +276,7 @@ export function createProgrammingAiCheckHandler({
       })
 
       stream.finishError(status, {
-        error: error?.message || 'No se pudo contactar con Anthropic.',
+        error: error?.message || 'No se pudo contactar con el proveedor de IA.',
         errorCode: error?.code || 'ai_check_failed',
         model: resolvedModel,
         latencyMs,

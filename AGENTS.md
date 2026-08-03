@@ -44,7 +44,7 @@ Modos existentes:
 
 El producto único es **Programming EVO**. No crear una aplicación llamada Equipo EVO, otro login ni una navegación independiente.
 
-La experiencia objetivo del entrenador tiene dos áreas principales dentro de la aplicación: `Programación` y `Mi turno`. Las incorporaciones son casos prioritarios dentro de la operativa, no un módulo o destino principal separado.
+La experiencia objetivo del entrenador contiene `Programación`, `Mi turno`, `Protocolos` y `Mi evolución`; los dos últimos forman el segundo nivel de `Mi turno`. Dirección ve además `Operativa`, `Evaluaciones` y `Equipo`. Las incorporaciones son casos prioritarios dentro de la operativa, no un módulo o destino principal separado.
 
 La ruta `?incorporaciones` es únicamente un sandbox temporal local de Fase 1. Puede abrirse antes de la puerta general de Supabase para funcionar sin credenciales, pero no representa la arquitectura ni la ruta final de producción. No reutilizar ni modificar `?v2`, `/` o `?coach`.
 
@@ -229,14 +229,32 @@ No introducir lógica de negocio dentro de componentes visuales si puede aislars
 
 ### Programming EVO
 
-Puede actuar como superficie de lectura.
+Es la aplicación principal que utiliza el entrenador y puede actuar como superficie de lectura y acción.
 
-No será propietario de:
+No será propietario único de:
 
 - expediente operativo;
 - tareas;
+- incidencias;
+- feedbacks;
+- evaluaciones;
 - evidencias;
+- responsables;
 - historial operativo.
+
+La interfaz debe poder sustituirse sin perder datos, reglas o historial.
+
+### Núcleo operativo
+
+Las reglas de negocio futuras deben vivir en módulos de dominio o servicios independientes de React. No implementar dentro de componentes visuales:
+
+- cálculo de vencimientos;
+- bloqueos del cierre;
+- asignación o validación de responsables;
+- cálculo de KPI;
+- reglas de escalado de incidencias.
+
+Los componentes presentan estados y solicitan acciones; no son la fuente única de reglas. Durante la Fase 1 esta separación se documenta, pero no autoriza refactorizar el prototipo.
 
 ### WodBuster
 
@@ -251,6 +269,59 @@ No duplicar en Programming EVO:
 - información general ya consultable en WodBuster.
 
 Programming EVO solo muestra el dato mínimo cuando existe una acción especial.
+
+### Sistemas externos y adaptadores
+
+Tratar como proveedores externos sustituibles:
+
+- WodBuster;
+- Canva;
+- Google Calendar;
+- email;
+- Drive;
+- cualquier herramienta futura.
+
+No duplicar innecesariamente sus datos. Canva, si se conecta, será un generador o destino de recursos visuales y nunca parte del núcleo operativo.
+
+Cada integración futura debe quedar aislada mediante un adaptador independiente. Nombres como `WodBusterAdapter`, `CanvaAdapter`, `CalendarAdapter` y `EmailAdapter` son ejemplos conceptuales, no archivos autorizados durante la Fase 1.
+
+Cambiar un proveedor no debe requerir reescribir el núcleo ni la interfaz.
+
+### API, eventos y exportación futuros
+
+El núcleo deberá poder exponer una API documentada para consultar tareas del turno, registrar incidencias y feedback, consultar evaluaciones, cerrar turnos o recibir eventos externos. No definir endpoints ni implementar una API sin fase aprobada.
+
+Eventos conceptuales futuros:
+
+- `turno_iniciado`;
+- `turno_cerrado`;
+- `incidencia_creada`;
+- `feedback_pendiente`;
+- `primera_clase_detectada`;
+- `evaluacion_completada`.
+
+No implementar eventos, webhooks o automatizaciones durante la Fase 1.
+
+Los datos operativos futuros deberán exportarse en formatos abiertos y legibles. No depender de una única interfaz, hosting o proveedor para conservar información, responsables, evidencias o historial.
+
+### Puerta antes de persistencia o integración
+
+Antes de crear base de datos, API o conectores deben aprobarse:
+
+- modelo mínimo de datos;
+- propietario de cada dato;
+- límites entre interfaz, núcleo y adaptadores;
+- estrategia de exportación;
+- prueba de sustitución de un conector.
+
+Antes de autorizar cualquier integración:
+
+1. validar primero el proceso;
+2. confirmar la propiedad de los datos;
+3. revisar la documentación oficial del proveedor;
+4. comprobar permisos, límites y costes;
+5. probar con datos sintéticos o staging;
+6. obtener aprobación de Marian.
 
 ### Supabase
 
@@ -297,6 +368,14 @@ Prohibido:
 - secretos nuevos;
 - KPI calculados;
 - agentes.
+
+También queda prohibido durante la Fase 1:
+
+- crear adaptadores;
+- definir endpoints definitivos;
+- implementar eventos;
+- crear conectores;
+- refactorizar el prototipo para anticipar la arquitectura futura.
 
 ### Superficies protegidas
 
@@ -393,6 +472,9 @@ Separar siempre:
 - No alterar secretos o variables de producción.
 - No romper `?coach` ni `?v2`.
 - No introducir dependencias nuevas sin justificar coste y mantenimiento.
+- No acoplar reglas de negocio futuras a componentes React.
+- No acceder directamente a un proveedor externo desde componentes visuales.
+- No autorizar una integración sin superar la puerta de propiedad, documentación, permisos, costes, staging y aprobación.
 - No ignorar tests existentes.
 - No ocultar errores con fallbacks silenciosos.
 

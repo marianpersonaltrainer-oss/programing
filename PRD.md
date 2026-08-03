@@ -21,11 +21,11 @@ La aplicación actual mantiene tres contextos principales:
 
 El producto único es **Programming EVO**. No existe ni se proyecta una aplicación separada llamada Equipo EVO, otro login o una navegación independiente.
 
-La experiencia objetivo del entrenador se integra en la misma aplicación mediante dos áreas principales: `Programación` y `Mi turno`. Las incorporaciones son un flujo prioritario de cliente dentro de `Mi turno`, no una aplicación, un área principal ni una arquitectura separada.
+La experiencia objetivo del entrenador se integra en la misma aplicación mediante `Programación`, `Mi turno`, `Protocolos` y `Mi evolución`. `Protocolos` y `Mi evolución` se presentan como segundo nivel de `Mi turno`. Dirección dispone además de `Operativa`, `Evaluaciones` y `Equipo`. Las incorporaciones son un flujo prioritario de cliente dentro de `Mi turno`, no una aplicación, un área principal ni una arquitectura separada.
 
 Durante la Fase 1 se conserva `?incorporaciones` únicamente como **sandbox temporal local** para validar la propuesta visual sin credenciales ni conexión real. Esta ruta no representa la arquitectura ni la ruta final de producción y deberá revisarse o eliminarse antes de cualquier integración. No reutilizará ni modificará `?v2`, y tampoco alterará `/` ni `?coach`.
 
-**Regla de separación:** Programming EVO muestra al entrenador el dato mínimo necesario para una acción especial, pero WodBuster conserva la propiedad de los datos generales del alumno y Programming EVO no será propietario único del expediente operativo, las evidencias ni el historial del cliente.
+**Regla de separación:** Programming EVO es la interfaz principal del entrenador y muestra el dato mínimo necesario para una acción especial, pero WodBuster conserva la propiedad de sus datos y Programming EVO no será propietario único de tareas, incidencias, feedbacks, evaluaciones, evidencias, responsables ni historial operativo.
 
 ---
 
@@ -428,14 +428,117 @@ Durante la Fase 1 no se modificarán `supabase/**`, `api/**`, los scripts de mig
 
 ### Portabilidad
 
-- Programming muestra, pero no posee el expediente;
-- datos exportables;
-- reglas desacopladas de la interfaz;
-- posibilidad de sustituir herramienta sin perder historial.
+- Programming EVO actúa como interfaz, no como propietario único del núcleo operativo;
+- datos operativos exportables en formatos abiertos y legibles;
+- reglas desacopladas de los componentes visuales;
+- posibilidad de sustituir interfaz, hosting o proveedor sin perder información, reglas ni historial.
 
 ---
 
-## 15. Criterio de éxito
+## 15. Arquitectura portable futura
+
+Estas decisiones son requisitos de diseño para fases posteriores. Durante la Fase 1 solo se documentan: no autorizan refactorización, base de datos, API, eventos, conectores ni integraciones.
+
+### 15.1 Interfaz y núcleo separados
+
+Programming EVO será la aplicación principal que utilizará el entrenador. Su interfaz podrá consultar y ejecutar acciones del núcleo, pero no deberá convertirse en el propietario único de:
+
+- tareas;
+- incidencias;
+- feedbacks;
+- evaluaciones;
+- evidencias;
+- responsables;
+- historial operativo.
+
+La interfaz deberá poder sustituirse en el futuro sin perder datos ni reglas. El núcleo operativo deberá conservar significado propio al margen de React, de una ruta concreta y del proveedor de hosting.
+
+### 15.2 Lógica fuera de los componentes visuales
+
+Las reglas de negocio futuras no quedarán embebidas dentro de componentes React. Vivirán en módulos de dominio o servicios independientes de la interfaz.
+
+Esto incluye, como mínimo:
+
+- cuándo una tarea está vencida;
+- qué bloquea el cierre de un turno;
+- quién es responsable de una acción;
+- cómo se calcula un KPI;
+- cuándo una incidencia escala.
+
+Los componentes visuales representarán estados y solicitarán acciones; no serán la fuente única de estas reglas.
+
+### 15.3 Sistemas externos sustituibles
+
+Se tratarán como sistemas externos y sustituibles:
+
+- WodBuster;
+- Canva;
+- Google Calendar;
+- email;
+- Drive;
+- cualquier herramienta futura.
+
+Programming EVO no duplicará innecesariamente sus datos. WodBuster seguirá siendo propietario de alumnos, reservas, asistencia, horarios, pagos y tarifas, además de su ficha general conforme a la separación ya definida.
+
+Canva, si se conecta en el futuro, actuará únicamente como generador o destino de recursos visuales. No formará parte del núcleo operativo ni será propietario de tareas, incidencias, feedbacks, evaluaciones o historial.
+
+### 15.4 Adaptadores
+
+Cada integración futura se implementará mediante un adaptador independiente del núcleo y de la interfaz. Nombres conceptuales posibles:
+
+- `WodBusterAdapter`;
+- `CanvaAdapter`;
+- `CalendarAdapter`;
+- `EmailAdapter`.
+
+Estos nombres no definen todavía archivos ni contratos técnicos. La regla es que un proveedor pueda sustituirse cambiando su adaptador, sin reescribir el núcleo ni la interfaz.
+
+### 15.5 API futura
+
+El núcleo deberá poder exponer en el futuro una API documentada para operaciones como:
+
+- consultar tareas del turno;
+- registrar incidencias;
+- registrar feedback;
+- consultar evaluaciones;
+- cerrar un turno;
+- recibir eventos externos.
+
+No se definen todavía endpoints, protocolos, autenticación ni implementación.
+
+### 15.6 Eventos futuros
+
+El sistema podrá emitir o recibir eventos de dominio como:
+
+- `turno_iniciado`;
+- `turno_cerrado`;
+- `incidencia_creada`;
+- `feedback_pendiente`;
+- `primera_clase_detectada`;
+- `evaluacion_completada`.
+
+La lista es conceptual y no autoriza buses de eventos, webhooks ni automatizaciones durante la Fase 1.
+
+### 15.7 Exportación y salida
+
+Los datos operativos futuros deberán poder exportarse en formatos abiertos, documentados y legibles. La conservación de la información no dependerá de una única interfaz, hosting o proveedor.
+
+La estrategia de salida deberá cubrir, como mínimo, datos, responsables, estados, evidencias e historial operativo, respetando seguridad y privacidad.
+
+### 15.8 Regla antes de integrar
+
+No se autorizará ninguna integración hasta:
+
+1. validar primero el proceso sin integración;
+2. confirmar qué dato es propiedad de cada sistema;
+3. revisar la documentación oficial del proveedor;
+4. comprobar permisos, límites y posibles costes;
+5. probar con datos sintéticos o en staging;
+6. obtener la aprobación de Marian.
+
+---
+
+## 16. Criterio de éxito
 
 La primera versión se considera útil cuando:
 
@@ -448,7 +551,7 @@ La primera versión se considera útil cuando:
 
 ---
 
-## 16. Estado actual
+## 17. Estado actual
 
 - `PRD.md` existe.
 - `PLAN.md` existe.
@@ -461,6 +564,6 @@ La primera versión se considera útil cuando:
 
 ---
 
-## 17. Control de cambios
+## 18. Control de cambios
 
 Toda modificación de objetivo, usuario, permiso, regla, KPI, integración o alcance exige actualizar primero `PRD.md` y después `PLAN.md`.

@@ -40,6 +40,10 @@ No se avanza porque “el código está terminado”. Se avanza cuando la prueba
 13. `?incorporaciones` es únicamente un sandbox temporal local de Fase 1; no define la arquitectura ni la ruta final de producción.
 14. El sandbox puede evaluarse antes de la puerta general de Supabase para funcionar sin credenciales reales.
 15. `?v2` no se reutiliza ni se modifica.
+16. La interfaz, el núcleo operativo y los adaptadores futuros mantienen límites explícitos.
+17. Las reglas de negocio no se implementan dentro de componentes React.
+18. Ninguna persistencia, API o integración comienza sin superar la puerta de arquitectura y portabilidad.
+19. Los datos operativos futuros deben disponer de una estrategia de exportación abierta.
 
 ---
 
@@ -81,6 +85,7 @@ Existe un prototipo local en `?incorporaciones`. Su arquitectura anterior no est
 |---|---|---|---|
 | 1 | Esqueleto visual navegable | Ficticios y fijos | Ninguna |
 | 2 | Flujo completo simulado | Mock data | Ninguna |
+| Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
 | 5 | Avisos y bucle de retorno | Piloto | Calendar/email básico |
@@ -303,6 +308,27 @@ Casos negativos:
 
 ---
 
+# Puerta obligatoria previa a la Fase 3 · Arquitectura y portabilidad
+
+Antes de iniciar esta fase o de crear cualquier base de datos, API o conector, Marian deberá aprobar:
+
+- modelo mínimo de datos;
+- propietario de cada dato;
+- límites entre interfaz, núcleo y adaptadores;
+- estrategia de exportación en formatos abiertos y legibles;
+- prueba conceptual de sustitución de un conector sin reescribir el núcleo ni la interfaz.
+
+La puerta deberá demostrar además que:
+
+- las reglas de vencimiento, bloqueos de cierre, responsables, KPI y escalado vivirán fuera de componentes React;
+- Programming EVO no será propietario único de tareas, incidencias, feedbacks, evaluaciones, evidencias, responsables ni historial;
+- los sistemas externos no se convierten en parte del núcleo;
+- la información podrá sobrevivir al cambio de interfaz, hosting o proveedor.
+
+No superar esta puerta mantiene la Fase 3 bloqueada documentalmente.
+
+---
+
 # Fase 3 · Persistencia y acceso interno
 
 ## Objetivo
@@ -430,6 +456,8 @@ Que el entrenador no busque la tarea y reciba valor antes y después.
 - confirmación de recepción por Dirección;
 - resumen semanal personal;
 - canal inicial Calendar o email.
+
+Calendar o email solo podrán incorporarse después de superar la puerta de arquitectura y la regla de autorización de integraciones. Cada proveedor se conectará mediante un adaptador independiente.
 
 ## Qué queda fuera
 
@@ -576,7 +604,16 @@ Automatizar solo lo que el piloto demuestre repetitivo.
 
 ## Qué se construye
 
-Primero, spike técnico:
+Antes del spike técnico deberá repetirse la puerta de autorización para esta integración:
+
+- proceso validado sin conector;
+- propiedad de cada dato confirmada;
+- documentación oficial revisada;
+- permisos, límites y costes comprobados;
+- prueba con datos sintéticos o staging;
+- aprobación de Marian.
+
+Después, spike técnico:
 
 - API;
 - RestHooks;
@@ -594,6 +631,8 @@ Después, solo si procede:
 - asistencia.
 
 Siempre debe existir entrada manual de respaldo.
+
+La integración se aislará tras un adaptador sustituible. Un cambio de WodBuster no podrá exigir reescribir el núcleo o la interfaz.
 
 ## Qué queda fuera
 
@@ -642,6 +681,16 @@ Solo después de cerrar la V1:
 - proyectos internos.
 
 Cada extensión exige actualizar `PRD.md` y este `PLAN.md`.
+
+Canva, Calendar, email, Drive y cualquier nueva herramienta requerirán adaptador independiente y la misma puerta de autorización. Canva solo podrá actuar como generador o destino de recursos visuales, nunca como parte del núcleo operativo.
+
+## Criterios transversales para API, eventos y salida
+
+Si una fase futura autoriza una API, deberá documentarse sin acoplarla a la interfaz y podrá cubrir conceptualmente tareas del turno, incidencias, feedbacks, evaluaciones, cierre de turno y recepción de eventos externos. No se fijan endpoints durante la Fase 1.
+
+Los eventos conceptuales `turno_iniciado`, `turno_cerrado`, `incidencia_creada`, `feedback_pendiente`, `primera_clase_detectada` y `evaluacion_completada` no se implementarán hasta una fase expresamente aprobada.
+
+Toda persistencia futura deberá incluir una prueba de exportación de datos operativos, responsables, estados, evidencias e historial en formatos abiertos y legibles.
 
 ---
 

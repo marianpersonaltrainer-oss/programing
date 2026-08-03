@@ -1,11 +1,11 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · arquitectura corregida · Fase 1 pendiente de nueva aprobación visual
+**Estado:** documento vivo · Fase 1 cerrada y aprobada
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f1-visual`
-**Código autorizado:** no, hasta aprobar el siguiente ajuste visual
-**Fase activa:** Fase 1 · Arquitectura visual integrada en Programming EVO
+**Código autorizado:** Fase 1 finalizada; nuevos cambios no autorizados
+**Fase activa:** ninguna · Fase 2 no iniciada
 
 ---
 
@@ -75,7 +75,7 @@ Modos existentes:
 - vista coach con `?coach`;
 - vista `?v2`.
 
-Existe un prototipo local en `?incorporaciones`. Su arquitectura anterior no está aprobada y debe considerarse material de sandbox, no una aplicación ni una propuesta de navegación final.
+Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siendo un sandbox temporal, no una aplicación independiente ni la ruta final de producción.
 
 ---
 
@@ -83,7 +83,7 @@ Existe un prototipo local en `?incorporaciones`. Su arquitectura anterior no est
 
 | Fase | Resultado visible | Datos | Integraciones |
 |---|---|---|---|
-| 1 | Esqueleto visual navegable | Ficticios y fijos | Ninguna |
+| 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
 | 2 | Flujo completo simulado | Mock data | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
@@ -96,7 +96,11 @@ Existe un prototipo local en `?incorporaciones`. Su arquitectura anterior no est
 
 ---
 
-# Fase 1 · Arquitectura visual integrada en Programming EVO
+# Fase 1 · Arquitectura visual integrada en Programming EVO · CERRADA
+
+**Resultado:** `Aprobada` por Marian.
+
+**Fase siguiente:** Fase 2 no iniciada.
 
 ## Objetivo
 
@@ -202,20 +206,20 @@ Quedan además explícitamente protegidos y sin cambios durante esta fase:
 ## Prueba principal de la Fase 1
 
 **Funcionalidad:**
-Recorrer visualmente Programming EVO y distinguir con claridad la preparación de clase, la operativa especial del turno y la información que permanece en WodBuster.
+Recorrer visualmente Programming EVO, entender la operativa especial del turno y completar el cierre ficticio de una primera clase sin duplicar WodBuster ni conectar sistemas externos.
 
 **Pasos:**
 
-1. Abrir el sandbox temporal de Programming EVO.
-2. Entrar en `Programación` y revisar entrenamiento, objetivo, estímulo y notas.
-3. Registrar visualmente feedback asociado al entrenamiento.
-4. Entrar en `Mi turno > Hoy` y revisar apertura o relevo y tareas críticas.
-5. Abrir una persona nueva con acción especial y consultar el briefing mínimo.
-6. Completar feedback operativo de primera clase.
-7. Registrar visualmente una incidencia y completar cierre o relevo.
-8. Abrir un protocolo desde una tarea contextual y desde la biblioteca.
-9. Consultar `Mi evolución`.
-10. Cambiar a Dirección y localizar la operativa excepcional y una evaluación de calidad.
+1. Abrir `?incorporaciones` en local.
+2. Confirmar que `Programación` y `Mi turno` aparecen dentro del mismo producto y que Programación existente no se reconstruye.
+3. Entrar en `Mi turno > Hoy` y revisar el resumen, un máximo de tres tareas, los casos especiales, las acciones de registro y el fin de turno plegado.
+4. Abrir el briefing mínimo de una persona nueva ficticia.
+5. Abrir `Cerrar primera clase`.
+6. Completar las preguntas sobre cargas/nivel, coordinación/técnica y lo que debe saber el próximo entrenador, todas con máximo recomendado de 180 caracteres.
+7. Seleccionar `Incorporación validada`, `Necesita seguimiento` o `Necesita Dirección` y confirmar el cierre simulado.
+8. Registrar visualmente una incidencia y revisar el cierre o relevo del turno.
+9. Abrir un protocolo desde una tarea contextual y desde la biblioteca; consultar `Mi evolución`.
+10. Cambiar a Dirección y localizar Operativa, Evaluaciones y Equipo.
 
 **Resultado esperado:**
 
@@ -229,6 +233,34 @@ Recorrer visualmente Programming EVO y distinguir con claridad la preparación d
 - navegación máxima de dos niveles;
 - datos ficticios;
 - cero peticiones a Supabase o APIs.
+
+**Resultado real:**
+
+- Programming EVO se presenta como producto único con `Programación` y `Mi turno` para Entrenador;
+- `Mi turno > Hoy` muestra cinco bloques compactos y un máximo de tres tareas;
+- los casos especiales solo incluyen persona nueva, adaptación relevante e incidencia o cambio operativo;
+- el cierre de primera clase separa tres notas prácticas del feedback operativo del turno;
+- cada nota permite escritura libre breve, muestra un ejemplo y limita visualmente a 180 caracteres;
+- están disponibles los tres resultados operativos previstos;
+- Protocolos y Mi evolución permanecen en el segundo nivel de Mi turno;
+- Dirección muestra Programación, Operativa, Evaluaciones y Equipo;
+- no existen listas completas de alumnos, reservas ordinarias, pagos, tarifas o fichas generales;
+- todos los nombres y datos son ficticios y estáticos;
+- no se realizan peticiones a Supabase, `api/**` ni sistemas externos;
+- `/`, `?coach` y `?v2` conservan su comportamiento previo;
+- `npm run build` completó correctamente;
+- `npm run test` superó 51 archivos y 316 pruebas;
+- `git diff --check` terminó limpio;
+- producción, Vercel, caché y service worker no fueron modificados.
+
+**Incidencias:**
+
+- el build mantiene la advertencia preexistente sobre chunks superiores a 500 kB;
+- no se detectaron errores funcionales ni regresiones automatizadas.
+
+**Producción modificada:** No.
+
+**Decisión de Dirección:** `Aprobada`.
 
 ## Señal para pasar
 
@@ -732,10 +764,12 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 1 · Arquitectura visual integrada en Programming EVO.
-- Fase 1: arquitectura documentada y pendiente de nueva aprobación visual de Marian.
-- Trabajo autorizado actual: actualización documental exclusivamente.
-- Código autorizado: no, hasta recibir aprobación para reorganizar el prototipo.
+- Fase activa: ninguna.
+- Fase 1: cerrada y aprobada por Marian.
+- Fase 2: no iniciada.
+- Trabajo autorizado actual: cierre documental y commit de Fase 1.
+- Código autorizado después del cierre: no.
 - Código modificado: sí, exclusivamente prototipo visual de Fase 1.
 - Producción modificada: no.
 - Condición para iniciar Fase 1: cumplida.
+- Condición para iniciar Fase 2: no autorizada.

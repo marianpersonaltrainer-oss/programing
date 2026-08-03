@@ -18,10 +18,12 @@ const MethodPanel = lazy(() => import('./components/MethodPanel/MethodPanel.jsx'
 const ExerciseLibrary = lazy(() => import('./components/ExerciseLibrary/ExerciseLibrary.jsx'))
 const CoachGuideContentPanel = lazy(() => import('./components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'))
 const Pe2App = lazy(() => import('./Pe2App.jsx'))
+const IncorporacionesApp = lazy(() => import('./IncorporacionesApp.jsx'))
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
 const isPe2Mode = appSearch.has('v2')
+const isIncorporacionesMode = appSearch.has('incorporaciones')
 
 function AppLoading() {
   return (
@@ -42,6 +44,14 @@ function ModalLoading() {
 }
 
 export default function App() {
+  if (isIncorporacionesMode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <IncorporacionesApp />
+      </Suspense>
+    )
+  }
+
   if (!isSupabaseConfigured) {
     return <SupabaseConfigMissing />
   }

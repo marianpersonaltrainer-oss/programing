@@ -1,11 +1,11 @@
 # PRD.md
-## Equipo EVO · Incorporaciones
+## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · pendiente de aprobación de Dirección
+**Estado:** documento vivo · arquitectura corregida · Fase 1 pendiente de nueva aprobación visual
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f1-visual`
-**Código autorizado:** no
-**Fase activa:** ninguna
+**Código autorizado:** no, hasta aprobar el siguiente ajuste visual
+**Fase activa:** Fase 1 · Arquitectura visual integrada en Programming EVO
 
 ---
 
@@ -19,19 +19,21 @@ La aplicación actual mantiene tres contextos principales:
 - vista coach mediante `?coach`;
 - evolución técnica en `?v2`.
 
-El nuevo trabajo no sustituye ni redefine Programming EVO. Añade, si el piloto lo valida, una superficie de lectura y ejecución llamada **Equipo EVO · Incorporaciones**, cuya ruta oficial será `?incorporaciones`.
+El producto único es **Programming EVO**. No existe ni se proyecta una aplicación separada llamada Equipo EVO, otro login o una navegación independiente.
 
-`?incorporaciones` será una entrada nueva e independiente. No reutilizará ni modificará `?v2`, y tampoco alterará `/` ni `?coach`.
+La experiencia objetivo del entrenador se integra en la misma aplicación mediante dos áreas principales: `Programación` y `Mi turno`. Las incorporaciones son un flujo prioritario de cliente dentro de `Mi turno`, no una aplicación, un área principal ni una arquitectura separada.
 
-Cuando se autorice su implementación, la detección de `?incorporaciones` deberá evaluarse antes de la puerta general de configuración de Supabase que existe en `src/App.jsx`. Así, el prototipo visual podrá abrirse en local sin credenciales reales. Esta decisión queda documentada, pero no implementada en el estado actual.
+Durante la Fase 1 se conserva `?incorporaciones` únicamente como **sandbox temporal local** para validar la propuesta visual sin credenciales ni conexión real. Esta ruta no representa la arquitectura ni la ruta final de producción y deberá revisarse o eliminarse antes de cualquier integración. No reutilizará ni modificará `?v2`, y tampoco alterará `/` ni `?coach`.
 
-**Regla de separación:** Programming EVO puede mostrar al entrenador lo que necesita ver, pero no será propietario del expediente operativo, las tareas, las evidencias ni el historial del cliente.
+**Regla de separación:** Programming EVO muestra al entrenador el dato mínimo necesario para una acción especial, pero WodBuster conserva la propiedad de los datos generales del alumno y Programming EVO no será propietario único del expediente operativo, las evidencias ni el historial del cliente.
 
 ---
 
 ## 2. Problema
 
-Desde que una persona realiza su primer pago hasta que completa su primera clase:
+El entrenador necesita una única experiencia coherente en Programming EVO. `Programación` debe resolver la preparación y el feedback del entrenamiento; `Mi turno` debe concentrar únicamente las acciones operativas especiales que Programación y WodBuster no resuelven. La versión visual inicial creó una superficie demasiado independiente y centrada en incorporaciones.
+
+Dentro del flujo prioritario de incorporaciones, desde que una persona realiza su primer pago hasta que completa su primera clase:
 
 - el alta puede depender de la memoria;
 - no siempre queda claro quién es responsable;
@@ -47,7 +49,9 @@ El intento anterior con formularios y Trello no generó adopción sostenida. El 
 
 ## 3. Objetivo
 
-> Conseguir que cada incorporación complete el recorrido desde primer pago hasta primera clase cerrada con responsable, ficha mínima, entrenador informado, evidencia y siguiente paso, sin recordatorios manuales de Marian.
+> Conseguir que el entrenador prepare y valore la sesión desde Programación, resuelva las acciones operativas especiales desde Mi turno y no tenga que duplicar la gestión ordinaria que pertenece a WodBuster.
+
+Dentro de este objetivo, cada incorporación debe completar el recorrido desde primer pago hasta primera clase cerrada con responsable, ficha mínima, entrenador informado, evidencia y siguiente paso.
 
 El sistema debe beneficiar simultáneamente a:
 
@@ -63,10 +67,14 @@ El sistema debe beneficiar simultáneamente a:
 
 Necesita:
 
-- ver quién es nuevo antes de la clase;
-- conocer objetivo y restricciones funcionales;
-- preparar carga, scaling y acompañamiento;
-- cerrar la primera clase en menos de dos minutos;
+- consultar en `Programación` el entrenamiento, sus notas, objetivo, estímulo y preparación de clase;
+- aportar feedback del entrenamiento asociado a la sesión;
+- consultar en `Mi turno` la entrada y puntualidad, apertura o relevo y las tareas operativas críticas;
+- ver únicamente personas nuevas, adaptaciones, incidencias previas u otros casos que exijan una acción especial;
+- registrar una incidencia;
+- completar feedback operativo de primera clase o de un caso relevante;
+- resolver caja, sala, material, relevo y cierre cuando corresponda;
+- consultar protocolos desde la biblioteca o desde una tarea contextual;
 - recibir confirmación del resultado y siguiente responsable.
 
 ### 4.2 Responsable del alta
@@ -103,6 +111,7 @@ Gestiona en WodBuster:
 
 Necesita ver:
 
+- turnos sin cerrar;
 - alta sin responsable;
 - ficha pendiente;
 - entrenador no informado;
@@ -174,10 +183,27 @@ El briefing previo solo mostrará lo necesario para actuar:
 - experiencia;
 - restricciones funcionales;
 - preparación recomendada;
-- Padrino/Madrina cuando corresponda;
 - enlace al protocolo aplicable.
 
 No mostrará diagnósticos médicos detallados, datos económicos ni información ajena a la clase.
+
+Programming EVO no ofrecerá una réplica de la ficha general del alumno. Este briefing solo aparece cuando existe una acción especial y contiene el mínimo contexto necesario para actuar.
+
+---
+
+## 7.1 Propiedad funcional de WodBuster
+
+WodBuster continúa siendo propietario de:
+
+- alumnos;
+- reservas;
+- asistencia;
+- horarios;
+- pagos;
+- tarifas;
+- ficha general.
+
+Programming EVO no duplicará listas completas de alumnos, reservas normales, asistencia ordinaria, pagos, tarifas ni información general disponible en WodBuster. Solo mostrará el dato mínimo cuando active una tarea, excepción o actuación especial.
 
 ---
 
@@ -260,13 +286,25 @@ El Handbook mantiene los criterios objetivos de calidad:
 7. Cargas asignadas por el entrenador.
 8. Puntualidad de inicio y final.
 
-No se transformarán en una checklist obligatoria después de cada clase. Se reservarán para formación, observación por muestra y futuro Ghost Customer.
+No se transformarán en una checklist obligatoria después de cada clase. Se reservarán para formación, observación por muestra y futuro Ghost Customer. Padrino/Madrina forma parte de la dinámica intuitiva dentro de la clase y no se mostrará como dato del briefing previo.
+
+### Separación de feedback
+
+1. **Feedback de programación:** se asocia al entrenamiento y se guarda dentro de `Programación`.
+2. **Feedback operativo o de cliente:** corresponde a primera clase, incidencia, seguimiento o relevo y se gestiona dentro de `Mi turno`.
+
+### Separación de evaluación
+
+1. **Operativa diaria:** puntualidad, apertura, cierre, caja, incidencias, feedbacks, relevo y tareas.
+2. **Calidad de clase:** evaluación de Dirección, observación mensual o Ghost Customer basada en el Handbook.
+
+Los criterios del Handbook no se convierten en tareas diarias del entrenador.
 
 ---
 
 ## 12. Alcance de la Fase 1
 
-La Fase 1 está pendiente de aprobación. Si Dirección la autoriza, consistirá exclusivamente en un prototipo:
+La Fase 1 continúa activa, está en ajuste y todavía no está aprobada visualmente. Consiste exclusivamente en un prototipo:
 
 - visual;
 - local;
@@ -278,31 +316,70 @@ La Fase 1 está pendiente de aprobación. Si Dirección la autoriza, consistirá
 - sin integraciones;
 - sin datos de clientes reales.
 
-La ruta oficial del prototipo será `?incorporaciones`. Deberá resolverse antes de la puerta general de Supabase para no exigir credenciales, pero esta adaptación no está implementada ni autorizada todavía.
+La ruta `?incorporaciones` se mantiene exclusivamente como sandbox temporal local. Puede resolverse antes de la puerta general de Supabase para no exigir credenciales, pero no define la ruta ni la arquitectura final de producción.
 
 No se reutilizará ni modificará `?v2`.
 
-### Superficie de lectura
+### Navegación objetivo del Entrenador
 
-Panel `HOY` dentro de Programming EVO con:
+La experiencia integrada tendrá dos áreas principales:
 
-- primeras clases;
-- restricciones funcionales;
-- preparación;
-- protocolo;
-- pendientes propios.
+1. `Programación`;
+2. `Mi turno`.
 
-### Escritura
+`Programación` conserva:
 
-Cierre breve de primera clase.
+- entrenamiento del día;
+- notas de programación;
+- objetivo y estímulo;
+- información necesaria para preparar la clase;
+- feedback del entrenamiento asociado a la sesión.
 
-### Dirección
+`Mi turno` muestra solo lo que WodBuster y Programación no resuelven:
 
-Bandeja de excepciones.
+- entrada y puntualidad;
+- apertura o relevo;
+- briefing especial;
+- persona nueva;
+- adaptación relevante;
+- incidencia previa;
+- tareas operativas críticas;
+- registro de incidencia;
+- feedback de primera clase o caso relevante;
+- caja;
+- sala y material;
+- relevo;
+- cierre.
+
+El segundo nivel de `Mi turno` contiene:
+
+1. `Hoy`;
+2. `Protocolos`;
+3. `Mi evolución`.
+
+La biblioteca de `Protocolos` contiene Apertura, Cierre, Caja, Primera clase, Incidencias, Feedback, Relevo, Seguimiento y Handbook. Cada protocolo puede abrirse desde la biblioteca y también desde una tarea contextual.
+
+### Navegación objetivo de Dirección
+
+Dirección tendrá cuatro áreas principales:
+
+1. `Programación`;
+2. `Operativa`;
+3. `Evaluaciones`;
+4. `Equipo`.
+
+`Operativa` concentra las excepciones de turno y cliente. `Evaluaciones` separa la calidad de clase de la operativa diaria. `Equipo` muestra evolución y cumplimiento sin transformar el Handbook en una lista diaria de tareas.
+
+### Acciones visuales
+
+- consulta de briefing de una incorporación;
+- cierre breve y ficticio de primera clase;
+- registro visual de incidencia;
+- cierre o relevo visual del turno.
 
 ### Registro
 
-El expediente operativo debe permanecer neutral y desacoplado de la interfaz de Programming.
+El expediente operativo debe permanecer neutral y desacoplado de la interfaz de Programming EVO. WodBuster conserva sus dominios de propiedad y Programming EVO evita duplicar su información ordinaria.
 
 ### Superficies protegidas
 
@@ -346,7 +423,8 @@ Durante la Fase 1 no se modificarán `supabase/**`, `api/**`, los scripts de mig
 - una acción principal por pantalla;
 - navegación de máximo dos niveles;
 - cierre de primera clase en menos de dos minutos;
-- información relevante en uno o dos clics.
+- información relevante en uno o dos clics;
+- una sola navegación integrada en Programming EVO.
 
 ### Portabilidad
 
@@ -375,10 +453,10 @@ La primera versión se considera útil cuando:
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase 1 pendiente de aprobación.
-- Código no autorizado.
-- Fase activa: ninguna.
-- Código modificado: no.
+- Fase 1 pendiente de nueva aprobación visual de Marian tras la corrección arquitectónica.
+- Código no autorizado hasta aprobar el siguiente ajuste visual.
+- Fase activa: Fase 1 · Arquitectura visual integrada en Programming EVO.
+- Implementación visual detenida; solo se ha autorizado la actualización documental.
 - Producción modificada: no.
 
 ---

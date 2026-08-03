@@ -1,11 +1,11 @@
 # PLAN.md
-## Plan refinado · Equipo EVO · Incorporaciones
+## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · pendiente de aprobación de Dirección
+**Estado:** documento vivo · arquitectura corregida · Fase 1 pendiente de nueva aprobación visual
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f1-visual`
-**Código autorizado:** no
-**Fase activa:** ninguna
+**Código autorizado:** no, hasta aprobar el siguiente ajuste visual
+**Fase activa:** Fase 1 · Arquitectura visual integrada en Programming EVO
 
 ---
 
@@ -35,10 +35,11 @@ No se avanza porque “el código está terminado”. Se avanza cuando la prueba
 8. No se amplía alcance sin actualizar `PRD.md` y `PLAN.md`.
 9. Cada regla de estado que se implemente más adelante debe tener al menos una prueba automatizada.
 10. Ninguna fase se cierra sin prueba principal en pantalla.
-11. El módulo se llama **Equipo EVO · Incorporaciones** y su ruta oficial es `?incorporaciones`.
-12. `?incorporaciones` se evaluará antes de la puerta general de Supabase para funcionar sin credenciales reales.
-13. `?v2` no se reutiliza ni se modifica.
-14. Las decisiones de ruta y orden respecto a Supabase quedan documentadas, pero no implementadas hasta que se apruebe la Fase 1.
+11. El producto único es **Programming EVO**; no se crea otra aplicación, login o navegación independiente.
+12. El entrenador tendrá dos áreas principales: `Programación` y `Mi turno`.
+13. `?incorporaciones` es únicamente un sandbox temporal local de Fase 1; no define la arquitectura ni la ruta final de producción.
+14. El sandbox puede evaluarse antes de la puerta general de Supabase para funcionar sin credenciales reales.
+15. `?v2` no se reutiliza ni se modifica.
 
 ---
 
@@ -70,7 +71,7 @@ Modos existentes:
 - vista coach con `?coach`;
 - vista `?v2`.
 
-No existe todavía el módulo **Equipo EVO · Incorporaciones** ni su ruta planificada `?incorporaciones`.
+Existe un prototipo local en `?incorporaciones`. Su arquitectura anterior no está aprobada y debe considerarse material de sandbox, no una aplicación ni una propuesta de navegación final.
 
 ---
 
@@ -90,29 +91,52 @@ No existe todavía el módulo **Equipo EVO · Incorporaciones** ni su ruta plani
 
 ---
 
-# Fase 1 · Esqueleto visual local
+# Fase 1 · Arquitectura visual integrada en Programming EVO
 
 ## Objetivo
 
-Validar estructura, navegación, jerarquía y estilo antes de crear lógica o datos.
+Validar que Programación y Mi turno conviven dentro del producto existente sin duplicar WodBuster, antes de crear lógica, datos o integraciones.
 
 ## Qué se construye
 
 Un prototipo local navegable con datos ficticios y estáticos.
 
-La entrada oficial será `?incorporaciones`. Al implementarla deberá evaluarse antes de la puerta general de Supabase de `src/App.jsx`, de forma que el prototipo se abra sin credenciales reales. No reutilizará ni modificará `?v2`. Esta arquitectura queda definida aquí, pero el código continúa sin autorización mientras la fase esté pendiente.
+La ruta `?incorporaciones` seguirá disponible únicamente como sandbox temporal local y podrá abrirse antes de la puerta general de Supabase. No representa la ruta final de producción y no reutiliza ni modifica `?v2`.
 
-Pantallas mínimas:
+Navegación objetivo del Entrenador:
 
-- entrada del módulo;
-- `Hoy`;
-- `Nuevas altas`;
-- `Primera clase`;
-- `Seguimientos`;
-- `Incidencias`;
-- `Excepciones`;
-- vista básica de Dirección;
-- cambio visual de contexto Entrenador / Dirección.
+1. `Programación`;
+2. `Mi turno`.
+
+`Programación` conserva entrenamiento del día, notas, objetivo y estímulo, preparación de clase y feedback asociado a la sesión.
+
+El segundo nivel de `Mi turno` contiene:
+
+1. `Hoy`;
+2. `Protocolos`;
+3. `Mi evolución`.
+
+`Hoy` muestra entrada y puntualidad, apertura o relevo, briefing especial, persona nueva, adaptación relevante, incidencia previa, tareas operativas críticas, registro de incidencia, feedback operativo, caja, sala/material, relevo y cierre. Solo aparece información de cliente cuando requiere una acción especial.
+
+`Protocolos` contiene Apertura, Cierre, Caja, Primera clase, Incidencias, Feedback, Relevo, Seguimiento y Handbook. Cada protocolo puede abrirse desde la biblioteca y desde una tarea contextual.
+
+`Mi evolución` representa la operativa diaria sin mezclarla con la evaluación de calidad de clase.
+
+Navegación objetivo de Dirección:
+
+1. `Programación`;
+2. `Operativa`;
+3. `Evaluaciones`;
+4. `Equipo`.
+
+`Operativa` concentra turnos, tareas, incidencias, feedbacks y relevos. `Evaluaciones` contiene observación de Dirección, observación mensual o Ghost Customer basada en el Handbook. Los criterios del Handbook no se convierten en tareas diarias.
+
+WodBuster conserva alumnos, reservas, asistencia, horarios, pagos, tarifas y ficha general. El prototipo no duplicará listas completas de alumnos, reservas normales, asistencia ordinaria, pagos, tarifas ni información general disponible allí.
+
+Se separan dos tipos de feedback:
+
+- feedback de programación, asociado a la sesión dentro de `Programación`;
+- feedback operativo o de cliente, gestionado en `Mi turno` para primera clase, incidencia, seguimiento o relevo.
 
 Componentes:
 
@@ -123,6 +147,11 @@ Componentes:
 - cierre ficticio con tres resultados;
 - estados vacíos;
 - mensajes de confirmación y error simulados.
+- selector ficticio `Mañana / Tarde`;
+- registro visual de incidencia;
+- cierre o relevo visual del turno.
+
+El briefing previo no incluye Padrino/Madrina: esa práctica sucede de forma intuitiva dentro de la clase y no es un dato operativo que consultar en esta superficie.
 
 Diseño:
 
@@ -168,35 +197,41 @@ Quedan además explícitamente protegidos y sin cambios durante esta fase:
 ## Prueba principal de la Fase 1
 
 **Funcionalidad:**
-Recorrer visualmente una incorporación ficticia y entender dónde mirar, actuar y escalar.
+Recorrer visualmente Programming EVO y distinguir con claridad la preparación de clase, la operativa especial del turno y la información que permanece en WodBuster.
 
 **Pasos:**
 
-1. Abrir `?incorporaciones` en local.
-2. Entrar en `Hoy`.
-3. Abrir una alta ficticia.
-4. Consultar el briefing.
-5. Simular el cierre de primera clase.
-6. Revisar `Seguimientos`, `Incidencias` y `Excepciones`.
-7. Cambiar entre Entrenador y Dirección.
+1. Abrir el sandbox temporal de Programming EVO.
+2. Entrar en `Programación` y revisar entrenamiento, objetivo, estímulo y notas.
+3. Registrar visualmente feedback asociado al entrenamiento.
+4. Entrar en `Mi turno > Hoy` y revisar apertura o relevo y tareas críticas.
+5. Abrir una persona nueva con acción especial y consultar el briefing mínimo.
+6. Completar feedback operativo de primera clase.
+7. Registrar visualmente una incidencia y completar cierre o relevo.
+8. Abrir un protocolo desde una tarea contextual y desde la biblioteca.
+9. Consultar `Mi evolución`.
+10. Cambiar a Dirección y localizar la operativa excepcional y una evaluación de calidad.
 
 **Resultado esperado:**
 
+- el entrenador distingue Programación de Mi turno;
+- Mi turno solo muestra acciones especiales y operativa no resuelta por WodBuster o Programación;
+- no aparecen listados completos, reservas ordinarias, pagos, tarifas ni fichas generales de WodBuster;
+- feedback de programación y feedback operativo aparecen separados;
+- los protocolos se abren desde biblioteca y contexto;
+- operativa diaria y calidad de clase aparecen separadas;
+- Dirección ve excepciones y evaluaciones sin convertir el Handbook en tareas diarias;
 - navegación máxima de dos niveles;
-- una acción principal por pantalla;
-- estilo visual EVO;
-- datos completamente ficticios;
-- cero peticiones a Supabase o `api/**`;
-- `/` y `?coach` sin cambios;
-- funcionamiento primero en local.
+- datos ficticios;
+- cero peticiones a Supabase o APIs.
 
 ## Señal para pasar
 
-- Marian encuentra cada pantalla sin instrucciones;
-- el recorrido se entiende;
-- el entrenador recibe valor antes de la clase;
-- Dirección ve excepciones sin ruido;
-- no sobra ninguna pantalla;
+- Marian reconoce Programming EVO como un solo producto y una sola navegación;
+- Programación conserva la preparación y el feedback de sesión;
+- Mi turno no duplica la gestión ordinaria de WodBuster;
+- protocolos y evolución operativa son accesibles en el segundo nivel;
+- Dirección distingue Operativa de Evaluaciones;
 - estructura y estilo aprobados.
 
 ---
@@ -648,10 +683,10 @@ Cada extensión exige actualizar `PRD.md` y este `PLAN.md`.
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: ninguna.
-- Fase 1: pendiente de aprobación.
-- Trabajo autorizado actual: documentación únicamente.
-- Código autorizado: no.
-- Código modificado: no.
+- Fase activa: Fase 1 · Arquitectura visual integrada en Programming EVO.
+- Fase 1: arquitectura documentada y pendiente de nueva aprobación visual de Marian.
+- Trabajo autorizado actual: actualización documental exclusivamente.
+- Código autorizado: no, hasta recibir aprobación para reorganizar el prototipo.
+- Código modificado: sí, exclusivamente prototipo visual de Fase 1.
 - Producción modificada: no.
-- Condición para iniciar Fase 1: aprobación de `PRD.md`, `PLAN.md` y `AGENTS.md`.
+- Condición para iniciar Fase 1: cumplida.

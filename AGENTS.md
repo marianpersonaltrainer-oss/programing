@@ -42,11 +42,11 @@ Modos existentes:
 - vista coach con `?coach`;
 - vista `?v2`.
 
-El nuevo módulo se llama **Equipo EVO · Incorporaciones** y su ruta oficial será `?incorporaciones`.
+El producto único es **Programming EVO**. No crear una aplicación llamada Equipo EVO, otro login ni una navegación independiente.
 
-La ruta `?incorporaciones` deberá evaluarse antes de la puerta general de configuración de Supabase que existe en `src/App.jsx`, para que el prototipo local pueda abrirse sin credenciales reales. No se reutilizará ni modificará `?v2`. Estas decisiones están documentadas, pero no deben implementarse hasta que Dirección apruebe la Fase 1.
+La experiencia objetivo del entrenador tiene dos áreas principales dentro de la aplicación: `Programación` y `Mi turno`. Las incorporaciones son casos prioritarios dentro de la operativa, no un módulo o destino principal separado.
 
-El nuevo módulo no debe romper ni redefinir `/`, `?coach` ni `?v2`.
+La ruta `?incorporaciones` es únicamente un sandbox temporal local de Fase 1. Puede abrirse antes de la puerta general de Supabase para funcionar sin credenciales, pero no representa la arquitectura ni la ruta final de producción. No reutilizar ni modificar `?v2`, `/` o `?coach`.
 
 ---
 
@@ -238,6 +238,20 @@ No será propietario de:
 - evidencias;
 - historial operativo.
 
+### WodBuster
+
+Continúa siendo propietario de alumnos, reservas, asistencia, horarios, pagos, tarifas y ficha general.
+
+No duplicar en Programming EVO:
+
+- listas completas de alumnos;
+- reservas normales;
+- asistencia ordinaria;
+- pagos o tarifas;
+- información general ya consultable en WodBuster.
+
+Programming EVO solo muestra el dato mínimo cuando existe una acción especial.
+
 ### Supabase
 
 La aplicación actual ya usa Supabase. Cualquier tabla nueva requiere:
@@ -255,7 +269,7 @@ No crear tablas durante la Fase 1.
 
 ## 8. Reglas específicas de la Fase 1
 
-La Fase 1 está pendiente de aprobación y será exclusivamente visual, local, móvil primero y con datos completamente ficticios.
+La Fase 1 está en ajuste y pendiente de aprobación visual de Marian. Continúa siendo exclusivamente visual, local, móvil primero y con datos completamente ficticios.
 
 Permitido:
 
@@ -306,6 +320,42 @@ No se realizan peticiones desde `?incorporaciones` a Supabase ni a `api/**`. No 
 
 La Fase 1 debe poder eliminarse sin perder datos ni afectar el funcionamiento actual.
 
+### Navegación objetivo
+
+Entrenador:
+
+- `Programación`;
+- `Mi turno`.
+
+Segundo nivel de `Mi turno`:
+
+- `Hoy`;
+- `Protocolos`;
+- `Mi evolución`.
+
+Dirección:
+
+- `Programación`;
+- `Operativa`;
+- `Evaluaciones`;
+- `Equipo`.
+
+La navegación conserva un máximo de dos niveles. `?incorporaciones` solo aloja temporalmente el sandbox y no añade un nivel ni una navegación de producción.
+
+### Responsabilidad de cada área
+
+`Programación` conserva entrenamiento del día, notas de programación, objetivo y estímulo, preparación de clase y feedback asociado a la sesión.
+
+`Mi turno` contiene únicamente entrada/puntualidad, apertura o relevo, briefing especial, persona nueva, adaptación relevante, incidencia previa, tareas operativas críticas, registro de incidencia, feedback operativo, caja, sala/material, relevo y cierre.
+
+`Protocolos` contiene Apertura, Cierre, Caja, Primera clase, Incidencias, Feedback, Relevo, Seguimiento y Handbook. Deben poder abrirse desde la biblioteca y desde una tarea contextual.
+
+Separar siempre:
+
+- feedback de programación en `Programación` y feedback operativo o de cliente en `Mi turno`;
+- operativa diaria y evaluación de calidad de clase;
+- criterios del Handbook y tareas diarias del entrenador.
+
 ---
 
 ## 9. Qué errores evitar
@@ -315,7 +365,10 @@ La Fase 1 debe poder eliminarse sin perder datos ni afectar el funcionamiento ac
 - No convertir una idea futura en funcionalidad actual.
 - No añadir Portal Cliente “aprovechando”.
 - No añadir CRM, Calendly o agentes.
-- No mezclar turnos completos si la fase solo cubre incorporaciones.
+- No presentar Equipo EVO como producto, aplicación o navegación independiente.
+- No presentar `?incorporaciones` como arquitectura o ruta final.
+- No duplicar la gestión ordinaria de WodBuster.
+- No añadir `Clientes` o `Mi desempeño` como áreas principales del entrenador.
 
 ### Datos
 
@@ -458,9 +511,9 @@ Actualizar `AGENTS.md` cuando cambie:
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Código modificado: no.
+- Código modificado: sí, exclusivamente prototipo visual de Fase 1.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: ninguna.
-- Fase 1: pendiente de aprobación.
-- Código autorizado: no.
+- Fase activa: Fase 1 · Arquitectura visual integrada en Programming EVO.
+- Fase 1: arquitectura documentada y pendiente de nueva aprobación visual de Marian.
+- Código autorizado: no; el prototipo permanece detenido hasta recibir aprobación.

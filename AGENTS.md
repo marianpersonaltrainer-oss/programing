@@ -3,7 +3,7 @@
 
 **Estado:** documento vivo
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f1-visual`
+**Rama de preparación:** `feature/equipo-evo-f2-turno-minimo`
 **Objetivo:** indicar cómo ejecutar, comprobar y modificar el proyecto sin romper producción ni ampliar alcance.
 
 ---
@@ -314,6 +314,8 @@ Antes de crear base de datos, API o conectores deben aprobarse:
 - estrategia de exportación;
 - prueba de sustitución de un conector.
 
+Para la Fase 2, Marian autorizó el 4 de agosto de 2026 una persistencia exclusivamente local y sintética. Su puerta limitada quedó cubierta por un modelo mínimo de turno, reglas fuera de React, un servicio de aplicación, un adaptador `localStorage`, exportación JSON y una prueba de sustitución por memoria. Esta excepción local no autoriza persistencia real ni supera la puerta previa a Fase 3.
+
 Antes de autorizar cualquier integración:
 
 1. validar primero el proceso;
@@ -340,7 +342,7 @@ No crear tablas durante la Fase 1.
 
 ## 8. Reglas específicas de la Fase 1
 
-La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. La Fase 2 no está iniciada y su código permanece sin autorización.
+La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. La Fase 2 fue autorizada el 4 de agosto de 2026, está implementada en su rama propia y permanece en revisión; Fase 3 continúa sin autorización.
 
 Permitido:
 
@@ -797,10 +799,10 @@ Actualizar `AGENTS.md` cuando cambie:
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Código modificado: sí, exclusivamente prototipo visual de Fase 1.
+- Código modificado: sí, prototipo visual de Fase 1 y turno mínimo local de Fase 2.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: ninguna.
+- Fase activa: Fase 2 en revisión.
 - Fase 1: cerrada, aprobada y respaldada en GitHub.
-- Fase 2: preparada documentalmente y pendiente de aprobación.
-- Código autorizado: no; no iniciar la Fase 2 hasta recibir aprobación.
+- Fase 2: implementada en `feature/equipo-evo-f2-turno-minimo` y pendiente de decisión de Marian.
+- Código autorizado: solo ajustes de Fase 2 si Dirección los solicita; no iniciar Fase 3.

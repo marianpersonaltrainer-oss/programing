@@ -1,11 +1,11 @@
 # PRD.md
 ## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · arquitectura corregida · Fase 1 cerrada y aprobada
+**Estado:** documento vivo · Fase 2 implementada y pendiente de decisión de Dirección
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f1-visual`
-**Código autorizado:** no; Fase 2 pendiente de aprobación
-**Fase activa:** ninguna · Fase 2 no iniciada
+**Rama de preparación:** `feature/equipo-evo-f2-turno-minimo`
+**Código autorizado:** Fase 2 ejecutada conforme a la autorización expresa de Marian del 4 de agosto de 2026
+**Fase activa:** Fase 2 en revisión · no iniciar Fase 3
 
 ---
 
@@ -557,9 +557,11 @@ La primera versión se considera útil cuando:
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
 - Fase 1 cerrada y aprobada por Marian.
-- Código de Fase 2 no autorizado hasta su aprobación.
-- Fase activa: ninguna; Fase 2 no iniciada.
-- Solo está autorizada la preparación documental de la Fase 2.
+- Fase 2 autorizada expresamente por Marian el 4 de agosto de 2026.
+- Fase 2 implementada con datos sintéticos, reglas de dominio separadas y persistencia local sustituible.
+- Fase activa: Fase 2 en revisión visual por Dirección.
+- Fase 3, persistencia real, accesos internos e integraciones no autorizados.
+- Supabase, API, migraciones, WodBuster y datos reales no fueron utilizados para el turno mínimo.
 - Producción modificada: no.
 
 ---

@@ -1,11 +1,11 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 1 cerrada y aprobada
+**Estado:** documento vivo · Fase 2 implementada y pendiente de decisión de Dirección
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f1-visual`
-**Código autorizado:** Fase 1 finalizada; nuevos cambios no autorizados
-**Fase activa:** ninguna · Fase 2 no iniciada
+**Rama de preparación:** `feature/equipo-evo-f2-turno-minimo`
+**Código autorizado:** Fase 2 ejecutada conforme a la autorización expresa de Marian del 4 de agosto de 2026
+**Fase activa:** Fase 2 en revisión · no iniciar Fase 3
 
 ---
 
@@ -84,7 +84,7 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 | Fase | Resultado visible | Datos | Integraciones |
 |---|---|---|---|
 | 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
-| 2 · Pendiente de aprobación | Turno mínimo funcional | Persistencia mínima con datos sintéticos | Ninguna |
+| 2 · En revisión | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -100,7 +100,7 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 
 **Resultado:** `Aprobada` por Marian.
 
-**Fase siguiente:** Fase 2 no iniciada.
+**Fase siguiente:** Fase 2 implementada y en revisión.
 
 ## Objetivo
 
@@ -275,9 +275,9 @@ Recorrer visualmente Programming EVO, entender la operativa especial del turno y
 
 # Fase 2 · Turno mínimo funcional
 
-**Estado:** preparada documentalmente y pendiente de aprobación.
+**Estado:** implementada y pendiente de decisión de Dirección.
 
-**Código autorizado:** no.
+**Código autorizado:** sí; autorización expresa de Marian del 4 de agosto de 2026.
 
 ## Objetivo
 
@@ -303,7 +303,17 @@ Convertir el prototipo visual en un único flujo funcional de turno, primero en 
 - datos sintéticos;
 - permisos mínimos de prueba.
 
-La tecnología concreta de persistencia y permisos no queda autorizada por esta definición. Antes de implementarla deberá superarse la puerta de arquitectura y portabilidad: modelo mínimo de datos, propietarios, límites entre interfaz, núcleo y adaptadores, estrategia de exportación y prueba de sustitución de un conector. Esta preparación documental no autoriza tablas, migraciones, Supabase, API, conectores ni producción.
+## Decisión técnica local autorizada
+
+La autorización de la fase concretó una persistencia exclusivamente local, sintética y sustituible. La puerta limitada de Fase 2 queda documentada así:
+
+- modelo mínimo: turno, franja, entrenador, horas, puntualidad, hasta tres tareas, briefing, incidencias, feedback, cierre o relevo y registro de acciones;
+- propiedad: los datos son sintéticos del sandbox; Programming EVO no adquiere propiedad sobre datos operativos reales ni sobre datos de WodBuster;
+- límites: React presenta el flujo, el dominio contiene las reglas, el servicio coordina acciones y el adaptador contiene `localStorage`;
+- salida: el adaptador puede exportar el estado sintético como JSON legible;
+- sustitución: una prueba automatizada sustituye `localStorage` por un repositorio en memoria sin cambiar dominio, servicio ni acciones de interfaz.
+
+Esta decisión no supera ni sustituye la puerta obligatoria previa a Fase 3. No autoriza tablas, migraciones, Supabase, API, conectores, permisos reales ni producción.
 
 ## Qué queda fuera
 
@@ -347,6 +357,34 @@ Completar un turno ficticio de principio a fin y comprobar que Dirección ve la 
 - Dirección ve solo excepciones;
 - el cierre solo se bloquea por tareas críticas propias;
 - no hay conexiones con WodBuster ni producción.
+
+**Resultado real:**
+
+- el entrenador ficticio inició un turno y la aplicación registró responsable, hora prevista, hora real y puntualidad;
+- el intento de cierre anticipado mostró el bloqueo por las dos tareas críticas propias pendientes;
+- apertura y briefing quedaron completados con responsable y hora;
+- la incidencia y el feedback operativo se guardaron localmente;
+- el cierre operativo se completó y el turno terminó al 100 % sin que la incidencia abierta lo bloqueara;
+- tras recargar, el turno reapareció cerrado con todas las acciones conservadas;
+- Dirección mostró únicamente la incidencia abierta, con creador, hora, responsable actual y siguiente acción;
+- la validación móvil conservó la navegación de dos niveles y el diseño aprobado en Fase 1;
+- las reglas de dominio impiden duplicar un turno de la misma fecha y franja;
+- `npm run test:ci` superó 53 archivos y 325 pruebas, seguido de un build correcto;
+- `git diff --check` terminó limpio;
+- no se modificaron `supabase/**`, `api/**`, migraciones, variables, Vercel, caché, service worker, `/`, `?coach` ni `?v2`.
+
+**Incidencias:**
+
+- el primer arranque local requirió el permiso normal del sistema para escuchar en `127.0.0.1:5173`;
+- se mantiene el aviso preexistente de chunks superiores a 500 kB;
+- el bundle general mantiene el aviso preexistente de variables Supabase ausentes, aunque `?incorporaciones` no realiza peticiones ni usa persistencia Supabase;
+- no quedaron errores funcionales ni regresiones automatizadas.
+
+**Producción modificada:** No.
+
+**Recomendación técnica:** `Aprobada`.
+
+**Decisión de Dirección:** pendiente de Marian; no iniciar Fase 3.
 
 ## Condición para avanzar
 
@@ -782,12 +820,13 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: ninguna.
+- Fase activa: Fase 2 en revisión.
 - Fase 1: cerrada y aprobada por Marian.
-- Fase 2: no iniciada.
-- Trabajo autorizado actual: definición documental de Fase 2; implementación no autorizada.
-- Código autorizado después del cierre: no.
-- Código modificado: sí, exclusivamente prototipo visual de Fase 1.
+- Fase 2: implementada y pendiente de decisión visual de Marian.
+- Trabajo autorizado actual: correcciones de Fase 2 dentro de la rama si Dirección decide `Ajustar`.
+- Código autorizado después del cierre: no iniciar Fase 3.
+- Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.
 - Producción modificada: no.
 - Condición para iniciar Fase 1: cumplida.
-- Condición para iniciar Fase 2: pendiente de aprobación de Marian y de superar la puerta previa a cualquier persistencia.
+- Condición para iniciar Fase 2: cumplida mediante autorización expresa y puerta local documentada.
+- Condición para iniciar Fase 3: bloqueada hasta aprobación de Marian y superación de su puerta obligatoria de arquitectura y portabilidad.

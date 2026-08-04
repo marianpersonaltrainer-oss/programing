@@ -1,11 +1,11 @@
 # PRD.md
 ## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · arquitectura corregida · Fase 1 pendiente de nueva aprobación visual
+**Estado:** documento vivo · arquitectura corregida · Fase 1 cerrada y aprobada
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f1-visual`
-**Código autorizado:** no, hasta aprobar el siguiente ajuste visual
-**Fase activa:** Fase 1 · Arquitectura visual integrada en Programming EVO
+**Código autorizado:** no; Fase 2 pendiente de aprobación
+**Fase activa:** ninguna · Fase 2 no iniciada
 
 ---
 
@@ -304,7 +304,7 @@ Los criterios del Handbook no se convierten en tareas diarias del entrenador.
 
 ## 12. Alcance de la Fase 1
 
-La Fase 1 continúa activa, está en ajuste y todavía no está aprobada visualmente. Consiste exclusivamente en un prototipo:
+La Fase 1 está cerrada y aprobada. Consistió exclusivamente en un prototipo:
 
 - visual;
 - local;
@@ -556,10 +556,10 @@ La primera versión se considera útil cuando:
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase 1 pendiente de nueva aprobación visual de Marian tras la corrección arquitectónica.
-- Código no autorizado hasta aprobar el siguiente ajuste visual.
-- Fase activa: Fase 1 · Arquitectura visual integrada en Programming EVO.
-- Implementación visual detenida; solo se ha autorizado la actualización documental.
+- Fase 1 cerrada y aprobada por Marian.
+- Código de Fase 2 no autorizado hasta su aprobación.
+- Fase activa: ninguna; Fase 2 no iniciada.
+- Solo está autorizada la preparación documental de la Fase 2.
 - Producción modificada: no.
 
 ---

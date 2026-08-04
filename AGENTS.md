@@ -340,7 +340,7 @@ No crear tablas durante la Fase 1.
 
 ## 8. Reglas específicas de la Fase 1
 
-La Fase 1 está en ajuste y pendiente de aprobación visual de Marian. Continúa siendo exclusivamente visual, local, móvil primero y con datos completamente ficticios.
+La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. La Fase 2 no está iniciada y su código permanece sin autorización.
 
 Permitido:
 
@@ -596,6 +596,7 @@ Actualizar `AGENTS.md` cuando cambie:
 - Código modificado: sí, exclusivamente prototipo visual de Fase 1.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: Fase 1 · Arquitectura visual integrada en Programming EVO.
-- Fase 1: arquitectura documentada y pendiente de nueva aprobación visual de Marian.
-- Código autorizado: no; el prototipo permanece detenido hasta recibir aprobación.
+- Fase activa: ninguna.
+- Fase 1: cerrada, aprobada y respaldada en GitHub.
+- Fase 2: preparada documentalmente y pendiente de aprobación.
+- Código autorizado: no; no iniciar la Fase 2 hasta recibir aprobación.

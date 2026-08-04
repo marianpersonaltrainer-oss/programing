@@ -84,7 +84,7 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 | Fase | Resultado visible | Datos | Integraciones |
 |---|---|---|---|
 | 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
-| 2 | Flujo completo simulado | Mock data | Ninguna |
+| 2 · Pendiente de aprobación | Turno mínimo funcional | Persistencia mínima con datos sintéticos | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -273,70 +273,88 @@ Recorrer visualmente Programming EVO, entender la operativa especial del turno y
 
 ---
 
-# Fase 2 · Flujo simulado con mock data
+# Fase 2 · Turno mínimo funcional
+
+**Estado:** preparada documentalmente y pendiente de aprobación.
+
+**Código autorizado:** no.
 
 ## Objetivo
 
-Validar reglas y estados sin base de datos.
+Convertir el prototipo visual en un único flujo funcional de turno, primero en local o staging, sin integrar todavía WodBuster.
+
+## Flujo que debe poder probarse
+
+`Iniciar turno → registrar hora y entrenador → completar apertura → consultar información especial → registrar incidencia o feedback operativo → completar caja, relevo o cierre → cerrar turno → Dirección ve únicamente las excepciones.`
 
 ## Qué se construye
 
-Simulación local de:
+- persistencia mínima de un turno;
+- entrenador responsable;
+- hora prevista;
+- hora registrada;
+- estado de puntualidad;
+- apertura;
+- máximo tres tareas críticas;
+- incidencia;
+- feedback operativo;
+- cierre o relevo;
+- vista de excepciones de Dirección;
+- datos sintéticos;
+- permisos mínimos de prueba.
 
-- primer pago;
-- alta iniciada;
-- responsable asignado;
-- ficha preparada;
-- primera reserva;
-- entrenador informado;
-- primera asistencia;
-- briefing;
-- seguimiento;
-- excepción;
-- caso cerrado.
-
-Casos negativos:
-
-- pago devuelto;
-- pagó y no reservó;
-- cancelación;
-- no-show;
-- incidencia.
+La tecnología concreta de persistencia y permisos no queda autorizada por esta definición. Antes de implementarla deberá superarse la puerta de arquitectura y portabilidad: modelo mínimo de datos, propietarios, límites entre interfaz, núcleo y adaptadores, estrategia de exportación y prueba de sustitución de un conector. Esta preparación documental no autoriza tablas, migraciones, Supabase, API, conectores ni producción.
 
 ## Qué queda fuera
 
-- persistencia real;
-- login real;
+- integración con WodBuster;
+- API pública;
+- Canva;
+- Portal Cliente;
+- KPI completos;
+- evaluación mensual;
+- Ghost Customer;
+- automatizaciones;
 - datos reales;
-- integraciones;
-- avisos reales;
-- permisos de producción;
-- KPI oficiales.
+- producción;
+- migración de clientes;
+- hacer funcionales todas las pantallas de golpe.
 
-## Funcionalidad principal
+## Prueba principal
 
-> El caso cambia de estado correctamente y nunca queda sin responsable o siguiente paso.
+**Funcionalidad:**
 
-## Cómo se prueba
+Completar un turno ficticio de principio a fin y comprobar que Dirección ve la excepción pendiente.
 
-1. Abrir una alta ficticia.
-2. Marcar ficha preparada.
-3. Simular reserva y asistencia.
-4. Cerrar como incorporación validada.
-5. Repetir con seguimiento.
-6. Intentar cerrar sin responsable ni fecha.
-7. Confirmar que el sistema lo impide.
-8. Repetir con Dirección.
-9. Probar cancelación, no-show y pago devuelto.
+**Pasos:**
 
-## Señal para pasar
+1. Entrar como entrenador de prueba.
+2. Iniciar turno.
+3. Ver la hora registrada.
+4. Completar apertura.
+5. Registrar una incidencia ficticia.
+6. Dejar feedback operativo.
+7. Completar cierre o relevo.
+8. Entrar como Dirección.
+9. Comprobar que la incidencia o tarea pendiente aparece con responsable y siguiente acción.
 
-- los tres resultados funcionan;
-- no-show no cuenta como primera clase;
-- pago devuelto cancela el flujo;
-- pagó y no reservó crea acción;
-- no hay cierres incompletos;
-- Marian aprueba reglas y textos.
+**Resultado esperado:**
+
+- el turno queda guardado;
+- los datos siguen al recargar;
+- cada acción tiene responsable y hora;
+- no existen duplicados;
+- Dirección ve solo excepciones;
+- el cierre solo se bloquea por tareas críticas propias;
+- no hay conexiones con WodBuster ni producción.
+
+## Condición para avanzar
+
+- flujo probado en pantalla;
+- persistencia correcta;
+- cero duplicados;
+- build y tests correctos;
+- aprobación visual de Marian.
 
 ---
 
@@ -767,9 +785,9 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - Fase activa: ninguna.
 - Fase 1: cerrada y aprobada por Marian.
 - Fase 2: no iniciada.
-- Trabajo autorizado actual: cierre documental y commit de Fase 1.
+- Trabajo autorizado actual: definición documental de Fase 2; implementación no autorizada.
 - Código autorizado después del cierre: no.
 - Código modificado: sí, exclusivamente prototipo visual de Fase 1.
 - Producción modificada: no.
 - Condición para iniciar Fase 1: cumplida.
-- Condición para iniciar Fase 2: no autorizada.
+- Condición para iniciar Fase 2: pendiente de aprobación de Marian y de superar la puerta previa a cualquier persistencia.

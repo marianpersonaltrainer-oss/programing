@@ -3,7 +3,7 @@
 
 **Estado:** documento vivo
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-turno-minimo`
+**Rama de preparación:** `feature/equipo-evo-f2-1-refinamiento-visual`
 **Objetivo:** indicar cómo ejecutar, comprobar y modificar el proyecto sin romper producción ni ampliar alcance.
 
 ---
@@ -802,7 +802,8 @@ Actualizar `AGENTS.md` cuando cambie:
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo local de Fase 2.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: Fase 2 en revisión.
+- Fase activa: Fase 2.1 implementada y en revisión visual.
 - Fase 1: cerrada, aprobada y respaldada en GitHub.
-- Fase 2: implementada en `feature/equipo-evo-f2-turno-minimo` y pendiente de decisión de Marian.
-- Código autorizado: solo ajustes de Fase 2 si Dirección los solicita; no iniciar Fase 3.
+- Fase 2: aprobada funcionalmente por Marian.
+- Fase 2.1: implementada en `feature/equipo-evo-f2-1-refinamiento-visual` y pendiente de revisión visual de Marian.
+- Código autorizado: solo ajustes visuales de Fase 2.1 si Dirección los solicita; no modificar dominio, persistencia o Fase 3.

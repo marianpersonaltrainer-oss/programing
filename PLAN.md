@@ -1,11 +1,11 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 2 implementada y pendiente de decisión de Dirección
+**Estado:** documento vivo · Fase 2 aprobada funcionalmente · Fase 2.1 implementada y pendiente de revisión visual
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-turno-minimo`
-**Código autorizado:** Fase 2 ejecutada conforme a la autorización expresa de Marian del 4 de agosto de 2026
-**Fase activa:** Fase 2 en revisión · no iniciar Fase 3
+**Rama de preparación:** `feature/equipo-evo-f2-1-refinamiento-visual`
+**Código autorizado:** Fase 2.1 exclusivamente visual, autorizada por Marian el 5 de agosto de 2026
+**Fase activa:** Fase 2.1 en revisión · no iniciar Fase 3
 
 ---
 
@@ -84,7 +84,8 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 | Fase | Resultado visible | Datos | Integraciones |
 |---|---|---|---|
 | 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
-| 2 · En revisión | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
+| 2 · Aprobada funcionalmente | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
+| 2.1 · En revisión | Refinamiento visual de Operativa y Mi turno implementado | Sin cambios | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -275,7 +276,7 @@ Recorrer visualmente Programming EVO, entender la operativa especial del turno y
 
 # Fase 2 · Turno mínimo funcional
 
-**Estado:** implementada y pendiente de decisión de Dirección.
+**Estado:** aprobada funcionalmente por Marian el 5 de agosto de 2026; requiere refinamiento visual.
 
 **Código autorizado:** sí; autorización expresa de Marian del 4 de agosto de 2026.
 
@@ -384,13 +385,90 @@ Completar un turno ficticio de principio a fin y comprobar que Dirección ve la 
 
 **Recomendación técnica:** `Aprobada`.
 
-**Decisión de Dirección:** pendiente de Marian; no iniciar Fase 3.
+**Decisión de Dirección:** funcionalmente `Aprobada`; la interfaz pasa a Fase 2.1 antes de cerrar la revisión visual.
 
 ## Condición para avanzar
 
 - flujo probado en pantalla;
 - persistencia correcta;
 - cero duplicados;
+- build y tests correctos;
+- aprobación visual de Marian.
+
+---
+
+# Fase 2.1 · Refinamiento visual de Operativa
+
+**Estado:** implementada y pendiente de revisión visual de Marian.
+
+## Objetivo
+
+Mantener íntegra la funcionalidad validada de Fase 2 y hacer que `Mi turno` sea más claro, ligero, guiado y coherente con EVO.
+
+## Alcance autorizado
+
+- menú lateral y cabecera oscuros;
+- área principal clara con lila `#F6E8F9`, amarillo cálido `#FFFFE2` y blanco;
+- resumen compacto del turno;
+- una única tarjeta principal `Ahora` con la siguiente acción;
+- casos especiales como lista compacta de máximo tres elementos;
+- acciones de registro visualmente subordinadas;
+- cierre como acción principal únicamente cuando corresponde;
+- menos encabezados, bordes, píldoras, altura y textos repetidos;
+- objetivos táctiles mínimos de 44 px;
+- Oswald para títulos y Montserrat para lectura;
+- presentación sintética `Fuera del horario de prueba` cuando la prueba se ejecuta lejos del horario ficticio.
+
+## Límites
+
+- no cambiar reglas de negocio;
+- no modificar dominio, servicio, hook de flujo, adaptador, almacenamiento ni tests funcionales;
+- no añadir Supabase, login, WodBuster, integraciones, datos reales ni producción;
+- no modificar `/`, `?coach`, `?v2` ni avanzar a Fase 3.
+
+## Prueba visual principal
+
+**Funcionalidad:**
+
+Completar el turno mínimo con una jerarquía visual guiada y comprobar que la misma progresión funciona a 1440 px y aproximadamente 390 px.
+
+**Pasos:**
+
+1. Abrir `?incorporaciones` sin turno y localizar una única acción principal para iniciarlo.
+2. Iniciar turno y confirmar que `Ahora` muestra solo la siguiente tarea accionable.
+3. Completar apertura y briefing; registrar incidencia y feedback mediante controles secundarios.
+4. Confirmar que el cierre gana jerarquía solo cuando corresponde y cerrar el turno.
+5. Recargar y comprobar persistencia, prevención de duplicados y excepción de Dirección.
+6. Repetir la inspección visual a 1440 px y 390 px.
+
+**Resultado esperado:**
+
+- la siguiente acción se identifica inmediatamente;
+- existe una única acción principal visible por bloque;
+- el área de trabajo es clara y la navegación permanece oscura;
+- responsable y estado no se repiten innecesariamente;
+- las tarjetas y listas son compactas;
+- la funcionalidad, persistencia, prevención de duplicados y vista de Dirección permanecen intactas;
+- tests y build son correctos.
+
+**Resultado real:** superada el 5 de agosto de 2026. A 1440 px, el área clara presenta un resumen compacto y una única tarjeta `Ahora`; a 390 px mantiene la misma secuencia en lectura lineal y objetivos táctiles de 44 px. El recorrido completo permitió iniciar, completar apertura, consultar briefing, registrar una incidencia, preparar el cierre y cerrar el turno. Tras recargar, el turno permaneció cerrado, no reapareció la acción de inicio y Dirección mostró únicamente la incidencia abierta. Al ejecutar fuera de la franja ficticia se mostró `Fuera del horario de prueba` sin modificar la puntualidad almacenada.
+
+**Pruebas automáticas ejecutadas:**
+
+```text
+npm run test:ci → 53 archivos y 325 tests correctos; build Vite correcto
+```
+
+**Incidencias:** la captura de página completa del navegador local no respetó el lienzo emulado; se repitió como captura del viewport. No afectó al render, cuyas dimensiones CSS verificadas fueron 1440 × 1000 y 390 × 844.
+
+**Producción modificada:** No.
+
+**Decisión de Dirección:** pendiente de revisión visual de Marian; no iniciar Fase 3.
+
+## Condición de cierre
+
+- prueba visual superada en escritorio y móvil;
+- flujo funcional completo sin regresiones;
 - build y tests correctos;
 - aprobación visual de Marian.
 
@@ -820,10 +898,11 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 2 en revisión.
+- Fase activa: Fase 2.1 implementada y en revisión visual.
 - Fase 1: cerrada y aprobada por Marian.
-- Fase 2: implementada y pendiente de decisión visual de Marian.
-- Trabajo autorizado actual: correcciones de Fase 2 dentro de la rama si Dirección decide `Ajustar`.
+- Fase 2: aprobada funcionalmente por Marian.
+- Fase 2.1: implementada en `feature/equipo-evo-f2-1-refinamiento-visual` y pendiente de revisión visual de Marian.
+- Trabajo autorizado actual: solo ajustes visuales de Fase 2.1 si Dirección los solicita.
 - Código autorizado después del cierre: no iniciar Fase 3.
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.
 - Producción modificada: no.

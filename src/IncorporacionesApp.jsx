@@ -52,13 +52,24 @@ function formatTime(value) {
   return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
+function formatSandboxPunctuality(shift) {
+  const started = new Date(shift.startedAt)
+  const startedMinutes = started.getHours() * 60 + started.getMinutes()
+  const [startHours, startMinutes] = shift.scheduledStart.split(':').map(Number)
+  const [endHours, endMinutes] = shift.scheduledEnd.split(':').map(Number)
+  const scheduledStart = startHours * 60 + startMinutes
+  const scheduledEnd = endHours * 60 + endMinutes
+  const isInsideTestWindow = startedMinutes >= scheduledStart - 30 && startedMinutes <= scheduledEnd
+  return isInsideTestWindow ? shift.punctuality.label : 'Fuera del horario de prueba'
+}
+
 function PrimaryButton({ children, onClick, icon = 'arrow', className = '', disabled = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#A729AD] px-5 py-3 text-base font-extrabold text-white shadow-[0_14px_35px_rgba(167,41,173,0.24)] transition hover:bg-[#BC35C3] focus:outline-none focus:ring-2 focus:ring-[#FFFF4C] focus:ring-offset-2 focus:ring-offset-[#0C0B0C] active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#6D596E] disabled:shadow-none ${className}`}
+      className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#A729AD] px-5 py-3 text-base font-extrabold text-white shadow-[0_8px_20px_rgba(167,41,173,0.18)] transition hover:bg-[#902395] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D] focus:ring-offset-2 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#A99DAA] disabled:shadow-none ${className}`}
     >
       {children}
       <Icon name={icon} className="h-5 w-5" />
@@ -68,27 +79,23 @@ function PrimaryButton({ children, onClick, icon = 'arrow', className = '', disa
 
 function QuickActionButton({ children, onClick, icon, disabled = false }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-12 items-center gap-3 rounded-xl border border-white/12 bg-white/[0.035] px-4 py-3 text-left text-base font-bold text-white/80 transition hover:border-[#A729AD]/70 hover:bg-[#A729AD]/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]/70 disabled:cursor-not-allowed disabled:opacity-40">
-      <Icon name={icon} className="h-5 w-5 shrink-0 text-[#C86CCE]" />
+    <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-11 items-center gap-3 rounded-xl border border-[#DCCEDD] bg-white px-4 py-3 text-left text-base font-bold text-[#5A3C5D] transition hover:border-[#A729AD] hover:bg-[#FBF2FC] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]/40 disabled:cursor-not-allowed disabled:opacity-40">
+      <Icon name={icon} className="h-5 w-5 shrink-0 text-[#A729AD]" />
       <span>{children}</span>
     </button>
   )
 }
 
 function LightCard({ children, className = '' }) {
-  return <div className={`rounded-[1.5rem] border border-[#E4D8E5] bg-[#FBF8FB] p-5 text-[#241526] shadow-[0_18px_55px_rgba(34,20,39,0.08)] sm:p-6 ${className}`}>{children}</div>
+  return <div className={`rounded-2xl border border-[#E4D8E5] bg-white p-4 text-[#241526] shadow-[0_8px_24px_rgba(34,20,39,0.06)] sm:p-5 ${className}`}>{children}</div>
 }
 
 function ScreenHeading({ eyebrow, title, detail }) {
   return (
-    <div className="mb-6">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-[#A729AD]/30 bg-[#A729AD]/10 px-3 py-1 text-base font-bold text-[#E48AE9]">Sandbox Fase 2</span>
-        <span className="text-base font-semibold text-white/50">Persistencia local · Datos ficticios</span>
-      </div>
-      <p className="text-base font-bold text-[#C86CCE]">{eyebrow}</p>
-      <h1 className="mt-1 font-evo-display text-4xl font-semibold tracking-wide text-white sm:text-5xl">{title}</h1>
-      {detail && <p className="mt-2 max-w-2xl text-base leading-7 text-white/65">{detail}</p>}
+    <div className="mb-5">
+      <p className="text-sm font-bold text-[#A729AD]">{eyebrow}</p>
+      <h1 className="mt-1 font-evo-display text-4xl font-semibold tracking-wide text-[#241526] sm:text-5xl">{title}</h1>
+      {detail && <p className="mt-1 max-w-2xl text-base leading-7 text-[#6E5A71]">{detail}</p>}
     </div>
   )
 }
@@ -226,57 +233,84 @@ function StartShiftCard({ onStart }) {
 }
 
 function TodayScreen({ flow, onAction, onOpenProtocol }) {
-  const [endOpen, setEndOpen] = useState(false)
   const shift = flow.currentShift
+
+  const nextAction = (() => {
+    if (!shift || shift.status === 'closed') return null
+    const opening = shift.tasks.find((task) => task.id === 'opening')
+    const briefingTask = shift.tasks.find((task) => task.id === 'briefing')
+    if (opening?.status !== 'completed') {
+      return {
+        eyebrow: 'Primero',
+        title: 'Confirma la apertura',
+        detail: opening.detail,
+        button: 'Confirmar apertura',
+        action: () => flow.completeTask('opening'),
+        secondary: <button type="button" onClick={() => onOpenProtocol('opening')} className="min-h-11 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4">Consultar protocolo</button>,
+      }
+    }
+    if (briefingTask?.status !== 'completed') {
+      return {
+        eyebrow: 'Antes de la clase',
+        title: 'Revisa el briefing especial',
+        detail: briefingTask.detail,
+        button: 'Abrir briefing',
+        action: () => onAction('briefing'),
+      }
+    }
+    if (!shift.endPreparation) {
+      return {
+        eyebrow: 'Fin del turno',
+        title: 'Completa el cierre o relevo',
+        detail: 'Las tareas críticas están completas. Deja preparado el final del turno.',
+        button: 'Preparar cierre o relevo',
+        action: () => onAction('handover'),
+      }
+    }
+    return {
+      eyebrow: 'Último paso',
+      title: 'Cierra el turno',
+      detail: `${shift.endPreparation.mode === 'handover' ? 'Relevo' : 'Cierre'} preparado a las ${formatTime(shift.endPreparation.completedAt)}.`,
+      button: 'Cerrar turno',
+      action: flow.close,
+    }
+  })()
 
   return (
     <div>
-      <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno operativo' : 'Inicia tu turno'} detail="Un único flujo local, con responsables y horas, sin conexiones externas." />
+      <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno' : 'Inicia tu turno'} detail={shift ? 'Lo importante, en el orden en que toca resolverlo.' : 'Elige una franja para comenzar la prueba local.'} />
       {!shift && <StartShiftCard onStart={flow.start} />}
 
       {shift && (
-        <div className="space-y-5">
-          <section aria-label="Resumen del turno" className="rounded-2xl border border-[#A729AD]/30 bg-[#1B121C] p-4 sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div><p className="text-base font-bold text-[#FFFF4C]">{shift.status === 'closed' ? 'Turno cerrado' : 'Turno actual'}</p><h2 className="mt-1 font-evo-display text-2xl font-semibold text-white">{shift.label} · {shift.scheduledStart}–{shift.scheduledEnd}</h2><p className="mt-2 text-base text-white/65">{shift.trainerName} · Entrada {formatTime(shift.startedAt)} · {shift.punctuality.label}</p></div>
-              <StatusBadge status={shift.status === 'closed' ? 'completed' : shift.punctuality.status === 'late' ? 'overdue' : 'completed'}>{shift.status === 'closed' ? 'Cerrado' : shift.punctuality.label}</StatusBadge>
+        <div className="space-y-6">
+          <section aria-label="Resumen del turno" className="rounded-2xl border border-[#E1D3E3] bg-white px-4 py-3 shadow-[0_4px_16px_rgba(34,20,39,0.04)] sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="font-evo-display text-2xl font-semibold text-[#241526]">{shift.label} · {shift.scheduledStart}–{shift.scheduledEnd}</h2><p className="text-sm font-semibold text-[#79677C]">{shift.trainerName} · entrada {formatTime(shift.startedAt)}</p></div>
+              <p className={`text-sm font-bold ${shift.status === 'closed' ? 'text-emerald-700' : 'text-[#6A1F6D]'}`}>{shift.status === 'closed' ? 'Turno cerrado' : formatSandboxPunctuality(shift)}</p>
             </div>
-            <div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-[#A729AD] to-[#FFFF4C]" style={{ width: `${getShiftProgress(shift)}%` }} /></div><strong className="text-base text-white">{getShiftProgress(shift)}%</strong></div>
+            <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#EEE3EF]"><div className="h-full rounded-full bg-gradient-to-r from-[#A729AD] to-[#FFFF4C]" style={{ width: `${getShiftProgress(shift)}%` }} /></div><strong className="text-sm text-[#6A1F6D]">{getShiftProgress(shift)}%</strong></div>
           </section>
 
-          <section>
-            <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-base font-bold text-[#C86CCE]">Ahora</p><h2 className="font-evo-display text-3xl font-semibold text-white">Tres tareas como máximo</h2></div><span className="text-base text-white/45">{shift.tasks.filter((task) => task.critical).length} críticas</span></div>
-            <LightCard className="divide-y divide-[#E4D8E5] !p-0">
-              {shift.tasks.map((task) => (
-                <div key={task.id} className={`p-4 sm:p-5 ${task.critical ? 'bg-[#FBF0FC]' : ''}`}>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-evo-display text-xl font-semibold">{task.title}</h3><StatusBadge status={task.status}>{statusLabels[task.status]}</StatusBadge>{task.critical && <span className="text-base font-bold text-rose-700">Crítica propia</span>}</div><p className="mt-1 text-base leading-6 text-[#604B63]">{task.detail}</p><p className="mt-2 text-base font-semibold text-[#806E82]">{task.ownerName}{task.completedAt ? ` · ${formatTime(task.completedAt)}` : ''}</p></div>
-                    {task.id === 'opening' && <div className="w-full shrink-0 sm:w-56"><PrimaryButton icon="check" disabled={task.status === 'completed' || shift.status === 'closed'} onClick={() => flow.completeTask('opening')}>{task.status === 'completed' ? 'Apertura confirmada' : 'Confirmar apertura'}</PrimaryButton></div>}
-                    {task.id === 'briefing' && <button type="button" disabled={shift.status === 'closed'} onClick={() => onAction('briefing')} className="min-h-12 shrink-0 text-left text-base font-bold text-[#6A1F6D] underline decoration-[#A729AD] underline-offset-4 disabled:opacity-40">{task.status === 'completed' ? 'Reabrir briefing' : 'Abrir briefing'}</button>}
-                    {task.id === 'feedback' && <button type="button" disabled={shift.status === 'closed'} onClick={() => onAction('feedback')} className="min-h-12 shrink-0 text-left text-base font-bold text-[#6A1F6D] underline decoration-[#A729AD] underline-offset-4 disabled:opacity-40">{task.status === 'completed' ? 'Añadir feedback' : 'Dejar feedback'}</button>}
-                  </div>
-                  {task.id === 'opening' && <button type="button" onClick={() => onOpenProtocol('opening')} className="mt-2 min-h-11 text-base font-bold text-[#6A1F6D] underline decoration-[#A729AD] underline-offset-4">Ver protocolo de apertura</button>}
-                </div>
-              ))}
-            </LightCard>
+          <section aria-labelledby="now-title" className={`rounded-2xl border p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6 ${shift.status === 'closed' ? 'border-emerald-200 bg-white' : 'border-[#E4CDE6] bg-[#FFFFE2]'}`}>
+            <p className={`text-sm font-extrabold uppercase tracking-[0.14em] ${shift.status === 'closed' ? 'text-emerald-700' : 'text-[#A729AD]'}`}>Ahora</p>
+            {nextAction ? <><p className="mt-3 text-sm font-bold text-[#806E82]">{nextAction.eyebrow}</p><h2 id="now-title" className="mt-1 font-evo-display text-3xl font-semibold text-[#241526] sm:text-4xl">{nextAction.title}</h2><p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">{nextAction.detail}</p><div className="mt-5 max-w-sm"><PrimaryButton icon="check" onClick={nextAction.action}>{nextAction.button}</PrimaryButton></div>{nextAction.secondary && <div className="mt-2">{nextAction.secondary}</div>}</> : <><h2 id="now-title" className="mt-2 font-evo-display text-3xl font-semibold text-[#241526]">Todo listo</h2><p className="mt-2 text-base text-[#604B63]">Turno cerrado por {shift.trainerName} a las {formatTime(shift.closedAt)}. Las excepciones abiertas siguen su curso en Dirección.</p></>}
           </section>
 
-          <section>
-            <div className="mb-3"><p className="text-base font-bold text-[#C86CCE]">Casos especiales de hoy</p><h2 className="font-evo-display text-3xl font-semibold text-white">Solo lo que debes saber</h2></div>
-            <div className="overflow-hidden rounded-2xl border border-[#E4D8E5] bg-[#FBF8FB] text-[#241526]">{specialNotices.map((notice) => <div key={notice.type} className="flex flex-col gap-2 border-b border-[#E4D8E5] px-4 py-3 last:border-0 sm:flex-row sm:items-center"><div className="flex items-center gap-3 sm:w-56"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${notice.status === 'overdue' ? 'bg-rose-500' : notice.status === 'exception' ? 'bg-fuchsia-500' : 'bg-amber-500'}`} /><p className="text-base font-bold text-[#6A1F6D]">{notice.type}</p></div><div className="min-w-0 flex-1"><p className="text-base font-bold">{notice.title}</p><p className="mt-0.5 text-base leading-6 text-[#604B63]">{notice.detail}</p></div></div>)}</div>
+          <section aria-labelledby="information-title">
+            <div className="mb-2 flex items-baseline justify-between gap-3"><h2 id="information-title" className="font-evo-display text-2xl font-semibold text-[#241526]">Información especial</h2><span className="text-sm font-semibold text-[#806E82]">{specialNotices.slice(0, 3).length} casos</span></div>
+            <div className="overflow-hidden rounded-2xl border border-[#E2D6E3] bg-white">{specialNotices.slice(0, 3).map((notice) => <div key={notice.type} className="grid gap-1 border-b border-[#EEE5EF] px-4 py-3 last:border-0 sm:grid-cols-[11rem_1fr] sm:gap-4"><p className="text-sm font-bold text-[#A729AD]">{notice.type}</p><div><p className="text-base font-bold text-[#332036]">{notice.title}</p><p className="mt-0.5 text-sm leading-6 text-[#6E5A71]">{notice.detail}</p></div></div>)}</div>
           </section>
 
-          <section>
-            <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-base font-bold text-[#C86CCE]">Registrar</p><h2 className="font-evo-display text-3xl font-semibold text-white">Acciones rápidas</h2></div><span className="text-base font-bold text-white/45">Sin WodBuster</span></div>
-            <div className="grid gap-2 sm:grid-cols-2">{quickActions.map((item) => <QuickActionButton key={item.id} icon={item.icon} disabled={shift.status === 'closed'} onClick={() => onAction(item.id)}>{item.id === 'handover' ? 'Completar cierre o relevo' : item.label}</QuickActionButton>)}</div>
+          <section aria-labelledby="register-title">
+            <div className="mb-2"><h2 id="register-title" className="font-evo-display text-2xl font-semibold text-[#241526]">Registrar</h2><p className="text-sm text-[#806E82]">Solo si ha ocurrido algo que deba quedar visible.</p></div>
+            <div className="grid gap-2 sm:grid-cols-3">{quickActions.filter((item) => item.id !== 'handover').map((item) => <QuickActionButton key={item.id} icon={item.icon} disabled={shift.status === 'closed'} onClick={() => onAction(item.id)}>{item.label}</QuickActionButton>)}</div>
           </section>
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-[#171217] p-5 sm:p-6">
-            <button type="button" onClick={() => setEndOpen((value) => !value)} aria-expanded={endOpen} className="flex min-h-12 w-full items-center justify-between gap-4 text-left"><span><span className="block text-base font-bold text-[#C86CCE]">Fin del turno</span><span className="mt-1 block font-evo-display text-2xl font-semibold text-white">Cierre o relevo</span></span><Icon name={endOpen ? 'back' : 'arrow'} className={`h-6 w-6 text-[#FFFF4C] ${endOpen ? 'rotate-90' : ''}`} /></button>
-            {endOpen && <div className="mt-5 space-y-3"><div className="rounded-xl border border-white/10 p-4"><p className="text-base font-bold text-white">Tareas críticas propias</p><p className="mt-1 text-base text-white/60">{getOwnCriticalBlockers(shift, shift.trainerId).length === 0 ? 'Todas completadas' : `${getOwnCriticalBlockers(shift, shift.trainerId).length} pendientes`}</p></div><div className="rounded-xl border border-white/10 p-4"><p className="text-base font-bold text-white">Preparación del fin de turno</p><p className="mt-1 text-base text-white/60">{shift.endPreparation ? `${shift.endPreparation.mode === 'handover' ? 'Relevo' : 'Cierre'} · ${shift.endPreparation.completedByName} · ${formatTime(shift.endPreparation.completedAt)}` : 'Pendiente'}</p></div><div className="grid gap-2 sm:grid-cols-2"><button type="button" disabled={shift.status === 'closed'} onClick={() => onAction('handover')} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/20 px-4 text-base font-bold text-white hover:bg-white/5 disabled:opacity-40">Completar cierre o relevo <Icon name="arrow" className="h-5 w-5 text-[#FFFF4C]" /></button><PrimaryButton icon="check" disabled={shift.status === 'closed'} onClick={flow.close}>{shift.status === 'closed' ? 'Turno cerrado' : 'Cerrar turno'}</PrimaryButton></div>{shift.status === 'closed' && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-4 text-base font-semibold text-emerald-100">Cerrado por {shift.trainerName} a las {formatTime(shift.closedAt)}. Las incidencias abiertas no han bloqueado el cierre.</p>}</div>}
+          <section aria-labelledby="close-title" className="border-t border-[#DCCEDD] pt-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 id="close-title" className="font-evo-display text-2xl font-semibold text-[#241526]">Cierre</h2><p className="mt-1 text-sm text-[#6E5A71]">{shift.status === 'closed' ? `Completado a las ${formatTime(shift.closedAt)}` : getOwnCriticalBlockers(shift, shift.trainerId).length === 0 ? shift.endPreparation ? 'Preparado; aparece arriba como siguiente acción.' : 'Disponible como siguiente acción.' : `${getOwnCriticalBlockers(shift, shift.trainerId).length} tareas críticas antes de cerrar.`}</p></div><p className="text-sm font-bold text-[#806E82]">{shift.endPreparation ? `${shift.endPreparation.mode === 'handover' ? 'Relevo' : 'Cierre'} · ${formatTime(shift.endPreparation.completedAt)}` : 'Sin preparar'}</p></div>
           </section>
 
-          <button type="button" onClick={flow.reset} className="min-h-12 text-base font-bold text-white/60 underline underline-offset-4 hover:text-white">Reiniciar datos sintéticos</button>
+          <button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button>
         </div>
       )}
     </div>
@@ -298,7 +332,7 @@ function ProtocolsScreen({ initialProtocol }) {
 
 function EvolutionScreen() {
   const [showDetail, setShowDetail] = useState(false)
-  return <div><ScreenHeading eyebrow="Mi turno · Mi evolución" title="Una lectura breve" detail="Operativa diaria separada de la evaluación de calidad de clase." /><div className="grid gap-3 md:grid-cols-2">{evolutionSummary.slice(0, showDetail ? evolutionSummary.length : 3).map((item) => <LightCard key={item.label}><div className="flex items-start justify-between gap-3"><p className="text-base font-bold text-[#A729AD]">{item.label}</p><StatusBadge status={item.status}>{statusLabels[item.status]}</StatusBadge></div><p className="mt-3 font-evo-display text-3xl font-semibold">{item.value}</p><p className="mt-2 text-base text-[#604B63]">{item.detail}</p></LightCard>)}</div>{!showDetail && <button type="button" onClick={() => setShowDetail(true)} className="mt-5 min-h-12 text-base font-bold text-[#FFFF4C] underline underline-offset-4">Ver evaluación y foco de mejora</button>}</div>
+  return <div><ScreenHeading eyebrow="Mi turno · Mi evolución" title="Una lectura breve" detail="Operativa diaria separada de la evaluación de calidad de clase." /><div className="grid gap-3 md:grid-cols-2">{evolutionSummary.slice(0, showDetail ? evolutionSummary.length : 3).map((item) => <LightCard key={item.label}><div className="flex items-start justify-between gap-3"><p className="text-base font-bold text-[#A729AD]">{item.label}</p><StatusBadge status={item.status}>{statusLabels[item.status]}</StatusBadge></div><p className="mt-3 font-evo-display text-3xl font-semibold">{item.value}</p><p className="mt-2 text-base text-[#604B63]">{item.detail}</p></LightCard>)}</div>{!showDetail && <button type="button" onClick={() => setShowDetail(true)} className="mt-5 min-h-11 text-base font-bold text-[#6A1F6D] underline underline-offset-4">Ver evaluación y foco de mejora</button>}</div>
 }
 
 function OperationsScreen({ exceptions }) {
@@ -356,22 +390,21 @@ export default function IncorporacionesApp() {
   else screen = <OperationsScreen exceptions={exceptions} />
 
   return (
-    <div className="min-h-[100dvh] bg-[#0C0B0C] font-evo-body text-[#F6E8F9] selection:bg-[#A729AD]/40">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(167,41,173,0.16),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(106,31,109,0.11),transparent_35%)]" />
+    <div className="min-h-[100dvh] bg-[#F6E8F9] font-evo-body text-[#241526] selection:bg-[#A729AD]/25">
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[1480px]">
         <aside className="sticky top-0 hidden h-[100dvh] w-72 shrink-0 flex-col border-r border-white/10 bg-[#0C0B0C]/92 px-5 py-6 backdrop-blur-xl lg:flex">
           <div className="flex items-center gap-3 px-2"><EvoLogo imgClassName="h-10 w-auto object-contain" /><div><p className="font-evo-display text-xl font-bold uppercase tracking-[0.12em] text-white">Programming EVO</p><p className="text-base font-bold text-[#C86CCE]">Entrenador y operativa</p></div></div>
           <nav aria-label={`Áreas de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="mt-10 space-y-2">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => setGlobalArea(item.id)} className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-base font-bold transition focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]/70 ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/65 hover:bg-white/[0.06] hover:text-white'}`}><Icon name={item.icon} className="h-5 w-5" />{item.label}</button>)}</nav>
-          {context === 'coach' && globalArea === 'shift' && <nav aria-label="Áreas de Mi turno" className="mt-5 border-l border-white/15 pl-4">{shiftNavigation.map((item) => <button key={item.id} type="button" onClick={() => { setProtocolToOpen(null); setShiftArea(item.id) }} className={`min-h-12 w-full rounded-xl px-3 text-left text-base font-semibold ${shiftArea === item.id ? 'bg-white/10 text-[#FFFF4C]' : 'text-white/55 hover:text-white'}`}>{item.label}</button>)}</nav>}
-          <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-base font-bold text-[#FFFF4C]">Fase 2 local</p><p className="mt-2 text-base leading-6 text-white/55">Datos ficticios · Sin conexión · Reiniciables</p></div>
+          {context === 'coach' && globalArea === 'shift' && <nav aria-label="Áreas de Mi turno" className="mt-5 border-l border-white/15 pl-4">{shiftNavigation.map((item) => <button key={item.id} type="button" onClick={() => { setProtocolToOpen(null); setShiftArea(item.id) }} className={`min-h-11 w-full rounded-xl px-3 text-left text-base font-semibold ${shiftArea === item.id ? 'bg-white/10 text-white' : 'text-white/55 hover:text-white'}`}>{item.label}</button>)}</nav>}
+          <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-sm font-bold text-[#C86CCE]">Fase 2.1 · Local</p><p className="mt-1 text-sm leading-6 text-white/55">Datos ficticios · Sin conexión</p></div>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-28 lg:pb-0">
-          <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0C0B0C]/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10"><div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-2.5 lg:hidden"><EvoLogo imgClassName="h-9 w-auto object-contain" /><div className="min-w-0"><p className="truncate font-evo-display text-lg font-bold uppercase text-white">Programming EVO</p><p className="truncate text-base font-semibold text-[#C86CCE]">Turno local · Fase 2</p></div></div><div className="flex w-full rounded-xl border border-white/10 bg-white/[0.04] p-1 sm:ml-auto sm:w-auto" aria-label="Cambiar rol simulado">{[['coach', `Entrenador · ${SYNTHETIC_ACTORS.coach.name}`], ['direction', 'Dirección']].map(([id, label]) => <button key={id} type="button" aria-pressed={context === id} onClick={() => changeContext(id)} className={`min-h-12 flex-1 rounded-lg px-3 text-base font-extrabold transition focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]/70 sm:flex-none sm:px-4 ${context === id ? 'bg-white text-[#241526]' : 'text-white/60 hover:text-white'}`}>{label}</button>)}</div></div>{context === 'coach' && globalArea === 'shift' && <nav aria-label="Secciones de Mi turno" className="mx-auto mt-3 flex max-w-6xl gap-1 overflow-x-auto lg:hidden">{shiftNavigation.map((item) => <button key={item.id} type="button" onClick={() => { setProtocolToOpen(null); setShiftArea(item.id) }} className={`min-h-12 shrink-0 rounded-xl px-4 text-base font-bold ${shiftArea === item.id ? 'bg-[#A729AD] text-white' : 'bg-white/[0.05] text-white/65'}`}>{item.label}</button>)}</nav>}</header>
+        <div className="min-w-0 flex-1 bg-[linear-gradient(145deg,#F6E8F9_0%,#FFFFE2_55%,#FFFFFF_100%)] pb-28 lg:pb-0">
+          <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0C0B0C]/95 px-4 py-3 text-white backdrop-blur-xl sm:px-6 lg:px-10"><div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-2.5 lg:hidden"><EvoLogo imgClassName="h-9 w-auto object-contain" /><div className="min-w-0"><p className="truncate font-evo-display text-lg font-bold uppercase text-white">Programming EVO</p><p className="truncate text-sm font-semibold text-[#C86CCE]">Mi turno · Fase 2.1</p></div></div><div className="flex w-full rounded-xl border border-white/10 bg-white/[0.04] p-1 sm:ml-auto sm:w-auto" aria-label="Cambiar rol simulado">{[['coach', `Entrenador · ${SYNTHETIC_ACTORS.coach.name}`], ['direction', 'Dirección']].map(([id, label]) => <button key={id} type="button" aria-pressed={context === id} onClick={() => changeContext(id)} className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]/70 sm:flex-none sm:px-4 ${context === id ? 'bg-white text-[#241526]' : 'text-white/60 hover:text-white'}`}>{label}</button>)}</div></div>{context === 'coach' && globalArea === 'shift' && <nav aria-label="Secciones de Mi turno" className="mx-auto mt-3 flex max-w-6xl gap-1 overflow-x-auto lg:hidden">{shiftNavigation.map((item) => <button key={item.id} type="button" onClick={() => { setProtocolToOpen(null); setShiftArea(item.id) }} className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold ${shiftArea === item.id ? 'bg-[#A729AD] text-white' : 'bg-white/[0.05] text-white/65'}`}>{item.label}</button>)}</nav>}</header>
 
           <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
-            {flow.notice && <p role="status" className="mb-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-4 text-base font-semibold text-emerald-100">{flow.notice}</p>}
-            {flow.error && <p role="alert" className="mb-5 rounded-xl border border-rose-300/25 bg-rose-300/10 p-4 text-base font-semibold text-rose-100">{flow.error}</p>}
+            {flow.notice && <p role="status" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{flow.notice}</p>}
+            {flow.error && <p role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">{flow.error}</p>}
             {screen}
           </main>
         </div>

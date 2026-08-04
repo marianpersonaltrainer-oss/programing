@@ -540,6 +540,210 @@ PRD / PLAN / AGENTS
 
 ---
 
+## Modo de ejecución autónoma
+
+Cuando Marian autorice expresamente una fase de `PLAN.md`, Codex puede trabajar de forma autónoma hasta completar su Prueba principal.
+
+Marian no tiene conocimientos técnicos y debe intervenir lo mínimo posible. No debe actuar como intermediaria entre el plan y la ejecución técnica.
+
+### Autonomía técnica por defecto
+
+Cuando Marian autorice una fase de `PLAN.md`, Codex debe ejecutar de forma autónoma todo el trabajo técnico necesario para completar la Prueba principal.
+
+Debe encargarse sin pedir confirmaciones intermedias de:
+
+- inspeccionar el repositorio;
+- decidir la implementación técnica más sencilla compatible con `PRD.md`, `PLAN.md` y `AGENTS.md`;
+- crear y modificar archivos dentro del alcance;
+- ejecutar comandos locales no destructivos;
+- instalar dependencias ya aprobadas por el proyecto;
+- arrancar el servidor local;
+- ejecutar build y tests;
+- diagnosticar errores;
+- corregir fallos;
+- repetir implementación y pruebas;
+- mantener la rama limpia y segura;
+- crear commits pequeños;
+- actualizar la documentación viva;
+- preparar la entrega final de la fase;
+- hacer push únicamente a la rama de trabajo cuando la autorización de la fase lo permita.
+
+No debe pedir permiso para:
+
+- leer archivos del repositorio;
+- editar archivos incluidos en la fase;
+- ejecutar comandos locales no destructivos;
+- ejecutar build y tests;
+- corregir errores normales;
+- crear commits dentro de la rama de trabajo;
+- repetir pruebas hasta que funcionen.
+
+### Regla de autocorrección
+
+Un error técnico normal no es motivo para detenerse ni pedir ayuda a Marian.
+
+Ante un fallo, Codex debe:
+
+1. leer el error completo;
+2. identificar la causa probable;
+3. revisar los archivos relacionados;
+4. intentar la corrección más segura;
+5. volver a ejecutar la prueba;
+6. repetir hasta tres enfoques razonables si fuera necesario;
+7. documentar lo ocurrido en la entrega final.
+
+Incluye aquí:
+
+- errores de compilación;
+- tests fallidos;
+- imports;
+- tipados;
+- rutas;
+- estilos;
+- estados locales;
+- problemas de configuración local no sensibles;
+- conflictos menores dentro de la rama de trabajo.
+
+### Decisiones técnicas
+
+Dentro del alcance aprobado, Codex puede tomar decisiones técnicas reversibles sin consultar a Marian.
+
+Debe elegir siempre:
+
+- la solución más sencilla;
+- la menor cantidad de archivos y dependencias;
+- arquitectura desacoplada;
+- cambios reversibles;
+- pruebas antes de ampliar alcance.
+
+No debe pedir a Marian que elija entre opciones técnicas que ella no necesita comprender.
+
+Si existen varias alternativas equivalentes, debe recomendar y ejecutar una opción principal, indicando la decisión en el informe final.
+
+### Intervención humana mínima
+
+Codex solo debe detenerse cuando sea imprescindible una acción que no pueda ejecutar:
+
+- iniciar sesión en un servicio;
+- introducir o crear una credencial;
+- aceptar un coste;
+- aprobar una decisión de negocio;
+- autorizar una acción irreversible;
+- usar datos reales;
+- tocar producción;
+- ejecutar una migración de producción;
+- conceder permisos del sistema operativo;
+- resolver una contradicción funcional que `PRD.md` y `PLAN.md` no aclaran.
+
+No debe detenerse por dudas técnicas normales.
+
+Debe detenerse también cuando aparezca:
+
+- una contradicción entre `PRD.md`, `PLAN.md`, `AGENTS.md` y el repositorio;
+- una ampliación del alcance;
+- secretos o credenciales;
+- un coste nuevo;
+- una acción destructiva o difícilmente reversible;
+- un fallo que no pueda resolver después de tres intentos razonables.
+
+Nunca puede, sin autorización explícita de Marian:
+
+- hacer merge a `main`;
+- desplegar en producción;
+- borrar datos o archivos relevantes;
+- ejecutar migraciones de producción;
+- activar integraciones reales;
+- utilizar datos de clientes reales;
+- decidir precios, políticas o responsabilidades humanas;
+- avanzar a otra fase de `PLAN.md`.
+
+### Formato obligatorio cuando Marian deba intervenir
+
+Cuando sea imprescindible una acción manual, Codex debe responder únicamente con:
+
+#### Acción manual requerida
+
+**Por qué se ha detenido:**
+[explicación sencilla, sin jerga]
+
+**Qué debe hacer Marian:**
+
+1. [paso exacto]
+2. [botón o campo exacto]
+3. [resultado que debe ver]
+
+**Qué no debe hacer:**
+[acciones peligrosas o innecesarias]
+
+**Qué debe responder después:**
+[una frase concreta como “Hecho” o el texto exacto del error]
+
+Después debe quedar detenido, sin abrir tareas nuevas.
+
+### Permisos de Cursor
+
+Cuando Cursor requiera autorización para comandos seguros:
+
+- agrupar el mayor número posible de comandos relacionados;
+- solicitar una sola aprobación;
+- explicar en una frase qué ejecutará;
+- no pedir una autorización por archivo o prueba;
+- no utilizar comandos destructivos para evitar pedir permiso.
+
+### Final de fase
+
+Codex no debe detenerse hasta que:
+
+- la funcionalidad principal esté terminada;
+- el build sea correcto;
+- los tests aplicables sean correctos;
+- la Prueba principal esté ejecutada;
+- `PLAN.md` refleje el resultado real;
+- los commits de la fase estén creados;
+- el estado de Git sea conocido;
+- exista una única decisión para Marian: `Aprobada`, `Ajustar` o `Pausar`.
+
+No debe iniciar la fase siguiente automáticamente.
+
+Al finalizar una fase debe devolver:
+
+#### Prueba principal
+
+- Funcionalidad.
+- Pasos.
+- Resultado esperado.
+- Resultado real.
+- Incidencias.
+- Archivos modificados.
+- Build y tests ejecutados.
+- Commits y rama.
+- Cambios realizados en `PRD.md` o `PLAN.md`.
+- Decisión que necesita Marian.
+
+### Relación con Marian
+
+Marian define y aprueba:
+
+- el problema;
+- el resultado esperado;
+- las decisiones de negocio;
+- el inicio y cierre de cada fase.
+
+Codex asume:
+
+- toda la ejecución técnica intermedia;
+- diagnóstico y corrección de errores;
+- pruebas;
+- documentación;
+- commits;
+- preparación de la revisión.
+
+Regla final:
+
+Marian no debe copiar comandos, interpretar errores ni decidir cómo implementar. Cuando necesite ayuda, compartirá el resultado con su asistente de Dirección, que le indicará una única acción concreta.
+
+---
+
 ## 11. Criterios de parada
 
 Detenerse y pedir decisión antes de continuar cuando:

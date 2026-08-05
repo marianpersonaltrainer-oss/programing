@@ -3,7 +3,7 @@
 
 **Estado:** documento vivo
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-1-refinamiento-visual`
+**Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
 **Objetivo:** indicar cómo ejecutar, comprobar y modificar el proyecto sin romper producción ni ampliar alcance.
 
 ---
@@ -342,7 +342,7 @@ No crear tablas durante la Fase 1.
 
 ## 8. Reglas específicas de la Fase 1
 
-La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. La Fase 2 fue autorizada el 4 de agosto de 2026, está implementada en su rama propia y permanece en revisión; Fase 3 continúa sin autorización.
+La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. Las Fases 2 y 2.1 están aprobadas. La Fase 2.2 está autorizada para un registro obligatorio de primera clase, local y sintético; Fase 3 continúa sin autorización.
 
 Permitido:
 
@@ -802,8 +802,9 @@ Actualizar `AGENTS.md` cuando cambie:
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo local de Fase 2.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: Fase 2.1 implementada y en revisión visual.
+- Fase activa: Fase 2.2 · Registro obligatorio de primera clase.
 - Fase 1: cerrada, aprobada y respaldada en GitHub.
 - Fase 2: aprobada funcionalmente por Marian.
-- Fase 2.1: implementada en `feature/equipo-evo-f2-1-refinamiento-visual` y pendiente de revisión visual de Marian.
-- Código autorizado: solo ajustes visuales de Fase 2.1 si Dirección los solicita; no modificar dominio, persistencia o Fase 3.
+- Fase 2.1: aprobada por Marian.
+- Fase 2.2: activa en `feature/equipo-evo-f2-2-registro-primera-clase`.
+- Código autorizado: registro estructurado obligatorio de primera clase con dominio, servicio, persistencia local y pruebas; no modificar integraciones, producción o Fase 3.

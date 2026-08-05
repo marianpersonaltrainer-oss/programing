@@ -1,7 +1,7 @@
 # DESIGN.md
 ## Sistema visual de Programming EVO
 
-**Estado:** documento vivo · Fase 2.1 implementada y pendiente de revisión visual
+**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 activa
 **Producto:** Programming EVO
 **Superficie actual:** sandbox local `?incorporaciones`
 
@@ -56,3 +56,15 @@ El comportamiento es equivalente en escritorio y móvil:
 - navegación máxima de dos niveles;
 - en móvil, controles apilados y lectura lineal sin perder contexto;
 - en escritorio, el ancho adicional mejora respiración y agrupación, pero no añade acciones simultáneas.
+
+### Formulario de primera clase
+
+El registro obligatorio conserva el mismo lenguaje ligero de Operativa:
+
+- tres bloques numerados en una única hoja o diálogo desplazable;
+- una pregunta visible por bloque y opciones táctiles de al menos 44 px;
+- campos opcionales subordinados a su pregunta, sin convertir el formulario en una ficha clínica;
+- validación clara junto al bloque incompleto;
+- una única acción principal `Guardar primera clase` al final;
+- el resumen guardado sustituye el formulario al reabrirlo y muestra responsable y hora sin duplicar etiquetas;
+- comportamiento, orden y contenido equivalentes en escritorio y móvil.

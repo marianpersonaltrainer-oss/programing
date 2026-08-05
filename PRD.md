@@ -1,11 +1,11 @@
 # PRD.md
 ## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · Fase 2 aprobada funcionalmente · Fase 2.1 implementada y pendiente de revisión visual
+**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 activa
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-1-refinamiento-visual`
-**Código autorizado:** Fase 2.1 exclusivamente visual, autorizada por Marian el 5 de agosto de 2026
-**Fase activa:** Fase 2.1 en revisión · no iniciar Fase 3
+**Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
+**Código autorizado:** Fase 2.2 · Registro obligatorio de primera clase, autorizada por Marian el 5 de agosto de 2026
+**Fase activa:** Fase 2.2 · no iniciar Fase 3
 
 ---
 
@@ -302,6 +302,58 @@ Los criterios del Handbook no se convierten en tareas diarias del entrenador.
 
 ---
 
+## 11.1 Registro obligatorio de primera clase · Fase 2.2
+
+El cierre operativo de una primera clase utiliza un único registro estructurado, local y sintético. Debe quedar asociado al entrenador responsable y a la hora de registro, persistir al recargar y no duplicarse si la acción se repite.
+
+El registro contiene exactamente tres bloques:
+
+### 1. Movimiento y técnica
+
+**Pregunta obligatoria:** ¿Cómo se movió durante la clase?
+
+Opciones:
+
+- Se movió bastante bien.
+- Necesita bastante guía y corrección.
+- Tiene poca movilidad o coordinación y hay que estar muy pendiente.
+
+**Campo breve opcional:** ¿Qué movimiento o aspecto debemos seguir trabajando?
+
+### 2. Molestia o lesión
+
+**Pregunta obligatoria:** ¿Cómo respondió la molestia o lesión durante el entrenamiento?
+
+Opciones:
+
+- No tenía molestia.
+- Pudo entrenar sin dolor.
+- Necesita bastantes adaptaciones porque la molestia limita el entrenamiento.
+
+**Campos breves opcionales:**
+
+- Zona de la molestia.
+- Adaptación que funcionó.
+- Observación para el siguiente entrenador.
+
+No se incluye una escala obligatoria de dolor de 0 a 10.
+
+### 3. Trabajo completado
+
+**Pregunta obligatoria:** ¿Qué parte del entrenamiento completó y con qué carga?
+
+Campos:
+
+- Volumen completado: 25 %, 50 %, 75 % o 100 %.
+- Pesos o cargas utilizados.
+- Ejercicios adaptados o sustituidos.
+
+Las tres selecciones principales y los campos de trabajo completado deben informarse antes de guardar. Los campos identificados como opcionales pueden quedar vacíos.
+
+El registro de primera clase es la tercera y última tarea crítica propia del turno sintético. Por tanto, el cierre continúa bloqueándose exclusivamente por tareas críticas propias y se conserva el máximo de tres. No se crea un historial completo de entrenamientos, no se añaden preguntas y no se almacenan diagnósticos clínicos.
+
+---
+
 ## 12. Alcance de la Fase 1
 
 La Fase 1 está cerrada y aprobada. Consistió exclusivamente en un prototipo:
@@ -559,8 +611,9 @@ La primera versión se considera útil cuando:
 - Fase 1 cerrada y aprobada por Marian.
 - Fase 2 autorizada expresamente por Marian el 4 de agosto de 2026.
 - Fase 2 aprobada funcionalmente por Marian el 5 de agosto de 2026.
-- Fase 2.1 implementada para refinar exclusivamente la experiencia visual de Operativa y Mi turno.
-- Fase activa: Fase 2.1 en revisión visual; dominio, reglas, persistencia y adaptador permanecen congelados.
+- Fase 2.1 aprobada por Marian el 5 de agosto de 2026.
+- Fase 2.2 autorizada para convertir el cierre de primera clase en un registro estructurado obligatorio, local y sintético.
+- Fase activa: Fase 2.2; persistencia real, integraciones e historial completo permanecen fuera de alcance.
 - Fase 3, persistencia real, accesos internos e integraciones no autorizados.
 - Supabase, API, migraciones, WodBuster y datos reales no fueron utilizados para el turno mínimo.
 - Producción modificada: no.

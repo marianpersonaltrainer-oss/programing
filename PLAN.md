@@ -1,11 +1,11 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 2 aprobada funcionalmente · Fase 2.1 implementada y pendiente de revisión visual
+**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 activa
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-1-refinamiento-visual`
-**Código autorizado:** Fase 2.1 exclusivamente visual, autorizada por Marian el 5 de agosto de 2026
-**Fase activa:** Fase 2.1 en revisión · no iniciar Fase 3
+**Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
+**Código autorizado:** Fase 2.2 · Registro obligatorio de primera clase, autorizada por Marian el 5 de agosto de 2026
+**Fase activa:** Fase 2.2 · no iniciar Fase 3
 
 ---
 
@@ -85,7 +85,8 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 |---|---|---|---|
 | 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
 | 2 · Aprobada funcionalmente | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
-| 2.1 · En revisión | Refinamiento visual de Operativa y Mi turno implementado | Sin cambios | Ninguna |
+| 2.1 · Aprobada | Refinamiento visual de Operativa y Mi turno | Sin cambios | Ninguna |
+| 2.2 · Activa | Registro obligatorio y estructurado de primera clase | Persistencia local con datos sintéticos | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -399,7 +400,7 @@ Completar un turno ficticio de principio a fin y comprobar que Dirección ve la 
 
 # Fase 2.1 · Refinamiento visual de Operativa
 
-**Estado:** implementada y pendiente de revisión visual de Marian.
+**Estado:** aprobada por Marian el 5 de agosto de 2026.
 
 ## Objetivo
 
@@ -463,7 +464,7 @@ npm run test:ci → 53 archivos y 325 tests correctos; build Vite correcto
 
 **Producción modificada:** No.
 
-**Decisión de Dirección:** pendiente de revisión visual de Marian; no iniciar Fase 3.
+**Decisión de Dirección:** `Aprobada`; la siguiente fase autorizada es Fase 2.2.
 
 ## Condición de cierre
 
@@ -471,6 +472,120 @@ npm run test:ci → 53 archivos y 325 tests correctos; build Vite correcto
 - flujo funcional completo sin regresiones;
 - build y tests correctos;
 - aprobación visual de Marian.
+
+---
+
+# Fase 2.2 · Registro obligatorio de primera clase
+
+**Estado:** activa y autorizada por Marian el 5 de agosto de 2026.
+
+## Objetivo
+
+Convertir `Cerrar primera clase` en un registro estructurado obligatorio, breve y persistente, sin añadir historial completo de entrenamientos ni modificar el resto del turno mínimo.
+
+## Flujo
+
+`Abrir Cerrar primera clase → completar Movimiento y técnica → completar Molestia o lesión → completar Trabajo completado → guardar con entrenador y hora → recuperar al recargar sin duplicados.`
+
+## Especificación cerrada
+
+### 1. Movimiento y técnica
+
+**Pregunta:** ¿Cómo se movió durante la clase?
+
+Opciones exactas:
+
+- Se movió bastante bien.
+- Necesita bastante guía y corrección.
+- Tiene poca movilidad o coordinación y hay que estar muy pendiente.
+
+Campo breve opcional: `¿Qué movimiento o aspecto debemos seguir trabajando?`
+
+### 2. Molestia o lesión
+
+**Pregunta:** ¿Cómo respondió la molestia o lesión durante el entrenamiento?
+
+Opciones exactas:
+
+- No tenía molestia.
+- Pudo entrenar sin dolor.
+- Necesita bastantes adaptaciones porque la molestia limita el entrenamiento.
+
+Campos breves opcionales:
+
+- `Zona de la molestia.`
+- `Adaptación que funcionó.`
+- `Observación para el siguiente entrenador.`
+
+No se incluye una escala obligatoria de dolor de 0 a 10.
+
+### 3. Trabajo completado
+
+**Pregunta:** ¿Qué parte del entrenamiento completó y con qué carga?
+
+Campos:
+
+- volumen completado: `25 %`, `50 %`, `75 %` o `100 %`;
+- pesos o cargas utilizados;
+- ejercicios adaptados o sustituidos.
+
+Son obligatorias las tres selecciones principales y los dos campos de texto de Trabajo completado. Los campos marcados como opcionales pueden quedar vacíos.
+
+## Reglas
+
+- existe un único registro de primera clase por turno sintético;
+- guardar de nuevo no crea duplicados;
+- el registro conserva entrenador responsable y hora;
+- `Cerrar primera clase` es la tercera tarea crítica propia del turno;
+- el cierre sigue bloqueándose solo por tareas críticas propias y nunca supera tres;
+- el registro persiste mediante el mismo servicio y adaptador local sustituible;
+- Dirección conserva su vista exclusiva de excepciones y no recibe actividad rutinaria;
+- no se añade historial completo de entrenamientos;
+- no se añaden preguntas, escala de dolor, diagnósticos ni datos reales.
+
+## Persistencia y arquitectura
+
+- ampliar el modelo local del turno con un único `firstClassRecord`;
+- mantener reglas y validación fuera de React;
+- coordinar la acción desde el servicio de turno;
+- conservar `localStorage` detrás del adaptador existente;
+- mantener exportación JSON y prueba de sustitución por memoria;
+- no añadir dependencias, Supabase, API, tablas, migraciones o integraciones.
+
+## Prueba principal
+
+**Funcionalidad:**
+
+Completar y recuperar un registro obligatorio de primera clase con los tres bloques exactos.
+
+**Pasos:**
+
+1. Iniciar un turno sintético y completar apertura y briefing.
+2. Abrir `Cerrar primera clase` y comprobar que solo aparecen los tres bloques definidos.
+3. Verificar que no se puede guardar sin las selecciones obligatorias ni los campos requeridos de Trabajo completado.
+4. Completar las opciones, guardar y confirmar entrenador y hora.
+5. Recargar y comprobar que el registro continúa guardado y no se duplica.
+6. Completar cierre o relevo, cerrar el turno y confirmar que Dirección conserva únicamente sus excepciones.
+
+**Resultado esperado:**
+
+- las preguntas y opciones coinciden exactamente con la especificación;
+- los campos opcionales pueden quedar vacíos;
+- no existe escala de dolor de 0 a 10 ni preguntas adicionales;
+- el registro obligatorio desbloquea su tarea crítica y queda asociado a responsable y hora;
+- persistencia, prevención de duplicados, cierre y Dirección mantienen sus reglas;
+- escritorio y móvil conservan el patrón visual de Fase 2.1;
+- tests y build son correctos.
+
+**Resultado real:** pendiente de ejecución.
+
+## Fuera de alcance
+
+- historial completo de entrenamientos;
+- nuevas preguntas o resultados generales de incorporación;
+- datos reales o diagnósticos clínicos;
+- Supabase, API, migraciones, login real o WodBuster;
+- cambios en `/`, `?coach`, `?v2`, producción o Fase 3.
 
 ---
 
@@ -898,11 +1013,12 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 2.1 implementada y en revisión visual.
+- Fase activa: Fase 2.2 · Registro obligatorio de primera clase.
 - Fase 1: cerrada y aprobada por Marian.
 - Fase 2: aprobada funcionalmente por Marian.
-- Fase 2.1: implementada en `feature/equipo-evo-f2-1-refinamiento-visual` y pendiente de revisión visual de Marian.
-- Trabajo autorizado actual: solo ajustes visuales de Fase 2.1 si Dirección los solicita.
+- Fase 2.1: aprobada por Marian.
+- Fase 2.2: autorizada y activa en `feature/equipo-evo-f2-2-registro-primera-clase`.
+- Trabajo autorizado actual: registro estructurado obligatorio de primera clase con persistencia local sintética.
 - Código autorizado después del cierre: no iniciar Fase 3.
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.
 - Producción modificada: no.

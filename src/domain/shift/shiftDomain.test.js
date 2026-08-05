@@ -43,7 +43,7 @@ function startedShift(templateId = 'morning') {
 function completeOpening(state, shiftId) {
   return OPENING_CHECKLIST_ITEMS.reduce((current, item, index) => completeOpeningItem(
     current,
-    { shiftId, itemId: item.id, actor: coach },
+    { shiftId, itemId: item.id, actor: coach, completionEvidence: item.completionEvidence },
     `2026-08-05T06:${String(43 + index).padStart(2, '0')}:00+02:00`,
   ), state)
 }
@@ -85,13 +85,27 @@ describe('guided shift domain rules', () => {
 
   it('audits every opening item and completes opening only after all five', () => {
     const initial = startedShift()
-    const first = completeOpeningItem(initial.state, { shiftId: initial.shift.id, itemId: OPENING_CHECKLIST_ITEMS[0].id, actor: coach }, '2026-08-05T06:43:00+02:00')
-    expect(first.shifts[0].openingChecklist[0]).toMatchObject({ completedByName: coach.name, completedAt: '2026-08-05T06:43:00+02:00' })
+    const firstItem = OPENING_CHECKLIST_ITEMS[0]
+    const first = completeOpeningItem(initial.state, { shiftId: initial.shift.id, itemId: firstItem.id, actor: coach, completionEvidence: firstItem.completionEvidence }, '2026-08-05T06:43:00+02:00')
+    expect(first.shifts[0].openingChecklist[0]).toMatchObject({ completionEvidence: firstItem.completionEvidence, completedByName: coach.name, completedAt: '2026-08-05T06:43:00+02:00' })
     expect(first.shifts[0].tasks.find((task) => task.id === 'opening').status).toBe('pending')
 
     const opened = completeOpening(first, initial.shift.id)
     expect(opened.shifts[0].openingChecklist.every((item) => item.status === 'completed')).toBe(true)
     expect(opened.shifts[0].tasks.find((task) => task.id === 'opening')).toMatchObject({ status: 'completed', completedByName: coach.name })
+  })
+
+  it('rejects a generic or incorrect completion for an opening item', () => {
+    const initial = startedShift()
+
+    expect(() => completeOpeningItem(initial.state, {
+      shiftId: initial.shift.id,
+      itemId: 'schedule',
+      actor: coach,
+      completionEvidence: 'generic-check',
+    }, '2026-08-05T06:43:00+02:00')).toThrowError(
+      expect.objectContaining({ code: 'OPENING_EVIDENCE_REQUIRED' }),
+    )
   })
 
   it('registers an opening problem as an assigned incident and leaves the check pending', () => {

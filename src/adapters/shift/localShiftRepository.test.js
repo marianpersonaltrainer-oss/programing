@@ -37,7 +37,7 @@ describe('local shift repository', () => {
     const repository = createLocalShiftRepository({ storage })
     const service = createShiftService({ repository, now: () => '2026-08-05T06:42:00+02:00' })
     const started = service.start({ templateId: 'morning', actor: SYNTHETIC_ACTORS.coach })
-    OPENING_CHECKLIST_ITEMS.forEach((item) => service.completeOpeningItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach }))
+    OPENING_CHECKLIST_ITEMS.forEach((item) => service.completeOpeningItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach, completionEvidence: item.completionEvidence }))
     service.completePreparation({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach })
     service.recordFirstClass({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach, record: firstClassRecord })
     repository.load().shifts[0].closingChecklist.filter((item) => item.required).forEach((item) => service.completeClosingItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach }))

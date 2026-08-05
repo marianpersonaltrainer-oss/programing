@@ -6,7 +6,9 @@ import {
   centerNotices,
   evaluations,
   evolutionSummary,
+  firstClassPreparation,
   peopleToConsider,
+  previousShiftReview,
   programmingFeedbackTarget,
   protocols,
   teamOverview,
@@ -20,6 +22,7 @@ import {
   getClosingBlockers,
   getDirectionExceptions,
   getShiftProgress,
+  OPENING_CHECKLIST_ITEMS,
   SHIFT_TEMPLATES,
   SYNTHETIC_ACTORS,
 } from './domain/shift/shiftDomain.js'
@@ -51,6 +54,18 @@ const statusLabels = {
   overdue: 'Vencido',
   exception: 'Atención',
   empty: 'Más tarde',
+}
+
+const openingActions = {
+  'previous-shift': { label: 'Revisar relevo anterior', icon: 'today', kind: 'context' },
+  systems: { label: 'Confirmar dispositivos', icon: 'check', kind: 'direct' },
+  spaces: { label: 'Confirmar sala y material', icon: 'check', kind: 'direct' },
+  schedule: { label: 'Abrir programación del día', icon: 'class', kind: 'programming' },
+  'first-class-setup': { label: 'Preparar primera clase', icon: 'signups', kind: 'context' },
+}
+
+function openingDefinition(itemId) {
+  return OPENING_CHECKLIST_ITEMS.find((item) => item.id === itemId)
 }
 
 function formatTime(value) {
@@ -257,14 +272,65 @@ function ClosingDialog({ shift, flow, error, onClose }) {
   )
 }
 
-function ProgrammingReference({ target, returnLabel, onReturn }) {
+function OpeningContextDialog({ itemId, onClose, onConfirm }) {
+  const isPreviousShift = itemId === 'previous-shift'
+  const title = isPreviousShift ? 'Relevo del turno anterior' : 'Preparar primera clase'
+  const detail = isPreviousShift
+    ? 'Lee la nota y la incidencia activa antes de confirmar la revisión.'
+    : 'Revisa el contexto y deja listo lo necesario antes de confirmar.'
+
+  function finish() {
+    if (onConfirm(itemId)) onClose()
+  }
+
+  return (
+    <DialogShell eyebrow="Apertura · Información necesaria" title={title} detail={detail} onClose={onClose}>
+      {isPreviousShift ? (
+        <div className="mt-5 space-y-4">
+          <section className="rounded-2xl border border-[#E4D8E5] bg-white p-4">
+            <p className="text-sm font-bold text-[#A729AD]">Entregado por {previousShiftReview.handedOverBy}</p>
+            <p className="mt-1 text-sm text-[#806E82]">{previousShiftReview.handedOverAt}</p>
+            <p className="mt-3 text-base leading-7 text-[#4C3A4F]">{previousShiftReview.note}</p>
+          </section>
+          <section className="rounded-2xl border border-amber-200 bg-[#FFFFE2] p-4">
+            <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Incidencia que continúa activa</p>
+            {previousShiftReview.incidents.map((incident) => <div key={incident.title} className="mt-3"><p className="text-base font-bold">{incident.title}</p><p className="mt-1 text-sm text-[#6E5A71]">{incident.status} · {incident.nextAction}</p></div>)}
+          </section>
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <section className="rounded-2xl border border-[#E4D8E5] bg-white p-4">
+            <p className="text-sm font-bold text-[#A729AD]">{firstClassPreparation.time} · {firstClassPreparation.room}</p>
+            <h3 className="mt-1 font-evo-display text-3xl font-semibold">{firstClassPreparation.person} · {firstClassPreparation.className}</h3>
+            <p className="mt-3 text-base leading-7 text-[#4C3A4F]"><strong>Objetivo:</strong> {firstClassPreparation.goal}</p>
+            <p className="mt-2 text-base leading-7 text-[#4C3A4F]"><strong>Contexto:</strong> {firstClassPreparation.context}</p>
+          </section>
+          <section className="rounded-2xl border border-[#E4D8E5] bg-[#FFFFE2] p-4">
+            <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Dejar preparado</p>
+            <ul className="mt-3 space-y-2">{firstClassPreparation.preparation.map((step) => <li key={step} className="flex gap-3 text-base leading-6"><Icon name="check" className="mt-0.5 h-5 w-5 shrink-0 text-[#A729AD]" /><span>{step}</span></li>)}</ul>
+          </section>
+        </div>
+      )}
+      <div className="mt-6"><PrimaryButton icon="check" onClick={finish}>{isPreviousShift ? 'Confirmar relevo revisado' : 'Confirmar primera clase preparada'}</PrimaryButton></div>
+    </DialogShell>
+  )
+}
+
+function ProgrammingReference({ target, returnLabel, onReturn, onCompleteReview }) {
+  const isOpeningReview = target?.mode === 'opening-review'
+  const [selectedTime, setSelectedTime] = useState(target?.time || todayClasses[0].time)
+  const selectedClass = todayClasses.find((item) => item.time === selectedTime) || todayClasses[0]
   return (
     <div>
-      <ScreenHeading eyebrow="Programming EVO" title="Programación" detail="El feedback del entrenamiento pertenece a su día y clase; Operativa no lo almacena." />
-      <LightCard className="max-w-2xl">
+      <ScreenHeading eyebrow="Programming EVO" title="Programación" detail={isOpeningReview ? 'Revisa las clases del turno, su intención, material y notas antes de confirmar la apertura.' : 'El feedback del entrenamiento pertenece a su día y clase; Operativa no lo almacena.'} />
+      {isOpeningReview ? <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <LightCard><p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Clases de hoy</p><div className="mt-3 space-y-2">{todayClasses.map((item) => <button key={item.time} type="button" aria-pressed={selectedClass.time === item.time} onClick={() => setSelectedTime(item.time)} className={`min-h-16 w-full rounded-xl border p-3 text-left transition ${selectedClass.time === item.time ? 'border-[#A729AD] bg-[#F4E6F5]' : 'border-[#E4D8E5] bg-white hover:border-[#BC8FC0]'}`}><p className="text-sm font-bold text-[#A729AD]">{item.time} · {item.room}</p><p className="mt-1 text-base font-bold">{item.type}</p></button>)}</div></LightCard>
+        <LightCard><p className="text-sm font-bold text-[#A729AD]">{selectedClass.time} · {selectedClass.room}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{selectedClass.type}</h2><p className="mt-3 text-base leading-7 text-[#4C3A4F]"><strong>Objetivo:</strong> {selectedClass.objective}</p><div className="mt-4 rounded-xl bg-[#F0E7F1] p-4"><p className="text-sm font-bold text-[#A729AD]">Estructura</p><ul className="mt-2 space-y-1 text-base">{selectedClass.blocks.map((block) => <li key={block}>{block}</li>)}</ul></div><p className="mt-4 text-base leading-7 text-[#4C3A4F]"><strong>Material:</strong> {selectedClass.material}</p><p className="mt-2 rounded-xl border border-amber-200 bg-[#FFFFE2] p-3 text-sm font-semibold leading-6 text-[#5B465E]">{selectedClass.coachNote}</p></LightCard>
+        <div className="xl:col-span-2 flex flex-col gap-2 sm:flex-row"><PrimaryButton className="sm:max-w-md" icon="check" onClick={() => onCompleteReview('schedule')}>Confirmar programación revisada</PrimaryButton><SecondaryButton onClick={onReturn}>Volver sin completar</SecondaryButton></div>
+      </div> : <LightCard className="max-w-2xl">
         {target ? <><p className="text-sm font-bold text-[#A729AD]">{target.dateLabel} · {target.time}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{target.className}</h2><p className="mt-3 text-base leading-7 text-[#604B63]">Has llegado a la clase correspondiente. En la aplicación real, el campo de feedback de sesión continúa dentro de Programación.</p></> : <><p className="font-evo-display text-3xl font-semibold">La programación continúa donde ya está</p><p className="mt-3 text-base leading-7 text-[#604B63]">Entrenamiento del día, notas, objetivo, estímulo, preparación de clase y feedback de sesión permanecen en esta área.</p></>}
         <div className="mt-6"><PrimaryButton onClick={onReturn}>Volver a {returnLabel}</PrimaryButton></div>
-      </LightCard>
+      </LightCard>}
     </div>
   )
 }
@@ -304,19 +370,23 @@ function ShiftSummary({ shift }) {
   )
 }
 
-function OpeningStep({ shift, flow, onProblem, onOpenProtocol }) {
+function OpeningStep({ shift, flow, onProblem, onOpenProtocol, onOpenItem }) {
   return (
     <section aria-labelledby="opening-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Paso 1</p>
       <h2 id="opening-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Abrir y preparar la sala</h2>
       <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Completa cada comprobación. Si algo falla, registra el problema y deja ese punto pendiente.</p>
       <div className="mt-5 space-y-2">
-        {shift.openingChecklist.map((item, index) => (
+        {shift.openingChecklist.map((item, index) => {
+          const action = openingActions[item.id]
+          const definition = openingDefinition(item.id)
+          return (
           <div key={item.id} data-testid={`opening-item-${item.id}`} className={`rounded-xl border p-4 ${item.status === 'completed' ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}>
             <div className="flex gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${item.status === 'completed' ? 'bg-emerald-600 text-white' : 'bg-[#F0E7F1] text-[#6A1F6D]'}`}>{item.status === 'completed' ? <Icon name="check" className="h-4 w-4" /> : index + 1}</span><div className="min-w-0 flex-1"><p className="text-base font-bold leading-6">{item.label}</p>{item.status === 'completed' && <p className="mt-1 text-sm text-[#5C6B61]">{item.completedByName} · {formatDateTime(item.completedAt)}</p>}</div></div>
-            {item.status !== 'completed' && <div className="mt-3 flex flex-col gap-2 pl-11 sm:flex-row"><button type="button" onClick={() => flow.completeOpeningItem(item.id)} className="min-h-11 rounded-xl bg-[#A729AD] px-4 text-sm font-extrabold text-white hover:bg-[#902395]">Marcar completado</button><button type="button" onClick={() => onProblem(item.id)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4">Registrar problema</button></div>}
+            {item.status !== 'completed' && <div className="mt-3 flex flex-col gap-2 pl-11 sm:flex-row"><button type="button" onClick={() => action.kind === 'direct' ? flow.completeOpeningItem(item.id, definition.completionEvidence) : onOpenItem(item.id)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#A729AD] px-4 text-sm font-extrabold text-white hover:bg-[#902395]"><Icon name={action.icon} className="h-4 w-4" />{action.label}</button><button type="button" onClick={() => onProblem(item.id)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4">Registrar problema</button></div>}
           </div>
-        ))}
+          )
+        })}
       </div>
       <TextButton className="mt-3" onClick={onOpenProtocol}>Ver protocolo completo de apertura</TextButton>
     </section>
@@ -381,7 +451,7 @@ function AuditSummary({ shift }) {
   )
 }
 
-function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming }) {
+function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming, onOpenOpeningItem }) {
   const shift = flow.currentShift
   const openingComplete = shift?.tasks.find((task) => task.id === 'opening')?.status === 'completed'
   const stage = !shift ? 'start' : !openingComplete ? 'opening' : !shift.shiftPreparation ? 'preparation' : 'work'
@@ -389,7 +459,7 @@ function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming }) {
     <div>
       <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno, paso a paso' : 'Iniciar turno'} detail={shift ? 'Completa el momento actual y la siguiente parte aparecerá sola.' : 'Registra la entrada real sin confirmar todavía la apertura.'} />
       {!shift && <StartShiftCard onStart={flow.start} />}
-      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} flow={flow} onProblem={(openingItemId) => onAction({ type: 'incident', openingItemId })} onOpenProtocol={() => onOpenProtocol('opening')} />}{stage === 'preparation' && <PreparationStep flow={flow} />}{stage === 'work' && <WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} />}<ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
+      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} flow={flow} onProblem={(openingItemId) => onAction({ type: 'incident', openingItemId })} onOpenProtocol={() => onOpenProtocol('opening')} onOpenItem={onOpenOpeningItem} />}{stage === 'preparation' && <PreparationStep flow={flow} />}{stage === 'work' && <WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} />}<ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
     </div>
   )
 }
@@ -446,11 +516,34 @@ export default function IncorporacionesApp() {
     flow.clearMessages()
   }
 
+  function completeOpeningFromContext(itemId) {
+    const definition = openingDefinition(itemId)
+    if (!definition) return false
+    const completed = flow.completeOpeningItem(itemId, definition.completionEvidence)
+    if (completed) {
+      setGlobalArea('shift')
+      setShiftArea('today')
+      setProgrammingTarget(null)
+    }
+    return completed
+  }
+
+  function openOpeningItem(itemId) {
+    if (itemId === 'schedule') {
+      setProgrammingTarget({ mode: 'opening-review' })
+      setGlobalArea('programming')
+      flow.clearMessages()
+      return
+    }
+    setAction({ type: 'opening-review', itemId })
+    flow.clearMessages()
+  }
+
   let screen
-  if (globalArea === 'programming') screen = <ProgrammingReference target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} />
+  if (globalArea === 'programming') screen = <ProgrammingReference key={`${programmingTarget?.mode || 'default'}-${programmingTarget?.time || ''}`} target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} onCompleteReview={completeOpeningFromContext} />
   else if (context === 'coach' && shiftArea === 'protocols') screen = <ProtocolsScreen initialProtocol={protocolToOpen} />
   else if (context === 'coach' && shiftArea === 'evolution') screen = <EvolutionScreen />
-  else if (context === 'coach') screen = <TodayScreen flow={flow} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} />
+  else if (context === 'coach') screen = <TodayScreen flow={flow} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} onOpenOpeningItem={openOpeningItem} />
   else if (globalArea === 'evaluations') screen = <EvaluationsScreen />
   else if (globalArea === 'team') screen = <TeamScreen />
   else screen = <OperationsScreen exceptions={exceptions} />
@@ -471,6 +564,7 @@ export default function IncorporacionesApp() {
         </div>
       </div>
       <nav aria-label={`Navegación móvil de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0C0B0C]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => setGlobalArea(item.id)} className={`flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 text-base font-bold ${context === 'direction' ? 'min-w-[7rem]' : ''} ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/55'}`}><Icon name={item.icon} className="h-5 w-5" /><span>{item.label}</span></button>)}</div></nav>
+      {action?.type === 'opening-review' && flow.currentShift && <OpeningContextDialog itemId={action.itemId} onClose={() => setAction(null)} onConfirm={completeOpeningFromContext} />}
       {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} openingItemId={action.openingItemId} error={flow.error} onClose={() => setAction(null)} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
       {action?.type === 'first-class' && flow.currentShift && <FirstClassDialog shift={flow.currentShift} error={flow.error} onClose={() => setAction(null)} onConfirm={flow.recordFirstClass} onClearError={flow.clearMessages} />}
       {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} error={flow.error} onClose={() => setAction(null)} />}

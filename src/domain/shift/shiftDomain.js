@@ -17,11 +17,11 @@ export const FIRST_CLASS_DISCOMFORT_OPTIONS = [
 export const FIRST_CLASS_VOLUME_OPTIONS = [25, 50, 75, 100]
 
 export const OPENING_CHECKLIST_ITEMS = [
-  { id: 'previous-shift', label: 'Revisar notas e incidencias del turno anterior.' },
-  { id: 'systems', label: 'Encender y comprobar ordenador, música, luces, aire y dispositivos.' },
-  { id: 'spaces', label: 'Revisar sala, baños, limpieza y material.' },
-  { id: 'schedule', label: 'Revisar programación, horarios y personas que vienen hoy.' },
-  { id: 'first-class-setup', label: 'Preparar material y primera clase del turno.' },
+  { id: 'previous-shift', label: 'Revisar notas e incidencias del turno anterior.', completionEvidence: 'previous-shift-reviewed' },
+  { id: 'systems', label: 'Encender y comprobar ordenador, música, luces, aire y dispositivos.', completionEvidence: 'systems-checked' },
+  { id: 'spaces', label: 'Revisar sala, baños, limpieza y material.', completionEvidence: 'spaces-checked' },
+  { id: 'schedule', label: 'Revisar programación, horarios y personas que vienen hoy.', completionEvidence: 'programming-reviewed' },
+  { id: 'first-class-setup', label: 'Preparar material y primera clase del turno.', completionEvidence: 'first-class-prepared' },
 ]
 
 export const CLOSING_CHECKLIST_ITEMS = [
@@ -227,21 +227,25 @@ function completeTaskInShift(shift, taskId, actor, at) {
   return { ...shift, tasks, actions: [...shift.actions, actionRecord(`task_${taskId}_completed`, actor, at)] }
 }
 
-export function completeOpeningItem(state, { shiftId, itemId, actor }, at) {
+export function completeOpeningItem(state, { shiftId, itemId, actor, completionEvidence }, at) {
   return updateShift(state, shiftId, (shift) => {
     assertActiveCoachShift(shift, actor)
     const item = shift.openingChecklist.find((candidate) => candidate.id === itemId)
     if (!item) throw new ShiftRuleError('OPENING_ITEM_NOT_FOUND', 'La comprobación de apertura no existe.')
+    const definition = OPENING_CHECKLIST_ITEMS.find((candidate) => candidate.id === itemId)
+    if (completionEvidence !== definition?.completionEvidence) {
+      throw new ShiftRuleError('OPENING_EVIDENCE_REQUIRED', 'Completa esta comprobación desde la acción que le corresponde.', { itemId })
+    }
     if (item.ownerId !== actor.id) throw new ShiftRuleError('OPENING_ITEM_OWNER_REQUIRED', 'Solo el responsable puede completar esta comprobación.')
     if (item.status === 'completed') return shift
 
     const openingChecklist = shift.openingChecklist.map((candidate) => candidate.id === itemId
-      ? { ...candidate, status: 'completed', completedAt: at, completedById: actor.id, completedByName: actor.name }
+      ? { ...candidate, status: 'completed', completionEvidence, completedAt: at, completedById: actor.id, completedByName: actor.name }
       : candidate)
     let nextShift = {
       ...shift,
       openingChecklist,
-      actions: [...shift.actions, actionRecord('opening_item_completed', actor, at, { itemId })],
+      actions: [...shift.actions, actionRecord('opening_item_completed', actor, at, { itemId, completionEvidence })],
     }
     if (openingChecklist.every((candidate) => candidate.status === 'completed')) {
       nextShift = completeTaskInShift(nextShift, 'opening', actor, at)

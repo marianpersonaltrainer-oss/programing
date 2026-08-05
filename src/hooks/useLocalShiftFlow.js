@@ -56,10 +56,10 @@ export function useLocalShiftFlow() {
         return false
       }
     },
-    completeOpeningItem(itemId) {
+    completeOpeningItem(itemId, completionEvidence) {
       if (!currentShift) return false
       return run(
-        () => service.completeOpeningItem({ shiftId: currentShift.id, itemId, actor }),
+        () => service.completeOpeningItem({ shiftId: currentShift.id, itemId, actor, completionEvidence }),
         'Comprobación de apertura guardada con responsable y hora.',
       )
     },

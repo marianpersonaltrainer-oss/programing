@@ -1,7 +1,7 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 activa
+**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 implementada y pendiente de revisión
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
 **Código autorizado:** Fase 2.2 · Registro obligatorio de primera clase, autorizada por Marian el 5 de agosto de 2026
@@ -86,7 +86,7 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 | 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
 | 2 · Aprobada funcionalmente | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
 | 2.1 · Aprobada | Refinamiento visual de Operativa y Mi turno | Sin cambios | Ninguna |
-| 2.2 · Activa | Registro obligatorio y estructurado de primera clase | Persistencia local con datos sintéticos | Ninguna |
+| 2.2 · En revisión | Registro obligatorio y estructurado de primera clase | Persistencia local con datos sintéticos | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -477,7 +477,7 @@ npm run test:ci → 53 archivos y 325 tests correctos; build Vite correcto
 
 # Fase 2.2 · Registro obligatorio de primera clase
 
-**Estado:** activa y autorizada por Marian el 5 de agosto de 2026.
+**Estado:** implementada y pendiente de revisión de Marian.
 
 ## Objetivo
 
@@ -577,7 +577,22 @@ Completar y recuperar un registro obligatorio de primera clase con los tres bloq
 - escritorio y móvil conservan el patrón visual de Fase 2.1;
 - tests y build son correctos.
 
-**Resultado real:** pendiente de ejecución.
+**Resultado real:** superada técnicamente el 5 de agosto de 2026. El formulario mostró únicamente los tres bloques y textos definidos. El guardado vacío quedó bloqueado; los campos opcionales pudieron quedar vacíos; y el registro válido conservó entrenador, hora, volumen, cargas y adaptaciones. Tras recargar, el registro persistió, no se creó un duplicado y `Ahora` avanzó a cierre o relevo. Un turno local heredado de Fase 2.1 recibió la tercera tarea crítica sin perder datos. El recorrido completo permitió cerrar el turno y Dirección siguió mostrando únicamente la incidencia abierta. La presentación se verificó a 1440 × 1000 px y 390 × 844 px.
+
+**Pruebas automáticas ejecutadas:**
+
+```text
+npm run test -- src/domain/shift/shiftDomain.test.js src/adapters/shift/localShiftRepository.test.js → 2 archivos y 12 tests correctos
+npm run test:ci → 53 archivos y 328 tests correctos; build Vite correcto
+```
+
+**Incidencias:** se corrigió un mensaje de validación que permanecía visible al editar el formulario y se añadió compatibilidad automatizada con turnos locales persistidos en Fase 2.1. Permanecen dos avisos preexistentes sin impacto en el sandbox: variables de Supabase ausentes en local y un chunk de build superior a 500 kB.
+
+**Producción modificada:** No.
+
+**Recomendación técnica:** `Aprobada`.
+
+**Decisión de Dirección:** pendiente de Marian; no iniciar Fase 3.
 
 ## Fuera de alcance
 
@@ -1013,12 +1028,12 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 2.2 · Registro obligatorio de primera clase.
+- Fase activa: Fase 2.2 · Registro obligatorio de primera clase, implementada y pendiente de revisión.
 - Fase 1: cerrada y aprobada por Marian.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
-- Fase 2.2: autorizada y activa en `feature/equipo-evo-f2-2-registro-primera-clase`.
-- Trabajo autorizado actual: registro estructurado obligatorio de primera clase con persistencia local sintética.
+- Fase 2.2: implementada y pendiente de revisión en `feature/equipo-evo-f2-2-registro-primera-clase`.
+- Trabajo autorizado actual: únicamente ajustes de Fase 2.2 que Dirección solicite tras la revisión.
 - Código autorizado después del cierre: no iniciar Fase 3.
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.
 - Producción modificada: no.

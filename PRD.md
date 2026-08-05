@@ -1,7 +1,7 @@
 # PRD.md
 ## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 activa
+**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 implementada y pendiente de revisión
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
 **Código autorizado:** Fase 2.2 · Registro obligatorio de primera clase, autorizada por Marian el 5 de agosto de 2026
@@ -612,8 +612,8 @@ La primera versión se considera útil cuando:
 - Fase 2 autorizada expresamente por Marian el 4 de agosto de 2026.
 - Fase 2 aprobada funcionalmente por Marian el 5 de agosto de 2026.
 - Fase 2.1 aprobada por Marian el 5 de agosto de 2026.
-- Fase 2.2 autorizada para convertir el cierre de primera clase en un registro estructurado obligatorio, local y sintético.
-- Fase activa: Fase 2.2; persistencia real, integraciones e historial completo permanecen fuera de alcance.
+- Fase 2.2 implementada como registro estructurado obligatorio, local y sintético, pendiente de revisión de Marian.
+- Fase activa: revisión de Fase 2.2; persistencia real, integraciones e historial completo permanecen fuera de alcance.
 - Fase 3, persistencia real, accesos internos e integraciones no autorizados.
 - Supabase, API, migraciones, WodBuster y datos reales no fueron utilizados para el turno mínimo.
 - Producción modificada: no.

@@ -802,9 +802,9 @@ Actualizar `AGENTS.md` cuando cambie:
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo local de Fase 2.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: Fase 2.2 · Registro obligatorio de primera clase.
+- Fase activa: Fase 2.2 · Registro obligatorio de primera clase, implementada y pendiente de revisión.
 - Fase 1: cerrada, aprobada y respaldada en GitHub.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
-- Fase 2.2: activa en `feature/equipo-evo-f2-2-registro-primera-clase`.
-- Código autorizado: registro estructurado obligatorio de primera clase con dominio, servicio, persistencia local y pruebas; no modificar integraciones, producción o Fase 3.
+- Fase 2.2: implementada y pendiente de revisión en `feature/equipo-evo-f2-2-registro-primera-clase`.
+- Código autorizado: únicamente ajustes de Fase 2.2 que Dirección solicite; no modificar integraciones, producción o Fase 3.

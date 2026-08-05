@@ -131,9 +131,3 @@ export const briefing = {
   restriction: 'Evitar impacto alto y usar una carga inicial conservadora.',
   preparation: 'Reservar una posición cercana al entrenador.',
 }
-
-export const firstClassResults = [
-  'Incorporación validada',
-  'Necesita seguimiento',
-  'Necesita Dirección',
-]

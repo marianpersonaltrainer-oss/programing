@@ -1,5 +1,20 @@
 export const SHIFT_STATE_VERSION = 1
 export const MAX_CRITICAL_TASKS = 3
+export const FIRST_CLASS_TEXT_LIMIT = 180
+
+export const FIRST_CLASS_MOVEMENT_OPTIONS = [
+  'Se movió bastante bien.',
+  'Necesita bastante guía y corrección.',
+  'Tiene poca movilidad o coordinación y hay que estar muy pendiente.',
+]
+
+export const FIRST_CLASS_DISCOMFORT_OPTIONS = [
+  'No tenía molestia.',
+  'Pudo entrenar sin dolor.',
+  'Necesita bastantes adaptaciones porque la molestia limita el entrenamiento.',
+]
+
+export const FIRST_CLASS_VOLUME_OPTIONS = [25, 50, 75, 100]
 
 export const SYNTHETIC_ACTORS = {
   coach: { id: 'coach-lara-demo', name: 'Lara Demo', role: 'coach' },
@@ -55,6 +70,18 @@ function actionRecord(type, actor, at, detail = {}) {
   }
 }
 
+function createFirstClassTask(actor) {
+  return {
+    id: 'first-class',
+    title: 'Cerrar primera clase',
+    detail: 'Registrar movimiento, molestia y trabajo completado.',
+    status: 'pending',
+    critical: true,
+    ownerId: actor.id,
+    ownerName: actor.name,
+  }
+}
+
 function createShiftTasks(actor) {
   return [
     {
@@ -75,6 +102,7 @@ function createShiftTasks(actor) {
       ownerId: actor.id,
       ownerName: actor.name,
     },
+    createFirstClassTask(actor),
     {
       id: 'feedback',
       title: 'Feedback operativo opcional',
@@ -125,6 +153,7 @@ export function startShift(state, { templateId, actor }, at) {
     status: 'active',
     tasks,
     briefing: null,
+    firstClassRecord: null,
     incidents: [],
     feedback: [],
     endPreparation: null,
@@ -212,6 +241,76 @@ export function recordFeedback(state, { shiftId, actor, note }, at) {
   return completeTask(withFeedback, { shiftId, taskId: 'feedback', actor }, at)
 }
 
+function firstClassText(value, { required = false, field }) {
+  const cleanValue = String(value || '').trim()
+  if (required && !cleanValue) {
+    throw new ShiftRuleError('FIRST_CLASS_FIELD_REQUIRED', `Completa ${field}.`, { field })
+  }
+  if (cleanValue.length > FIRST_CLASS_TEXT_LIMIT) {
+    throw new ShiftRuleError('FIRST_CLASS_TEXT_TOO_LONG', `${field} no puede superar ${FIRST_CLASS_TEXT_LIMIT} caracteres.`, { field })
+  }
+  return cleanValue
+}
+
+export function recordFirstClass(state, { shiftId, actor, record }, at) {
+  const movement = record?.movement
+  const discomfort = record?.discomfort
+  const volumePercent = Number(record?.volumePercent)
+
+  if (!FIRST_CLASS_MOVEMENT_OPTIONS.includes(movement)) {
+    throw new ShiftRuleError('FIRST_CLASS_MOVEMENT_REQUIRED', 'Selecciona cómo se movió durante la clase.')
+  }
+  if (!FIRST_CLASS_DISCOMFORT_OPTIONS.includes(discomfort)) {
+    throw new ShiftRuleError('FIRST_CLASS_DISCOMFORT_REQUIRED', 'Selecciona cómo respondió la molestia o lesión.')
+  }
+  if (!FIRST_CLASS_VOLUME_OPTIONS.includes(volumePercent)) {
+    throw new ShiftRuleError('FIRST_CLASS_VOLUME_REQUIRED', 'Selecciona el volumen completado.')
+  }
+
+  const firstClassRecord = {
+    movement,
+    movementFollowUp: firstClassText(record?.movementFollowUp, { field: 'el movimiento o aspecto a seguir trabajando' }),
+    discomfort,
+    discomfortZone: firstClassText(record?.discomfortZone, { field: 'la zona de la molestia' }),
+    workingAdaptation: firstClassText(record?.workingAdaptation, { field: 'la adaptación que funcionó' }),
+    nextCoachObservation: firstClassText(record?.nextCoachObservation, { field: 'la observación para el siguiente entrenador' }),
+    volumePercent,
+    loadsUsed: firstClassText(record?.loadsUsed, { required: true, field: 'los pesos o cargas utilizados' }),
+    adaptedExercises: firstClassText(record?.adaptedExercises, { required: true, field: 'los ejercicios adaptados o sustituidos' }),
+    completedAt: at,
+    completedById: actor.id,
+    completedByName: actor.name,
+  }
+
+  const withRecord = updateShift(state, shiftId, (shift) => {
+    assertActiveCoachShift(shift, actor)
+    if (shift.firstClassRecord) return shift
+    const existingTask = shift.tasks.find((task) => task.id === 'first-class')
+    const completedTask = {
+      ...(existingTask || createFirstClassTask(actor)),
+      status: 'completed',
+      completedAt: at,
+      completedById: actor.id,
+      completedByName: actor.name,
+    }
+    const tasks = existingTask
+      ? shift.tasks.map((task) => task.id === 'first-class' ? completedTask : task)
+      : [...shift.tasks, completedTask]
+    return {
+      ...shift,
+      firstClassRecord,
+      tasks,
+      actions: [
+        ...shift.actions,
+        actionRecord('first_class_recorded', actor, at),
+        actionRecord('task_first-class_completed', actor, at),
+      ],
+    }
+  })
+
+  return withRecord
+}
+
 export function prepareShiftEnd(state, { shiftId, actor, mode, note = '' }, at) {
   if (!['close', 'handover'].includes(mode)) throw new ShiftRuleError('END_MODE_REQUIRED', 'Elige cierre o relevo.')
   return updateShift(state, shiftId, (shift) => {
@@ -228,7 +327,12 @@ export function prepareShiftEnd(state, { shiftId, actor, mode, note = '' }, at) 
 }
 
 export function getOwnCriticalBlockers(shift, actorId) {
-  return shift.tasks.filter((task) => task.critical && task.ownerId === actorId && task.status !== 'completed')
+  const blockers = shift.tasks.filter((task) => task.critical && task.ownerId === actorId && task.status !== 'completed')
+  const hasFirstClassTask = shift.tasks.some((task) => task.id === 'first-class')
+  if (shift.status === 'active' && shift.trainerId === actorId && !shift.firstClassRecord && !hasFirstClassTask) {
+    blockers.push(createFirstClassTask({ id: shift.trainerId, name: shift.trainerName }))
+  }
+  return blockers
 }
 
 export function closeShift(state, { shiftId, actor }, at) {
@@ -253,6 +357,7 @@ export function getShiftProgress(shift) {
     Boolean(shift.startedAt),
     shift.tasks.find((task) => task.id === 'opening')?.status === 'completed',
     Boolean(shift.briefing),
+    Boolean(shift.firstClassRecord),
     shift.incidents.length > 0 || shift.feedback.length > 0,
     Boolean(shift.endPreparation),
     shift.status === 'closed',

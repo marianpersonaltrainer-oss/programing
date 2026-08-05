@@ -77,6 +77,13 @@ export function useLocalShiftFlow() {
         'Incidencia abierta y enviada a la bandeja local de Dirección.',
       )
     },
+    recordFirstClass(record) {
+      if (!currentShift) return false
+      return run(
+        () => service.recordFirstClass({ shiftId: currentShift.id, actor, record }),
+        'Primera clase guardada con responsable y hora.',
+      )
+    },
     recordFeedback(note) {
       if (!currentShift) return false
       return run(

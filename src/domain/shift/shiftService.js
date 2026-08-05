@@ -1,11 +1,10 @@
 import {
   closeShift,
-  completeTask,
-  consultBriefing,
+  completeClosingItem,
+  completeOpeningItem,
+  completeShiftPreparation,
   getLatestShift,
-  prepareShiftEnd,
   recordFirstClass,
-  recordFeedback,
   recordIncident,
   startShift,
 } from './shiftDomain.js'
@@ -27,12 +26,11 @@ export function createShiftService({ repository, now = () => new Date().toISOStr
       repository.save(result.state)
       return result
     },
-    completeTask: (params) => persist((state, at) => completeTask(state, params, at)),
-    consultBriefing: (params) => persist((state, at) => consultBriefing(state, params, at)),
+    completeOpeningItem: (params) => persist((state, at) => completeOpeningItem(state, params, at)),
+    completePreparation: (params) => persist((state, at) => completeShiftPreparation(state, params, at)),
     recordIncident: (params) => persist((state, at) => recordIncident(state, params, at)),
     recordFirstClass: (params) => persist((state, at) => recordFirstClass(state, params, at)),
-    recordFeedback: (params) => persist((state, at) => recordFeedback(state, params, at)),
-    prepareEnd: (params) => persist((state, at) => prepareShiftEnd(state, params, at)),
+    completeClosingItem: (params) => persist((state, at) => completeClosingItem(state, params, at)),
     close: (params) => persist((state, at) => closeShift(state, params, at)),
     latest: () => getLatestShift(repository.load()),
   }

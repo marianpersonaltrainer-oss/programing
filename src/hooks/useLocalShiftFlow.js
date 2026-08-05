@@ -56,25 +56,27 @@ export function useLocalShiftFlow() {
         return false
       }
     },
-    completeTask(taskId) {
+    completeOpeningItem(itemId) {
       if (!currentShift) return false
       return run(
-        () => service.completeTask({ shiftId: currentShift.id, taskId, actor }),
-        taskId === 'opening' ? 'Apertura completada y guardada.' : 'Tarea completada y guardada.',
+        () => service.completeOpeningItem({ shiftId: currentShift.id, itemId, actor }),
+        'Comprobación de apertura guardada con responsable y hora.',
       )
     },
-    consultBriefing() {
+    completePreparation() {
       if (!currentShift) return false
       return run(
-        () => service.consultBriefing({ shiftId: currentShift.id, actor }),
-        'Briefing consultado con responsable y hora.',
+        () => service.completePreparation({ shiftId: currentShift.id, actor }),
+        'Turno preparado y guardado con responsable y hora.',
       )
     },
-    recordIncident(description) {
+    recordIncident(incident) {
       if (!currentShift) return false
       return run(
-        () => service.recordIncident({ shiftId: currentShift.id, actor, description }),
-        'Incidencia abierta y enviada a la bandeja local de Dirección.',
+        () => service.recordIncident({ shiftId: currentShift.id, actor, ...incident }),
+        incident.openingItemId
+          ? 'Problema registrado. La comprobación de apertura continúa pendiente.'
+          : 'Incidencia asignada y enviada a la bandeja local de Dirección.',
       )
     },
     recordFirstClass(record) {
@@ -84,25 +86,20 @@ export function useLocalShiftFlow() {
         'Primera clase guardada con responsable y hora.',
       )
     },
-    recordFeedback(note) {
+    completeClosingItem(itemId) {
       if (!currentShift) return false
       return run(
-        () => service.recordFeedback({ shiftId: currentShift.id, actor, note }),
-        'Feedback operativo guardado para el relevo.',
+        () => service.completeClosingItem({ shiftId: currentShift.id, itemId, actor }),
+        'Comprobación de cierre guardada con responsable y hora.',
       )
     },
-    prepareEnd(mode, note) {
+    close(note = '') {
       if (!currentShift) return false
       return run(
-        () => service.prepareEnd({ shiftId: currentShift.id, actor, mode, note }),
-        mode === 'handover' ? 'Relevo completado y guardado.' : 'Cierre operativo completado y guardado.',
-      )
-    },
-    close() {
-      if (!currentShift) return false
-      return run(
-        () => service.close({ shiftId: currentShift.id, actor }),
-        'Turno cerrado. Las excepciones abiertas siguen visibles para Dirección.',
+        () => service.close({ shiftId: currentShift.id, actor, note }),
+        currentShift.endMode === 'handover'
+          ? 'Turno entregado. Las excepciones asignadas siguen visibles para Dirección.'
+          : 'Centro cerrado. Las excepciones asignadas siguen visibles para Dirección.',
       )
     },
     reset() {

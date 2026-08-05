@@ -3,6 +3,8 @@ import {
   createEmptyShiftState,
   FIRST_CLASS_DISCOMFORT_OPTIONS,
   FIRST_CLASS_MOVEMENT_OPTIONS,
+  OPENING_CHECKLIST_ITEMS,
+  SHIFT_STATE_VERSION,
   SYNTHETIC_ACTORS,
 } from '../../domain/shift/shiftDomain.js'
 import { createShiftService } from '../../domain/shift/shiftService.js'
@@ -17,48 +19,63 @@ function createMemoryStorage() {
   }
 }
 
+const firstClassRecord = {
+  movement: FIRST_CLASS_MOVEMENT_OPTIONS[0],
+  movementFollowUp: '',
+  discomfort: FIRST_CLASS_DISCOMFORT_OPTIONS[0],
+  discomfortZone: '',
+  workingAdaptation: '',
+  nextCoachObservation: '',
+  volumePercent: 75,
+  loadsUsed: 'Mancuernas de 6 kg.',
+  adaptedExercises: 'Remo en lugar de carrera.',
+}
+
 describe('local shift repository', () => {
-  it('persists through a new adapter instance and resets synthetic data', () => {
+  it('persists the guided opening, preparation, close audit and reset', () => {
     const storage = createMemoryStorage()
-    const firstRepository = createLocalShiftRepository({ storage })
-    const service = createShiftService({ repository: firstRepository, now: () => '2026-08-04T06:42:00+02:00' })
+    const repository = createLocalShiftRepository({ storage })
+    const service = createShiftService({ repository, now: () => '2026-08-05T06:42:00+02:00' })
     const started = service.start({ templateId: 'morning', actor: SYNTHETIC_ACTORS.coach })
-    service.recordFirstClass({
-      shiftId: started.shift.id,
-      actor: SYNTHETIC_ACTORS.coach,
-      record: {
-        movement: FIRST_CLASS_MOVEMENT_OPTIONS[0],
-        movementFollowUp: '',
-        discomfort: FIRST_CLASS_DISCOMFORT_OPTIONS[0],
-        discomfortZone: '',
-        workingAdaptation: '',
-        nextCoachObservation: '',
-        volumePercent: 75,
-        loadsUsed: 'Mancuernas de 6 kg.',
-        adaptedExercises: 'Remo en lugar de carrera.',
-      },
-    })
+    OPENING_CHECKLIST_ITEMS.forEach((item) => service.completeOpeningItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach }))
+    service.completePreparation({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach })
+    service.recordFirstClass({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach, record: firstClassRecord })
+    repository.load().shifts[0].closingChecklist.filter((item) => item.required).forEach((item) => service.completeClosingItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach }))
+    service.close({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach, note: 'Revisar remo 04.' })
 
     const reloadedRepository = createLocalShiftRepository({ storage })
-    expect(reloadedRepository.load().shifts).toHaveLength(1)
-    expect(JSON.parse(reloadedRepository.exportJson()).shifts[0].trainerName).toBe(SYNTHETIC_ACTORS.coach.name)
-    expect(reloadedRepository.load().shifts[0].firstClassRecord).toMatchObject({ volumePercent: 75, completedByName: SYNTHETIC_ACTORS.coach.name })
-
+    const shift = reloadedRepository.load().shifts[0]
+    expect(shift.status).toBe('closed')
+    expect(shift.openingChecklist.every((item) => item.completedByName === SYNTHETIC_ACTORS.coach.name)).toBe(true)
+    expect(shift.closingChecklist.filter((item) => item.required).every((item) => item.completedByName === SYNTHETIC_ACTORS.coach.name)).toBe(true)
+    expect(shift.firstClassRecord).toMatchObject({ volumePercent: 75, completedByName: SYNTHETIC_ACTORS.coach.name })
+    expect(shift.closingNote).toBe('Revisar remo 04.')
+    expect(JSON.parse(reloadedRepository.exportJson()).version).toBe(SHIFT_STATE_VERSION)
     expect(reloadedRepository.reset()).toEqual(createEmptyShiftState())
-    expect(reloadedRepository.load().shifts).toHaveLength(0)
   })
 
-  it('allows the service to swap storage adapters without changing domain or UI actions', () => {
+  it('allows storage replacement and does not expose an Operativa feedback mutation', () => {
     let state = createEmptyShiftState()
     const replacementRepository = {
       load: () => state,
       save: (next) => { state = next; return next },
       reset: () => { state = createEmptyShiftState(); return state },
     }
-    const service = createShiftService({ repository: replacementRepository, now: () => '2026-08-04T14:25:00+02:00' })
+    const service = createShiftService({ repository: replacementRepository, now: () => '2026-08-05T14:25:00+02:00' })
 
     const result = service.start({ templateId: 'afternoon', actor: SYNTHETIC_ACTORS.coach })
-    expect(result.state.shifts[0]).toMatchObject({ templateId: 'afternoon', trainerId: SYNTHETIC_ACTORS.coach.id })
+    expect(result.state.shifts[0]).toMatchObject({ templateId: 'afternoon', trainerId: SYNTHETIC_ACTORS.coach.id, endLabel: 'Cerrar centro' })
+    expect(service.recordFeedback).toBeUndefined()
+  })
+
+  it('upgrades compatible Phase 2.2 local data when loading', () => {
+    const storage = createMemoryStorage()
+    const legacy = { version: 1, shifts: [] }
+    storage.setItem('test-key', JSON.stringify(legacy))
+    const repository = createLocalShiftRepository({ storage, key: 'test-key' })
+
+    expect(repository.load()).toEqual(createEmptyShiftState())
+    expect(JSON.parse(storage.getItem('test-key')).version).toBe(SHIFT_STATE_VERSION)
   })
 
   it('surfaces incompatible local data instead of hiding the error', () => {

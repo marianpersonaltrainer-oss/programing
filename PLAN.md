@@ -1,11 +1,11 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 implementada y pendiente de revisión
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 activa
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
-**Código autorizado:** Fase 2.2 · Registro obligatorio de primera clase, autorizada por Marian el 5 de agosto de 2026
-**Fase activa:** Fase 2.2 · no iniciar Fase 3
+**Rama de preparación:** `feature/equipo-evo-f2-3-secuencia-guiada`
+**Código autorizado:** Fase 2.3 · Secuencia operativa guiada de Mi turno, autorizada por Marian el 5 de agosto de 2026
+**Fase activa:** Fase 2.3 · no iniciar Fase 3
 
 ---
 
@@ -86,7 +86,8 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 | 1 · Cerrada | Prototipo visual aprobado | Ficticios y fijos | Ninguna |
 | 2 · Aprobada funcionalmente | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
 | 2.1 · Aprobada | Refinamiento visual de Operativa y Mi turno | Sin cambios | Ninguna |
-| 2.2 · En revisión | Registro obligatorio y estructurado de primera clase | Persistencia local con datos sintéticos | Ninguna |
+| 2.2 · Aprobada | Registro obligatorio y estructurado de primera clase | Persistencia local con datos sintéticos | Ninguna |
+| 2.3 · Activa | Secuencia guiada con apertura y cierre auditables | Persistencia local con datos sintéticos | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -604,6 +605,123 @@ npm run test:ci → 53 archivos y 328 tests correctos; build Vite correcto
 
 ---
 
+# Fase 2.3 · Secuencia operativa guiada de Mi turno
+
+**Estado:** activa y autorizada por Marian el 5 de agosto de 2026.
+
+## Objetivo
+
+Sustituir el panel de acciones independientes por un único recorrido guiado: iniciar, abrir, preparar, trabajar y finalizar el turno, conservando el diseño EVO claro, las reglas fuera de React y la persistencia local sintética.
+
+## Secuencia definitiva
+
+### 0. Iniciar turno
+
+Registra únicamente entrenador, fecha, hora real de entrada y turno asignado. No completa la apertura.
+
+### 1. Abrir y preparar la sala
+
+Checklist obligatoria y auditable:
+
+1. Revisar notas e incidencias del turno anterior.
+2. Encender y comprobar ordenador, música, luces, aire y dispositivos.
+3. Revisar sala, baños, limpieza y material.
+4. Revisar programación, horarios y personas que vienen hoy.
+5. Preparar material y primera clase del turno.
+
+Cada punto guarda responsable, fecha y hora. `Ver protocolo completo de apertura` abre las instrucciones fuera de la pantalla principal. `Registrar problema` crea una incidencia sin completar el punto.
+
+### 2. Prepara tu turno
+
+Después de la apertura aparecen tres bloques:
+
+- `Clases de hoy`: horario, tipo de clase, sala y entrenador;
+- `Personas a tener en cuenta`: primera clase, molestia o lesión, adaptación relevante o seguimiento concreto;
+- `Avisos del centro`: material fuera de uso, cambio de sala o incidencia previa que afecte al turno.
+
+Solo se muestra horario mínimo y excepciones relevantes; no se replica WodBuster.
+
+### 3. Durante el turno
+
+Solo permanecen:
+
+- `Anotar una incidencia`;
+- `Registrar primera clase`, cuando corresponda;
+- `Dar feedback del entrenamiento`, que abre el día y clase correspondiente de `Programación` sin guardar el feedback en Operativa.
+
+La nota para el siguiente turno se reserva al cierre.
+
+### 4. Cerrar o entregar el turno
+
+`Finalizar turno` permanece siempre visible. Si existen pendientes, está desactivado, muestra su número y ofrece `Ver qué falta` con una lista concreta.
+
+La checklist final auditable contiene:
+
+- primera clase y seguimientos obligatorios registrados;
+- incidencias resueltas o asignadas;
+- material recogido y colocado;
+- sala y baños revisados;
+- sala preparada para el siguiente entrenador cuando corresponda;
+- ordenador, música, aire y luces revisados;
+- nota para el siguiente turno, si es necesaria.
+
+El turno de mañana termina con `Entregar turno`; el último turno termina con `Cerrar centro`. La nota es opcional. La finalización registra responsable y hora real.
+
+## Reglas de dominio y persistencia
+
+- apertura y cierre se conservan para revisión posterior;
+- cada acción obligatoria guarda responsable y hora;
+- una incidencia abierta solo deja de bloquear cuando tiene responsable, plazo y siguiente acción;
+- una primera clase pendiente bloquea;
+- la nota para el siguiente turno no bloquea;
+- el feedback del entrenamiento pertenece exclusivamente a Programación;
+- se mantienen máximo tres tareas críticas: apertura, preparación y primera clase cuando corresponda;
+- React presenta estados; dominio y servicio validan la secuencia;
+- el adaptador local sigue siendo sustituible y exportable;
+- los datos de Fase 2.2 se recuperan de forma compatible o se reinician explícitamente, nunca mediante un fallo silencioso.
+
+## Lenguaje activo
+
+Usar exclusivamente los nombres aprobados para el recorrido. Retirar de la interfaz `Información especial`, `Feedback operativo`, `Casos especiales` y `Briefing especial`.
+
+## Prueba principal
+
+**Funcionalidad:**
+
+Completar un turno guiado de principio a fin y revisar después la apertura, el cierre y la excepción trasladada.
+
+**Pasos:**
+
+1. Iniciar el turno y comprobar que la apertura continúa pendiente.
+2. Completar los cinco puntos de apertura, registrar un problema en uno y confirmar que ese punto no se completa hasta resolver la comprobación.
+3. Revisar `Prepara tu turno`, confirmar los tres bloques y entrar en el trabajo del turno.
+4. Anotar una incidencia asignada, registrar la primera clase y comprobar que el feedback navega a `Programación`.
+5. Abrir `Ver qué falta`, completar la checklist final y verificar que la nota opcional no bloquea.
+6. `Entregar turno` o `Cerrar centro`, recargar y revisar responsable y hora de cada acción.
+7. Entrar como Dirección y confirmar que ve únicamente la incidencia abierta trasladada.
+
+**Resultado esperado:**
+
+- la interfaz revela una etapa cada vez y no funciona como panel independiente;
+- las checklists de apertura y cierre son auditables y persistentes;
+- el cierre muestra bloqueos concretos y se activa solo cuando desaparecen;
+- la primera clase pendiente bloquea y una incidencia bien asignada no;
+- el feedback del entrenamiento no se guarda en Operativa;
+- no aparecen los términos eliminados;
+- escritorio y móvil conservan el patrón EVO;
+- tests y build son correctos.
+
+**Resultado real:** pendiente de ejecución.
+
+## Fuera de alcance
+
+- historial completo de entrenamientos;
+- réplica de WodBuster o datos reales;
+- Supabase, API, tablas, migraciones, login o integraciones;
+- cambios en `/`, `?coach`, `?v2`, producción o Fase 3.
+
+---
+
 # Puerta obligatoria previa a la Fase 3 · Arquitectura y portabilidad
 
 Antes de iniciar esta fase o de crear cualquier base de datos, API o conector, Marian deberá aprobar:
@@ -1028,12 +1146,13 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 2.2 · Registro obligatorio de primera clase, implementada y pendiente de revisión.
+- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno.
 - Fase 1: cerrada y aprobada por Marian.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
-- Fase 2.2: implementada y pendiente de revisión en `feature/equipo-evo-f2-2-registro-primera-clase`.
-- Trabajo autorizado actual: únicamente ajustes de Fase 2.2 que Dirección solicite tras la revisión.
+- Fase 2.2: aprobada por Marian como base funcional local.
+- Fase 2.3: activa en `feature/equipo-evo-f2-3-secuencia-guiada`.
+- Trabajo autorizado actual: secuencia guiada, apertura y cierre auditables, lenguaje definitivo y pruebas locales.
 - Código autorizado después del cierre: no iniciar Fase 3.
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.
 - Producción modificada: no.

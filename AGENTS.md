@@ -3,7 +3,7 @@
 
 **Estado:** documento vivo
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
+**Rama de preparación:** `feature/equipo-evo-f2-3-secuencia-guiada`
 **Objetivo:** indicar cómo ejecutar, comprobar y modificar el proyecto sin romper producción ni ampliar alcance.
 
 ---
@@ -342,7 +342,7 @@ No crear tablas durante la Fase 1.
 
 ## 8. Reglas específicas de la Fase 1
 
-La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. Las Fases 2 y 2.1 están aprobadas. La Fase 2.2 está autorizada para un registro obligatorio de primera clase, local y sintético; Fase 3 continúa sin autorización.
+La Fase 1 está cerrada y aprobada por Marian. Sus límites fueron exclusivamente visuales, locales, móviles primero y con datos completamente ficticios. Las Fases 2, 2.1 y 2.2 están aprobadas. La Fase 2.3 está autorizada para la secuencia guiada local y sintética de Mi turno; Fase 3 continúa sin autorización.
 
 Permitido:
 
@@ -802,9 +802,10 @@ Actualizar `AGENTS.md` cuando cambie:
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo local de Fase 2.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: Fase 2.2 · Registro obligatorio de primera clase, implementada y pendiente de revisión.
+- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno.
 - Fase 1: cerrada, aprobada y respaldada en GitHub.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
-- Fase 2.2: implementada y pendiente de revisión en `feature/equipo-evo-f2-2-registro-primera-clase`.
-- Código autorizado: únicamente ajustes de Fase 2.2 que Dirección solicite; no modificar integraciones, producción o Fase 3.
+- Fase 2.2: aprobada por Marian.
+- Fase 2.3: activa en `feature/equipo-evo-f2-3-secuencia-guiada`.
+- Código autorizado: secuencia guiada, checklists auditables, cierre con bloqueos y navegación del feedback a Programación; no modificar integraciones, producción o Fase 3.

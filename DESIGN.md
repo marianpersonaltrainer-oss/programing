@@ -1,7 +1,7 @@
 # DESIGN.md
 ## Sistema visual de Programming EVO
 
-**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 implementada y pendiente de revisión
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 activa
 **Producto:** Programming EVO
 **Superficie actual:** sandbox local `?incorporaciones`
 
@@ -68,3 +68,33 @@ El registro obligatorio conserva el mismo lenguaje ligero de Operativa:
 - una única acción principal `Guardar primera clase` al final;
 - el resumen guardado sustituye el formulario al reabrirlo y muestra responsable y hora sin duplicar etiquetas;
 - comportamiento, orden y contenido equivalentes en escritorio y móvil.
+
+## Patrón de secuencia guiada de Mi turno
+
+La pantalla principal representa un recorrido y no un tablero. Solo el momento actual tiene protagonismo; lo completado se resume y lo futuro se anuncia sin desplegar sus controles.
+
+### Cinco momentos
+
+0. `Iniciar turno`: una tarjeta clara registra la entrada y el turno asignado.
+1. `Abrir y preparar la sala`: checklist vertical compacta, con una acción principal por punto, metadatos auditables al completarlo y `Registrar problema` como acción subordinada.
+2. `Prepara tu turno`: tres bloques de lectura —clases, personas y avisos— seguidos de una única confirmación.
+3. Durante el turno: exactamente tres controles secundarios; primera clase solo si corresponde y feedback con salida visual hacia Programación.
+4. `Finalizar turno`: bloque persistente al final de la pantalla con botón desactivado, contador y `Ver qué falta`; al quedar listo, abre la revisión final y muestra `Entregar turno` o `Cerrar centro` como única acción dominante.
+
+### Checklists y auditoría
+
+- Cada fila mide al menos 44 px y utiliza estado, responsable y hora sin píldoras repetidas.
+- Un punto incompleto conserva una acción clara; un punto completado se comprime y muestra su auditoría.
+- `Registrar problema` abre un diálogo breve y devuelve al mismo punto sin marcarlo como resuelto.
+- El protocolo completo de apertura se consulta en `Protocolos`, fuera de la pantalla principal.
+- La checklist final distingue comprobaciones automáticas de registros previos y comprobaciones manuales de sala.
+- La nota para el siguiente turno se muestra dentro del cierre como campo opcional.
+- Tras cerrar, un resumen desplegable permite revisar apertura y cierre sin convertir el historial en una nueva pantalla.
+
+### Jerarquía adaptativa
+
+- En escritorio, el contenido guiado ocupa una columna principal legible y el resumen puede acompañarlo sin crear acciones paralelas.
+- En móvil, todo sigue una lectura lineal: progreso, momento actual, acción y finalización.
+- La cabecera y navegación permanecen oscuras; el área de trabajo continúa clara con blanco, lila y amarillo cálido.
+- El morado se reserva para la acción actual y el amarillo para el foco puntual.
+- Se retiran de la interfaz los nombres `Información especial`, `Feedback operativo`, `Casos especiales` y `Briefing especial`.

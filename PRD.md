@@ -1,11 +1,11 @@
 # PRD.md
 ## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · Fase 2.1 aprobada · Fase 2.2 implementada y pendiente de revisión
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 activa
 **Repositorio:** `marianpersonaltrainer-oss/programing`
-**Rama de preparación:** `feature/equipo-evo-f2-2-registro-primera-clase`
-**Código autorizado:** Fase 2.2 · Registro obligatorio de primera clase, autorizada por Marian el 5 de agosto de 2026
-**Fase activa:** Fase 2.2 · no iniciar Fase 3
+**Rama de preparación:** `feature/equipo-evo-f2-3-secuencia-guiada`
+**Código autorizado:** Fase 2.3 · Secuencia operativa guiada de Mi turno, autorizada por Marian el 5 de agosto de 2026
+**Fase activa:** Fase 2.3 · no iniciar Fase 3
 
 ---
 
@@ -69,10 +69,10 @@ Necesita:
 
 - consultar en `Programación` el entrenamiento, sus notas, objetivo, estímulo y preparación de clase;
 - aportar feedback del entrenamiento asociado a la sesión;
-- consultar en `Mi turno` la entrada y puntualidad, apertura o relevo y las tareas operativas críticas;
+- consultar en `Mi turno` la entrada, la apertura auditada, la preparación completa y el cierre o entrega;
 - ver únicamente personas nuevas, adaptaciones, incidencias previas u otros casos que exijan una acción especial;
 - registrar una incidencia;
-- completar feedback operativo de primera clase o de un caso relevante;
+- registrar una primera clase estructurada cuando corresponda;
 - resolver caja, sala, material, relevo y cierre cuando corresponda;
 - consultar protocolos desde la biblioteca o desde una tarea contextual;
 - recibir confirmación del resultado y siguiente responsable.
@@ -291,7 +291,7 @@ No se transformarán en una checklist obligatoria después de cada clase. Se res
 ### Separación de feedback
 
 1. **Feedback de programación:** se asocia al entrenamiento y se guarda dentro de `Programación`.
-2. **Feedback operativo o de cliente:** corresponde a primera clase, incidencia, seguimiento o relevo y se gestiona dentro de `Mi turno`.
+2. **Registros operativos o de cliente:** primera clase, incidencia, seguimiento o relevo se gestionan dentro de `Mi turno`, sin utilizar el término feedback para estas acciones.
 
 ### Separación de evaluación
 
@@ -351,6 +351,30 @@ Campos:
 Las tres selecciones principales y los campos de trabajo completado deben informarse antes de guardar. Los campos identificados como opcionales pueden quedar vacíos.
 
 El registro de primera clase es la tercera y última tarea crítica propia del turno sintético. Por tanto, el cierre continúa bloqueándose exclusivamente por tareas críticas propias y se conserva el máximo de tres. No se crea un historial completo de entrenamientos, no se añaden preguntas y no se almacenan diagnósticos clínicos.
+
+## 11.2 Secuencia operativa definitiva de Mi turno · Fase 2.3
+
+`Mi turno` se comporta como una secuencia guiada y revela el momento siguiente cuando el anterior queda completo:
+
+0. `Iniciar turno` registra entrenador, fecha, hora real de entrada y turno asignado. No confirma la apertura.
+1. `Abrir y preparar la sala` exige completar cinco comprobaciones auditables: revisar el turno anterior; comprobar dispositivos; revisar sala, baños, limpieza y material; revisar programación, horarios y personas; y preparar material y primera clase. Cada punto guarda responsable, fecha y hora. `Ver protocolo completo de apertura` muestra las instrucciones fuera de la pantalla principal. `Registrar problema` crea una incidencia y mantiene el punto incompleto.
+2. `Prepara tu turno` muestra únicamente `Clases de hoy`, `Personas a tener en cuenta` y `Avisos del centro`. El horario es mínimo y las personas o avisos aparecen solo cuando requieren atención; no se replica WodBuster.
+3. Durante el turno solo existen `Anotar una incidencia`, `Registrar primera clase` cuando corresponda y `Dar feedback del entrenamiento`. Esta última acción lleva a la clase correspondiente en `Programación` y no guarda feedback dentro de Operativa.
+4. `Finalizar turno` permanece visible. Mientras existan obligaciones pendientes está desactivado, muestra el número de bloqueos y ofrece `Ver qué falta` con la lista concreta. El cierre diferencia `Entregar turno` y `Cerrar centro`, registra la hora real y conserva una checklist auditable.
+
+La checklist final comprueba:
+
+- primera clase y seguimientos obligatorios registrados;
+- incidencias resueltas o asignadas;
+- material recogido y colocado;
+- sala y baños revisados;
+- sala preparada para el siguiente entrenador cuando corresponda;
+- ordenador, música, aire y luces revisados;
+- nota opcional para el siguiente turno.
+
+Una incidencia abierta puede trasladarse si conserva responsable, plazo y siguiente acción. La nota de relevo es opcional y no bloquea; una primera clase pendiente sí bloquea. Apertura, preparación, registro de primera clase y cierre mantienen sus reglas en el dominio, no en React, y persisten mediante el adaptador local sustituible.
+
+El lenguaje activo elimina `Información especial`, `Feedback operativo`, `Casos especiales` y `Briefing especial`.
 
 ---
 
@@ -612,8 +636,9 @@ La primera versión se considera útil cuando:
 - Fase 2 autorizada expresamente por Marian el 4 de agosto de 2026.
 - Fase 2 aprobada funcionalmente por Marian el 5 de agosto de 2026.
 - Fase 2.1 aprobada por Marian el 5 de agosto de 2026.
-- Fase 2.2 implementada como registro estructurado obligatorio, local y sintético, pendiente de revisión de Marian.
-- Fase activa: revisión de Fase 2.2; persistencia real, integraciones e historial completo permanecen fuera de alcance.
+- Fase 2.2 aprobada como base funcional local y sintética.
+- Fase 2.3 autorizada para convertir Mi turno en la secuencia guiada definitiva con apertura y cierre auditables.
+- Fase activa: Fase 2.3; persistencia real, integraciones e historial completo permanecen fuera de alcance.
 - Fase 3, persistencia real, accesos internos e integraciones no autorizados.
 - Supabase, API, migraciones, WodBuster y datos reales no fueron utilizados para el turno mínimo.
 - Producción modificada: no.

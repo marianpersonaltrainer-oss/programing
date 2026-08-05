@@ -1,7 +1,7 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 activa
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 implementada y pendiente de revisión
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f2-3-secuencia-guiada`
 **Código autorizado:** Fase 2.3 · Secuencia operativa guiada de Mi turno, autorizada por Marian el 5 de agosto de 2026
@@ -87,7 +87,7 @@ Existe un prototipo visual local aprobado en `?incorporaciones`. Continúa siend
 | 2 · Aprobada funcionalmente | Turno mínimo funcional implementado | Persistencia local con datos sintéticos | Ninguna |
 | 2.1 · Aprobada | Refinamiento visual de Operativa y Mi turno | Sin cambios | Ninguna |
 | 2.2 · Aprobada | Registro obligatorio y estructurado de primera clase | Persistencia local con datos sintéticos | Ninguna |
-| 2.3 · Activa | Secuencia guiada con apertura y cierre auditables | Persistencia local con datos sintéticos | Ninguna |
+| 2.3 · En revisión | Secuencia guiada con apertura y cierre auditables | Persistencia local con datos sintéticos | Ninguna |
 | Puerta de arquitectura | Modelo, propietarios, límites y salida aprobados | Diseño | Ninguna |
 | 3 | Persistencia y acceso interno | Base propia | Ninguna externa |
 | 4 | Flujo real con activación manual | Piloto | Manual |
@@ -607,7 +607,7 @@ npm run test:ci → 53 archivos y 328 tests correctos; build Vite correcto
 
 # Fase 2.3 · Secuencia operativa guiada de Mi turno
 
-**Estado:** activa y autorizada por Marian el 5 de agosto de 2026.
+**Estado:** implementada y pendiente de revisión de Marian.
 
 ## Objetivo
 
@@ -711,7 +711,22 @@ Completar un turno guiado de principio a fin y revisar después la apertura, el 
 - escritorio y móvil conservan el patrón EVO;
 - tests y build son correctos.
 
-**Resultado real:** pendiente de ejecución.
+**Resultado real:** superada técnicamente el 5 de agosto de 2026. `Iniciar turno` guardó entrenador, fecha, entrada real y turno asignado sin completar la apertura. Se registró un problema en la comprobación de dispositivos; la incidencia quedó asignada a Dirección con plazo y siguiente acción, mientras el punto de apertura permaneció pendiente. Tras completar los cinco puntos, cada uno mostró responsable, fecha y hora y apareció `Prepara tu turno` con los tres bloques aprobados. La confirmación reveló exactamente las tres acciones del trabajo. `Dar feedback del entrenamiento` abrió `Hoy · 13:30 · EVO Basics` dentro de Programación sin crear un registro en Operativa. La primera clase desbloqueó su tarea obligatoria. `Ver qué falta` mostró las cuatro comprobaciones finales pendientes; una vez auditadas, `Finalizar turno` permitió `Entregar turno`. La nota vacía no bloqueó. Tras recargar, el turno siguió al 100 %, la apertura y el cierre pudieron revisarse y Dirección mostró únicamente la incidencia abierta con responsable, plazo y siguiente acción. El recorrido se verificó a 1440 × 1000 px y 390 × 844 px.
+
+**Pruebas automáticas ejecutadas:**
+
+```text
+npm run test -- src/domain/shift/shiftDomain.test.js src/adapters/shift/localShiftRepository.test.js → 2 archivos y 16 tests correctos
+npm run test:ci → 53 archivos y 332 tests correctos; build Vite correcto
+```
+
+**Incidencias:** se corrigieron el campo de plazo que no propagaba de forma fiable su valor en el navegador, la puntualidad sintética extrema y dos fondos oscuros cuya opacidad no estaba siendo generada por Tailwind. El build conserva el aviso preexistente sobre chunks superiores a 500 kB y los tests muestran el aviso local preexistente de variables Supabase ausentes; ninguno afecta al sandbox.
+
+**Producción modificada:** No.
+
+**Recomendación técnica:** `Aprobada`.
+
+**Decisión de Dirección:** pendiente de Marian; no iniciar Fase 3.
 
 ## Fuera de alcance
 
@@ -1146,13 +1161,13 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno.
+- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno, implementada y pendiente de revisión.
 - Fase 1: cerrada y aprobada por Marian.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
 - Fase 2.2: aprobada por Marian como base funcional local.
-- Fase 2.3: activa en `feature/equipo-evo-f2-3-secuencia-guiada`.
-- Trabajo autorizado actual: secuencia guiada, apertura y cierre auditables, lenguaje definitivo y pruebas locales.
+- Fase 2.3: implementada y pendiente de revisión en `feature/equipo-evo-f2-3-secuencia-guiada`.
+- Trabajo autorizado actual: únicamente ajustes de Fase 2.3 que Dirección solicite tras la revisión.
 - Código autorizado después del cierre: no iniciar Fase 3.
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.
 - Producción modificada: no.

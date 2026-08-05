@@ -1,7 +1,7 @@
 # DESIGN.md
 ## Sistema visual de Programming EVO
 
-**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 activa
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 implementada y pendiente de revisión
 **Producto:** Programming EVO
 **Superficie actual:** sandbox local `?incorporaciones`
 

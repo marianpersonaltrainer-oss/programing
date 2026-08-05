@@ -84,6 +84,20 @@ export function useLocalShiftFlow() {
         'Turno preparado y guardado con responsable y hora.',
       )
     },
+    confirmCenterOperational() {
+      if (!currentShift) return false
+      return run(
+        () => service.confirmCenterOperational({ shiftId: currentShift.id, actor }),
+        'Centro abierto y operativo. Responsable y hora guardados.',
+      )
+    },
+    confirmBriefing() {
+      if (!currentShift) return false
+      return run(
+        () => service.confirmBriefing({ shiftId: currentShift.id, actor }),
+        'Briefing revisado. El turno está preparado para trabajar.',
+      )
+    },
     recordIncident(incident) {
       if (!currentShift) return false
       return run(
@@ -121,10 +135,17 @@ export function useLocalShiftFlow() {
         'Actividad final cerrada con evidencia verificable.',
       )
     },
-    close(note = '') {
+    confirmClosingItem(itemId) {
       if (!currentShift) return false
       return run(
-        () => service.close({ shiftId: currentShift.id, actor, note }),
+        () => service.confirmClosingItem({ shiftId: currentShift.id, itemId, actor }),
+        'Comprobación de cierre guardada con responsable y hora.',
+      )
+    },
+    close(note = '', handoverReady = false) {
+      if (!currentShift) return false
+      return run(
+        () => service.close({ shiftId: currentShift.id, actor, note, handoverReady }),
         currentShift.endMode === 'handover'
           ? 'Turno entregado. Las excepciones asignadas siguen visibles para Dirección.'
           : 'Centro cerrado. Las excepciones asignadas siguen visibles para Dirección.',

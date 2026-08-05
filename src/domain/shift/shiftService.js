@@ -1,5 +1,7 @@
 import {
   closeShift,
+  confirmCenterOperational,
+  confirmClosingItem,
   completeClosingCheck,
   completeClosingItem,
   completeOpeningCheck,
@@ -30,6 +32,9 @@ export function createShiftService({ repository, now = () => new Date().toISOStr
       repository.save(result.state)
       return result
     },
+    confirmCenterOperational: (params) => persist((state, at) => confirmCenterOperational(state, params, at)),
+    confirmBriefing: (params) => persist((state, at) => completeShiftPreparation(state, params, at)),
+    confirmClosingItem: (params) => persist((state, at) => confirmClosingItem(state, params, at)),
     openOpeningItem: (params) => persist((state, at) => openOpeningItem(state, params, at)),
     completeOpeningCheck: (params) => persist((state, at) => completeOpeningCheck(state, params, at)),
     completeOpeningItem: (params) => persist((state, at) => completeOpeningItem(state, params, at)),

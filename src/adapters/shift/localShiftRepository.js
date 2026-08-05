@@ -20,8 +20,8 @@ export function createLocalShiftRepository({ storage, key = LOCAL_SHIFT_STORAGE_
     load() {
       const raw = target.getItem(key)
       if (!raw) return createEmptyShiftState()
-      const parsed = JSON.parse(raw)
       try {
+        const parsed = JSON.parse(raw)
         const upgraded = upgradeLegacyShiftState(parsed)
         if (!isValidState(upgraded)) throw new Error('Los datos locales del turno no tienen un formato compatible.')
         if (parsed.version !== SHIFT_STATE_VERSION) target.setItem(key, JSON.stringify(upgraded))

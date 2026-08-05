@@ -3,38 +3,54 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import IncorporacionesApp from './IncorporacionesApp.jsx'
 import { LOCAL_SHIFT_STORAGE_KEY } from './adapters/shift/localShiftRepository.js'
-import { createEmptyShiftState, startShift, SYNTHETIC_ACTORS } from './domain/shift/shiftDomain.js'
+import { completeShiftPreparation, confirmCenterOperational, createEmptyShiftState, startShift, SYNTHETIC_ACTORS } from './domain/shift/shiftDomain.js'
 
-function createMemoryStorage(initial = {}) {
-  const values = new Map(Object.entries(initial))
-  return {
-    getItem(key) { return values.has(key) ? values.get(key) : null },
-    setItem(key, value) { values.set(key, String(value)) },
-    removeItem(key) { values.delete(key) },
-  }
+function storageWith(state) {
+  const values = new Map([[LOCAL_SHIFT_STORAGE_KEY, JSON.stringify(state)]])
+  return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) }
 }
 
-afterEach(() => {
-  delete globalThis.localStorage
-})
+afterEach(() => { delete globalThis.localStorage })
 
-describe('Mi turno opening actions', () => {
-  it('shows a guided activity entry instead of completion controls in the summary', () => {
-    const started = startShift(
-      createEmptyShiftState(),
-      { templateId: 'morning', actor: SYNTHETIC_ACTORS.coach },
-      '2026-08-05T06:42:00+02:00',
-    )
-    globalThis.localStorage = createMemoryStorage({
-      [LOCAL_SHIFT_STORAGE_KEY]: JSON.stringify(started.state),
-    })
-
+describe('Mi turno contextual journey', () => {
+  it('shows compact opening for the first shift', () => {
+    const started = startShift(createEmptyShiftState(), { templateId: 'morning', actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T06:42:00+02:00')
+    globalThis.localStorage = storageWith(started.state)
     const html = renderToStaticMarkup(<IncorporacionesApp />)
+    expect(html).toContain('Centro abierto y operativo')
+    expect(html).toContain('Registrar un problema')
+    expect(html).not.toContain('Abrir actividad')
+  })
 
-    expect(html).toContain('Revisar notas e incidencias del turno anterior')
-    expect(html).toContain('Abrir actividad')
-    expect(html).toContain('Disponible después de la actividad anterior')
-    expect(html).not.toContain('Marcar completado')
-    expect(html).not.toContain('Registrar problema')
+  it('shows a single briefing after opening with classes, people and Programación links', () => {
+    const started = startShift(createEmptyShiftState(), { templateId: 'morning', actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T06:42:00+02:00')
+    const opened = confirmCenterOperational(started.state, { shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T06:44:00+02:00')
+    globalThis.localStorage = storageWith(opened)
+    const html = renderToStaticMarkup(<IncorporacionesApp />)
+    expect(html).toContain('Preparar mi turno')
+    expect(html).toContain('Alex Vega')
+    expect(html).toContain('Feedback anterior')
+    expect(html.match(/Abrir en Programación/g)).toHaveLength(3)
+    expect(html.match(/He revisado y preparado mi turno/g)).toHaveLength(1)
+  })
+
+  it('sends the handover trainer directly to briefing', () => {
+    const started = startShift(createEmptyShiftState(), { templateId: 'afternoon', actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T14:25:00+02:00')
+    globalThis.localStorage = storageWith(started.state)
+    const html = renderToStaticMarkup(<IncorporacionesApp />)
+    expect(html).toContain('Información del relevo')
+    expect(html).not.toContain('Centro abierto y operativo')
+  })
+
+  it('shows contextual work instead of a permanent checklist', () => {
+    const started = startShift(createEmptyShiftState(), { templateId: 'morning', actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T06:42:00+02:00')
+    const opened = confirmCenterOperational(started.state, { shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T06:44:00+02:00')
+    const prepared = completeShiftPreparation(opened, { shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach }, '2026-08-05T06:48:00+02:00')
+    globalThis.localStorage = storageWith(prepared)
+    const html = renderToStaticMarkup(<IncorporacionesApp />)
+    expect(html).toContain('Abrir siguiente clase')
+    expect(html).toContain('Ver persona nueva')
+    expect(html).toContain('Dar feedback')
+    expect(html).not.toContain('Completa cada comprobación')
   })
 })

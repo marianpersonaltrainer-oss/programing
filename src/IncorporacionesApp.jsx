@@ -47,7 +47,7 @@ const directionNavigation = [
   { id: 'team', label: 'Equipo', icon: 'followups' },
 ]
 
-const sequenceSteps = ['Iniciar', 'Abrir', 'Preparar', 'Trabajar', 'Finalizar']
+const sequenceSteps = ['Iniciar', 'Preparar', 'Trabajar', 'Finalizar']
 
 const statusLabels = {
   pending: 'Pendiente',
@@ -213,10 +213,12 @@ function FirstClassDialog({ shift, error, onClose, onConfirm, onClearError }) {
   )
 }
 
-function IncidentDialog({ shift, openingItemId, openingCheckId, closingItemId, closingCheckId, error, onClose, onConfirm, onClearError }) {
+function IncidentDialog({ shift, previousClosing = false, openingItemId, openingCheckId, closingItemId, closingCheckId, error, onClose, onConfirm, onClearError }) {
   const [description, setDescription] = useState('')
   const [dueAt, setDueAt] = useState('')
   const [nextAction, setNextAction] = useState('')
+  const [serviceImpact, setServiceImpact] = useState('none')
+  const [evidence, setEvidence] = useState('')
   const openingItem = shift.openingChecklist.find((item) => item.id === openingItemId)
   const openingCheck = openingItem?.checks.find((check) => check.id === openingCheckId)
   const closingItem = shift.closingChecklist.find((item) => item.id === closingItemId)
@@ -227,13 +229,14 @@ function IncidentDialog({ shift, openingItemId, openingCheckId, closingItemId, c
     setter(value)
   }
   function confirm() {
-    const success = onConfirm({ description, dueAt, nextAction, openingItemId, openingCheckId, closingItemId, closingCheckId })
+    const success = onConfirm({ description, dueAt, nextAction, openingItemId, openingCheckId, closingItemId, closingCheckId, category: previousClosing ? 'previous_closing' : 'operational', serviceImpact, evidence })
     if (success) onClose()
   }
   return (
-    <DialogShell eyebrow={`Incidencia · ${shift.trainerName}`} title={affectedCheck ? 'Registrar problema de comprobación' : 'Anotar una incidencia'} detail={affectedCheck ? `El elemento “${affectedCheck.label}” quedará como excepción trazada; la actividad seguirá pendiente hasta que confirmes el resto y la finalices.` : 'La incidencia quedará visible para Dirección con responsable, plazo y siguiente acción.'} onClose={onClose}>
+    <DialogShell eyebrow={`Incidencia · ${shift.trainerName}`} title={previousClosing ? 'Registrar problema del cierre anterior' : affectedCheck ? 'Registrar problema de comprobación' : 'Anotar una incidencia'} detail={previousClosing ? 'Guarda lo encontrado al abrir. Quedará atribuido al turno anterior cuando exista contexto local y solo frenará el inicio si afecta a seguridad o servicio.' : affectedCheck ? `El elemento “${affectedCheck.label}” quedará como excepción trazada.` : 'La incidencia quedará visible para Dirección con responsable, plazo y siguiente acción.'} onClose={onClose}>
       <div className="mt-5 space-y-4">
         <label className="block text-sm font-bold text-[#4A354D]">¿Qué ha ocurrido?<textarea rows="3" maxLength="240" value={description} onChange={(event) => update(setDescription, event.target.value)} placeholder="Ej. El remo 04 queda fuera de uso." className="mt-2 min-h-24 w-full resize-none rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal leading-6 outline-none placeholder:text-[#9A879D] focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label>
+        {previousClosing && <><label className="block text-sm font-bold text-[#4A354D]">Evidencia breve <span className="font-medium text-[#8B798D]">· opcional</span><input value={evidence} onChange={(event) => update(setEvidence, event.target.value)} placeholder="Ej. Foto local anotada o zona afectada." className="mt-2 min-h-11 w-full rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal outline-none placeholder:text-[#9A879D] focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label><fieldset><legend className="text-sm font-bold text-[#4A354D]">Impacto en la apertura</legend><div className="mt-2 grid gap-2 sm:grid-cols-3">{[['none', 'Se puede continuar'], ['safety', 'Afecta a seguridad'], ['service-blocking', 'Impide el servicio']].map(([value, label]) => <button key={value} type="button" aria-pressed={serviceImpact === value} onClick={() => setServiceImpact(value)} className={`min-h-11 rounded-xl border px-3 text-sm font-bold ${serviceImpact === value ? 'border-[#A729AD] bg-[#F4E6F5] text-[#4A214D]' : 'border-[#D9C8DB] bg-white text-[#604B63]'}`}>{label}</button>)}</div></fieldset></>}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-bold text-[#4A354D]">Responsable<input value={SYNTHETIC_ACTORS.direction.name} readOnly className="mt-2 min-h-11 w-full rounded-xl border border-[#D9C8DB] bg-[#F0E7F1] px-4 py-3 text-base font-semibold text-[#5A465D]" /></label>
           <label className="block text-sm font-bold text-[#4A354D]">Plazo<input type="text" value={dueAt} onChange={(event) => update(setDueAt, event.target.value)} placeholder="2026-08-05T14:00" className="mt-2 min-h-11 w-full rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal outline-none placeholder:text-[#9A879D] focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label>
@@ -329,67 +332,53 @@ export function ProgrammingOpeningReview({ shift, flow, onBack, onCompleted }) {
   )
 }
 
-function ClosingDialog({ shift, flow, error, onClose, initialItemId = null, onProblem }) {
+function ClosingDialog({ shift, flow, error, onClose }) {
   const [note, setNote] = useState(shift.closingNote || '')
-  const [activeItemId, setActiveItemId] = useState(initialItemId)
+  const [handoverReady, setHandoverReady] = useState(false)
   const blockers = getClosingBlockers(shift, shift.trainerId)
   const incidentsReady = shift.incidents.every((incident) => incident.status !== 'open' || (incident.ownerId && incident.dueAt && incident.nextAction))
   const firstClassReady = !shift.tasks.some((task) => task.id === 'first-class') || Boolean(shift.firstClassRecord)
   function finish() {
-    if (flow.close(note)) onClose()
+    if (flow.close(note, shift.endMode === 'handover' ? handoverReady : false)) onClose()
   }
-  function openActivity(itemId) {
-    const item = shift.closingChecklist.find((candidate) => candidate.id === itemId)
-    if (!item.openedAt && !flow.openClosingItem(itemId)) return
-    setActiveItemId(itemId)
-  }
-  if (activeItemId) {
-    const item = shift.closingChecklist.find((candidate) => candidate.id === activeItemId)
-    const definition = CLOSING_ACTIVITY_DEFINITIONS[activeItemId]
-    const ready = item.checks.every((check) => ['checked', 'exception'].includes(check.status))
-    function finishActivity() {
-      const success = flow.completeClosingItem(activeItemId, { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) })
-      if (success) setActiveItemId(null)
-    }
+  if (shift.endMode === 'handover') {
     return (
-      <DialogShell eyebrow="Final del turno · Evidencia" title={item.label.replace(/\.$/, '')} detail="Realiza cada comprobación. Una excepción asignada queda vinculada al elemento, pero la actividad no finaliza hasta que confirmes el conjunto." onClose={() => setActiveItemId(null)}>
-        <TextButton onClick={() => setActiveItemId(null)}>← Volver a la checklist final</TextButton>
-        <ActivityChecks item={item} onCheck={(checkId) => flow.completeClosingCheck(activeItemId, checkId)} onProblem={(checkId) => onProblem(activeItemId, checkId)} />
-        {item.status !== 'completed' && <div className="mt-5"><PrimaryButton icon="check" disabled={!ready} onClick={finishActivity}>Finalizar comprobación</PrimaryButton></div>}
-        {item.status === 'completed' && <p role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Comprobación finalizada por {item.completedByName} · {formatDateTime(item.completedAt)}.</p>}
+      <DialogShell eyebrow="Llega otro entrenador" title="Entregar turno" detail="Deja solo la información necesaria para que el siguiente entrenador continúe sin repetir un cierre completo." onClose={onClose}>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2"><LightCard><p className="text-sm font-bold text-[#A729AD]">Incidencias activas</p><p className="mt-2 text-base">{shift.incidents.length === 0 ? 'Sin incidencias nuevas.' : `${shift.incidents.length} asignada con responsable y plazo.`}</p></LightCard><LightCard><p className="text-sm font-bold text-[#A729AD]">Información de relevo</p><p className="mt-2 text-base leading-6">{previousShiftHandover.note}</p></LightCard></div>
+        <label className="mt-5 block text-sm font-bold text-[#4A354D]">Asunto para el siguiente entrenador <span className="font-medium text-[#8B798D]">· opcional</span><textarea rows="3" maxLength="240" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Solo si queda un asunto que necesita contexto." className="mt-2 min-h-24 w-full resize-none rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal leading-6 outline-none focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label>
+        <button type="button" role="checkbox" aria-checked={handoverReady} onClick={() => setHandoverReady((value) => !value)} className={`mt-4 flex min-h-12 w-full items-center gap-3 rounded-xl border p-4 text-left text-base font-bold ${handoverReady ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-[#D9C8DB] bg-white text-[#4A354D]'}`}><span className={`flex h-7 w-7 items-center justify-center rounded-full ${handoverReady ? 'bg-emerald-600 text-white' : 'bg-[#F0E7F1] text-[#6A1F6D]'}`}><Icon name={handoverReady ? 'check' : 'today'} className="h-4 w-4" /></span>He dejado el relevo, las incidencias y la sala listos para continuar.</button>
+        {blockers.length > 0 && <div className="mt-5 rounded-xl border border-amber-200 bg-[#FFFFE2] p-4"><p className="text-sm font-extrabold text-[#6A1F6D]">{blockers.length} obligaciones pendientes</p><ul className="mt-2 text-sm leading-6">{blockers.map((blocker) => <li key={blocker.id}>• {blocker.label}</li>)}</ul></div>}
         {error && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">{error}</p>}
+        <div className="mt-6"><PrimaryButton icon="check" disabled={!handoverReady || blockers.length > 0} onClick={finish}>Turno entregado</PrimaryButton></div>
       </DialogShell>
     )
   }
   return (
-    <DialogShell eyebrow={`Final del turno · ${shift.trainerName}`} title={shift.endLabel} detail="Revisa la checklist. Cada comprobación obligatoria guarda responsable y hora." onClose={onClose}>
+    <DialogShell eyebrow="Último turno del día" title="Cerrar centro" detail="Solo el último entrenador realiza este cierre completo. Cada confirmación guarda responsable y hora." onClose={onClose}>
       <div className="mt-5 space-y-2">
         <div className={`rounded-xl border p-4 ${firstClassReady ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}><p className="text-base font-bold">Primera clase y seguimientos obligatorios registrados.</p><p className="mt-1 text-sm text-[#6E5A71]">{firstClassReady ? 'Comprobado mediante los registros del turno.' : 'Falta registrar la primera clase.'}</p></div>
         <div className={`rounded-xl border p-4 ${incidentsReady ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}><p className="text-base font-bold">Incidencias resueltas o asignadas.</p><p className="mt-1 text-sm text-[#6E5A71]">{incidentsReady ? 'Todas tienen responsable, plazo y siguiente acción.' : 'Existe una incidencia sin trasladar correctamente.'}</p></div>
         {shift.closingChecklist.map((item) => (
           <div key={item.id} data-testid={`closing-item-${item.id}`} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.status === 'completed' || item.status === 'not-required' ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}>
             <div><p className="text-base font-bold">{item.label}</p><p className="mt-1 text-sm text-[#6E5A71]">{item.status === 'completed' ? `${item.completedByName} · ${formatDateTime(item.completedAt)}` : item.status === 'not-required' ? 'No corresponde al último turno del día.' : 'Pendiente de comprobar.'}</p></div>
-            {item.required && <button type="button" onClick={() => openActivity(item.id)} className="min-h-11 shrink-0 rounded-xl bg-[#F0E7F1] px-4 text-sm font-extrabold text-[#6A1F6D] hover:bg-[#E8D5EA] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]">{item.status === 'completed' ? 'Ver evidencia' : item.openedAt ? 'Continuar comprobación' : 'Abrir comprobación'}</button>}
+            {item.required && item.status !== 'completed' && <button type="button" onClick={() => flow.confirmClosingItem(item.id)} className="min-h-11 shrink-0 rounded-xl bg-[#F0E7F1] px-4 text-sm font-extrabold text-[#6A1F6D] hover:bg-[#E8D5EA] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]">Confirmar</button>}
           </div>
         ))}
       </div>
-      <label className="mt-5 block text-sm font-bold text-[#4A354D]">Nota para el siguiente turno <span className="font-medium text-[#8B798D]">· opcional</span><textarea rows="3" maxLength="240" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Escribe solo si el siguiente entrenador necesita contexto." className="mt-2 min-h-24 w-full resize-none rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal leading-6 outline-none placeholder:text-[#9A879D] focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label>
+      <label className="mt-5 block text-sm font-bold text-[#4A354D]">Nota de cierre <span className="font-medium text-[#8B798D]">· opcional</span><textarea rows="3" maxLength="240" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Solo si Dirección necesita contexto." className="mt-2 min-h-24 w-full resize-none rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal leading-6 outline-none placeholder:text-[#9A879D] focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label>
       {blockers.length > 0 && <div className="mt-5 rounded-xl border border-amber-200 bg-[#FFFFE2] p-4"><p className="text-sm font-extrabold text-[#6A1F6D]">{blockers.length} obligaciones pendientes</p><ul className="mt-2 space-y-1 text-sm leading-6 text-[#5B465E]">{blockers.map((blocker) => <li key={blocker.id}>• {blocker.label}</li>)}</ul></div>}
       {error && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">{error}</p>}
-      <div className="mt-6"><PrimaryButton icon="check" disabled={blockers.length > 0} onClick={finish}>{shift.endLabel}</PrimaryButton></div>
+      <div className="mt-6"><PrimaryButton icon="check" disabled={blockers.length > 0} onClick={finish}>Centro cerrado</PrimaryButton></div>
     </DialogShell>
   )
 }
 
-function ProgrammingReference({ target, returnLabel, onReturn, openingReview = false, shift, flow, onOpeningReviewComplete }) {
-  if (openingReview && shift) {
-    return <ProgrammingOpeningReview shift={shift} flow={flow} onBack={onReturn} onCompleted={onOpeningReviewComplete} />
-  }
+function ProgrammingReference({ target, returnLabel, onReturn }) {
   return (
     <div>
       <ScreenHeading eyebrow="Programming EVO" title="Programación" detail="El feedback del entrenamiento pertenece a su día y clase; Operativa no lo almacena." />
       <LightCard className="max-w-2xl">
-        {target ? <><p className="text-sm font-bold text-[#A729AD]">{target.dateLabel} · {target.time}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{target.className}</h2><p className="mt-3 text-base leading-7 text-[#604B63]">Has llegado a la clase correspondiente. En la aplicación real, el campo de feedback de sesión continúa dentro de Programación.</p></> : <><p className="font-evo-display text-3xl font-semibold">La programación continúa donde ya está</p><p className="mt-3 text-base leading-7 text-[#604B63]">Entrenamiento del día, notas, objetivo, estímulo, preparación de clase y feedback de sesión permanecen en esta área.</p></>}
+        {target ? <><p className="text-sm font-bold text-[#A729AD]">{target.dateLabel || 'Hoy'} · {target.time}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{target.className || target.type}</h2><p className="mt-3 text-base leading-7 text-[#604B63]">Has llegado a la clase correspondiente. Objetivo, preparación y feedback de sesión continúan dentro de Programación.</p>{target.objective && <div className="mt-4 rounded-xl bg-[#F0E7F1] p-4"><p className="text-sm font-bold text-[#A729AD]">Objetivo</p><p className="mt-1 text-base leading-7">{target.objective}</p></div>}</> : <><p className="font-evo-display text-3xl font-semibold">La programación continúa donde ya está</p><p className="mt-3 text-base leading-7 text-[#604B63]">Entrenamiento del día, notas, objetivo, estímulo, preparación de clase y feedback de sesión permanecen en esta área.</p></>}
         <div className="mt-6"><PrimaryButton onClick={onReturn}>Volver a {returnLabel}</PrimaryButton></div>
       </LightCard>
     </div>
@@ -403,21 +392,21 @@ function StartShiftCard({ onStart }) {
     <LightCard className="max-w-2xl">
       <p className="text-sm font-bold text-[#A729AD]">Entrenador asignado</p>
       <h2 className="mt-1 font-evo-display text-3xl font-semibold">{SYNTHETIC_ACTORS.coach.name}</h2>
-      <p className="mt-2 text-base leading-7 text-[#604B63]">Selecciona el turno asignado. Al iniciar se guardarán fecha y hora real de entrada; la apertura seguirá pendiente.</p>
+      <p className="mt-2 text-base leading-7 text-[#604B63]">Selecciona el turno asignado. Se guardarán la fecha y hora real; el recorrido sabrá si abres el centro o recibes relevo.</p>
       <div className="mt-5 flex rounded-xl border border-[#D9C8DB] bg-white p-1" aria-label="Seleccionar turno">
         {Object.values(SHIFT_TEMPLATES).map((option) => <button key={option.id} type="button" aria-pressed={templateId === option.id} onClick={() => setTemplateId(option.id)} className={`min-h-12 flex-1 rounded-lg px-3 text-base font-extrabold ${templateId === option.id ? 'bg-[#A729AD] text-white' : 'text-[#604B63]'}`}>{option.label}</button>)}
       </div>
-      <p className="mt-4 rounded-xl bg-[#F0E7F1] p-4 text-base font-semibold text-[#604B63]">Turno asignado: {template.label} · {template.scheduledStart}–{template.scheduledEnd}</p>
+      <p className="mt-4 rounded-xl bg-[#F0E7F1] p-4 text-base font-semibold text-[#604B63]">Turno asignado: {template.label} · {template.scheduledStart}–{template.scheduledEnd}<span className="mt-1 block text-sm font-medium">{template.arrivalMode === 'open-center' ? 'Primer turno · abre el centro' : 'Recibe relevo · va directo al briefing'}</span></p>
       <div className="mt-5"><PrimaryButton onClick={() => onStart(templateId)}>Iniciar turno</PrimaryButton></div>
     </LightCard>
   )
 }
 
 function SequenceProgress({ shift, stage }) {
-  const activeIndex = shift?.status === 'closed' ? 4 : stage === 'opening' ? 1 : stage === 'preparation' ? 2 : stage === 'work' ? 3 : 0
+  const activeIndex = shift?.status === 'closed' ? 3 : stage === 'opening' ? 0 : stage === 'preparation' ? 1 : stage === 'work' ? 2 : 0
   return (
-    <ol aria-label="Progreso del turno" className="grid grid-cols-5 gap-1 rounded-2xl border border-[#E1D3E3] bg-white p-2 shadow-[0_4px_16px_rgba(34,20,39,0.04)]">
-      {sequenceSteps.map((label, index) => <li key={label} className={`flex min-h-11 flex-col items-center justify-center rounded-xl px-1 text-center text-[0.68rem] font-extrabold sm:text-sm ${index === activeIndex ? 'bg-[#A729AD] text-white' : index < activeIndex ? 'bg-[#F0E7F1] text-[#6A1F6D]' : 'text-[#9A879D]'}`}><span className="text-xs sm:hidden">{index}</span><span className="hidden sm:inline">{index} · {label}</span></li>)}
+    <ol aria-label="Progreso del turno" className="grid grid-cols-4 gap-1 rounded-2xl border border-[#E1D3E3] bg-white p-2 shadow-[0_4px_16px_rgba(34,20,39,0.04)]">
+      {sequenceSteps.map((label, index) => <li key={label} className={`flex min-h-11 flex-col items-center justify-center rounded-xl px-1 text-center text-[0.68rem] font-extrabold sm:text-sm ${index === activeIndex ? 'bg-[#A729AD] text-white' : index < activeIndex ? 'bg-[#F0E7F1] text-[#6A1F6D]' : 'text-[#9A879D]'}`}><span className="text-xs sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1} · {label}</span></li>)}
     </ol>
   )
 }
@@ -431,22 +420,14 @@ function ShiftSummary({ shift }) {
   )
 }
 
-export function OpeningStep({ shift, onOpenItem, onOpenProtocol }) {
-  const nextPendingId = shift.openingChecklist.find((item) => item.status !== 'completed')?.id
+export function OpeningStep({ shift, onConfirm, onProblem, onOpenProtocol }) {
   return (
     <section aria-labelledby="opening-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
-      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Paso 1</p>
-      <h2 id="opening-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Abrir y preparar la sala</h2>
-      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Entra en la actividad que toca, realiza sus comprobaciones y vuelve aquí con una evidencia verificable.</p>
-      <div className="mt-5 space-y-2">
-        {shift.openingChecklist.map((item, index) => (
-          <div key={item.id} data-testid={`opening-item-${item.id}`} className={`rounded-xl border p-4 ${item.status === 'completed' ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}>
-            <div className="flex gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${item.status === 'completed' ? 'bg-emerald-600 text-white' : 'bg-[#F0E7F1] text-[#6A1F6D]'}`}>{item.status === 'completed' ? <Icon name="check" className="h-4 w-4" /> : index + 1}</span><div className="min-w-0 flex-1"><p className="text-base font-bold leading-6">{item.label}</p>{item.status === 'completed' && <p className="mt-1 text-sm text-[#5C6B61]">{item.completedByName} · {formatDateTime(item.completedAt)}</p>}</div></div>
-            <div className="mt-3 pl-11">{item.status === 'completed' ? <button type="button" onClick={() => onOpenItem(item.id)} className="min-h-11 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]">Ver evidencia</button> : item.id === nextPendingId ? <button type="button" onClick={() => onOpenItem(item.id)} className="min-h-11 rounded-xl bg-[#A729AD] px-4 text-sm font-extrabold text-white hover:bg-[#902395] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D] focus:ring-offset-2">{item.openedAt ? 'Continuar actividad' : 'Abrir actividad'}</button> : <p className="flex min-h-11 items-center text-sm font-semibold text-[#9A879D]">Disponible después de la actividad anterior.</p>}</div>
-          </div>
-        ))}
-      </div>
-      <TextButton className="mt-3" onClick={onOpenProtocol}>Ver protocolo completo de apertura</TextButton>
+      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Primer turno · 1 de 2</p>
+      <h2 id="opening-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Abre el centro</h2>
+      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Enciende luces, pantalla, ordenador, música, clima y los dispositivos necesarios. Si algo impide trabajar con seguridad, regístralo antes de continuar.</p>
+      <div className="mt-5 max-w-md"><PrimaryButton icon="check" onClick={onConfirm}>Centro abierto y operativo</PrimaryButton></div>
+      <div className="mt-2 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-5"><TextButton onClick={onProblem}>Registrar un problema</TextButton><TextButton onClick={onOpenProtocol}>Ver protocolo de apertura</TextButton></div>
     </section>
   )
 }
@@ -455,35 +436,43 @@ function PreparationBlock({ title, children }) {
   return <section className="rounded-2xl border border-[#E4D8E5] bg-white p-4"><h3 className="font-evo-display text-2xl font-semibold">{title}</h3><div className="mt-3 divide-y divide-[#EEE5EF]">{children}</div></section>
 }
 
-function PreparationStep({ flow }) {
+function PreparationStep({ flow, shift, onProgramming }) {
   return (
     <section aria-labelledby="preparation-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
-      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Paso 2</p>
-      <h2 id="preparation-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Prepara tu turno</h2>
-      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Horario mínimo y solo las personas o avisos que cambian cómo debes actuar.</p>
-      <div className="mt-5 grid gap-3 xl:grid-cols-3">
-        <PreparationBlock title="Clases de hoy">{todayClasses.map((item) => <div key={`${item.time}-${item.type}`} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.time} · {item.room}</p><p className="mt-1 text-base font-bold">{item.type}</p><p className="text-sm text-[#6E5A71]">{item.trainer}</p></div>)}</PreparationBlock>
-        <PreparationBlock title="Personas a tener en cuenta">{peopleToConsider.map((item) => <div key={item.person} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.type}</p><p className="mt-1 text-base font-bold">{item.person}</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.detail}</p></div>)}</PreparationBlock>
-        <PreparationBlock title="Avisos del centro">{centerNotices.map((item) => <div key={item.title} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.type}</p><p className="mt-1 text-base font-bold">{item.title}</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.detail}</p></div>)}</PreparationBlock>
+      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Briefing · {shift.arrivalMode === 'open-center' ? '2 de 2' : 'única confirmación'}</p>
+      <h2 id="preparation-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Preparar mi turno</h2>
+      <p className="mt-2 max-w-3xl text-base leading-7 text-[#604B63]">Todo el contexto necesario en una sola lectura. Abre Programación solo cuando necesites el detalle de una clase.</p>
+      {shift.arrivalMode === 'handover' && <div className="mt-5 rounded-xl border border-[#D8C3DA] bg-[#F0E7F1] p-4"><p className="text-sm font-extrabold text-[#6A1F6D]">Información del relevo</p><p className="mt-1 text-base leading-7 text-[#4C3A4F]">{previousShiftHandover.note}</p></div>}
+      <div className="mt-5 space-y-3">
+        {todayClasses.map((item) => <article key={item.id} className="rounded-2xl border border-[#E4D8E5] bg-white p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-[#A729AD]">{item.time} · {item.room}</p><h3 className="mt-1 font-evo-display text-2xl font-semibold">{item.type}</h3><p className="mt-2 text-sm text-[#6E5A71]"><strong>Personas:</strong> {item.attendees.join(', ')}</p><p className="mt-2 text-sm leading-6 text-[#5B465E]"><strong>Adaptaciones:</strong> {item.adaptations}</p><p className="mt-1 text-sm leading-6 text-[#5B465E]"><strong>Feedback anterior:</strong> {item.previousFeedback}</p>{item.alerts !== 'Sin avisos adicionales.' && <p className="mt-1 text-sm font-semibold leading-6 text-[#7A4F16]"><strong>Aviso:</strong> {item.alerts}</p>}</div><SecondaryButton icon="class" className="shrink-0" onClick={() => onProgramming(item)}>Abrir en Programación</SecondaryButton></div></article>)}
       </div>
-      <div className="mt-5 max-w-sm"><PrimaryButton icon="check" onClick={flow.completePreparation}>Confirmar turno preparado</PrimaryButton></div>
+      <div className="mt-5 grid gap-3 lg:grid-cols-2"><PreparationBlock title="Personas que requieren atención">{peopleToConsider.map((item) => <div key={item.person} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.type}</p><p className="mt-1 text-base font-bold">{item.person}</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.detail}</p></div>)}</PreparationBlock><PreparationBlock title="Incidencias y avisos activos">{centerNotices.map((item) => <div key={item.title} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.type}</p><p className="mt-1 text-base font-bold">{item.title}</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.detail}</p></div>)}</PreparationBlock></div>
+      <div className="mt-5 max-w-md"><PrimaryButton icon="check" onClick={flow.confirmBriefing}>He revisado y preparado mi turno</PrimaryButton></div>
     </section>
   )
 }
 
-function WorkStep({ shift, onIncident, onFirstClass, onProgramming }) {
+function WorkStep({ shift, onIncident, onFirstClass, onProgramming, onProtocol }) {
   const hasFirstClass = shift.tasks.some((task) => task.id === 'first-class')
+  const [contextDetail, setContextDetail] = useState(null)
+  const nextClass = todayClasses.find((item) => item.id === 'class-1330') || todayClasses[0]
   return (
     <section aria-labelledby="work-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
-      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Paso 3</p>
-      <h2 id="work-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Trabaja con el turno preparado</h2>
-      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Durante el turno solo se muestran las tres acciones que pueden requerir registro.</p>
-      <div className="mt-5 grid gap-2 md:grid-cols-3">
+      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Siguiente clase</p>
+      <h2 id="work-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">{nextClass.time} · {nextClass.type}</h2>
+      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">{nextClass.room} · {nextClass.attendees.length} personas · Alex Vega realiza su primera clase.</p>
+      <div className="mt-5 max-w-md"><PrimaryButton icon="class" onClick={() => onProgramming(nextClass)}>Abrir siguiente clase</PrimaryButton></div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <SecondaryButton icon="signups" onClick={() => setContextDetail(contextDetail === 'person' ? null : 'person')}>Ver persona nueva</SecondaryButton>
+        <SecondaryButton icon="exceptions" onClick={() => setContextDetail(contextDetail === 'adaptation' ? null : 'adaptation')}>Ver adaptación</SecondaryButton>
+        {hasFirstClass && <SecondaryButton icon="signups" onClick={onFirstClass}>{shift.firstClassRecord ? 'Ver primera clase registrada' : 'Registrar primera clase'}</SecondaryButton>}
         <SecondaryButton icon="incidents" onClick={onIncident}>Anotar una incidencia</SecondaryButton>
-        {hasFirstClass ? <SecondaryButton icon="signups" onClick={onFirstClass}>{shift.firstClassRecord ? 'Ver primera clase registrada' : 'Registrar primera clase'}</SecondaryButton> : <div className="flex min-h-11 items-center rounded-xl border border-[#E4D8E5] bg-white/60 px-4 text-sm font-semibold text-[#8B798D]">No hay primera clase en este turno.</div>}
-        <SecondaryButton icon="class" onClick={onProgramming}>Dar feedback del entrenamiento</SecondaryButton>
+        <SecondaryButton icon="spark" onClick={onProtocol}>Consultar protocolo</SecondaryButton>
+        <SecondaryButton icon="class" onClick={() => onProgramming(nextClass, 'feedback')}>Dar feedback</SecondaryButton>
       </div>
-      <p className="mt-3 text-sm font-semibold text-[#806E82]">El feedback se abre en Programación y no se guarda en Operativa.</p>
+      {contextDetail === 'person' && <LightCard className="mt-4"><p className="text-sm font-bold text-[#A729AD]">Alex Vega · primera clase</p><p className="mt-2 text-base leading-7 text-[#604B63]">Carga inicial conservadora, demostraciones breves y posición próxima al entrenador.</p></LightCard>}
+      {contextDetail === 'adaptation' && <LightCard className="mt-4"><p className="text-sm font-bold text-[#A729AD]">Adaptación relevante</p><p className="mt-2 text-base leading-7 text-[#604B63]">Si la coordinación limita el trabajo, reducir carga y practicar un patrón cada vez.</p></LightCard>}
+      <p className="mt-3 text-sm font-semibold text-[#806E82]">Las acciones aparecen por el contexto de esta clase. El feedback se guarda únicamente en Programación.</p>
     </section>
   )
 }
@@ -492,8 +481,8 @@ function ClosingPanel({ shift, onReview }) {
   const blockers = getClosingBlockers(shift, shift.trainerId)
   return (
     <section aria-labelledby="finish-title" className="rounded-2xl border border-[#DCCEDD] bg-white p-5 sm:p-6">
-      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Paso 4</p>
-      <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><h2 id="finish-title" className="font-evo-display text-3xl font-semibold">Finalizar turno</h2><p className="mt-2 text-base leading-7 text-[#604B63]">{blockers.length > 0 ? `${blockers.length} obligaciones pendientes antes de ${shift.endLabel.toLowerCase()}.` : `Todo preparado para ${shift.endLabel.toLowerCase()}.`}</p>{blockers.length > 0 && <TextButton onClick={onReview}>Ver qué falta</TextButton>}</div><div className="w-full max-w-sm"><PrimaryButton icon="check" disabled={blockers.length > 0} onClick={onReview}>Finalizar turno</PrimaryButton></div></div>
+      <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Cuando termine el turno</p>
+      <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><h2 id="finish-title" className="font-evo-display text-3xl font-semibold">{shift.endMode === 'handover' ? 'Entregar turno' : 'Cerrar centro'}</h2><p className="mt-2 text-base leading-7 text-[#604B63]">{shift.endMode === 'handover' ? 'Llega otro entrenador: el relevo será breve y no exige cerrar el centro.' : 'Eres el último turno: al terminar aparecerá el cierre completo.'}</p>{blockers.length > 0 && <p className="mt-2 text-sm font-semibold text-[#806E82]">{blockers.length} obligaciones del turno siguen pendientes.</p>}</div><div className="w-full max-w-sm"><PrimaryButton icon="check" onClick={onReview}>{shift.endMode === 'handover' ? 'Preparar entrega' : 'Empezar cierre'}</PrimaryButton></div></div>
     </section>
   )
 }
@@ -503,24 +492,21 @@ function AuditSummary({ shift }) {
   return (
     <section className="rounded-2xl border border-emerald-200 bg-white p-5 sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-emerald-700">Turno finalizado</p><h2 className="mt-2 font-evo-display text-3xl font-semibold">{shift.endLabel} a las {formatTime(shift.closedAt)}</h2><p className="mt-2 text-base text-[#604B63]">{shift.closedByName} · {formatDate(shift.closedAt)}</p>
-      <TextButton className="mt-3" onClick={() => setOpen((value) => !value)}>{open ? 'Ocultar registro de apertura y cierre' : 'Ver registro de apertura y cierre'}</TextButton>
-      {open && <div className="mt-4 grid gap-4 lg:grid-cols-2"><div><h3 className="font-evo-display text-2xl font-semibold">Apertura y preparación</h3><div className="mt-2 space-y-2">{shift.openingChecklist.map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.evidence?.outcomes?.length || 0} evidencias · {item.evidence?.outcomes?.filter((outcome) => outcome.status === 'exception').length || 0} excepciones</p></div>)}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Turno completo preparado.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.shiftPreparation.completedByName} · {formatDateTime(shift.shiftPreparation.completedAt)}</p></div></div></div><div><h3 className="font-evo-display text-2xl font-semibold">{shift.endLabel}</h3><div className="mt-2 space-y-2">{shift.firstClassRecord && <div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Primera clase y seguimientos obligatorios registrados.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.firstClassRecord.completedByName} · {formatDateTime(shift.firstClassRecord.completedAt)}</p></div>}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Incidencias resueltas o asignadas.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.incidents.length === 0 ? 'Sin incidencias en este turno.' : `${shift.incidents.length} incidencia asignada con responsable, plazo y siguiente acción.`}</p></div>{shift.closingChecklist.filter((item) => item.required).map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.evidence?.outcomes?.length || 0} evidencias · {item.evidence?.outcomes?.filter((outcome) => outcome.status === 'exception').length || 0} excepciones</p></div>)}</div>{shift.closingNote && <div className="mt-3 rounded-xl border border-[#E4D8E5] p-3"><p className="text-sm font-bold">Nota para el siguiente turno</p><p className="mt-1 text-sm text-[#6E5A71]">{shift.closingNote}</p></div>}</div></div>}
+      <TextButton className="mt-3" onClick={() => setOpen((value) => !value)}>{open ? 'Ocultar registro del turno' : 'Ver registro del turno'}</TextButton>
+      {open && <div className="mt-4 grid gap-4 lg:grid-cols-2"><div><h3 className="font-evo-display text-2xl font-semibold">Llegada y briefing</h3><div className="mt-2 space-y-2"><div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{shift.arrivalMode === 'open-center' ? 'Centro abierto y operativo.' : 'Relevo recibido; apertura no requerida.'}</p>{shift.centerOpening?.completedAt && <p className="mt-1 text-xs text-[#6E5A71]">{shift.centerOpening.completedByName} · {formatDateTime(shift.centerOpening.completedAt)}</p>}</div><div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Briefing revisado y turno preparado.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.shiftPreparation.completedByName} · {formatDateTime(shift.shiftPreparation.completedAt)}</p></div></div></div><div><h3 className="font-evo-display text-2xl font-semibold">{shift.endMode === 'handover' ? 'Turno entregado' : 'Centro cerrado'}</h3><div className="mt-2 space-y-2">{shift.firstClassRecord && <div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Primera clase registrada.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.firstClassRecord.completedByName} · {formatDateTime(shift.firstClassRecord.completedAt)}</p></div>}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Incidencias resueltas o asignadas.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.incidents.length === 0 ? 'Sin incidencias en este turno.' : `${shift.incidents.length} incidencia asignada con responsable, plazo y siguiente acción.`}</p></div>{shift.endMode === 'handover' && <div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Relevo y sala preparados.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.handoverReady?.completedByName} · {formatDateTime(shift.handoverReady?.completedAt)}</p></div>}{shift.closingChecklist.filter((item) => item.required).map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p></div>)}</div>{shift.closingNote && <div className="mt-3 rounded-xl border border-[#E4D8E5] p-3"><p className="text-sm font-bold">Nota</p><p className="mt-1 text-sm text-[#6E5A71]">{shift.closingNote}</p></div>}</div></div>}
     </section>
   )
 }
 
-function TodayScreen({ flow, openingActivityId, onOpenOpeningActivity, onCloseOpeningActivity, onAction, onOpenProtocol, onProgramming, onProgrammingReview }) {
+function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming }) {
   const shift = flow.currentShift
-  const openingComplete = shift?.tasks.find((task) => task.id === 'opening')?.status === 'completed'
+  const openingComplete = !shift || shift.arrivalMode === 'handover' || shift.centerOpening?.status === 'completed'
   const stage = !shift ? 'start' : !openingComplete ? 'opening' : !shift.shiftPreparation ? 'preparation' : 'work'
-  if (shift && openingActivityId) {
-    return <OpeningActivityScreen shift={shift} itemId={openingActivityId} flow={flow} onBack={onCloseOpeningActivity} onProblem={(itemId, checkId) => onAction({ type: 'incident', openingItemId: itemId, openingCheckId: checkId })} onProgrammingReview={onProgrammingReview} onCompleted={onCloseOpeningActivity} />
-  }
   return (
     <div>
-      <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno, paso a paso' : 'Iniciar turno'} detail={shift ? 'Completa el momento actual y la siguiente parte aparecerá sola.' : 'Registra la entrada real sin confirmar todavía la apertura.'} />
+      <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno, con lo necesario' : 'Iniciar turno'} detail={shift ? 'Una decisión principal por momento y contexto solo cuando hace falta.' : 'Registra la entrada real y el turno asignado.'} />
       {!shift && <StartShiftCard onStart={flow.start} />}
-      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} onOpenItem={onOpenOpeningActivity} onOpenProtocol={() => onOpenProtocol('opening')} />}{stage === 'preparation' && <PreparationStep flow={flow} />}{stage === 'work' && <WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} />}<ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
+      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} onConfirm={flow.confirmCenterOperational} onProblem={() => onAction({ type: 'incident', previousClosing: true })} onOpenProtocol={() => onOpenProtocol('opening')} />}{stage === 'preparation' && <PreparationStep flow={flow} shift={shift} onProgramming={onProgramming} />}{stage === 'work' && <><WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} onProtocol={() => onOpenProtocol('first-class')} /><ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}</>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
     </div>
   )
 }
@@ -540,7 +526,7 @@ function EvolutionScreen() {
 }
 
 function OperationsScreen({ exceptions }) {
-  return <div><ScreenHeading eyebrow="Dirección · Operativa" title="Solo excepciones" detail="La actividad rutinaria y los turnos correctos desaparecen de esta vista." />{exceptions.length === 0 && <LightCard className="max-w-2xl"><p className="text-base font-bold text-emerald-700">Sin excepciones pendientes</p><h2 className="mt-2 font-evo-display text-3xl font-semibold">No hay nada que perseguir</h2><p className="mt-2 text-base leading-7 text-[#604B63]">Anota una incidencia ficticia como Entrenador para comprobar este flujo.</p></LightCard>}<div className="grid gap-3 md:grid-cols-2">{exceptions.map((item) => <LightCard key={item.id} className="ring-2 ring-rose-400"><div className="flex items-start justify-between gap-3"><p className="text-base font-bold text-[#A729AD]">{item.label}</p><StatusBadge status={item.status}>{statusLabels[item.status]}</StatusBadge></div><p className="mt-3 text-base leading-7 text-[#4C3A4F]">{item.detail}</p><dl className="mt-4 space-y-2 rounded-xl bg-[#F0E7F1] p-4 text-base"><div><dt className="font-bold text-[#A729AD]">Registrada por</dt><dd>{item.createdBy} · {formatTime(item.createdAt)}</dd></div><div><dt className="font-bold text-[#A729AD]">Responsable actual</dt><dd>{item.owner}</dd></div><div><dt className="font-bold text-[#A729AD]">Plazo</dt><dd>{formatDateTime(item.dueAt)}</dd></div><div><dt className="font-bold text-[#A729AD]">Siguiente acción</dt><dd>{item.nextAction}</dd></div></dl></LightCard>)}</div></div>
+  return <div><ScreenHeading eyebrow="Dirección · Operativa" title="Solo excepciones" detail="La actividad rutinaria y los turnos correctos desaparecen de esta vista." />{exceptions.length === 0 && <LightCard className="max-w-2xl"><p className="text-base font-bold text-emerald-700">Sin excepciones pendientes</p><h2 className="mt-2 font-evo-display text-3xl font-semibold">No hay nada que perseguir</h2><p className="mt-2 text-base leading-7 text-[#604B63]">Anota una incidencia ficticia como Entrenador para comprobar este flujo.</p></LightCard>}<div className="grid gap-3 md:grid-cols-2">{exceptions.map((item) => <LightCard key={item.id} className="ring-2 ring-rose-400"><div className="flex items-start justify-between gap-3"><p className="text-base font-bold text-[#A729AD]">{item.label}</p><StatusBadge status={item.status}>{statusLabels[item.status]}</StatusBadge></div><p className="mt-3 text-base leading-7 text-[#4C3A4F]">{item.detail}</p><dl className="mt-4 space-y-2 rounded-xl bg-[#F0E7F1] p-4 text-base">{item.relatedTrainerName && <div><dt className="font-bold text-[#A729AD]">Turno anterior</dt><dd>{item.relatedTrainerName}</dd></div>}<div><dt className="font-bold text-[#A729AD]">Registrada por</dt><dd>{item.createdBy} · {formatTime(item.createdAt)}</dd></div><div><dt className="font-bold text-[#A729AD]">Responsable actual</dt><dd>{item.owner}</dd></div><div><dt className="font-bold text-[#A729AD]">Plazo</dt><dd>{formatDateTime(item.dueAt)}</dd></div><div><dt className="font-bold text-[#A729AD]">Siguiente acción</dt><dd>{item.nextAction}</dd></div></dl></LightCard>)}</div></div>
 }
 
 function EvaluationsScreen() {
@@ -558,8 +544,6 @@ export default function IncorporacionesApp() {
   const [shiftArea, setShiftArea] = useState('today')
   const [protocolToOpen, setProtocolToOpen] = useState(null)
   const [programmingTarget, setProgrammingTarget] = useState(null)
-  const [programmingMode, setProgrammingMode] = useState('default')
-  const [openingActivityId, setOpeningActivityId] = useState(null)
   const [action, setAction] = useState(null)
   const globalNavigation = context === 'coach' ? trainerGlobalNavigation : directionNavigation
   const exceptions = getDirectionExceptions(flow.state)
@@ -570,28 +554,11 @@ export default function IncorporacionesApp() {
     setShiftArea('today')
     setAction(null)
     setProgrammingTarget(null)
-    setProgrammingMode('default')
-    setOpeningActivityId(null)
     flow.clearMessages()
   }
 
-  function openProgrammingFeedback() {
-    setProgrammingTarget(programmingFeedbackTarget)
-    setProgrammingMode('feedback')
-    setGlobalArea('programming')
-    flow.clearMessages()
-  }
-
-  function openOpeningActivity(itemId) {
-    const item = flow.currentShift?.openingChecklist.find((candidate) => candidate.id === itemId)
-    if (!item) return
-    flow.clearMessages()
-    if (item.status !== 'completed' && !item.openedAt && !flow.openOpeningItem(itemId)) return
-    setOpeningActivityId(itemId)
-  }
-
-  function openProgrammingReview() {
-    setProgrammingMode('opening-review')
+  function openProgrammingFeedback(target = programmingFeedbackTarget, mode = 'class') {
+    setProgrammingTarget(target)
     setGlobalArea('programming')
     flow.clearMessages()
   }
@@ -602,10 +569,10 @@ export default function IncorporacionesApp() {
   }
 
   let screen
-  if (globalArea === 'programming') screen = <ProgrammingReference target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} openingReview={programmingMode === 'opening-review'} shift={flow.currentShift} flow={flow} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} onOpeningReviewComplete={() => { setOpeningActivityId(null); setProgrammingMode('default'); setGlobalArea('shift') }} />
+  if (globalArea === 'programming') screen = <ProgrammingReference target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} />
   else if (context === 'coach' && shiftArea === 'protocols') screen = <ProtocolsScreen initialProtocol={protocolToOpen} />
   else if (context === 'coach' && shiftArea === 'evolution') screen = <EvolutionScreen />
-  else if (context === 'coach') screen = <TodayScreen flow={flow} openingActivityId={openingActivityId} onOpenOpeningActivity={openOpeningActivity} onCloseOpeningActivity={() => setOpeningActivityId(null)} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} onProgrammingReview={openProgrammingReview} />
+  else if (context === 'coach') screen = <TodayScreen flow={flow} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} />
   else if (globalArea === 'evaluations') screen = <EvaluationsScreen />
   else if (globalArea === 'team') screen = <TeamScreen />
   else screen = <OperationsScreen exceptions={exceptions} />
@@ -626,9 +593,9 @@ export default function IncorporacionesApp() {
         </div>
       </div>
       <nav aria-label={`Navegación móvil de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0C0B0C]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => setGlobalArea(item.id)} className={`flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 text-base font-bold ${context === 'direction' ? 'min-w-[7rem]' : ''} ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/55'}`}><Icon name={item.icon} className="h-5 w-5" /><span>{item.label}</span></button>)}</div></nav>
-      {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} openingItemId={action.openingItemId} openingCheckId={action.openingCheckId} closingItemId={action.closingItemId} closingCheckId={action.closingCheckId} error={flow.error} onClose={closeAction} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
+      {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} previousClosing={action.previousClosing} openingItemId={action.openingItemId} openingCheckId={action.openingCheckId} closingItemId={action.closingItemId} closingCheckId={action.closingCheckId} error={flow.error} onClose={closeAction} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
       {action?.type === 'first-class' && flow.currentShift && <FirstClassDialog shift={flow.currentShift} error={flow.error} onClose={() => setAction(null)} onConfirm={flow.recordFirstClass} onClearError={flow.clearMessages} />}
-      {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} error={flow.error} initialItemId={action.itemId} onProblem={(closingItemId, closingCheckId) => setAction({ type: 'incident', closingItemId, closingCheckId, returnTo: { type: 'closing', itemId: closingItemId } })} onClose={() => setAction(null)} />}
+      {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} error={flow.error} onClose={() => setAction(null)} />}
     </div>
   )
 }

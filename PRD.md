@@ -1,7 +1,7 @@
 # PRD.md
 ## Programming EVO · Experiencia del entrenador
 
-**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 implementada y pendiente de revisión
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 reajustada tras auditoría de servicio y pendiente de revisión
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f2-3-secuencia-guiada`
 **Código autorizado:** Fase 2.3 · Secuencia operativa guiada de Mi turno, autorizada por Marian el 5 de agosto de 2026
@@ -69,7 +69,7 @@ Necesita:
 
 - consultar en `Programación` el entrenamiento, sus notas, objetivo, estímulo y preparación de clase;
 - aportar feedback del entrenamiento asociado a la sesión;
-- consultar en `Mi turno` la entrada, la apertura auditada, la preparación completa y el cierre o entrega;
+- consultar en `Mi turno` la entrada, la apertura compacta o el relevo recibido, el briefing del turno y el cierre o entrega;
 - ver únicamente personas nuevas, adaptaciones, incidencias previas u otros casos que exijan una acción especial;
 - registrar una incidencia;
 - registrar una primera clase estructurada cuando corresponda;
@@ -354,27 +354,19 @@ El registro de primera clase es la tercera y última tarea crítica propia del t
 
 ## 11.2 Secuencia operativa definitiva de Mi turno · Fase 2.3
 
-`Mi turno` se comporta como una secuencia guiada y revela el momento siguiente cuando el anterior queda completo:
+`Mi turno` es un asistente operativo guiado, no una checklist permanente. El recorrido se adapta al turno asignado y solo pide confirmaciones cuando existe una decisión operativa real:
 
-0. `Iniciar turno` registra entrenador, fecha, hora real de entrada y turno asignado. No confirma la apertura.
-1. `Abrir y preparar la sala` exige completar cinco actividades auditables: revisar el turno anterior; comprobar dispositivos; revisar sala, baños, limpieza y material; revisar programación, horarios y personas; y preparar material y primera clase. Cada actividad abre su pantalla de trabajo, contiene información y comprobaciones específicas y guarda responsable, fecha, hora y evidencia. `Ver protocolo completo de apertura` muestra las instrucciones fuera de la pantalla principal. `Registrar problema` nace desde el elemento afectado, crea una incidencia vinculada y mantiene la actividad incompleta hasta confirmar el conjunto.
-2. `Prepara tu turno` muestra únicamente `Clases de hoy`, `Personas a tener en cuenta` y `Avisos del centro`. El horario es mínimo y las personas o avisos aparecen solo cuando requieren atención; no se replica WodBuster.
-3. Durante el turno solo existen `Anotar una incidencia`, `Registrar primera clase` cuando corresponda y `Dar feedback del entrenamiento`. Esta última acción lleva a la clase correspondiente en `Programación` y no guarda feedback dentro de Operativa.
-4. `Finalizar turno` permanece visible. Mientras existan obligaciones pendientes está desactivado, muestra el número de bloqueos y ofrece `Ver qué falta` con la lista concreta. El cierre diferencia `Entregar turno` y `Cerrar centro`, registra la hora real y conserva una checklist auditable.
+0. `Iniciar turno` registra entrenador, fecha, hora real de entrada y turno asignado.
+1. Si es el primer turno del día, muestra un recordatorio compacto de sistemas con una sola acción principal `Centro abierto y operativo` y la secundaria `Registrar un problema`. Si el entrenador recibe relevo, omite la apertura y entra directamente al briefing.
+2. `Preparar mi turno` reúne en una sola pantalla clases y horarios, personas inscritas sintéticas, nuevas incorporaciones, adaptaciones o limitaciones, incidencias activas, feedback previo e información del relevo. Cada clase enlaza directamente con su contexto en `Programación`. Una única confirmación, `He revisado y preparado mi turno`, inicia el trabajo.
+3. Durante el turno no existe checklist fija. Aparecen solo acciones contextuales para la siguiente clase o excepción: abrir Programación, consultar una persona o adaptación, registrar primera clase, anotar una incidencia, consultar un protocolo o dar feedback en Programación.
+4. Al finalizar, el turno asignado determina el recorrido. Si llega otro entrenador se presenta una entrega breve con relevo, incidencias activas, sala preparada y asuntos pendientes, y termina con `Turno entregado`. Si es el último turno se muestra la checklist completa de material, sala, baños, limpieza, música, luces, clima, ordenador, pantallas, dispositivos, incidencias y acceso, y termina con `Centro cerrado`.
 
-La checklist final comprueba:
+Antes de empezar a trabajar existen como máximo dos confirmaciones: apertura del centro y briefing para el primer turno; solo briefing para quien recibe relevo. No hay botones genéricos `Marcar completado` ni una confirmación por elemento rutinario.
 
-- primera clase y seguimientos obligatorios registrados;
-- incidencias resueltas o asignadas;
-- material recogido y colocado;
-- sala y baños revisados;
-- sala preparada para el siguiente entrenador cuando corresponda;
-- ordenador, música, aire y luces revisados;
-- nota opcional para el siguiente turno.
+Si al abrir se detectan sala, baños, limpieza o material en mal estado, `Registrar un problema` crea una incidencia de categoría `Cierre anterior`. Siempre que exista información local sintética se vincula al turno y entrenador anteriores, guarda responsable, hora, evidencia y notificación local pendiente. No impide continuar salvo que afecte a la seguridad o haga imposible prestar el servicio.
 
-Una incidencia abierta puede trasladarse si conserva responsable, plazo y siguiente acción. La nota de relevo es opcional y no bloquea; una primera clase pendiente sí bloquea. Apertura, preparación, registro de primera clase y cierre mantienen sus reglas en el dominio, no en React, y persisten mediante el adaptador local sustituible.
-
-La pantalla principal no utiliza `Marcar completado` ni completa actividades compuestas. Cada actividad de apertura y cierre abre una pantalla de trabajo, exige resolver sus comprobaciones concretas y entrega al dominio una evidencia tipada con el conjunto exacto. El dominio rechaza una actividad no abierta, una evidencia genérica o de otro tipo y cualquier conjunto incompleto. Una excepción válida resuelve únicamente su comprobación y queda vinculada a ella; la actividad continúa pendiente hasta confirmar expresamente el conjunto. La revisión de clases se realiza dentro de `Programación`, y `Mi turno` conserva solo la evidencia de revisión por clase.
+Una incidencia abierta puede trasladarse si conserva responsable, plazo y siguiente acción. La nota de relevo es opcional y no bloquea; una primera clase pendiente sí bloquea. Apertura, briefing, registro de primera clase, entrega y cierre mantienen sus reglas en el dominio, no en React, y persisten mediante el adaptador local sustituible. La información de personas es sintética y mínima: no replica ni cambia la propiedad de WodBuster.
 
 El lenguaje activo elimina `Información especial`, `Feedback operativo`, `Casos especiales` y `Briefing especial`.
 
@@ -499,6 +491,7 @@ Durante la Fase 1 no se modificarán `supabase/**`, `api/**`, los scripts de mig
 - móvil primero;
 - español;
 - una acción principal por pantalla;
+- máximo dos confirmaciones antes de empezar a trabajar;
 - navegación de máximo dos niveles;
 - cierre de primera clase en menos de dos minutos;
 - información relevante en uno o dos clics;
@@ -639,7 +632,7 @@ La primera versión se considera útil cuando:
 - Fase 2 aprobada funcionalmente por Marian el 5 de agosto de 2026.
 - Fase 2.1 aprobada por Marian el 5 de agosto de 2026.
 - Fase 2.2 aprobada como base funcional local y sintética.
-- Fase 2.3 implementada como secuencia guiada definitiva con apertura y cierre auditables, pendiente de revisión de Marian.
+- Fase 2.3 reajustada y validada técnicamente con apertura compacta, briefing único, acciones contextuales y final adaptado al relevo o cierre; pendiente de revisión manual de Marian.
 - Fase activa: revisión de Fase 2.3; persistencia real, integraciones e historial completo permanecen fuera de alcance.
 - Fase 3, persistencia real, accesos internos e integraciones no autorizados.
 - Supabase, API, migraciones, WodBuster y datos reales no fueron utilizados para el turno mínimo.

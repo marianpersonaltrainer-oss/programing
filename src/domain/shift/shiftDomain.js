@@ -1,4 +1,4 @@
-export const SHIFT_STATE_VERSION = 3
+export const SHIFT_STATE_VERSION = 4
 export const MAX_CRITICAL_TASKS = 3
 export const FIRST_CLASS_TEXT_LIMIT = 180
 
@@ -73,9 +73,13 @@ export const OPENING_ACTIVITY_DEFINITIONS = {
 
 export const CLOSING_CHECKLIST_ITEMS = [
   { id: 'material', label: 'Material recogido y colocado.' },
-  { id: 'spaces', label: 'Sala y baños revisados.' },
-  { id: 'next-coach', label: 'Sala preparada para el siguiente entrenador.' },
-  { id: 'systems', label: 'Ordenador, música, aire y luces revisados.' },
+  { id: 'room', label: 'Sala revisada y ordenada.' },
+  { id: 'bathrooms', label: 'Baños revisados.' },
+  { id: 'cleaning', label: 'Limpieza final comprobada.' },
+  { id: 'music-lights-climate', label: 'Música, luces y clima revisados.' },
+  { id: 'devices', label: 'Ordenador, pantallas y dispositivos revisados.' },
+  { id: 'incidents', label: 'Incidencias resueltas o correctamente asignadas.' },
+  { id: 'access', label: 'Acceso y cierre físico del centro comprobados.' },
 ]
 
 export const CLOSING_ACTIVITY_DEFINITIONS = {
@@ -87,29 +91,33 @@ export const CLOSING_ACTIVITY_DEFINITIONS = {
       { id: 'damage', label: 'Daños o faltas revisados.' },
     ],
   },
-  spaces: {
+  room: {
     evidenceKind: 'closing_spaces_check',
-    checks: [
-      { id: 'room', label: 'Sala revisada.' },
-      { id: 'bathrooms', label: 'Baños revisados.' },
-      { id: 'cleaning', label: 'Limpieza y orden revisados.' },
-    ],
+    checks: [{ id: 'room', label: 'Sala revisada y ordenada.' }],
   },
-  'next-coach': {
-    evidenceKind: 'handover_space_check',
-    checks: [
-      { id: 'layout', label: 'Sala montada para la siguiente clase.' },
-      { id: 'handover', label: 'Contexto necesario para el siguiente entrenador revisado.' },
-    ],
+  bathrooms: {
+    evidenceKind: 'closing_bathrooms_check',
+    checks: [{ id: 'bathrooms', label: 'Baños revisados.' }],
   },
-  systems: {
+  cleaning: {
+    evidenceKind: 'closing_cleaning_check',
+    checks: [{ id: 'cleaning', label: 'Limpieza final comprobada.' }],
+  },
+  'music-lights-climate': {
     evidenceKind: 'closing_systems_check',
-    checks: [
-      { id: 'computer', label: 'Ordenador revisado.' },
-      { id: 'music', label: 'Música revisada.' },
-      { id: 'climate', label: 'Aire o climatización revisado.' },
-      { id: 'lights', label: 'Luces revisadas.' },
-    ],
+    checks: [{ id: 'systems', label: 'Música, luces y clima revisados.' }],
+  },
+  devices: {
+    evidenceKind: 'closing_devices_check',
+    checks: [{ id: 'devices', label: 'Ordenador, pantallas y dispositivos revisados.' }],
+  },
+  incidents: {
+    evidenceKind: 'closing_incidents_check',
+    checks: [{ id: 'incidents', label: 'Incidencias revisadas.' }],
+  },
+  access: {
+    evidenceKind: 'closing_access_check',
+    checks: [{ id: 'access', label: 'Acceso y cierre físico comprobados.' }],
   },
 }
 
@@ -124,6 +132,7 @@ export const SHIFT_TEMPLATES = {
     label: 'Mañana',
     scheduledStart: '06:45',
     scheduledEnd: '14:30',
+    arrivalMode: 'open-center',
     endMode: 'handover',
     endLabel: 'Entregar turno',
     requiresNextCoachPrep: true,
@@ -134,6 +143,7 @@ export const SHIFT_TEMPLATES = {
     label: 'Tarde',
     scheduledStart: '14:30',
     scheduledEnd: '22:15',
+    arrivalMode: 'handover',
     endMode: 'close',
     endLabel: 'Cerrar centro',
     requiresNextCoachPrep: false,
@@ -199,10 +209,11 @@ function createTask(id, title, detail, actor, status = 'pending', completion = {
 }
 
 function createShiftTasks(actor, template) {
-  const tasks = [
-    createTask('opening', 'Abrir y preparar la sala', 'Completar las cinco comprobaciones de apertura.', actor),
-    createTask('preparation', 'Prepara tu turno', 'Revisar clases, personas y avisos antes de trabajar.', actor),
-  ]
+  const tasks = []
+  if (template.arrivalMode === 'open-center') {
+    tasks.push(createTask('opening', 'Centro abierto y operativo', 'Confirmar que los sistemas básicos permiten empezar.', actor))
+  }
+  tasks.push(createTask('preparation', 'Preparar mi turno', 'Revisar el briefing completo antes de trabajar.', actor))
   if (template.requiresFirstClass) {
     tasks.push(createTask('first-class', 'Registrar primera clase', 'Registrar movimiento, molestia y trabajo completado.', actor))
   }
@@ -227,10 +238,11 @@ function createOpeningChecklist(actor) {
 }
 
 function createClosingChecklist(actor, template) {
+  if (template.endMode === 'handover') return []
   return CLOSING_CHECKLIST_ITEMS.map((item) => ({
     ...item,
-    required: item.id !== 'next-coach' || template.requiresNextCoachPrep,
-    status: item.id === 'next-coach' && !template.requiresNextCoachPrep ? 'not-required' : 'pending',
+    required: true,
+    status: 'pending',
     ownerId: actor.id,
     ownerName: actor.name,
     openedAt: null,
@@ -239,7 +251,7 @@ function createClosingChecklist(actor, template) {
     evidence: null,
     checks: CLOSING_ACTIVITY_DEFINITIONS[item.id].checks.map((check) => ({
       ...check,
-      status: item.id === 'next-coach' && !template.requiresNextCoachPrep ? 'not-required' : 'pending',
+      status: 'pending',
     })),
   }))
 }
@@ -278,17 +290,22 @@ export function startShift(state, { templateId, actor }, at) {
     assignedShift: `${template.label} · ${template.scheduledStart}–${template.scheduledEnd}`,
     endMode: template.endMode,
     endLabel: template.endLabel,
+    arrivalMode: template.arrivalMode,
     trainerId: actor.id,
     trainerName: actor.name,
     startedAt: at,
     punctuality: punctualityFor(template, at),
     status: 'active',
     tasks,
-    openingChecklist: createOpeningChecklist(actor),
+    centerOpening: template.arrivalMode === 'open-center'
+      ? { status: 'pending', completedAt: null, completedById: null, completedByName: null }
+      : { status: 'not-required', completedAt: null, completedById: null, completedByName: null },
+    openingChecklist: [],
     shiftPreparation: null,
     firstClassRecord: null,
     incidents: [],
     closingChecklist: createClosingChecklist(actor, template),
+    handoverReady: null,
     closingNote: '',
     closedAt: null,
     actions: [actionRecord('shift_started', actor, at, { assignedShift: template.id })],
@@ -323,6 +340,33 @@ function completeTaskInShift(shift, taskId, actor, at) {
     ? { ...item, status: 'completed', completedAt: at, completedById: actor.id, completedByName: actor.name }
     : item)
   return { ...shift, tasks, actions: [...shift.actions, actionRecord(`task_${taskId}_completed`, actor, at)] }
+}
+
+export function confirmCenterOperational(state, { shiftId, actor }, at) {
+  return updateShift(state, shiftId, (shift) => {
+    assertActiveCoachShift(shift, actor)
+    if (shift.arrivalMode !== 'open-center') {
+      throw new ShiftRuleError('CENTER_OPENING_NOT_REQUIRED', 'Este turno recibe relevo y no abre el centro.')
+    }
+    if (shift.centerOpening?.status === 'completed') return shift
+    const blockingIncident = shift.incidents.find((incident) => incident.status === 'open'
+      && incident.category === 'previous_closing'
+      && ['safety', 'service-blocking'].includes(incident.serviceImpact))
+    if (blockingIncident) {
+      throw new ShiftRuleError('CENTER_OPENING_BLOCKED', 'Resuelve primero el problema que afecta a la seguridad o al servicio.', { incidentId: blockingIncident.id })
+    }
+    const withOpening = {
+      ...shift,
+      centerOpening: {
+        status: 'completed',
+        completedAt: at,
+        completedById: actor.id,
+        completedByName: actor.name,
+      },
+      actions: [...shift.actions, actionRecord('center_opened', actor, at)],
+    }
+    return completeTaskInShift(withOpening, 'opening', actor, at)
+  })
 }
 
 function openChecklistActivity(items, itemId, actor, at, notFoundCode, notFoundMessage) {
@@ -445,14 +489,14 @@ export function completeOpeningItem(state, { shiftId, itemId, actor, evidence },
 export function completeShiftPreparation(state, { shiftId, actor }, at) {
   return updateShift(state, shiftId, (shift) => {
     assertActiveCoachShift(shift, actor)
-    if (shift.openingChecklist.some((item) => item.status !== 'completed')) {
-      throw new ShiftRuleError('OPENING_INCOMPLETE', 'Completa primero la apertura de la sala.')
+    if (shift.arrivalMode === 'open-center' && shift.centerOpening?.status !== 'completed') {
+      throw new ShiftRuleError('OPENING_INCOMPLETE', 'Confirma primero que el centro está abierto y operativo.')
     }
     if (shift.shiftPreparation) return shift
     const withPreparation = {
       ...shift,
       shiftPreparation: { completedAt: at, completedById: actor.id, completedByName: actor.name },
-      actions: [...shift.actions, actionRecord('shift_prepared', actor, at)],
+      actions: [...shift.actions, actionRecord('shift_briefing_confirmed', actor, at)],
     }
     return completeTaskInShift(withPreparation, 'preparation', actor, at)
   })
@@ -474,6 +518,9 @@ export function recordIncident(state, {
   openingCheckId = null,
   closingItemId = null,
   closingCheckId = null,
+  category = 'operational',
+  serviceImpact = 'none',
+  evidence = '',
   owner = SYNTHETIC_ACTORS.direction,
 }, at) {
   const cleanDescription = cleanRequiredText(description, 'INCIDENT_DESCRIPTION_REQUIRED', 'Describe brevemente la incidencia.')
@@ -481,6 +528,15 @@ export function recordIncident(state, {
   const cleanDueAt = cleanRequiredText(dueAt, 'INCIDENT_DUE_AT_REQUIRED', 'Indica un plazo para la incidencia.')
   toDate(cleanDueAt)
   if (!owner?.id || !owner?.name) throw new ShiftRuleError('INCIDENT_OWNER_REQUIRED', 'Asigna un responsable a la incidencia.')
+  if (!['operational', 'previous_closing'].includes(category)) throw new ShiftRuleError('INCIDENT_CATEGORY_INVALID', 'La categoría de la incidencia no es válida.')
+  if (!['none', 'safety', 'service-blocking'].includes(serviceImpact)) throw new ShiftRuleError('INCIDENT_IMPACT_INVALID', 'El impacto de la incidencia no es válido.')
+
+  const previousShift = category === 'previous_closing'
+    ? state.shifts
+      .filter((candidate) => candidate.id !== shiftId)
+      .sort((left, right) => new Date(left.startedAt).getTime() - new Date(right.startedAt).getTime())
+      .at(-1) || null
+    : null
 
   return updateShift(state, shiftId, (shift) => {
     assertActiveCoachShift(shift, actor)
@@ -515,6 +571,17 @@ export function recordIncident(state, {
       ownerName: owner.name,
       dueAt: cleanDueAt,
       nextAction: cleanNextAction,
+      category,
+      serviceImpact,
+      evidence: String(evidence || '').trim(),
+      relatedShiftId: previousShift?.id || null,
+      relatedTrainerId: previousShift?.trainerId || null,
+      relatedTrainerName: previousShift?.trainerName || null,
+      notification: {
+        status: 'pending-local',
+        recipientId: previousShift?.trainerId || SYNTHETIC_ACTORS.direction.id,
+        recipientName: previousShift?.trainerName || SYNTHETIC_ACTORS.direction.name,
+      },
       openingItemId,
       openingCheckId,
       closingItemId,
@@ -546,6 +613,8 @@ export function recordIncident(state, {
         openingCheckId,
         closingItemId,
         closingCheckId,
+        category,
+        serviceImpact,
       })],
     }
   })
@@ -683,6 +752,32 @@ export function completeClosingItem(state, { shiftId, itemId, actor, evidence },
   })
 }
 
+export function confirmClosingItem(state, { shiftId, itemId, actor }, at) {
+  return updateShift(state, shiftId, (shift) => {
+    assertActiveCoachShift(shift, actor)
+    if (shift.endMode !== 'close') throw new ShiftRuleError('CENTER_CLOSING_NOT_REQUIRED', 'Este turno se entrega a otro entrenador.')
+    if (!shift.shiftPreparation) throw new ShiftRuleError('SHIFT_NOT_PREPARED', 'Completa primero el briefing del turno.')
+    const item = shift.closingChecklist.find((candidate) => candidate.id === itemId)
+    if (!item) throw new ShiftRuleError('CLOSING_ITEM_NOT_FOUND', 'La comprobación de cierre no existe.')
+    if (item.status === 'completed') return shift
+    if (item.id === 'incidents' && shift.incidents.some((incident) => incident.status === 'open' && (!incident.ownerId || !incident.dueAt || !incident.nextAction))) {
+      throw new ShiftRuleError('INCIDENT_HANDOVER_INCOMPLETE', 'Asigna responsable, plazo y siguiente acción a las incidencias abiertas.')
+    }
+    const closingChecklist = shift.closingChecklist.map((candidate) => candidate.id === itemId
+      ? {
+          ...candidate,
+          status: 'completed',
+          completedAt: at,
+          completedById: actor.id,
+          completedByName: actor.name,
+          checks: candidate.checks.map((check) => ({ ...check, status: 'checked', completedAt: at, completedById: actor.id, completedByName: actor.name })),
+          evidence: { kind: CLOSING_ACTIVITY_DEFINITIONS[itemId].evidenceKind, checkIds: candidate.checks.map((check) => check.id) },
+        }
+      : candidate)
+    return { ...shift, closingChecklist, actions: [...shift.actions, actionRecord('closing_item_confirmed', actor, at, { itemId })] }
+  })
+}
+
 export function getOwnCriticalBlockers(shift, actorId) {
   return shift.tasks.filter((task) => task.critical && task.ownerId === actorId && task.status !== 'completed')
 }
@@ -700,15 +795,20 @@ export function getClosingBlockers(shift, actorId) {
       type: 'incident',
       label: `Asignar responsable, plazo y siguiente acción: ${incident.description}`,
     }))
-  shift.closingChecklist
-    .filter((item) => item.required && item.status !== 'completed')
-    .forEach((item) => blockers.push({ id: `closing-${item.id}`, type: 'closing', label: item.label }))
+  if (shift.endMode === 'close') {
+    shift.closingChecklist
+      .filter((item) => item.required && item.status !== 'completed')
+      .forEach((item) => blockers.push({ id: `closing-${item.id}`, type: 'closing', label: item.label }))
+  }
   return blockers
 }
 
-export function closeShift(state, { shiftId, actor, note = '' }, at) {
+export function closeShift(state, { shiftId, actor, note = '', handoverReady = false }, at) {
   return updateShift(state, shiftId, (shift) => {
     assertActiveCoachShift(shift, actor)
+    if (shift.endMode === 'handover' && !handoverReady) {
+      throw new ShiftRuleError('HANDOVER_CONFIRMATION_REQUIRED', 'Confirma que el relevo y la sala están preparados.')
+    }
     const blockers = getClosingBlockers(shift, actor.id)
     if (blockers.length > 0) {
       throw new ShiftRuleError('SHIFT_BLOCKERS_PENDING', 'Revisa las obligaciones pendientes antes de finalizar.', { blockers })
@@ -717,6 +817,9 @@ export function closeShift(state, { shiftId, actor, note = '' }, at) {
       ...shift,
       status: 'closed',
       closingNote: String(note || '').trim(),
+      handoverReady: shift.endMode === 'handover'
+        ? { completedAt: at, completedById: actor.id, completedByName: actor.name }
+        : null,
       closedAt: at,
       closedById: actor.id,
       closedByName: actor.name,
@@ -731,12 +834,12 @@ export function getLatestShift(state) {
 
 export function getShiftProgress(shift) {
   if (!shift) return 0
-  const openingCompleted = shift.openingChecklist.filter((item) => item.status === 'completed').length
+  const openingProgress = shift.arrivalMode === 'open-center' ? (shift.centerOpening?.status === 'completed' ? 1 : 0) : 1
   const closingRequired = shift.closingChecklist.filter((item) => item.required)
   const closingCompleted = closingRequired.filter((item) => item.status === 'completed').length
   const milestones = [
     1,
-    openingCompleted / shift.openingChecklist.length,
+    openingProgress,
     shift.shiftPreparation ? 1 : 0,
     shift.tasks.some((task) => task.id === 'first-class') ? (shift.firstClassRecord ? 1 : 0) : 1,
     closingRequired.length ? closingCompleted / closingRequired.length : 1,
@@ -750,7 +853,7 @@ export function getDirectionExceptions(state) {
     .filter((incident) => incident.status === 'open')
     .map((incident) => ({
       id: incident.id,
-      label: 'Incidencia abierta',
+      label: incident.category === 'previous_closing' ? 'Cierre anterior' : 'Incidencia abierta',
       detail: incident.description,
       owner: incident.ownerName,
       dueAt: incident.dueAt,
@@ -758,6 +861,8 @@ export function getDirectionExceptions(state) {
       createdAt: incident.createdAt,
       createdBy: incident.createdByName,
       shiftLabel: `${shift.label} · ${shift.dateKey}`,
+      relatedTrainerName: incident.relatedTrainerName || null,
+      serviceImpact: incident.serviceImpact || 'none',
       status: 'exception',
     })))
 }
@@ -807,7 +912,7 @@ function upgradeChecklistActivity(base, persisted, definition, actor) {
 
 function upgradePhase23State(state) {
   return {
-    version: SHIFT_STATE_VERSION,
+    version: 3,
     shifts: state.shifts.map((shift) => {
       const actor = { id: shift.trainerId, name: shift.trainerName }
       const template = SHIFT_TEMPLATES[shift.templateId] || SHIFT_TEMPLATES.morning
@@ -836,9 +941,81 @@ function upgradePhase23State(state) {
   }
 }
 
+function migratePhase23ToBriefing(state) {
+  return {
+    version: SHIFT_STATE_VERSION,
+    shifts: state.shifts.map((shift) => {
+      const actor = { id: shift.trainerId, name: shift.trainerName }
+      const template = SHIFT_TEMPLATES[shift.templateId] || SHIFT_TEMPLATES.morning
+      const oldOpeningTask = shift.tasks?.find((task) => task.id === 'opening')
+      const oldPreparationTask = shift.tasks?.find((task) => ['preparation', 'briefing'].includes(task.id))
+      const oldFirstClassTask = shift.tasks?.find((task) => task.id === 'first-class')
+      const closed = shift.status === 'closed'
+      const openingCompleted = closed || oldOpeningTask?.status === 'completed' || shift.openingChecklist?.every((item) => item.status === 'completed')
+      const preparationCompleted = closed || oldPreparationTask?.status === 'completed' || Boolean(shift.shiftPreparation)
+      const firstClassCompleted = closed || oldFirstClassTask?.status === 'completed' || Boolean(shift.firstClassRecord)
+      const tasks = createShiftTasks(actor, template).map((task) => {
+        const completed = task.id === 'opening' ? openingCompleted : task.id === 'preparation' ? preparationCompleted : firstClassCompleted
+        if (!completed) return task
+        const source = task.id === 'opening' ? oldOpeningTask : task.id === 'preparation' ? oldPreparationTask : oldFirstClassTask
+        return {
+          ...task,
+          status: 'completed',
+          completedAt: source?.completedAt || shift.closedAt || shift.startedAt,
+          completedById: source?.completedById || actor.id,
+          completedByName: source?.completedByName || actor.name,
+        }
+      })
+      const closingChecklist = createClosingChecklist(actor, template).map((item) => closed
+        ? {
+            ...item,
+            status: 'completed',
+            completedAt: shift.closedAt,
+            completedById: shift.closedById || actor.id,
+            completedByName: shift.closedByName || actor.name,
+            checks: item.checks.map((check) => ({ ...check, status: 'checked', completedAt: shift.closedAt, completedById: actor.id, completedByName: actor.name })),
+            evidence: { kind: CLOSING_ACTIVITY_DEFINITIONS[item.id].evidenceKind, checkIds: item.checks.map((check) => check.id), legacy: true },
+          }
+        : item)
+      return {
+        ...shift,
+        arrivalMode: template.arrivalMode,
+        endMode: template.endMode,
+        endLabel: template.endLabel,
+        tasks,
+        centerOpening: template.arrivalMode === 'open-center'
+          ? {
+              status: openingCompleted ? 'completed' : 'pending',
+              completedAt: openingCompleted ? oldOpeningTask?.completedAt || shift.startedAt : null,
+              completedById: openingCompleted ? oldOpeningTask?.completedById || actor.id : null,
+              completedByName: openingCompleted ? oldOpeningTask?.completedByName || actor.name : null,
+            }
+          : { status: 'not-required', completedAt: null, completedById: null, completedByName: null },
+        legacyOpeningAudit: shift.openingChecklist || [],
+        openingChecklist: [],
+        closingChecklist,
+        handoverReady: closed && template.endMode === 'handover'
+          ? { completedAt: shift.closedAt, completedById: shift.closedById || actor.id, completedByName: shift.closedByName || actor.name }
+          : null,
+        incidents: (shift.incidents || []).map((incident) => ({
+          ...incident,
+          category: incident.category || 'operational',
+          serviceImpact: incident.serviceImpact || 'none',
+          evidence: incident.evidence || '',
+          relatedShiftId: incident.relatedShiftId || null,
+          relatedTrainerId: incident.relatedTrainerId || null,
+          relatedTrainerName: incident.relatedTrainerName || null,
+          notification: incident.notification || { status: 'pending-local', recipientId: SYNTHETIC_ACTORS.direction.id, recipientName: SYNTHETIC_ACTORS.direction.name },
+        })),
+      }
+    }),
+  }
+}
+
 export function upgradeLegacyShiftState(state) {
   if (state?.version === SHIFT_STATE_VERSION) return state
-  if (state?.version === 2 && Array.isArray(state.shifts)) return upgradePhase23State(state)
+  if (state?.version === 3 && Array.isArray(state.shifts)) return migratePhase23ToBriefing(state)
+  if (state?.version === 2 && Array.isArray(state.shifts)) return migratePhase23ToBriefing(upgradePhase23State(state))
   if (state?.version !== 1 || !Array.isArray(state.shifts)) {
     throw new ShiftRuleError('INCOMPATIBLE_SHIFT_STATE', 'Los datos locales del turno no tienen un formato compatible.')
   }
@@ -905,5 +1082,5 @@ export function upgradeLegacyShiftState(state) {
     }
   })
 
-  return upgradePhase23State({ version: 2, shifts })
+  return migratePhase23ToBriefing(upgradePhase23State({ version: 2, shifts }))
 }

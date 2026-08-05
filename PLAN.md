@@ -1,7 +1,7 @@
 # PLAN.md
 ## Plan refinado · Programming EVO
 
-**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 implementada y pendiente de revisión
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 reajustada tras auditoría de servicio y pendiente de revisión
 **Repositorio:** `marianpersonaltrainer-oss/programing`
 **Rama de preparación:** `feature/equipo-evo-f2-3-secuencia-guiada`
 **Código autorizado:** Fase 2.3 · Secuencia operativa guiada de Mi turno, autorizada por Marian el 5 de agosto de 2026
@@ -478,7 +478,7 @@ npm run test:ci → 53 archivos y 325 tests correctos; build Vite correcto
 
 # Fase 2.2 · Registro obligatorio de primera clase
 
-**Estado:** implementada y pendiente de revisión de Marian.
+**Estado:** reajuste implementado y validado técnicamente; pendiente de revisión de Marian.
 
 ## Objetivo
 
@@ -611,7 +611,7 @@ npm run test:ci → 53 archivos y 328 tests correctos; build Vite correcto
 
 ## Objetivo
 
-Sustituir el panel de acciones independientes por un único recorrido guiado: iniciar, abrir, preparar, trabajar y finalizar el turno, conservando el diseño EVO claro, las reglas fuera de React y la persistencia local sintética.
+Reducir carga operativa y convertir `Mi turno` en un briefing y asistente contextual: iniciar, abrir solo cuando corresponda, preparar, trabajar y finalizar según relevo o último turno, conservando el diseño EVO claro, las reglas fuera de React y la persistencia local sintética.
 
 ## Secuencia definitiva
 
@@ -619,66 +619,37 @@ Sustituir el panel de acciones independientes por un único recorrido guiado: in
 
 Registra únicamente entrenador, fecha, hora real de entrada y turno asignado. No completa la apertura.
 
-### 1. Abrir y preparar la sala
+### 1. Llegar al turno
 
-Checklist obligatoria y auditable:
+- Primer turno: recordatorio compacto para encender luces, pantalla, ordenador, música, clima y dispositivos; una acción `Centro abierto y operativo` y una secundaria `Registrar un problema`.
+- Turno con relevo: omite la apertura y entra directamente al briefing.
+- Antes de trabajar existen como máximo dos confirmaciones para el primer turno y una para quien recibe relevo.
 
-1. Revisar notas e incidencias del turno anterior.
-2. Encender y comprobar ordenador, música, luces, aire y dispositivos.
-3. Revisar sala, baños, limpieza y material.
-4. Revisar programación, horarios y personas que vienen hoy.
-5. Preparar material y primera clase del turno.
+Un problema de sala, baños, limpieza o material encontrado al abrir se registra como incidencia `Cierre anterior`, vinculada al turno y entrenador previos cuando los datos locales lo permiten. Conserva evidencia, responsable, hora y notificación local. Solo bloquea el inicio si compromete la seguridad o impide prestar el servicio.
 
-Cada punto guarda responsable, fecha y hora. `Ver protocolo completo de apertura` abre las instrucciones fuera de la pantalla principal. `Registrar problema` crea una incidencia sin completar el punto.
+### 2. Preparar mi turno
 
-No existe un botón universal `Marcar completado`. Las cinco actividades abren una pantalla de trabajo: relevo e incidencias; sistemas; espacios; `Programación` con las clases del día; o preparación específica de primera clase. Cada pantalla reúne el contexto y las comprobaciones exactas, confirma allí la evidencia y devuelve al entrenador al mismo recorrido.
-
-### 2. Prepara tu turno
-
-Después de la apertura aparecen tres bloques:
-
-- `Clases de hoy`: horario, tipo de clase, sala y entrenador;
-- `Personas a tener en cuenta`: primera clase, molestia o lesión, adaptación relevante o seguimiento concreto;
-- `Avisos del centro`: material fuera de uso, cambio de sala o incidencia previa que afecte al turno.
-
-Solo se muestra horario mínimo y excepciones relevantes; no se replica WodBuster.
+Una única pantalla reúne clases y horarios, personas inscritas sintéticas, nuevas incorporaciones, adaptaciones o limitaciones, incidencias activas, feedback previo e información de relevo. Cada clase ofrece acceso directo al día y clase correspondiente en `Programación`. Solo existe una confirmación: `He revisado y preparado mi turno`. No se replica WodBuster.
 
 ### 3. Durante el turno
 
-Solo permanecen:
-
-- `Anotar una incidencia`;
-- `Registrar primera clase`, cuando corresponda;
-- `Dar feedback del entrenamiento`, que abre el día y clase correspondiente de `Programación` sin guardar el feedback en Operativa.
-
-La nota para el siguiente turno se reserva al cierre.
+No permanece ninguna checklist. La interfaz muestra solo acciones que corresponden a la siguiente clase o excepción: abrir Programación, consultar una persona nueva, revisar una adaptación, registrar primera clase, anotar una incidencia, abrir un protocolo o dar feedback del entrenamiento en Programación. La nota para el siguiente turno se reserva al final.
 
 ### 4. Cerrar o entregar el turno
 
-`Finalizar turno` permanece siempre visible. Si existen pendientes, está desactivado, muestra su número y ofrece `Ver qué falta` con una lista concreta.
-
-La checklist final auditable contiene:
-
-- primera clase y seguimientos obligatorios registrados;
-- incidencias resueltas o asignadas;
-- material recogido y colocado;
-- sala y baños revisados;
-- sala preparada para el siguiente entrenador cuando corresponda;
-- ordenador, música, aire y luces revisados;
-- nota para el siguiente turno, si es necesaria.
-
-El turno de mañana termina con `Entregar turno`; el último turno termina con `Cerrar centro`. La nota es opcional. La finalización registra responsable y hora real.
+El turno asignado indica si llega otro entrenador o si es el último. La entrega muestra un resumen breve de relevo, incidencias activas, sala preparada y asuntos pendientes, con una sola acción final `Turno entregado`; no contiene checklist de cierre del centro. El último turno sí muestra la checklist completa: material, sala, baños, limpieza, música, luces, clima, ordenador, pantallas, dispositivos, incidencias y acceso, y termina con `Centro cerrado`. Ambos registran responsable y hora real.
 
 ## Reglas de dominio y persistencia
 
-- apertura y cierre se conservan para revisión posterior;
+- apertura, briefing, entrega y cierre se conservan para revisión posterior;
 - cada acción obligatoria guarda responsable y hora;
-- cada comprobación de apertura se completa con la evidencia prevista para ese punto; una confirmación genérica o desde un destino incorrecto se rechaza;
+- el centro solo puede confirmarse operativo en un primer turno y queda bloqueado por incidencias de seguridad o servicio;
+- una incidencia `Cierre anterior` conserva vínculo local, impacto, responsable y evidencia;
 - una incidencia abierta solo deja de bloquear cuando tiene responsable, plazo y siguiente acción;
 - una primera clase pendiente bloquea;
 - la nota para el siguiente turno no bloquea;
 - el feedback del entrenamiento pertenece exclusivamente a Programación;
-- se mantienen máximo tres tareas críticas: apertura, preparación y primera clase cuando corresponda;
+- se mantienen máximo tres tareas críticas: apertura cuando corresponde, briefing y primera clase cuando corresponde;
 - React presenta estados; dominio y servicio validan la secuencia;
 - el adaptador local sigue siendo sustituible y exportable;
 - los datos de Fase 2.2 se recuperan de forma compatible o se reinician explícitamente, nunca mediante un fallo silencioso.
@@ -695,19 +666,22 @@ Completar un turno guiado de principio a fin y revisar después la apertura, el 
 
 **Pasos:**
 
-1. Iniciar el turno y comprobar que la apertura continúa pendiente.
-2. Entrar en las cinco pantallas de apertura, completar sus comprobaciones y registrar un problema en un elemento concreto; confirmar que la actividad no termina hasta reunir la evidencia completa.
-3. Revisar `Prepara tu turno`, confirmar los tres bloques y entrar en el trabajo del turno.
-4. Anotar una incidencia asignada, registrar la primera clase y comprobar que el feedback navega a `Programación`.
-5. Abrir `Ver qué falta`, completar la checklist final y verificar que la nota opcional no bloquea.
-6. `Entregar turno` o `Cerrar centro`, recargar y revisar responsable y hora de cada acción.
-7. Entrar como Dirección y confirmar que ve únicamente la incidencia abierta trasladada.
+1. Probar el primer entrenador: iniciar, registrar un problema de `Cierre anterior`, confirmar el centro operativo y recargar cada fase.
+2. Revisar el briefing único con persona nueva, adaptación relevante, incidencia pendiente, feedback previo y relevo; abrir una clase en `Programación`, volver y confirmar el turno preparado.
+3. Comprobar que durante el trabajo solo aparecen acciones contextuales, registrar la primera clase y trasladar una incidencia con responsable, plazo y siguiente acción.
+4. Entregar el turno de mañana con el recorrido breve y confirmar `Turno entregado` tras recargar.
+5. Iniciar como entrenador que recibe relevo y verificar que accede directamente al briefing, sin apertura.
+6. Completar el último turno, abrir el cierre detallado y confirmar `Centro cerrado` tras recargar.
+7. Repetir el recorrido esencial y la ida y vuelta a Programación a 1440 px y aproximadamente 390 px.
+8. Entrar como Dirección y confirmar que ve solo excepciones pendientes, incluida la incidencia de cierre anterior.
 
 **Resultado esperado:**
 
-- la interfaz revela una etapa cada vez y no funciona como panel independiente;
-- las tareas de consulta llevan a una pantalla de trabajo y no se reducen a marcar una casilla;
-- las checklists de apertura y cierre son auditables y persistentes;
+- el primer turno requiere como máximo apertura y briefing; el relevo solo briefing;
+- el briefing concentra contexto operativo sin replicar WodBuster;
+- durante el trabajo no existe checklist permanente;
+- una incidencia de cierre anterior normal no bloquea y una de seguridad o servicio sí;
+- entrega breve y cierre completo son recorridos distintos, auditables y persistentes;
 - el cierre muestra bloqueos concretos y se activa solo cuando desaparecen;
 - la primera clase pendiente bloquea y una incidencia bien asignada no;
 - el feedback del entrenamiento no se guarda en Operativa;
@@ -715,17 +689,17 @@ Completar un turno guiado de principio a fin y revisar después la apertura, el 
 - escritorio y móvil conservan el patrón EVO;
 - tests y build son correctos.
 
-**Resultado real:** superada técnicamente y corregida tras auditoría de producto el 5 de agosto de 2026. La auditoría previa demostró que apertura y cierre podían certificarse desde el resumen mediante acciones genéricas. La corrección eliminó esas acciones: cada actividad compuesta abre ahora una pantalla de trabajo, registra sus comprobaciones individualmente y solo finaliza con evidencia tipada y completa. El dominio rechaza actividades no abiertas, evidencia genérica, tipos incorrectos y comprobaciones pendientes. Relevo muestra nota e incidencia activa; sistemas y espacios vinculan problemas al elemento; Programación exige revisar las tres clases con objetivo, bloques, material, adaptaciones y avisos; primera clase muestra preparación concreta y alternativa. El cierre utiliza el mismo patrón de evidencia y continúa bloqueado por obligaciones reales. En la prueba manual completa se trasladó una excepción de Música con responsable, plazo y siguiente acción, se entregó el turno, se recargó sin perder el 100 % y Dirección mostró únicamente esa excepción. El recorrido se verificó a 1440 × 1000 px y 390 × 844 px, incluido foco inicial de diálogos y cierre con `Escape`.
+**Resultado real:** superada técnicamente el 5 de agosto de 2026. El primer turno registró entrada, una incidencia no bloqueante de `Cierre anterior`, apertura compacta, briefing único, ida y vuelta a Programación, primera clase y entrega breve; cada etapa persistió al recargar y Dirección mostró únicamente la excepción. El turno de tarde omitió la apertura, mostró el relevo dentro del briefing y exigió la checklist completa únicamente al cerrar el centro. La interfaz se comparó con el Figma aprobado y se verificó a 1440 × 1000 px y 390 × 844 px con navegación, tarjetas y objetivos táctiles intactos.
 
 **Pruebas automáticas ejecutadas:**
 
 ```text
-npm run test -- src/IncorporacionesApp.test.jsx src/IncorporacionesApp.interface.test.jsx src/domain/shift/shiftDomain.test.js src/adapters/shift/localShiftRepository.test.js → 4 archivos y 21 tests correctos
-npm run test → 55 archivos y 337 tests correctos
+npm run test -- src/domain/shift/shiftDomain.test.js src/adapters/shift/localShiftRepository.test.js src/IncorporacionesApp.test.jsx src/IncorporacionesApp.interface.test.jsx → 4 archivos y 19 tests correctos
+npm run test → 55 archivos y 335 tests correctos
 npm run build → build Vite correcto
 ```
 
-**Incidencias:** además de los ajustes anteriores, se corrigieron la finalización genérica de apertura y cierre, la ausencia de pantallas de trabajo, la evidencia sin tipo, la incidencia sin vínculo a una comprobación, la revisión superficial de Programación y la gestión de foco de los diálogos. El build conserva el aviso preexistente sobre chunks superiores a 500 kB y los tests muestran el aviso local preexistente de variables Supabase ausentes; ninguno afecta al sandbox.
+**Incidencias:** se eliminó la carga de cinco confirmaciones previas, se evitó aplicar apertura al relevo, se separaron entrega y cierre, se añadió la categoría `Cierre anterior` con impacto y vínculo local, se corrigió el progreso `0/0` del relevo, se migró el estado local de versión 3 a 4 y se incluyó el parseo corrupto dentro del error controlado del adaptador. El build conserva el aviso preexistente sobre chunks superiores a 500 kB y los tests muestran el aviso local preexistente de variables Supabase ausentes; ninguno afecta al sandbox.
 
 **Producción modificada:** No.
 
@@ -1166,12 +1140,12 @@ Toda persistencia futura deberá incluir una prueba de exportación de datos ope
 - `PRD.md` existe.
 - `PLAN.md` existe.
 - `AGENTS.md` existe.
-- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno, implementada y pendiente de revisión.
+- Fase activa: Fase 2.3 · reajustada tras auditoría de servicio, validada técnicamente y pendiente de revisión.
 - Fase 1: cerrada y aprobada por Marian.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
 - Fase 2.2: aprobada por Marian como base funcional local.
-- Fase 2.3: implementada y pendiente de revisión en `feature/equipo-evo-f2-3-secuencia-guiada`.
+- Fase 2.3: reajustada y validada técnicamente en `feature/equipo-evo-f2-3-secuencia-guiada`, pendiente de revisión manual.
 - Trabajo autorizado actual: únicamente ajustes de Fase 2.3 que Dirección solicite tras la revisión.
 - Código autorizado después del cierre: no iniciar Fase 3.
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo funcional local de Fase 2.

@@ -1,7 +1,7 @@
 # DESIGN.md
 ## Sistema visual de Programming EVO
 
-**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 implementada y pendiente de revisión
+**Estado:** documento vivo · Fase 2.2 aprobada · Fase 2.3 reajustada tras auditoría de servicio y pendiente de revisión
 **Producto:** Programming EVO
 **Superficie actual:** sandbox local `?incorporaciones`
 
@@ -69,31 +69,30 @@ El registro obligatorio conserva el mismo lenguaje ligero de Operativa:
 - el resumen guardado sustituye el formulario al reabrirlo y muestra responsable y hora sin duplicar etiquetas;
 - comportamiento, orden y contenido equivalentes en escritorio y móvil.
 
-## Patrón de secuencia guiada de Mi turno
+## Patrón de briefing y asistente contextual de Mi turno
 
-La pantalla principal representa un recorrido y no un tablero. Solo el momento actual tiene protagonismo; lo completado se resume y lo futuro se anuncia sin desplegar sus controles.
+La pantalla principal representa un recorrido y no un tablero. Solo el momento actual tiene protagonismo; el sistema registra el estado sin convertir cada comprobación rutinaria en un botón.
 
-### Cinco momentos
+### Cuatro momentos
 
-0. `Iniciar turno`: una tarjeta clara registra la entrada y el turno asignado.
-1. `Abrir y preparar la sala`: checklist vertical compacta, con una acción principal por punto, metadatos auditables al completarlo y `Registrar problema` como acción subordinada.
-2. `Prepara tu turno`: tres bloques de lectura —clases, personas y avisos— seguidos de una única confirmación.
-3. Durante el turno: exactamente tres controles secundarios; primera clase solo si corresponde y feedback con salida visual hacia Programación.
-4. `Finalizar turno`: bloque persistente al final de la pantalla con botón desactivado, contador y `Ver qué falta`; al quedar listo, abre la revisión final y muestra `Entregar turno` o `Cerrar centro` como única acción dominante.
+1. `Iniciar turno`: una tarjeta clara registra la entrada y el turno asignado. Si es el primer turno, aparece un recordatorio compacto y una sola acción `Centro abierto y operativo`; si recibe relevo, avanza al briefing.
+2. `Preparar mi turno`: una única pantalla agrupa clases, personas, adaptaciones, incidencias, feedback previo y relevo. Las tarjetas de clase abren Programación y una sola acción confirma `He revisado y preparado mi turno`.
+3. Durante el turno: no hay checklist permanente. Las acciones aparecen en contexto de la siguiente clase o excepción y desaparecen cuando dejan de ser pertinentes.
+4. Al finalizar: `Entregar turno` es un relevo breve sin checklist de cierre; `Cerrar centro` muestra la checklist detallada solo al último entrenador.
 
-### Checklists y auditoría
+Antes de trabajar hay como máximo dos confirmaciones en el primer turno y una al recibir relevo.
 
-- Cada fila mide al menos 44 px y utiliza estado, responsable y hora sin píldoras repetidas.
-- El resumen solo permite `Abrir actividad`, `Continuar actividad` o `Ver evidencia`; nunca completa directamente una actividad compuesta.
-- La pantalla de trabajo contiene la información operativa, las comprobaciones específicas y una única acción final desactivada hasta reunir la evidencia correcta.
-- Un punto incompleto conserva una acción clara; un punto completado se comprime y muestra su auditoría.
-- `Registrar problema` nace desde una comprobación concreta, abre un diálogo breve y devuelve al mismo punto con la excepción vinculada, sin finalizar automáticamente la actividad.
-- Programación presenta objetivo, bloques, material, adaptaciones y avisos por clase; la revisión se confirma allí sin trasladar su contenido al dominio de Operativa.
-- El protocolo completo de apertura se consulta en `Protocolos`, fuera de la pantalla principal.
-- La checklist final distingue comprobaciones automáticas de registros previos y comprobaciones manuales de sala.
-- La nota para el siguiente turno se muestra dentro del cierre como campo opcional.
-- Tras cerrar, un resumen desplegable permite revisar apertura y cierre sin convertir el historial en una nueva pantalla.
-- Los diálogos reciben foco al abrirse, admiten `Escape` para volver y restituyen el foco cuando el origen continúa disponible.
+### Registro y auditoría
+
+- Apertura, briefing, acciones relevantes, entrega y cierre guardan responsable y hora sin repetir metadatos en cada tarjeta.
+- `Registrar un problema` es una acción secundaria. Un problema encontrado al abrir se etiqueta `Cierre anterior`, conserva evidencia y vínculo local con el turno previo cuando existe.
+- Una incidencia de cierre anterior solo frena el inicio si afecta a la seguridad o impide prestar el servicio.
+- Programación contiene el detalle y el feedback de cada clase; Operativa enlaza y conserva únicamente la continuidad del recorrido.
+- Personas nuevas, adaptaciones e incidencias son información prioritaria, no una lista que marcar.
+- La checklist detallada solo aparece para cerrar el último turno e incluye material, sala, baños, limpieza, sistemas, dispositivos, incidencias y acceso.
+- La entrega muestra relevo, incidencias activas, sala preparada y pendientes en un resumen breve con una única confirmación final.
+- Tras finalizar, un resumen revisable conserva la trazabilidad sin crear un historial completo nuevo.
+- Los diálogos reciben foco al abrirse, admiten `Escape` y restituyen el foco cuando el origen continúa disponible.
 
 ### Jerarquía adaptativa
 

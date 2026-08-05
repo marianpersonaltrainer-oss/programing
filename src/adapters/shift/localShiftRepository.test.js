@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CLOSING_ACTIVITY_DEFINITIONS,
   createEmptyShiftState,
   FIRST_CLASS_DISCOMFORT_OPTIONS,
   FIRST_CLASS_MOVEMENT_OPTIONS,
+  OPENING_ACTIVITY_DEFINITIONS,
   OPENING_CHECKLIST_ITEMS,
   SHIFT_STATE_VERSION,
   SYNTHETIC_ACTORS,
@@ -37,10 +39,30 @@ describe('local shift repository', () => {
     const repository = createLocalShiftRepository({ storage })
     const service = createShiftService({ repository, now: () => '2026-08-05T06:42:00+02:00' })
     const started = service.start({ templateId: 'morning', actor: SYNTHETIC_ACTORS.coach })
-    OPENING_CHECKLIST_ITEMS.forEach((item) => service.completeOpeningItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach, completionEvidence: item.completionEvidence }))
+    OPENING_CHECKLIST_ITEMS.forEach((item) => {
+      const definition = OPENING_ACTIVITY_DEFINITIONS[item.id]
+      service.openOpeningItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach })
+      definition.checks.forEach((check) => service.completeOpeningCheck({ shiftId: started.shift.id, itemId: item.id, checkId: check.id, actor: SYNTHETIC_ACTORS.coach }))
+      service.completeOpeningItem({
+        shiftId: started.shift.id,
+        itemId: item.id,
+        actor: SYNTHETIC_ACTORS.coach,
+        evidence: { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) },
+      })
+    })
     service.completePreparation({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach })
     service.recordFirstClass({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach, record: firstClassRecord })
-    repository.load().shifts[0].closingChecklist.filter((item) => item.required).forEach((item) => service.completeClosingItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach }))
+    repository.load().shifts[0].closingChecklist.filter((item) => item.required).forEach((item) => {
+      const definition = CLOSING_ACTIVITY_DEFINITIONS[item.id]
+      service.openClosingItem({ shiftId: started.shift.id, itemId: item.id, actor: SYNTHETIC_ACTORS.coach })
+      definition.checks.forEach((check) => service.completeClosingCheck({ shiftId: started.shift.id, itemId: item.id, checkId: check.id, actor: SYNTHETIC_ACTORS.coach }))
+      service.completeClosingItem({
+        shiftId: started.shift.id,
+        itemId: item.id,
+        actor: SYNTHETIC_ACTORS.coach,
+        evidence: { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) },
+      })
+    })
     service.close({ shiftId: started.shift.id, actor: SYNTHETIC_ACTORS.coach, note: 'Revisar remo 04.' })
 
     const reloadedRepository = createLocalShiftRepository({ storage })

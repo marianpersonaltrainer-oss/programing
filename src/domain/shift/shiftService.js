@@ -1,9 +1,13 @@
 import {
   closeShift,
+  completeClosingCheck,
   completeClosingItem,
+  completeOpeningCheck,
   completeOpeningItem,
   completeShiftPreparation,
   getLatestShift,
+  openClosingItem,
+  openOpeningItem,
   recordFirstClass,
   recordIncident,
   startShift,
@@ -26,10 +30,14 @@ export function createShiftService({ repository, now = () => new Date().toISOStr
       repository.save(result.state)
       return result
     },
+    openOpeningItem: (params) => persist((state, at) => openOpeningItem(state, params, at)),
+    completeOpeningCheck: (params) => persist((state, at) => completeOpeningCheck(state, params, at)),
     completeOpeningItem: (params) => persist((state, at) => completeOpeningItem(state, params, at)),
     completePreparation: (params) => persist((state, at) => completeShiftPreparation(state, params, at)),
     recordIncident: (params) => persist((state, at) => recordIncident(state, params, at)),
     recordFirstClass: (params) => persist((state, at) => recordFirstClass(state, params, at)),
+    openClosingItem: (params) => persist((state, at) => openClosingItem(state, params, at)),
+    completeClosingCheck: (params) => persist((state, at) => completeClosingCheck(state, params, at)),
     completeClosingItem: (params) => persist((state, at) => completeClosingItem(state, params, at)),
     close: (params) => persist((state, at) => closeShift(state, params, at)),
     latest: () => getLatestShift(repository.load()),

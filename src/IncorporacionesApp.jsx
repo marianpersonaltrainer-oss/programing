@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import EvoLogo from './components/EvoLogo.jsx'
 import Icon from './components/Incorporaciones/Icons.jsx'
 import StatusBadge from './components/Incorporaciones/StatusBadge.jsx'
@@ -8,7 +8,7 @@ import {
   evolutionSummary,
   firstClassPreparation,
   peopleToConsider,
-  previousShiftReview,
+  previousShiftHandover,
   programmingFeedbackTarget,
   protocols,
   teamOverview,
@@ -19,10 +19,11 @@ import {
   FIRST_CLASS_MOVEMENT_OPTIONS,
   FIRST_CLASS_TEXT_LIMIT,
   FIRST_CLASS_VOLUME_OPTIONS,
+  CLOSING_ACTIVITY_DEFINITIONS,
   getClosingBlockers,
   getDirectionExceptions,
   getShiftProgress,
-  OPENING_CHECKLIST_ITEMS,
+  OPENING_ACTIVITY_DEFINITIONS,
   SHIFT_TEMPLATES,
   SYNTHETIC_ACTORS,
 } from './domain/shift/shiftDomain.js'
@@ -54,18 +55,6 @@ const statusLabels = {
   overdue: 'Vencido',
   exception: 'Atención',
   empty: 'Más tarde',
-}
-
-const openingActions = {
-  'previous-shift': { label: 'Revisar relevo anterior', icon: 'today', kind: 'context' },
-  systems: { label: 'Confirmar dispositivos', icon: 'check', kind: 'direct' },
-  spaces: { label: 'Confirmar sala y material', icon: 'check', kind: 'direct' },
-  schedule: { label: 'Abrir programación del día', icon: 'class', kind: 'programming' },
-  'first-class-setup': { label: 'Preparar primera clase', icon: 'signups', kind: 'context' },
-}
-
-function openingDefinition(itemId) {
-  return OPENING_CHECKLIST_ITEMS.find((item) => item.id === itemId)
 }
 
 function formatTime(value) {
@@ -127,16 +116,25 @@ function ScreenHeading({ eyebrow, title, detail }) {
   return (
     <div className="mb-5">
       <p className="text-sm font-bold text-[#A729AD]">{eyebrow}</p>
-      <h1 className="mt-1 font-evo-display text-4xl font-semibold tracking-wide text-[#241526] sm:text-5xl">{title}</h1>
+      <h1 className="mt-1 font-evo-display text-3xl font-semibold tracking-wide text-[#241526] sm:text-5xl">{title}</h1>
       {detail && <p className="mt-1 max-w-2xl text-base leading-7 text-[#6E5A71]">{detail}</p>}
     </div>
   )
 }
 
 function DialogShell({ eyebrow, title, detail, onClose, children }) {
+  const dialogRef = useRef(null)
+  const previousFocusRef = useRef(null)
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement
+    dialogRef.current?.focus()
+    return () => previousFocusRef.current?.focus?.()
+  }, [title])
+
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center sm:p-6">
-      <div role="dialog" aria-modal="true" aria-labelledby="action-title" className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-[1.7rem] bg-[#FBF8FB] p-5 text-[#241526] shadow-2xl sm:p-7">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="action-title" tabIndex="-1" onKeyDown={(event) => { if (event.key === 'Escape') onClose() }} className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-[1.7rem] bg-[#FBF8FB] p-5 text-[#241526] shadow-2xl outline-none focus:ring-2 focus:ring-[#A729AD] focus:ring-offset-2 sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-sm font-bold text-[#A729AD]">{eyebrow}</p><h2 id="action-title" className="mt-1 font-evo-display text-3xl font-semibold">{title}</h2></div>
           <button type="button" onClick={onClose} className="min-h-12 rounded-xl px-3 text-base font-bold text-[#604B63] hover:bg-[#EEE5EF]">Cerrar</button>
@@ -215,21 +213,25 @@ function FirstClassDialog({ shift, error, onClose, onConfirm, onClearError }) {
   )
 }
 
-function IncidentDialog({ shift, openingItemId, error, onClose, onConfirm, onClearError }) {
+function IncidentDialog({ shift, openingItemId, openingCheckId, closingItemId, closingCheckId, error, onClose, onConfirm, onClearError }) {
   const [description, setDescription] = useState('')
   const [dueAt, setDueAt] = useState('')
   const [nextAction, setNextAction] = useState('')
   const openingItem = shift.openingChecklist.find((item) => item.id === openingItemId)
+  const openingCheck = openingItem?.checks.find((check) => check.id === openingCheckId)
+  const closingItem = shift.closingChecklist.find((item) => item.id === closingItemId)
+  const closingCheck = closingItem?.checks.find((check) => check.id === closingCheckId)
+  const affectedCheck = openingCheck || closingCheck
   function update(setter, value) {
     onClearError()
     setter(value)
   }
   function confirm() {
-    const success = onConfirm({ description, dueAt, nextAction, openingItemId })
+    const success = onConfirm({ description, dueAt, nextAction, openingItemId, openingCheckId, closingItemId, closingCheckId })
     if (success) onClose()
   }
   return (
-    <DialogShell eyebrow={`Incidencia · ${shift.trainerName}`} title={openingItem ? 'Registrar problema de apertura' : 'Anotar una incidencia'} detail={openingItem ? `La comprobación “${openingItem.label}” seguirá pendiente.` : 'La incidencia quedará visible para Dirección con responsable, plazo y siguiente acción.'} onClose={onClose}>
+    <DialogShell eyebrow={`Incidencia · ${shift.trainerName}`} title={affectedCheck ? 'Registrar problema de comprobación' : 'Anotar una incidencia'} detail={affectedCheck ? `El elemento “${affectedCheck.label}” quedará como excepción trazada; la actividad seguirá pendiente hasta que confirmes el resto y la finalices.` : 'La incidencia quedará visible para Dirección con responsable, plazo y siguiente acción.'} onClose={onClose}>
       <div className="mt-5 space-y-4">
         <label className="block text-sm font-bold text-[#4A354D]">¿Qué ha ocurrido?<textarea rows="3" maxLength="240" value={description} onChange={(event) => update(setDescription, event.target.value)} placeholder="Ej. El remo 04 queda fuera de uso." className="mt-2 min-h-24 w-full resize-none rounded-xl border border-[#D9C8DB] bg-white px-4 py-3 text-base font-normal leading-6 outline-none placeholder:text-[#9A879D] focus:border-[#A729AD] focus:ring-2 focus:ring-[#A729AD]/20" /></label>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -244,13 +246,120 @@ function IncidentDialog({ shift, openingItemId, error, onClose, onConfirm, onCle
   )
 }
 
-function ClosingDialog({ shift, flow, error, onClose }) {
+function ActivityChecks({ item, onCheck, onProblem }) {
+  return (
+    <div className="mt-5 space-y-2">
+      {item.checks.map((check) => (
+        <div key={check.id} data-testid={`activity-check-${item.id}-${check.id}`} className={`rounded-xl border p-4 ${check.status === 'checked' ? 'border-emerald-200 bg-emerald-50' : check.status === 'exception' ? 'border-amber-300 bg-[#FFFFE2]' : 'border-[#E4D8E5] bg-white'}`}>
+          <div className="flex items-start gap-3">
+            <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${check.status === 'checked' ? 'bg-emerald-600 text-white' : check.status === 'exception' ? 'bg-amber-500 text-white' : 'bg-[#F0E7F1] text-[#6A1F6D]'}`}><Icon name={check.status === 'checked' ? 'check' : check.status === 'exception' ? 'exceptions' : 'today'} className="h-4 w-4" /></span>
+            <div className="min-w-0 flex-1"><p className="text-base font-bold leading-6">{check.label}</p>{check.status === 'checked' && <p className="mt-1 text-sm text-[#5C6B61]">{check.completedByName} · {formatDateTime(check.completedAt)}</p>}{check.status === 'exception' && <p className="mt-1 text-sm text-[#745B26]">Excepción asignada · incidencia {check.incidentId}</p>}</div>
+          </div>
+          {check.status === 'pending' && <div className="mt-3 flex flex-col gap-2 pl-10 sm:flex-row"><button type="button" onClick={() => onCheck(check.id)} className="min-h-11 rounded-xl bg-[#F0E7F1] px-4 text-sm font-extrabold text-[#6A1F6D] hover:bg-[#E8D5EA] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D] focus:ring-offset-2">Confirmar {check.label.replace(/\.$/, '').toLowerCase()}</button><button type="button" onClick={() => onProblem(check.id)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]">Registrar problema</button></div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function PreviousShiftContext() {
+  return (
+    <div className="mt-5 space-y-4">
+      <LightCard><p className="text-sm font-bold text-[#A729AD]">Nota del turno anterior</p><p className="mt-2 text-base leading-7 text-[#4C3A4F]">{previousShiftHandover.note}</p></LightCard>
+      <div>{previousShiftHandover.incidents.map((incident) => <LightCard key={incident.id}><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-[#A729AD]">Incidencia activa · {incident.element}</p><StatusBadge status="exception">{incident.status}</StatusBadge></div><dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-bold">Responsable</dt><dd>{incident.owner}</dd></div><div><dt className="font-bold">Plazo</dt><dd>{incident.dueAt}</dd></div><div className="sm:col-span-2"><dt className="font-bold">Siguiente acción</dt><dd>{incident.nextAction}</dd></div></dl></LightCard>)}</div>
+    </div>
+  )
+}
+
+function FirstClassPreparationContext() {
+  return (
+    <div className="mt-5 grid gap-3 lg:grid-cols-2">
+      <LightCard><p className="text-sm font-bold text-[#A729AD]">{firstClassPreparation.time} · {firstClassPreparation.room}</p><h3 className="mt-1 font-evo-display text-2xl font-semibold">{firstClassPreparation.type}</h3><p className="mt-3 text-sm font-bold">Objetivo</p><p className="mt-1 text-base leading-7 text-[#604B63]">{firstClassPreparation.objective}</p><p className="mt-3 text-sm font-bold">Personas y adaptaciones</p><p className="mt-1 text-base leading-7 text-[#604B63]">{firstClassPreparation.people}</p></LightCard>
+      <LightCard><p className="text-sm font-bold text-[#A729AD]">Preparación concreta</p><ol className="mt-3 space-y-2">{firstClassPreparation.steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6"><strong className="text-[#A729AD]">{index + 1}</strong><span>{step}</span></li>)}</ol><p className="mt-4 text-sm font-bold">Material</p><p className="mt-1 text-sm leading-6 text-[#604B63]">{firstClassPreparation.material}</p><p className="mt-4 text-sm font-bold">Alternativa prevista</p><p className="mt-1 text-sm leading-6 text-[#604B63]">{firstClassPreparation.alternative}</p></LightCard>
+    </div>
+  )
+}
+
+export function OpeningActivityScreen({ shift, itemId, flow, onBack, onProblem, onProgrammingReview, onCompleted }) {
+  const item = shift.openingChecklist.find((candidate) => candidate.id === itemId)
+  const definition = OPENING_ACTIVITY_DEFINITIONS[itemId]
+  const ready = item.checks.every((check) => ['checked', 'exception'].includes(check.status))
+
+  function finish() {
+    if (itemId === 'previous-shift') {
+      item.checks.filter((check) => check.status === 'pending').forEach((check) => flow.completeOpeningCheck(itemId, check.id))
+    }
+    const success = flow.completeOpeningItem(itemId, { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) })
+    if (success) onCompleted()
+  }
+
+  return (
+    <div data-testid={`opening-work-${itemId}`}>
+      <TextButton onClick={onBack}>← Volver a la apertura</TextButton>
+      <ScreenHeading eyebrow="Abrir y preparar la sala" title={item.label.replace(/\.$/, '')} detail="Realiza la actividad aquí. La pantalla general solo mostrará el resultado y el siguiente paso." />
+      {itemId === 'previous-shift' && <PreviousShiftContext />}
+      {itemId === 'first-class-setup' && <FirstClassPreparationContext />}
+      {itemId === 'systems' && <LightCard><p className="text-base leading-7 text-[#604B63]">Comprueba que cada sistema responde. Si uno falla, registra el problema desde ese elemento para conservar el vínculo.</p></LightCard>}
+      {itemId === 'spaces' && <LightCard><p className="text-base leading-7 text-[#604B63]">Recorre físicamente sala y baños. Cada comprobación conserva su propio estado.</p></LightCard>}
+      {itemId === 'schedule' && <LightCard><p className="text-base leading-7 text-[#604B63]">La revisión se realiza en Programación, donde viven objetivo, estructura, material y adaptaciones de cada clase.</p><div className="mt-4"><PrimaryButton icon="class" onClick={onProgrammingReview}>Abrir Programación</PrimaryButton></div></LightCard>}
+      {!['previous-shift', 'schedule'].includes(itemId) && <ActivityChecks item={item} onCheck={(checkId) => flow.completeOpeningCheck(itemId, checkId)} onProblem={(checkId) => onProblem(itemId, checkId)} />}
+      {itemId === 'previous-shift' && item.status !== 'completed' && <div className="mt-5 max-w-md"><PrimaryButton icon="check" onClick={finish}>Confirmar relevo revisado</PrimaryButton></div>}
+      {!['previous-shift', 'schedule'].includes(itemId) && item.status !== 'completed' && <div className="mt-5 max-w-md"><PrimaryButton icon="check" disabled={!ready} onClick={finish}>Finalizar actividad</PrimaryButton>{!ready && <p className="mt-2 text-sm font-semibold text-[#806E82]">Completa cada comprobación o deja una excepción correctamente asignada.</p>}</div>}
+      {item.status === 'completed' && <p role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Actividad finalizada por {item.completedByName} · {formatDateTime(item.completedAt)}.</p>}
+    </div>
+  )
+}
+
+export function ProgrammingOpeningReview({ shift, flow, onBack, onCompleted }) {
+  const item = shift.openingChecklist.find((candidate) => candidate.id === 'schedule')
+  const definition = OPENING_ACTIVITY_DEFINITIONS.schedule
+  const ready = item.checks.every((check) => check.status === 'checked')
+  function finish() {
+    const success = flow.completeOpeningItem('schedule', { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) })
+    if (success) onCompleted()
+  }
+  return (
+    <div data-testid="programming-opening-review">
+      <TextButton onClick={onBack}>← Volver a Mi turno</TextButton>
+      <ScreenHeading eyebrow="Programación · Revisión del turno" title="Revisa las clases del turno" detail="Este contenido pertenece a Programación. Mi turno conserva únicamente la evidencia de que cada clase fue revisada." />
+      <div className="space-y-4">{todayClasses.map((classItem) => { const check = item.checks.find((candidate) => candidate.id === classItem.id); return <LightCard key={classItem.id}><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><p className="text-sm font-bold text-[#A729AD]">{classItem.time} · {classItem.room} · {classItem.trainer}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{classItem.type}</h2><div className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><p className="font-bold">Objetivo</p><p className="mt-1 leading-6 text-[#604B63]">{classItem.objective}</p></div><div><p className="font-bold">Estructura o bloques</p><p className="mt-1 leading-6 text-[#604B63]">{classItem.blocks.join(' · ')}</p></div><div><p className="font-bold">Material</p><p className="mt-1 leading-6 text-[#604B63]">{classItem.material}</p></div><div><p className="font-bold">Adaptaciones y avisos</p><p className="mt-1 leading-6 text-[#604B63]">{classItem.adaptations} {classItem.alerts}</p></div></div></div><button type="button" disabled={check.status === 'checked'} onClick={() => flow.completeOpeningCheck('schedule', classItem.id)} className="min-h-11 shrink-0 rounded-xl bg-[#F0E7F1] px-4 text-sm font-extrabold text-[#6A1F6D] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D] disabled:bg-emerald-100 disabled:text-emerald-800">{check.status === 'checked' ? `Revisada · ${formatTime(check.completedAt)}` : 'Confirmar clase revisada'}</button></div></LightCard> })}</div>
+      {item.status !== 'completed' && <div className="mt-5 max-w-md"><PrimaryButton icon="check" disabled={!ready} onClick={finish}>Confirmar revisión de Programación</PrimaryButton></div>}
+      {item.status === 'completed' && <p role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Revisión finalizada por {item.completedByName} · {formatDateTime(item.completedAt)}.</p>}
+    </div>
+  )
+}
+
+function ClosingDialog({ shift, flow, error, onClose, initialItemId = null, onProblem }) {
   const [note, setNote] = useState(shift.closingNote || '')
+  const [activeItemId, setActiveItemId] = useState(initialItemId)
   const blockers = getClosingBlockers(shift, shift.trainerId)
   const incidentsReady = shift.incidents.every((incident) => incident.status !== 'open' || (incident.ownerId && incident.dueAt && incident.nextAction))
   const firstClassReady = !shift.tasks.some((task) => task.id === 'first-class') || Boolean(shift.firstClassRecord)
   function finish() {
     if (flow.close(note)) onClose()
+  }
+  function openActivity(itemId) {
+    const item = shift.closingChecklist.find((candidate) => candidate.id === itemId)
+    if (!item.openedAt && !flow.openClosingItem(itemId)) return
+    setActiveItemId(itemId)
+  }
+  if (activeItemId) {
+    const item = shift.closingChecklist.find((candidate) => candidate.id === activeItemId)
+    const definition = CLOSING_ACTIVITY_DEFINITIONS[activeItemId]
+    const ready = item.checks.every((check) => ['checked', 'exception'].includes(check.status))
+    function finishActivity() {
+      const success = flow.completeClosingItem(activeItemId, { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) })
+      if (success) setActiveItemId(null)
+    }
+    return (
+      <DialogShell eyebrow="Final del turno · Evidencia" title={item.label.replace(/\.$/, '')} detail="Realiza cada comprobación. Una excepción asignada queda vinculada al elemento, pero la actividad no finaliza hasta que confirmes el conjunto." onClose={() => setActiveItemId(null)}>
+        <TextButton onClick={() => setActiveItemId(null)}>← Volver a la checklist final</TextButton>
+        <ActivityChecks item={item} onCheck={(checkId) => flow.completeClosingCheck(activeItemId, checkId)} onProblem={(checkId) => onProblem(activeItemId, checkId)} />
+        {item.status !== 'completed' && <div className="mt-5"><PrimaryButton icon="check" disabled={!ready} onClick={finishActivity}>Finalizar comprobación</PrimaryButton></div>}
+        {item.status === 'completed' && <p role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Comprobación finalizada por {item.completedByName} · {formatDateTime(item.completedAt)}.</p>}
+        {error && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">{error}</p>}
+      </DialogShell>
+    )
   }
   return (
     <DialogShell eyebrow={`Final del turno · ${shift.trainerName}`} title={shift.endLabel} detail="Revisa la checklist. Cada comprobación obligatoria guarda responsable y hora." onClose={onClose}>
@@ -260,7 +369,7 @@ function ClosingDialog({ shift, flow, error, onClose }) {
         {shift.closingChecklist.map((item) => (
           <div key={item.id} data-testid={`closing-item-${item.id}`} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.status === 'completed' || item.status === 'not-required' ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}>
             <div><p className="text-base font-bold">{item.label}</p><p className="mt-1 text-sm text-[#6E5A71]">{item.status === 'completed' ? `${item.completedByName} · ${formatDateTime(item.completedAt)}` : item.status === 'not-required' ? 'No corresponde al último turno del día.' : 'Pendiente de comprobar.'}</p></div>
-            {item.required && item.status !== 'completed' && <button type="button" onClick={() => flow.completeClosingItem(item.id)} className="min-h-11 shrink-0 rounded-xl bg-[#F0E7F1] px-4 text-sm font-extrabold text-[#6A1F6D] hover:bg-[#E8D5EA]">Marcar revisado</button>}
+            {item.required && <button type="button" onClick={() => openActivity(item.id)} className="min-h-11 shrink-0 rounded-xl bg-[#F0E7F1] px-4 text-sm font-extrabold text-[#6A1F6D] hover:bg-[#E8D5EA] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]">{item.status === 'completed' ? 'Ver evidencia' : item.openedAt ? 'Continuar comprobación' : 'Abrir comprobación'}</button>}
           </div>
         ))}
       </div>
@@ -272,65 +381,17 @@ function ClosingDialog({ shift, flow, error, onClose }) {
   )
 }
 
-function OpeningContextDialog({ itemId, onClose, onConfirm }) {
-  const isPreviousShift = itemId === 'previous-shift'
-  const title = isPreviousShift ? 'Relevo del turno anterior' : 'Preparar primera clase'
-  const detail = isPreviousShift
-    ? 'Lee la nota y la incidencia activa antes de confirmar la revisión.'
-    : 'Revisa el contexto y deja listo lo necesario antes de confirmar.'
-
-  function finish() {
-    if (onConfirm(itemId)) onClose()
+function ProgrammingReference({ target, returnLabel, onReturn, openingReview = false, shift, flow, onOpeningReviewComplete }) {
+  if (openingReview && shift) {
+    return <ProgrammingOpeningReview shift={shift} flow={flow} onBack={onReturn} onCompleted={onOpeningReviewComplete} />
   }
-
-  return (
-    <DialogShell eyebrow="Apertura · Información necesaria" title={title} detail={detail} onClose={onClose}>
-      {isPreviousShift ? (
-        <div className="mt-5 space-y-4">
-          <section className="rounded-2xl border border-[#E4D8E5] bg-white p-4">
-            <p className="text-sm font-bold text-[#A729AD]">Entregado por {previousShiftReview.handedOverBy}</p>
-            <p className="mt-1 text-sm text-[#806E82]">{previousShiftReview.handedOverAt}</p>
-            <p className="mt-3 text-base leading-7 text-[#4C3A4F]">{previousShiftReview.note}</p>
-          </section>
-          <section className="rounded-2xl border border-amber-200 bg-[#FFFFE2] p-4">
-            <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Incidencia que continúa activa</p>
-            {previousShiftReview.incidents.map((incident) => <div key={incident.title} className="mt-3"><p className="text-base font-bold">{incident.title}</p><p className="mt-1 text-sm text-[#6E5A71]">{incident.status} · {incident.nextAction}</p></div>)}
-          </section>
-        </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          <section className="rounded-2xl border border-[#E4D8E5] bg-white p-4">
-            <p className="text-sm font-bold text-[#A729AD]">{firstClassPreparation.time} · {firstClassPreparation.room}</p>
-            <h3 className="mt-1 font-evo-display text-3xl font-semibold">{firstClassPreparation.person} · {firstClassPreparation.className}</h3>
-            <p className="mt-3 text-base leading-7 text-[#4C3A4F]"><strong>Objetivo:</strong> {firstClassPreparation.goal}</p>
-            <p className="mt-2 text-base leading-7 text-[#4C3A4F]"><strong>Contexto:</strong> {firstClassPreparation.context}</p>
-          </section>
-          <section className="rounded-2xl border border-[#E4D8E5] bg-[#FFFFE2] p-4">
-            <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Dejar preparado</p>
-            <ul className="mt-3 space-y-2">{firstClassPreparation.preparation.map((step) => <li key={step} className="flex gap-3 text-base leading-6"><Icon name="check" className="mt-0.5 h-5 w-5 shrink-0 text-[#A729AD]" /><span>{step}</span></li>)}</ul>
-          </section>
-        </div>
-      )}
-      <div className="mt-6"><PrimaryButton icon="check" onClick={finish}>{isPreviousShift ? 'Confirmar relevo revisado' : 'Confirmar primera clase preparada'}</PrimaryButton></div>
-    </DialogShell>
-  )
-}
-
-function ProgrammingReference({ target, returnLabel, onReturn, onCompleteReview }) {
-  const isOpeningReview = target?.mode === 'opening-review'
-  const [selectedTime, setSelectedTime] = useState(target?.time || todayClasses[0].time)
-  const selectedClass = todayClasses.find((item) => item.time === selectedTime) || todayClasses[0]
   return (
     <div>
-      <ScreenHeading eyebrow="Programming EVO" title="Programación" detail={isOpeningReview ? 'Revisa las clases del turno, su intención, material y notas antes de confirmar la apertura.' : 'El feedback del entrenamiento pertenece a su día y clase; Operativa no lo almacena.'} />
-      {isOpeningReview ? <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-        <LightCard><p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Clases de hoy</p><div className="mt-3 space-y-2">{todayClasses.map((item) => <button key={item.time} type="button" aria-pressed={selectedClass.time === item.time} onClick={() => setSelectedTime(item.time)} className={`min-h-16 w-full rounded-xl border p-3 text-left transition ${selectedClass.time === item.time ? 'border-[#A729AD] bg-[#F4E6F5]' : 'border-[#E4D8E5] bg-white hover:border-[#BC8FC0]'}`}><p className="text-sm font-bold text-[#A729AD]">{item.time} · {item.room}</p><p className="mt-1 text-base font-bold">{item.type}</p></button>)}</div></LightCard>
-        <LightCard><p className="text-sm font-bold text-[#A729AD]">{selectedClass.time} · {selectedClass.room}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{selectedClass.type}</h2><p className="mt-3 text-base leading-7 text-[#4C3A4F]"><strong>Objetivo:</strong> {selectedClass.objective}</p><div className="mt-4 rounded-xl bg-[#F0E7F1] p-4"><p className="text-sm font-bold text-[#A729AD]">Estructura</p><ul className="mt-2 space-y-1 text-base">{selectedClass.blocks.map((block) => <li key={block}>{block}</li>)}</ul></div><p className="mt-4 text-base leading-7 text-[#4C3A4F]"><strong>Material:</strong> {selectedClass.material}</p><p className="mt-2 rounded-xl border border-amber-200 bg-[#FFFFE2] p-3 text-sm font-semibold leading-6 text-[#5B465E]">{selectedClass.coachNote}</p></LightCard>
-        <div className="xl:col-span-2 flex flex-col gap-2 sm:flex-row"><PrimaryButton className="sm:max-w-md" icon="check" onClick={() => onCompleteReview('schedule')}>Confirmar programación revisada</PrimaryButton><SecondaryButton onClick={onReturn}>Volver sin completar</SecondaryButton></div>
-      </div> : <LightCard className="max-w-2xl">
+      <ScreenHeading eyebrow="Programming EVO" title="Programación" detail="El feedback del entrenamiento pertenece a su día y clase; Operativa no lo almacena." />
+      <LightCard className="max-w-2xl">
         {target ? <><p className="text-sm font-bold text-[#A729AD]">{target.dateLabel} · {target.time}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{target.className}</h2><p className="mt-3 text-base leading-7 text-[#604B63]">Has llegado a la clase correspondiente. En la aplicación real, el campo de feedback de sesión continúa dentro de Programación.</p></> : <><p className="font-evo-display text-3xl font-semibold">La programación continúa donde ya está</p><p className="mt-3 text-base leading-7 text-[#604B63]">Entrenamiento del día, notas, objetivo, estímulo, preparación de clase y feedback de sesión permanecen en esta área.</p></>}
         <div className="mt-6"><PrimaryButton onClick={onReturn}>Volver a {returnLabel}</PrimaryButton></div>
-      </LightCard>}
+      </LightCard>
     </div>
   )
 }
@@ -370,23 +431,20 @@ function ShiftSummary({ shift }) {
   )
 }
 
-function OpeningStep({ shift, flow, onProblem, onOpenProtocol, onOpenItem }) {
+export function OpeningStep({ shift, onOpenItem, onOpenProtocol }) {
+  const nextPendingId = shift.openingChecklist.find((item) => item.status !== 'completed')?.id
   return (
     <section aria-labelledby="opening-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Paso 1</p>
       <h2 id="opening-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Abrir y preparar la sala</h2>
-      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Completa cada comprobación. Si algo falla, registra el problema y deja ese punto pendiente.</p>
+      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">Entra en la actividad que toca, realiza sus comprobaciones y vuelve aquí con una evidencia verificable.</p>
       <div className="mt-5 space-y-2">
-        {shift.openingChecklist.map((item, index) => {
-          const action = openingActions[item.id]
-          const definition = openingDefinition(item.id)
-          return (
+        {shift.openingChecklist.map((item, index) => (
           <div key={item.id} data-testid={`opening-item-${item.id}`} className={`rounded-xl border p-4 ${item.status === 'completed' ? 'border-emerald-200 bg-emerald-50' : 'border-[#E4D8E5] bg-white'}`}>
             <div className="flex gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${item.status === 'completed' ? 'bg-emerald-600 text-white' : 'bg-[#F0E7F1] text-[#6A1F6D]'}`}>{item.status === 'completed' ? <Icon name="check" className="h-4 w-4" /> : index + 1}</span><div className="min-w-0 flex-1"><p className="text-base font-bold leading-6">{item.label}</p>{item.status === 'completed' && <p className="mt-1 text-sm text-[#5C6B61]">{item.completedByName} · {formatDateTime(item.completedAt)}</p>}</div></div>
-            {item.status !== 'completed' && <div className="mt-3 flex flex-col gap-2 pl-11 sm:flex-row"><button type="button" onClick={() => action.kind === 'direct' ? flow.completeOpeningItem(item.id, definition.completionEvidence) : onOpenItem(item.id)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#A729AD] px-4 text-sm font-extrabold text-white hover:bg-[#902395]"><Icon name={action.icon} className="h-4 w-4" />{action.label}</button><button type="button" onClick={() => onProblem(item.id)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4">Registrar problema</button></div>}
+            <div className="mt-3 pl-11">{item.status === 'completed' ? <button type="button" onClick={() => onOpenItem(item.id)} className="min-h-11 text-sm font-bold text-[#6A1F6D] underline decoration-[#A729AD]/50 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-[#6A1F6D]">Ver evidencia</button> : item.id === nextPendingId ? <button type="button" onClick={() => onOpenItem(item.id)} className="min-h-11 rounded-xl bg-[#A729AD] px-4 text-sm font-extrabold text-white hover:bg-[#902395] focus:outline-none focus:ring-2 focus:ring-[#6A1F6D] focus:ring-offset-2">{item.openedAt ? 'Continuar actividad' : 'Abrir actividad'}</button> : <p className="flex min-h-11 items-center text-sm font-semibold text-[#9A879D]">Disponible después de la actividad anterior.</p>}</div>
           </div>
-          )
-        })}
+        ))}
       </div>
       <TextButton className="mt-3" onClick={onOpenProtocol}>Ver protocolo completo de apertura</TextButton>
     </section>
@@ -446,20 +504,23 @@ function AuditSummary({ shift }) {
     <section className="rounded-2xl border border-emerald-200 bg-white p-5 sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-emerald-700">Turno finalizado</p><h2 className="mt-2 font-evo-display text-3xl font-semibold">{shift.endLabel} a las {formatTime(shift.closedAt)}</h2><p className="mt-2 text-base text-[#604B63]">{shift.closedByName} · {formatDate(shift.closedAt)}</p>
       <TextButton className="mt-3" onClick={() => setOpen((value) => !value)}>{open ? 'Ocultar registro de apertura y cierre' : 'Ver registro de apertura y cierre'}</TextButton>
-      {open && <div className="mt-4 grid gap-4 lg:grid-cols-2"><div><h3 className="font-evo-display text-2xl font-semibold">Apertura y preparación</h3><div className="mt-2 space-y-2">{shift.openingChecklist.map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p></div>)}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Turno completo preparado.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.shiftPreparation.completedByName} · {formatDateTime(shift.shiftPreparation.completedAt)}</p></div></div></div><div><h3 className="font-evo-display text-2xl font-semibold">{shift.endLabel}</h3><div className="mt-2 space-y-2">{shift.firstClassRecord && <div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Primera clase y seguimientos obligatorios registrados.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.firstClassRecord.completedByName} · {formatDateTime(shift.firstClassRecord.completedAt)}</p></div>}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Incidencias resueltas o asignadas.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.incidents.length === 0 ? 'Sin incidencias en este turno.' : `${shift.incidents.length} incidencia asignada con responsable, plazo y siguiente acción.`}</p></div>{shift.closingChecklist.filter((item) => item.required).map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p></div>)}</div>{shift.closingNote && <div className="mt-3 rounded-xl border border-[#E4D8E5] p-3"><p className="text-sm font-bold">Nota para el siguiente turno</p><p className="mt-1 text-sm text-[#6E5A71]">{shift.closingNote}</p></div>}</div></div>}
+      {open && <div className="mt-4 grid gap-4 lg:grid-cols-2"><div><h3 className="font-evo-display text-2xl font-semibold">Apertura y preparación</h3><div className="mt-2 space-y-2">{shift.openingChecklist.map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.evidence?.outcomes?.length || 0} evidencias · {item.evidence?.outcomes?.filter((outcome) => outcome.status === 'exception').length || 0} excepciones</p></div>)}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Turno completo preparado.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.shiftPreparation.completedByName} · {formatDateTime(shift.shiftPreparation.completedAt)}</p></div></div></div><div><h3 className="font-evo-display text-2xl font-semibold">{shift.endLabel}</h3><div className="mt-2 space-y-2">{shift.firstClassRecord && <div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Primera clase y seguimientos obligatorios registrados.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.firstClassRecord.completedByName} · {formatDateTime(shift.firstClassRecord.completedAt)}</p></div>}<div className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">Incidencias resueltas o asignadas.</p><p className="mt-1 text-xs text-[#6E5A71]">{shift.incidents.length === 0 ? 'Sin incidencias en este turno.' : `${shift.incidents.length} incidencia asignada con responsable, plazo y siguiente acción.`}</p></div>{shift.closingChecklist.filter((item) => item.required).map((item) => <div key={item.id} className="rounded-xl bg-[#F0E7F1] p-3"><p className="text-sm font-bold">{item.label}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.completedByName} · {formatDateTime(item.completedAt)}</p><p className="mt-1 text-xs text-[#6E5A71]">{item.evidence?.outcomes?.length || 0} evidencias · {item.evidence?.outcomes?.filter((outcome) => outcome.status === 'exception').length || 0} excepciones</p></div>)}</div>{shift.closingNote && <div className="mt-3 rounded-xl border border-[#E4D8E5] p-3"><p className="text-sm font-bold">Nota para el siguiente turno</p><p className="mt-1 text-sm text-[#6E5A71]">{shift.closingNote}</p></div>}</div></div>}
     </section>
   )
 }
 
-function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming, onOpenOpeningItem }) {
+function TodayScreen({ flow, openingActivityId, onOpenOpeningActivity, onCloseOpeningActivity, onAction, onOpenProtocol, onProgramming, onProgrammingReview }) {
   const shift = flow.currentShift
   const openingComplete = shift?.tasks.find((task) => task.id === 'opening')?.status === 'completed'
   const stage = !shift ? 'start' : !openingComplete ? 'opening' : !shift.shiftPreparation ? 'preparation' : 'work'
+  if (shift && openingActivityId) {
+    return <OpeningActivityScreen shift={shift} itemId={openingActivityId} flow={flow} onBack={onCloseOpeningActivity} onProblem={(itemId, checkId) => onAction({ type: 'incident', openingItemId: itemId, openingCheckId: checkId })} onProgrammingReview={onProgrammingReview} onCompleted={onCloseOpeningActivity} />
+  }
   return (
     <div>
       <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno, paso a paso' : 'Iniciar turno'} detail={shift ? 'Completa el momento actual y la siguiente parte aparecerá sola.' : 'Registra la entrada real sin confirmar todavía la apertura.'} />
       {!shift && <StartShiftCard onStart={flow.start} />}
-      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} flow={flow} onProblem={(openingItemId) => onAction({ type: 'incident', openingItemId })} onOpenProtocol={() => onOpenProtocol('opening')} onOpenItem={onOpenOpeningItem} />}{stage === 'preparation' && <PreparationStep flow={flow} />}{stage === 'work' && <WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} />}<ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
+      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} onOpenItem={onOpenOpeningActivity} onOpenProtocol={() => onOpenProtocol('opening')} />}{stage === 'preparation' && <PreparationStep flow={flow} />}{stage === 'work' && <WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} />}<ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
     </div>
   )
 }
@@ -497,6 +558,8 @@ export default function IncorporacionesApp() {
   const [shiftArea, setShiftArea] = useState('today')
   const [protocolToOpen, setProtocolToOpen] = useState(null)
   const [programmingTarget, setProgrammingTarget] = useState(null)
+  const [programmingMode, setProgrammingMode] = useState('default')
+  const [openingActivityId, setOpeningActivityId] = useState(null)
   const [action, setAction] = useState(null)
   const globalNavigation = context === 'coach' ? trainerGlobalNavigation : directionNavigation
   const exceptions = getDirectionExceptions(flow.state)
@@ -507,43 +570,42 @@ export default function IncorporacionesApp() {
     setShiftArea('today')
     setAction(null)
     setProgrammingTarget(null)
+    setProgrammingMode('default')
+    setOpeningActivityId(null)
     flow.clearMessages()
   }
 
   function openProgrammingFeedback() {
     setProgrammingTarget(programmingFeedbackTarget)
+    setProgrammingMode('feedback')
     setGlobalArea('programming')
     flow.clearMessages()
   }
 
-  function completeOpeningFromContext(itemId) {
-    const definition = openingDefinition(itemId)
-    if (!definition) return false
-    const completed = flow.completeOpeningItem(itemId, definition.completionEvidence)
-    if (completed) {
-      setGlobalArea('shift')
-      setShiftArea('today')
-      setProgrammingTarget(null)
-    }
-    return completed
+  function openOpeningActivity(itemId) {
+    const item = flow.currentShift?.openingChecklist.find((candidate) => candidate.id === itemId)
+    if (!item) return
+    flow.clearMessages()
+    if (item.status !== 'completed' && !item.openedAt && !flow.openOpeningItem(itemId)) return
+    setOpeningActivityId(itemId)
   }
 
-  function openOpeningItem(itemId) {
-    if (itemId === 'schedule') {
-      setProgrammingTarget({ mode: 'opening-review' })
-      setGlobalArea('programming')
-      flow.clearMessages()
-      return
-    }
-    setAction({ type: 'opening-review', itemId })
+  function openProgrammingReview() {
+    setProgrammingMode('opening-review')
+    setGlobalArea('programming')
     flow.clearMessages()
   }
 
+  function closeAction() {
+    if (action?.returnTo) setAction(action.returnTo)
+    else setAction(null)
+  }
+
   let screen
-  if (globalArea === 'programming') screen = <ProgrammingReference key={`${programmingTarget?.mode || 'default'}-${programmingTarget?.time || ''}`} target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} onCompleteReview={completeOpeningFromContext} />
+  if (globalArea === 'programming') screen = <ProgrammingReference target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} openingReview={programmingMode === 'opening-review'} shift={flow.currentShift} flow={flow} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} onOpeningReviewComplete={() => { setOpeningActivityId(null); setProgrammingMode('default'); setGlobalArea('shift') }} />
   else if (context === 'coach' && shiftArea === 'protocols') screen = <ProtocolsScreen initialProtocol={protocolToOpen} />
   else if (context === 'coach' && shiftArea === 'evolution') screen = <EvolutionScreen />
-  else if (context === 'coach') screen = <TodayScreen flow={flow} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} onOpenOpeningItem={openOpeningItem} />
+  else if (context === 'coach') screen = <TodayScreen flow={flow} openingActivityId={openingActivityId} onOpenOpeningActivity={openOpeningActivity} onCloseOpeningActivity={() => setOpeningActivityId(null)} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} onProgrammingReview={openProgrammingReview} />
   else if (globalArea === 'evaluations') screen = <EvaluationsScreen />
   else if (globalArea === 'team') screen = <TeamScreen />
   else screen = <OperationsScreen exceptions={exceptions} />
@@ -564,10 +626,9 @@ export default function IncorporacionesApp() {
         </div>
       </div>
       <nav aria-label={`Navegación móvil de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0C0B0C]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => setGlobalArea(item.id)} className={`flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 text-base font-bold ${context === 'direction' ? 'min-w-[7rem]' : ''} ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/55'}`}><Icon name={item.icon} className="h-5 w-5" /><span>{item.label}</span></button>)}</div></nav>
-      {action?.type === 'opening-review' && flow.currentShift && <OpeningContextDialog itemId={action.itemId} onClose={() => setAction(null)} onConfirm={completeOpeningFromContext} />}
-      {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} openingItemId={action.openingItemId} error={flow.error} onClose={() => setAction(null)} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
+      {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} openingItemId={action.openingItemId} openingCheckId={action.openingCheckId} closingItemId={action.closingItemId} closingCheckId={action.closingCheckId} error={flow.error} onClose={closeAction} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
       {action?.type === 'first-class' && flow.currentShift && <FirstClassDialog shift={flow.currentShift} error={flow.error} onClose={() => setAction(null)} onConfirm={flow.recordFirstClass} onClearError={flow.clearMessages} />}
-      {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} error={flow.error} onClose={() => setAction(null)} />}
+      {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} error={flow.error} initialItemId={action.itemId} onProblem={(closingItemId, closingCheckId) => setAction({ type: 'incident', closingItemId, closingCheckId, returnTo: { type: 'closing', itemId: closingItemId } })} onClose={() => setAction(null)} />}
     </div>
   )
 }

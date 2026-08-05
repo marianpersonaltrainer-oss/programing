@@ -19,7 +19,7 @@ afterEach(() => {
 })
 
 describe('Mi turno opening actions', () => {
-  it('shows contextual work actions instead of a generic completion checklist', () => {
+  it('shows a guided activity entry instead of completion controls in the summary', () => {
     const started = startShift(
       createEmptyShiftState(),
       { templateId: 'morning', actor: SYNTHETIC_ACTORS.coach },
@@ -31,11 +31,10 @@ describe('Mi turno opening actions', () => {
 
     const html = renderToStaticMarkup(<IncorporacionesApp />)
 
-    expect(html).toContain('Revisar relevo anterior')
-    expect(html).toContain('Confirmar dispositivos')
-    expect(html).toContain('Confirmar sala y material')
-    expect(html).toContain('Abrir programación del día')
-    expect(html).toContain('Preparar primera clase')
+    expect(html).toContain('Revisar notas e incidencias del turno anterior')
+    expect(html).toContain('Abrir actividad')
+    expect(html).toContain('Disponible después de la actividad anterior')
     expect(html).not.toContain('Marcar completado')
+    expect(html).not.toContain('Registrar problema')
   })
 })

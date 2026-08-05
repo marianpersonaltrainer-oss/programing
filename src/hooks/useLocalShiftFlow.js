@@ -56,11 +56,25 @@ export function useLocalShiftFlow() {
         return false
       }
     },
-    completeOpeningItem(itemId, completionEvidence) {
+    openOpeningItem(itemId) {
       if (!currentShift) return false
       return run(
-        () => service.completeOpeningItem({ shiftId: currentShift.id, itemId, actor, completionEvidence }),
-        'Comprobación de apertura guardada con responsable y hora.',
+        () => service.openOpeningItem({ shiftId: currentShift.id, itemId, actor }),
+        'Actividad abierta. Completa sus comprobaciones antes de finalizarla.',
+      )
+    },
+    completeOpeningCheck(itemId, checkId) {
+      if (!currentShift) return false
+      return run(
+        () => service.completeOpeningCheck({ shiftId: currentShift.id, itemId, checkId, actor }),
+        'Comprobación concreta guardada con responsable y hora.',
+      )
+    },
+    completeOpeningItem(itemId, evidence) {
+      if (!currentShift) return false
+      return run(
+        () => service.completeOpeningItem({ shiftId: currentShift.id, itemId, actor, evidence }),
+        'Actividad de apertura finalizada con evidencia verificable.',
       )
     },
     completePreparation() {
@@ -74,8 +88,8 @@ export function useLocalShiftFlow() {
       if (!currentShift) return false
       return run(
         () => service.recordIncident({ shiftId: currentShift.id, actor, ...incident }),
-        incident.openingItemId
-          ? 'Problema registrado. La comprobación de apertura continúa pendiente.'
+        incident.openingItemId || incident.closingItemId
+          ? 'Problema registrado y vinculado. La actividad continúa pendiente hasta finalizar sus comprobaciones.'
           : 'Incidencia asignada y enviada a la bandeja local de Dirección.',
       )
     },
@@ -86,11 +100,25 @@ export function useLocalShiftFlow() {
         'Primera clase guardada con responsable y hora.',
       )
     },
-    completeClosingItem(itemId) {
+    openClosingItem(itemId) {
       if (!currentShift) return false
       return run(
-        () => service.completeClosingItem({ shiftId: currentShift.id, itemId, actor }),
-        'Comprobación de cierre guardada con responsable y hora.',
+        () => service.openClosingItem({ shiftId: currentShift.id, itemId, actor }),
+        'Comprobación final abierta. Revisa cada elemento.',
+      )
+    },
+    completeClosingCheck(itemId, checkId) {
+      if (!currentShift) return false
+      return run(
+        () => service.completeClosingCheck({ shiftId: currentShift.id, itemId, checkId, actor }),
+        'Comprobación final guardada con responsable y hora.',
+      )
+    },
+    completeClosingItem(itemId, evidence) {
+      if (!currentShift) return false
+      return run(
+        () => service.completeClosingItem({ shiftId: currentShift.id, itemId, actor, evidence }),
+        'Actividad final cerrada con evidencia verificable.',
       )
     },
     close(note = '') {

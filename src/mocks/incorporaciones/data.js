@@ -1,30 +1,34 @@
 export const todayClasses = [
-  { time: '07:00', type: 'EVO Funcional', room: 'Sala A', trainer: 'Lara Demo', objective: 'Fuerza de tren inferior y capacidad sostenida.', blocks: ['A · Fuerza técnica', 'B · Metcon por intervalos'], material: 'Racks, barras, discos y mancuernas.', coachNote: 'Preparar dos opciones de carga antes de abrir la sala.' },
-  { time: '10:30', type: 'EVO Fuerza', room: 'Sala A', trainer: 'Lara Demo', objective: 'Control unilateral y trabajo de empuje.', blocks: ['A · Técnica y fuerza', 'B · For Quality'], material: 'Bancos, mancuernas y bandas.', coachNote: 'Nora Sol necesita una alternativa sin impacto.' },
-  { time: '13:30', type: 'EVO Basics', room: 'Sala B', trainer: 'Lara Demo', objective: 'Aprender patrones básicos con una carga conservadora.', blocks: ['A · Aprendizaje', 'B · Circuito guiado'], material: 'Kettlebells ligeras, bandas y esterillas.', coachNote: 'Primera clase de Alex Vega; mantenerlo cerca del entrenador.' },
+  { id: 'class-0700', time: '07:00', type: 'EVO Funcional', room: 'Sala A', trainer: 'Lara Demo', objective: 'Moverse con ritmo estable y técnica consistente.', blocks: ['Activación', 'Fuerza técnica', 'Condicionamiento'], material: 'Kettlebells, cajones y esterillas.', adaptations: 'Alternativa sin impacto disponible.', alerts: 'Sin avisos adicionales.' },
+  { id: 'class-1030', time: '10:30', type: 'EVO Fuerza', room: 'Sala A', trainer: 'Lara Demo', objective: 'Construir fuerza de pierna con control del tempo.', blocks: ['Movilidad', 'Sentadilla', 'Accesorios'], material: 'Barras, discos y bancos.', adaptations: 'Nora Sol: variante sin impacto y rango cómodo.', alerts: 'Remo 04 fuera de uso.' },
+  { id: 'class-1330', time: '13:30', type: 'EVO Basics', room: 'Sala B', trainer: 'Lara Demo', objective: 'Aprender patrones básicos con carga conservadora.', blocks: ['Bienvenida', 'Técnica guiada', 'Trabajo simple'], material: 'Mancuernas ligeras, picas y esterillas.', adaptations: 'Alex Vega: posición próxima al entrenador.', alerts: 'Cambio de sala confirmado: Sala B.' },
 ]
 
-export const previousShiftReview = {
-  handedOverBy: 'Dani Demo',
-  handedOverAt: 'Ayer · 22:18',
-  note: 'La sala quedó preparada. Mantener el remo 04 fuera de uso hasta que Dirección confirme la revisión.',
+export const previousShiftHandover = {
+  noteId: 'handover-note-demo',
+  note: 'La Sala B queda preparada para Basics. Revisar el audio antes de la primera clase.',
   incidents: [
-    { title: 'Remo 04 fuera de uso', status: 'Asignada a Dirección', nextAction: 'No utilizar y mantener señalizado.' },
+    {
+      id: 'previous-incident-audio',
+      element: 'Altavoz principal',
+      status: 'En seguimiento',
+      owner: 'Dirección Demo',
+      dueAt: 'Hoy · 08:30',
+      nextAction: 'Probar conexión auxiliar y confirmar si el altavoz vuelve a servicio.',
+    },
   ],
 }
 
 export const firstClassPreparation = {
-  person: 'Alex Vega',
   time: '13:30',
-  className: 'EVO Basics',
+  type: 'EVO Basics',
   room: 'Sala B',
-  goal: 'Empezar con seguridad y entender los patrones básicos.',
-  context: 'Experiencia inicial. Carga conservadora y posición próxima al entrenador.',
-  preparation: [
-    'Reservar una posición próxima al entrenador.',
-    'Dejar kettlebells ligeras y bandas accesibles.',
-    'Preparar una variante sencilla para cada bloque.',
-  ],
+  objective: 'Aprender patrones básicos con carga conservadora.',
+  structure: ['Bienvenida y referencia de movimientos', 'Técnica guiada', 'Trabajo simple y cierre'],
+  material: 'Mancuernas ligeras, picas y esterillas.',
+  people: 'Alex Vega · primera clase · posición próxima al entrenador.',
+  steps: ['Montar una estación visible cerca del entrenador.', 'Preparar cargas ligeras y una pica.', 'Dejar libre una zona para demostraciones.'],
+  alternative: 'Si la coordinación limita el trabajo, reducir la carga y practicar un patrón cada vez.',
 }
 
 export const peopleToConsider = [
@@ -38,7 +42,6 @@ export const centerNotices = [
 ]
 
 export const programmingFeedbackTarget = {
-  mode: 'feedback',
   dateLabel: 'Hoy',
   time: '13:30',
   className: 'EVO Basics',

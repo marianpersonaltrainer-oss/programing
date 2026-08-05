@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CLOSING_ACTIVITY_DEFINITIONS,
   closeShift,
+  completeClosingCheck,
   completeClosingItem,
+  completeOpeningCheck,
   completeOpeningItem,
   completeShiftPreparation,
   createEmptyShiftState,
@@ -10,7 +13,10 @@ import {
   getClosingBlockers,
   getDirectionExceptions,
   MAX_CRITICAL_TASKS,
+  OPENING_ACTIVITY_DEFINITIONS,
   OPENING_CHECKLIST_ITEMS,
+  openClosingItem,
+  openOpeningItem,
   recordFirstClass,
   recordIncident,
   SHIFT_STATE_VERSION,
@@ -40,12 +46,41 @@ function startedShift(templateId = 'morning') {
   return startShift(createEmptyShiftState(), { templateId, actor: coach }, startedAt)
 }
 
+function completeOpeningActivity(state, shiftId, itemId, index = 0) {
+  const definition = OPENING_ACTIVITY_DEFINITIONS[itemId]
+  const at = `2026-08-05T06:${String(43 + index).padStart(2, '0')}:00+02:00`
+  let next = openOpeningItem(state, { shiftId, itemId, actor: coach }, at)
+  definition.checks.forEach((check) => {
+    next = completeOpeningCheck(next, { shiftId, itemId, checkId: check.id, actor: coach }, at)
+  })
+  return completeOpeningItem(next, {
+    shiftId,
+    itemId,
+    actor: coach,
+    evidence: { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) },
+  }, at)
+}
+
 function completeOpening(state, shiftId) {
-  return OPENING_CHECKLIST_ITEMS.reduce((current, item, index) => completeOpeningItem(
-    current,
-    { shiftId, itemId: item.id, actor: coach, completionEvidence: item.completionEvidence },
-    `2026-08-05T06:${String(43 + index).padStart(2, '0')}:00+02:00`,
-  ), state)
+  return OPENING_CHECKLIST_ITEMS.reduce(
+    (current, item, index) => completeOpeningActivity(current, shiftId, item.id, index),
+    state,
+  )
+}
+
+function completeClosingActivity(state, shiftId, itemId, index = 0) {
+  const definition = CLOSING_ACTIVITY_DEFINITIONS[itemId]
+  const at = `2026-08-05T14:2${index}:00+02:00`
+  let next = openClosingItem(state, { shiftId, itemId, actor: coach }, at)
+  definition.checks.forEach((check) => {
+    next = completeClosingCheck(next, { shiftId, itemId, checkId: check.id, actor: coach }, at)
+  })
+  return completeClosingItem(next, {
+    shiftId,
+    itemId,
+    actor: coach,
+    evidence: { kind: definition.evidenceKind, checkIds: definition.checks.map((check) => check.id) },
+  }, at)
 }
 
 function prepareShift(templateId = 'morning') {
@@ -85,38 +120,36 @@ describe('guided shift domain rules', () => {
 
   it('audits every opening item and completes opening only after all five', () => {
     const initial = startedShift()
-    const firstItem = OPENING_CHECKLIST_ITEMS[0]
-    const first = completeOpeningItem(initial.state, { shiftId: initial.shift.id, itemId: firstItem.id, actor: coach, completionEvidence: firstItem.completionEvidence }, '2026-08-05T06:43:00+02:00')
-    expect(first.shifts[0].openingChecklist[0]).toMatchObject({ completionEvidence: firstItem.completionEvidence, completedByName: coach.name, completedAt: '2026-08-05T06:43:00+02:00' })
+    expect(() => completeOpeningItem(initial.state, {
+      shiftId: initial.shift.id,
+      itemId: OPENING_CHECKLIST_ITEMS[0].id,
+      actor: coach,
+    }, '2026-08-05T06:43:00+02:00')).toThrowError(expect.objectContaining({ code: 'ACTIVITY_NOT_OPENED' }))
+
+    const first = completeOpeningActivity(initial.state, initial.shift.id, OPENING_CHECKLIST_ITEMS[0].id)
+    expect(first.shifts[0].openingChecklist[0]).toMatchObject({ completedByName: coach.name, completedAt: '2026-08-05T06:43:00+02:00' })
+    expect(first.shifts[0].openingChecklist[0].evidence).toMatchObject({ kind: 'previous_shift_review' })
     expect(first.shifts[0].tasks.find((task) => task.id === 'opening').status).toBe('pending')
 
-    const opened = completeOpening(first, initial.shift.id)
+    const opened = OPENING_CHECKLIST_ITEMS.slice(1).reduce(
+      (current, item, index) => completeOpeningActivity(current, initial.shift.id, item.id, index + 1),
+      first,
+    )
     expect(opened.shifts[0].openingChecklist.every((item) => item.status === 'completed')).toBe(true)
     expect(opened.shifts[0].tasks.find((task) => task.id === 'opening')).toMatchObject({ status: 'completed', completedByName: coach.name })
   })
 
-  it('rejects a generic or incorrect completion for an opening item', () => {
-    const initial = startedShift()
-
-    expect(() => completeOpeningItem(initial.state, {
-      shiftId: initial.shift.id,
-      itemId: 'schedule',
-      actor: coach,
-      completionEvidence: 'generic-check',
-    }, '2026-08-05T06:43:00+02:00')).toThrowError(
-      expect.objectContaining({ code: 'OPENING_EVIDENCE_REQUIRED' }),
-    )
-  })
-
   it('registers an opening problem as an assigned incident and leaves the check pending', () => {
     const initial = startedShift()
-    const state = recordIncident(initial.state, {
+    const opened = openOpeningItem(initial.state, { shiftId: initial.shift.id, itemId: 'systems', actor: coach }, '2026-08-05T06:43:00+02:00')
+    const state = recordIncident(opened, {
       shiftId: initial.shift.id,
       actor: coach,
       description: 'La música no enciende.',
       dueAt: '2026-08-05T08:00:00+02:00',
       nextAction: 'Revisar el altavoz antes de la segunda clase.',
       openingItemId: 'systems',
+      openingCheckId: 'music',
     }, '2026-08-05T06:44:00+02:00')
     const shift = state.shifts[0]
 
@@ -125,7 +158,9 @@ describe('guided shift domain rules', () => {
       ownerName: direction.name,
       dueAt: '2026-08-05T08:00:00+02:00',
       openingItemId: 'systems',
+      openingCheckId: 'music',
     })
+    expect(shift.openingChecklist.find((item) => item.id === 'systems').checks.find((check) => check.id === 'music')).toMatchObject({ status: 'exception' })
   })
 
   it('reveals preparation only after opening and audits its confirmation', () => {
@@ -184,7 +219,7 @@ describe('guided shift domain rules', () => {
 
     expect(() => closeShift(state, { shiftId: prepared.shiftId, actor: coach }, '2026-08-05T14:30:00+02:00')).toThrowError(ShiftRuleError)
     requiredClosingItems.forEach((item, index) => {
-      state = completeClosingItem(state, { shiftId: prepared.shiftId, itemId: item.id, actor: coach }, `2026-08-05T14:2${index}:00+02:00`)
+      state = completeClosingActivity(state, prepared.shiftId, item.id, index)
     })
 
     expect(getClosingBlockers(state.shifts[0], coach.id)).toHaveLength(0)
@@ -197,7 +232,7 @@ describe('guided shift domain rules', () => {
     const prepared = prepareShift('afternoon')
     let state = recordFirstClass(prepared.state, { shiftId: prepared.shiftId, actor: coach, record: validFirstClassRecord }, '2026-08-05T20:00:00+02:00')
     state.shifts[0].closingChecklist.filter((item) => item.required).forEach((item, index) => {
-      state = completeClosingItem(state, { shiftId: prepared.shiftId, itemId: item.id, actor: coach }, `2026-08-05T22:0${index}:00+02:00`)
+      state = completeClosingActivity(state, prepared.shiftId, item.id, index)
     })
     const closed = closeShift(state, { shiftId: prepared.shiftId, actor: coach }, '2026-08-05T22:15:00+02:00').shifts[0]
 
@@ -243,5 +278,27 @@ describe('guided shift domain rules', () => {
     expect(() => startShift(createEmptyShiftState(), { templateId: 'morning', actor: direction }, startedAt)).toThrowError(
       expect.objectContaining({ code: 'COACH_ROLE_REQUIRED' }),
     )
+  })
+
+  it('rejects generic or incomplete activity completion evidence', () => {
+    const initial = startedShift()
+    let state = openOpeningItem(initial.state, { shiftId: initial.shift.id, itemId: 'systems', actor: coach }, '2026-08-05T06:43:00+02:00')
+
+    expect(() => completeOpeningItem(state, {
+      shiftId: initial.shift.id,
+      itemId: 'systems',
+      actor: coach,
+      evidence: { kind: 'generic_completion', checkIds: [] },
+    }, '2026-08-05T06:44:00+02:00')).toThrowError(expect.objectContaining({ code: 'INVALID_ACTIVITY_EVIDENCE' }))
+
+    OPENING_ACTIVITY_DEFINITIONS.systems.checks.slice(0, -1).forEach((check) => {
+      state = completeOpeningCheck(state, { shiftId: initial.shift.id, itemId: 'systems', checkId: check.id, actor: coach }, '2026-08-05T06:44:00+02:00')
+    })
+    expect(() => completeOpeningItem(state, {
+      shiftId: initial.shift.id,
+      itemId: 'systems',
+      actor: coach,
+      evidence: { kind: 'systems_check', checkIds: OPENING_ACTIVITY_DEFINITIONS.systems.checks.map((check) => check.id) },
+    }, '2026-08-05T06:45:00+02:00')).toThrowError(expect.objectContaining({ code: 'ACTIVITY_CHECKS_PENDING' }))
   })
 })

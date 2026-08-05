@@ -631,12 +631,7 @@ Checklist obligatoria y auditable:
 
 Cada punto guarda responsable, fecha y hora. `Ver protocolo completo de apertura` abre las instrucciones fuera de la pantalla principal. `Registrar problema` crea una incidencia sin completar el punto.
 
-La apertura diferencia dos tipos de acción:
-
-- las comprobaciones físicas muestran una confirmación concreta, como comprobar dispositivos o revisar sala y material;
-- las comprobaciones de información abren primero su destino: relevo e incidencias del turno anterior, `Programación` con las clases del día o preparación de la primera clase.
-
-No existe un botón universal `Marcar completado`. Las comprobaciones de información solo se confirman dentro de su pantalla contextual y después devuelven al entrenador al mismo recorrido.
+No existe un botón universal `Marcar completado`. Las cinco actividades abren una pantalla de trabajo: relevo e incidencias; sistemas; espacios; `Programación` con las clases del día; o preparación específica de primera clase. Cada pantalla reúne el contexto y las comprobaciones exactas, confirma allí la evidencia y devuelve al entrenador al mismo recorrido.
 
 ### 2. Prepara tu turno
 
@@ -701,7 +696,7 @@ Completar un turno guiado de principio a fin y revisar después la apertura, el 
 **Pasos:**
 
 1. Iniciar el turno y comprobar que la apertura continúa pendiente.
-2. Abrir el relevo anterior, consultar `Programación` y revisar la preparación de la primera clase desde sus acciones contextuales; completar además las dos comprobaciones físicas. Registrar un problema en un punto y confirmar que ese punto no se completa hasta resolver la comprobación.
+2. Entrar en las cinco pantallas de apertura, completar sus comprobaciones y registrar un problema en un elemento concreto; confirmar que la actividad no termina hasta reunir la evidencia completa.
 3. Revisar `Prepara tu turno`, confirmar los tres bloques y entrar en el trabajo del turno.
 4. Anotar una incidencia asignada, registrar la primera clase y comprobar que el feedback navega a `Programación`.
 5. Abrir `Ver qué falta`, completar la checklist final y verificar que la nota opcional no bloquea.
@@ -720,18 +715,17 @@ Completar un turno guiado de principio a fin y revisar después la apertura, el 
 - escritorio y móvil conservan el patrón EVO;
 - tests y build son correctos.
 
-**Resultado real:** superada técnicamente el 5 de agosto de 2026. `Iniciar turno` guardó entrenador, fecha, entrada real y turno asignado sin completar la apertura. Se registró un problema en la comprobación de dispositivos; la incidencia quedó asignada a Dirección con plazo y siguiente acción, mientras el punto de apertura permaneció pendiente. Tras completar los cinco puntos, cada uno mostró responsable, fecha y hora y apareció `Prepara tu turno` con los tres bloques aprobados. La confirmación reveló exactamente las tres acciones del trabajo. `Dar feedback del entrenamiento` abrió `Hoy · 13:30 · EVO Basics` dentro de Programación sin crear un registro en Operativa. La primera clase desbloqueó su tarea obligatoria. `Ver qué falta` mostró las cuatro comprobaciones finales pendientes; una vez auditadas, `Finalizar turno` permitió `Entregar turno`. La nota vacía no bloqueó. Tras recargar, el turno siguió al 100 %, la apertura y el cierre pudieron revisarse y Dirección mostró únicamente la incidencia abierta con responsable, plazo y siguiente acción. El recorrido se verificó a 1440 × 1000 px y 390 × 844 px.
-
-Tras la revisión de Dirección, la apertura dejó de usar `Marcar completado` como control universal. El relevo anterior abre su nota e incidencia; `Abrir programación del día` entra en Programación, permite recorrer las clases y consultar objetivo, estructura, material y nota del entrenador; y `Preparar primera clase` abre el contexto y las acciones de preparación. Las dos comprobaciones físicas conservan confirmaciones específicas. El dominio exige la evidencia correspondiente a cada punto y rechaza una confirmación genérica.
+**Resultado real:** superada técnicamente y corregida tras auditoría de producto el 5 de agosto de 2026. La auditoría previa demostró que apertura y cierre podían certificarse desde el resumen mediante acciones genéricas. La corrección eliminó esas acciones: cada actividad compuesta abre ahora una pantalla de trabajo, registra sus comprobaciones individualmente y solo finaliza con evidencia tipada y completa. El dominio rechaza actividades no abiertas, evidencia genérica, tipos incorrectos y comprobaciones pendientes. Relevo muestra nota e incidencia activa; sistemas y espacios vinculan problemas al elemento; Programación exige revisar las tres clases con objetivo, bloques, material, adaptaciones y avisos; primera clase muestra preparación concreta y alternativa. El cierre utiliza el mismo patrón de evidencia y continúa bloqueado por obligaciones reales. En la prueba manual completa se trasladó una excepción de Música con responsable, plazo y siguiente acción, se entregó el turno, se recargó sin perder el 100 % y Dirección mostró únicamente esa excepción. El recorrido se verificó a 1440 × 1000 px y 390 × 844 px, incluido foco inicial de diálogos y cierre con `Escape`.
 
 **Pruebas automáticas ejecutadas:**
 
 ```text
-npm run test -- src/IncorporacionesApp.test.jsx src/domain/shift/shiftDomain.test.js src/adapters/shift/localShiftRepository.test.js → 3 archivos y 18 tests correctos
-npm run test:ci → 54 archivos y 334 tests correctos; build Vite correcto
+npm run test -- src/IncorporacionesApp.test.jsx src/IncorporacionesApp.interface.test.jsx src/domain/shift/shiftDomain.test.js src/adapters/shift/localShiftRepository.test.js → 4 archivos y 21 tests correctos
+npm run test → 55 archivos y 337 tests correctos
+npm run build → build Vite correcto
 ```
 
-**Incidencias:** se corrigieron el campo de plazo que no propagaba de forma fiable su valor en el navegador, la puntualidad sintética extrema y dos fondos oscuros cuya opacidad no estaba siendo generada por Tailwind. El build conserva el aviso preexistente sobre chunks superiores a 500 kB y los tests muestran el aviso local preexistente de variables Supabase ausentes; ninguno afecta al sandbox.
+**Incidencias:** además de los ajustes anteriores, se corrigieron la finalización genérica de apertura y cierre, la ausencia de pantallas de trabajo, la evidencia sin tipo, la incidencia sin vínculo a una comprobación, la revisión superficial de Programación y la gestión de foco de los diálogos. El build conserva el aviso preexistente sobre chunks superiores a 500 kB y los tests muestran el aviso local preexistente de variables Supabase ausentes; ninguno afecta al sandbox.
 
 **Producción modificada:** No.
 

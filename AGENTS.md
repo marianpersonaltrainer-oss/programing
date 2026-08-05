@@ -802,10 +802,10 @@ Actualizar `AGENTS.md` cuando cambie:
 - Código modificado: sí, prototipo visual de Fase 1 y turno mínimo local de Fase 2.
 - Migraciones modificadas: no.
 - Producción modificada: no.
-- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno, implementada y pendiente de revisión.
+- Fase activa: Fase 2.3 · Secuencia operativa guiada de Mi turno, corregida tras auditoría de producto y pendiente de revisión de Marian.
 - Fase 1: cerrada, aprobada y respaldada en GitHub.
 - Fase 2: aprobada funcionalmente por Marian.
 - Fase 2.1: aprobada por Marian.
 - Fase 2.2: aprobada por Marian.
-- Fase 2.3: implementada y pendiente de revisión en `feature/equipo-evo-f2-3-secuencia-guiada`.
+- Fase 2.3: corregida tras auditoría funcional y visual, con actividades por evidencia, y pendiente de revisión en `feature/equipo-evo-f2-3-secuencia-guiada`.
 - Código autorizado: únicamente ajustes de Fase 2.3 que Dirección solicite; no modificar integraciones, producción o Fase 3.

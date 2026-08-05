@@ -84,12 +84,16 @@ La pantalla principal representa un recorrido y no un tablero. Solo el momento a
 ### Checklists y auditoría
 
 - Cada fila mide al menos 44 px y utiliza estado, responsable y hora sin píldoras repetidas.
+- El resumen solo permite `Abrir actividad`, `Continuar actividad` o `Ver evidencia`; nunca completa directamente una actividad compuesta.
+- La pantalla de trabajo contiene la información operativa, las comprobaciones específicas y una única acción final desactivada hasta reunir la evidencia correcta.
 - Un punto incompleto conserva una acción clara; un punto completado se comprime y muestra su auditoría.
-- `Registrar problema` abre un diálogo breve y devuelve al mismo punto sin marcarlo como resuelto.
+- `Registrar problema` nace desde una comprobación concreta, abre un diálogo breve y devuelve al mismo punto con la excepción vinculada, sin finalizar automáticamente la actividad.
+- Programación presenta objetivo, bloques, material, adaptaciones y avisos por clase; la revisión se confirma allí sin trasladar su contenido al dominio de Operativa.
 - El protocolo completo de apertura se consulta en `Protocolos`, fuera de la pantalla principal.
 - La checklist final distingue comprobaciones automáticas de registros previos y comprobaciones manuales de sala.
 - La nota para el siguiente turno se muestra dentro del cierre como campo opcional.
 - Tras cerrar, un resumen desplegable permite revisar apertura y cierre sin convertir el historial en una nueva pantalla.
+- Los diálogos reciben foco al abrirse, admiten `Escape` para volver y restituyen el foco cuando el origen continúa disponible.
 
 ### Jerarquía adaptativa
 

@@ -401,6 +401,8 @@ No se realizan peticiones desde `?incorporaciones` a Supabase ni a `api/**`. No 
 
 La Fase 1 debe poder eliminarse sin perder datos ni afectar el funcionamiento actual.
 
+Para el ajuste de Fase 2.3 autorizado el 6 de agosto de 2026 existe una excepción limitada: se puede modificar `CoachView` y `CoachSessionFeedbackForm` únicamente para abrir la Programación y el formulario de feedback ya existentes desde `Mi turno`, con día y modalidad preseleccionados, y para volver al turno. No permite reconstruir Programación, crear un formulario o almacenamiento alternativo, añadir `recordFeedback` a Operativa, cambiar esquemas, tocar producción ni iniciar la integración general de Fase 3.
+
 ### Navegación objetivo
 
 Entrenador:
@@ -808,4 +810,6 @@ Actualizar `AGENTS.md` cuando cambie:
 - Fase 2.1: aprobada por Marian.
 - Fase 2.2: aprobada por Marian.
 - Fase 2.3: reajustada con apertura compacta, briefing único, acciones contextuales, entrega breve y cierre completo solo para el último turno; validada técnicamente y pendiente de revisión en `feature/equipo-evo-f2-3-secuencia-guiada`.
+- Ajuste activo de Fase 2.3: conexión limitada entre `Mi turno` y el feedback existente de Programación, autorizada por Marian el 6 de agosto de 2026; debe reutilizar `CoachView`, `CoachSessionFeedbackForm` y el registro real sin duplicarlo.
+- Resultado del ajuste: implementación, 343 pruebas y build correctos; navegación y estados locales verificados a 1440 × 1000 y 390 × 844. La prueba de guardado real queda pendiente porque este entorno no dispone de `.env.local` ni semana activa; no sustituir esa ausencia por credenciales inventadas o almacenamiento paralelo.
 - Código autorizado: únicamente ajustes de Fase 2.3 que Dirección solicite; no modificar integraciones, producción o Fase 3.

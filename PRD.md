@@ -370,6 +370,17 @@ Una incidencia abierta puede trasladarse si conserva responsable, plazo y siguie
 
 El lenguaje activo elimina `Información especial`, `Feedback operativo`, `Casos especiales` y `Briefing especial`.
 
+### Conexión limitada con Programación autorizada el 6 de agosto de 2026
+
+Dentro de la Fase 2.3, `Mi turno` puede abrir las superficies ya existentes de Programming EVO para realizar una acción sin duplicarla. Esta autorización permite enlazar la clase correcta y abrir `CoachSessionFeedbackForm` con día y modalidad preseleccionados mediante el estado de navegación existente de `CoachView`.
+
+- `Programación` conserva la sesión publicada, su nota previa y el feedback posterior del entrenador.
+- `Mi turno` muestra horario y excepciones, abre el flujo propietario y deriva los pendientes de los registros reales existentes.
+- La identidad del feedback sigue siendo semana publicada, día y modalidad; la hora del turno no crea una identidad nueva.
+- Un guardado correcto elimina el pendiente al volver; un error o la ausencia de registro lo mantiene.
+- No se añade `recordFeedback` al dominio o servicio del turno, ni se crea formulario, tabla, API, almacenamiento o copia local paralela.
+- La conexión no autoriza una integración general de Fase 3, cambios de esquema, WodBuster, datos reales nuevos ni producción.
+
 ---
 
 ## 12. Alcance de la Fase 1
@@ -633,6 +644,7 @@ La primera versión se considera útil cuando:
 - Fase 2.1 aprobada por Marian el 5 de agosto de 2026.
 - Fase 2.2 aprobada como base funcional local y sintética.
 - Fase 2.3 reajustada y validada técnicamente con apertura compacta, briefing único, acciones contextuales y final adaptado al relevo o cierre; pendiente de revisión manual de Marian.
+- La conexión limitada de Fase 2.3 elimina la pantalla ficticia, abre Programación y su formulario real con día y modalidad preseleccionados y deriva los pendientes de los registros existentes. Queda pendiente comprobar un guardado real en un entorno autorizado con semana activa; el local actual no contiene credenciales.
 - Fase activa: revisión de Fase 2.3; persistencia real, integraciones e historial completo permanecen fuera de alcance.
 - Fase 3, persistencia real, accesos internos e integraciones no autorizados.
 - Supabase, API, migraciones, WodBuster y datos reales no fueron utilizados para el turno mínimo.

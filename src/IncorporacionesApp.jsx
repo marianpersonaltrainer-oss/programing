@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import EvoLogo from './components/EvoLogo.jsx'
+import CoachView from './components/CoachView/CoachView.jsx'
 import Icon from './components/Incorporaciones/Icons.jsx'
 import StatusBadge from './components/Incorporaciones/StatusBadge.jsx'
 import {
-  centerNotices,
   evaluations,
   evolutionSummary,
   firstClassPreparation,
-  peopleToConsider,
+  importantShiftItems,
   previousShiftHandover,
   programmingFeedbackTarget,
   protocols,
@@ -22,12 +22,13 @@ import {
   CLOSING_ACTIVITY_DEFINITIONS,
   getClosingBlockers,
   getDirectionExceptions,
-  getShiftProgress,
   OPENING_ACTIVITY_DEFINITIONS,
   SHIFT_TEMPLATES,
   SYNTHETIC_ACTORS,
 } from './domain/shift/shiftDomain.js'
+import { buildProgrammingNavigationTarget, classHasFinished, getMadridProgramDayKey, getNextShiftClass, getShiftCompletionBlockers, getShiftStatusLabel } from './domain/programming/shiftProgrammingCoordination.js'
 import { useLocalShiftFlow } from './hooks/useLocalShiftFlow.js'
+import { useProgrammingFeedbackStatus } from './hooks/useProgrammingFeedbackStatus.js'
 
 const trainerGlobalNavigation = [
   { id: 'programming', label: 'Programación', icon: 'class' },
@@ -213,10 +214,10 @@ function FirstClassDialog({ shift, error, onClose, onConfirm, onClearError }) {
   )
 }
 
-function IncidentDialog({ shift, previousClosing = false, openingItemId, openingCheckId, closingItemId, closingCheckId, error, onClose, onConfirm, onClearError }) {
-  const [description, setDescription] = useState('')
-  const [dueAt, setDueAt] = useState('')
-  const [nextAction, setNextAction] = useState('')
+export function IncidentDialog({ shift, previousClosing = false, openingItemId, openingCheckId, closingItemId, closingCheckId, prefill = null, error, onClose, onConfirm, onClearError }) {
+  const [description, setDescription] = useState(prefill?.description || '')
+  const [dueAt, setDueAt] = useState(prefill?.dueAt || '')
+  const [nextAction, setNextAction] = useState(prefill?.nextAction || '')
   const [serviceImpact, setServiceImpact] = useState('none')
   const [evidence, setEvidence] = useState('')
   const openingItem = shift.openingChecklist.find((item) => item.id === openingItemId)
@@ -332,10 +333,10 @@ export function ProgrammingOpeningReview({ shift, flow, onBack, onCompleted }) {
   )
 }
 
-function ClosingDialog({ shift, flow, error, onClose }) {
+function ClosingDialog({ shift, flow, programmingStatus, error, onClose }) {
   const [note, setNote] = useState(shift.closingNote || '')
   const [handoverReady, setHandoverReady] = useState(false)
-  const blockers = getClosingBlockers(shift, shift.trainerId)
+  const blockers = getShiftCompletionBlockers(getClosingBlockers(shift, shift.trainerId), programmingStatus)
   const incidentsReady = shift.incidents.every((incident) => incident.status !== 'open' || (incident.ownerId && incident.dueAt && incident.nextAction))
   const firstClassReady = !shift.tasks.some((task) => task.id === 'first-class') || Boolean(shift.firstClassRecord)
   function finish() {
@@ -373,18 +374,6 @@ function ClosingDialog({ shift, flow, error, onClose }) {
   )
 }
 
-function ProgrammingReference({ target, returnLabel, onReturn }) {
-  return (
-    <div>
-      <ScreenHeading eyebrow="Programming EVO" title="Programación" detail="El feedback del entrenamiento pertenece a su día y clase; Operativa no lo almacena." />
-      <LightCard className="max-w-2xl">
-        {target ? <><p className="text-sm font-bold text-[#A729AD]">{target.dateLabel || 'Hoy'} · {target.time}</p><h2 className="mt-1 font-evo-display text-3xl font-semibold">{target.className || target.type}</h2><p className="mt-3 text-base leading-7 text-[#604B63]">Has llegado a la clase correspondiente. Objetivo, preparación y feedback de sesión continúan dentro de Programación.</p>{target.objective && <div className="mt-4 rounded-xl bg-[#F0E7F1] p-4"><p className="text-sm font-bold text-[#A729AD]">Objetivo</p><p className="mt-1 text-base leading-7">{target.objective}</p></div>}</> : <><p className="font-evo-display text-3xl font-semibold">La programación continúa donde ya está</p><p className="mt-3 text-base leading-7 text-[#604B63]">Entrenamiento del día, notas, objetivo, estímulo, preparación de clase y feedback de sesión permanecen en esta área.</p></>}
-        <div className="mt-6"><PrimaryButton onClick={onReturn}>Volver a {returnLabel}</PrimaryButton></div>
-      </LightCard>
-    </div>
-  )
-}
-
 function StartShiftCard({ onStart }) {
   const [templateId, setTemplateId] = useState('morning')
   const template = SHIFT_TEMPLATES[templateId]
@@ -411,11 +400,11 @@ function SequenceProgress({ shift, stage }) {
   )
 }
 
-function ShiftSummary({ shift }) {
+function ShiftSummary({ shift, programmingStatus }) {
+  const statusLabel = getShiftStatusLabel({ shift, programmingStatus })
   return (
     <section aria-label="Resumen del turno" className="rounded-2xl border border-[#E1D3E3] bg-white px-4 py-3 shadow-[0_4px_16px_rgba(34,20,39,0.04)] sm:px-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-evo-display text-2xl font-semibold">{shift.assignedShift}</h2><p className="text-sm font-semibold text-[#79677C]">{shift.trainerName} · {formatDate(shift.startedAt)} · entrada {formatTime(shift.startedAt)}</p></div><p className={`text-sm font-bold ${shift.status === 'closed' ? 'text-emerald-700' : 'text-[#6A1F6D]'}`}>{shift.status === 'closed' ? `${shift.endLabel} · ${formatTime(shift.closedAt)}` : formatSandboxPunctuality(shift)}</p></div>
-      <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#EEE3EF]"><div className="h-full rounded-full bg-[#A729AD]" style={{ width: `${getShiftProgress(shift)}%` }} /></div><strong className="text-sm text-[#6A1F6D]">{getShiftProgress(shift)}%</strong></div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-evo-display text-2xl font-semibold">{shift.assignedShift}</h2><p className="text-sm font-semibold text-[#79677C]">{shift.trainerName} · {formatDate(shift.startedAt)} · entrada {formatTime(shift.startedAt)}</p></div><div className="sm:text-right"><p className={`text-sm font-extrabold ${shift.status === 'closed' ? 'text-emerald-700' : 'text-[#6A1F6D]'}`}>{statusLabel}</p><p className="mt-1 text-xs font-semibold text-[#806E82]">{shift.status === 'closed' ? `${shift.endLabel} · ${formatTime(shift.closedAt)}` : formatSandboxPunctuality(shift)}</p></div></div>
     </section>
   )
 }
@@ -432,57 +421,85 @@ export function OpeningStep({ shift, onConfirm, onProblem, onOpenProtocol }) {
   )
 }
 
-function PreparationBlock({ title, children }) {
-  return <section className="rounded-2xl border border-[#E4D8E5] bg-white p-4"><h3 className="font-evo-display text-2xl font-semibold">{title}</h3><div className="mt-3 divide-y divide-[#EEE5EF]">{children}</div></section>
-}
-
-function PreparationStep({ flow, shift, onProgramming }) {
+function PreparationStep({ flow, shift, onProgramming, onFirstClass, onIncident }) {
+  const [attendeesFor, setAttendeesFor] = useState(null)
+  function runImportantAction(item, classItem) {
+    if (item.kind === 'first-class') {
+      if (shift.firstClassRecord || classHasFinished(classItem, new Date(), getMadridProgramDayKey())) onFirstClass()
+      else onProgramming(classItem)
+      return
+    }
+    if (item.kind === 'incident') {
+      onIncident({
+        description: 'El remo 04 queda fuera de uso.',
+        nextAction: 'Revisar el remo y confirmar si vuelve a servicio.',
+      })
+      return
+    }
+    onProgramming(classItem)
+  }
   return (
     <section aria-labelledby="preparation-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Briefing · {shift.arrivalMode === 'open-center' ? '2 de 2' : 'única confirmación'}</p>
       <h2 id="preparation-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">Preparar mi turno</h2>
       <p className="mt-2 max-w-3xl text-base leading-7 text-[#604B63]">Todo el contexto necesario en una sola lectura. Abre Programación solo cuando necesites el detalle de una clase.</p>
-      {shift.arrivalMode === 'handover' && <div className="mt-5 rounded-xl border border-[#D8C3DA] bg-[#F0E7F1] p-4"><p className="text-sm font-extrabold text-[#6A1F6D]">Información del relevo</p><p className="mt-1 text-base leading-7 text-[#4C3A4F]">{previousShiftHandover.note}</p></div>}
-      <div className="mt-5 space-y-3">
-        {todayClasses.map((item) => <article key={item.id} className="rounded-2xl border border-[#E4D8E5] bg-white p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-[#A729AD]">{item.time} · {item.room}</p><h3 className="mt-1 font-evo-display text-2xl font-semibold">{item.type}</h3><p className="mt-2 text-sm text-[#6E5A71]"><strong>Personas:</strong> {item.attendees.join(', ')}</p><p className="mt-2 text-sm leading-6 text-[#5B465E]"><strong>Adaptaciones:</strong> {item.adaptations}</p><p className="mt-1 text-sm leading-6 text-[#5B465E]"><strong>Feedback anterior:</strong> {item.previousFeedback}</p>{item.alerts !== 'Sin avisos adicionales.' && <p className="mt-1 text-sm font-semibold leading-6 text-[#7A4F16]"><strong>Aviso:</strong> {item.alerts}</p>}</div><SecondaryButton icon="class" className="shrink-0" onClick={() => onProgramming(item)}>Abrir en Programación</SecondaryButton></div></article>)}
-      </div>
-      <div className="mt-5 grid gap-3 lg:grid-cols-2"><PreparationBlock title="Personas que requieren atención">{peopleToConsider.map((item) => <div key={item.person} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.type}</p><p className="mt-1 text-base font-bold">{item.person}</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.detail}</p></div>)}</PreparationBlock><PreparationBlock title="Incidencias y avisos activos">{centerNotices.map((item) => <div key={item.title} className="py-3 first:pt-0 last:pb-0"><p className="text-sm font-bold text-[#A729AD]">{item.type}</p><p className="mt-1 text-base font-bold">{item.title}</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.detail}</p></div>)}</PreparationBlock></div>
+      <section aria-labelledby="important-title" className="mt-5 rounded-2xl border border-[#DCCEDD] bg-white p-4 sm:p-5">
+        <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Primero</p>
+        <h3 id="important-title" className="mt-1 font-evo-display text-3xl font-semibold">Lo importante de tu turno</h3>
+        <div className="mt-3 divide-y divide-[#EEE5EF]">
+          {shift.arrivalMode === 'handover' && <div className="py-4 first:pt-0"><p className="text-sm font-bold text-[#A729AD]">Información del relevo</p><p className="mt-1 text-base font-bold">Audio de Sala B</p><p className="mt-1 text-sm leading-6 text-[#6E5A71]">{previousShiftHandover.note}</p></div>}
+          {importantShiftItems.map((item) => {
+            const classItem = todayClasses.find((candidate) => candidate.id === item.classId)
+            const firstClassReady = item.kind === 'first-class' && (shift.firstClassRecord || classHasFinished(classItem, new Date(), getMadridProgramDayKey()))
+            return <article key={item.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-[#A729AD]">{item.label}{classItem ? ` · ${classItem.time}` : ''}</p><h4 className="mt-1 text-base font-extrabold">{item.subject}</h4>{classItem && <p className="mt-1 text-sm font-semibold text-[#806E82]">{classItem.type} · {classItem.room}</p>}<p className="mt-1 text-sm leading-6 text-[#6E5A71]">{item.reason}</p></div><SecondaryButton className="shrink-0" icon={item.kind === 'incident' ? 'incidents' : item.kind === 'first-class' ? 'signups' : 'class'} onClick={() => runImportantAction(item, classItem)}>{item.kind === 'first-class' ? shift.firstClassRecord ? 'Ver registro' : firstClassReady ? item.action : 'Abrir clase' : item.action}</SecondaryButton></article>
+          })}
+        </div>
+      </section>
+
+      <section aria-labelledby="schedule-title" className="mt-5">
+        <div className="flex items-end justify-between gap-3"><div><p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#A729AD]">Después</p><h3 id="schedule-title" className="mt-1 font-evo-display text-3xl font-semibold">Horario del turno</h3></div><p className="hidden text-sm font-semibold text-[#806E82] sm:block">Solo contexto, no una lista de reservas</p></div>
+        <div className="mt-3 space-y-3">
+          {todayClasses.map((item) => <article key={item.id} className="rounded-2xl border border-[#E4D8E5] bg-white p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><p className="text-base font-extrabold text-[#A729AD]">{item.time}</p><p className="text-sm font-bold text-[#6E5A71]">{item.room}</p><h4 className="font-evo-display text-2xl font-semibold">{item.type}</h4></div><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#6E5A71]"><span>{item.attendees.length} asistentes</span>{item.indicators.map((indicator) => <span key={indicator} className="rounded-lg bg-[#F0E7F1] px-2 py-1 font-bold text-[#6A1F6D]">{indicator}</span>)}</div>{attendeesFor === item.id && <p className="mt-3 rounded-xl bg-[#F7F2F7] p-3 text-sm leading-6 text-[#604B63]"><strong>Asistentes:</strong> {item.attendees.join(', ')}</p>}</div><div className="flex flex-col gap-1 sm:flex-row sm:items-center"><TextButton onClick={() => setAttendeesFor(attendeesFor === item.id ? null : item.id)}>{attendeesFor === item.id ? 'Ocultar asistentes' : 'Ver asistentes'}</TextButton><SecondaryButton icon="class" className="shrink-0" onClick={() => onProgramming(item)}>Abrir en Programación</SecondaryButton></div></div></article>)}
+        </div>
+      </section>
       <div className="mt-5 max-w-md"><PrimaryButton icon="check" onClick={flow.confirmBriefing}>He revisado y preparado mi turno</PrimaryButton></div>
     </section>
   )
 }
 
-function WorkStep({ shift, onIncident, onFirstClass, onProgramming, onProtocol }) {
+function WorkStep({ shift, feedbackStatus, onIncident, onFirstClass, onProgramming }) {
   const hasFirstClass = shift.tasks.some((task) => task.id === 'first-class')
-  const [contextDetail, setContextDetail] = useState(null)
-  const nextClass = todayClasses.find((item) => item.id === 'class-1330') || todayClasses[0]
+  const now = new Date()
+  const dayKey = getMadridProgramDayKey(now)
+  const nextClass = getNextShiftClass(todayClasses, now, dayKey) || todayClasses[0]
+  const firstClassItem = todayClasses.find((item) => item.id === 'class-1330')
+  const firstClassDue = classHasFinished(firstClassItem, now, dayKey)
   return (
     <section aria-labelledby="work-title" className="rounded-2xl border border-[#E4CDE6] bg-[#FFFFE2] p-5 shadow-[0_12px_30px_rgba(89,34,93,0.10)] sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Ahora · Siguiente clase</p>
       <h2 id="work-title" className="mt-2 font-evo-display text-3xl font-semibold sm:text-4xl">{nextClass.time} · {nextClass.type}</h2>
-      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">{nextClass.room} · {nextClass.attendees.length} personas · Alex Vega realiza su primera clase.</p>
+      <p className="mt-2 max-w-2xl text-base leading-7 text-[#604B63]">{nextClass.room} · {nextClass.attendees.length} asistentes{nextClass.id === 'class-1330' ? ' · Alex Vega realiza su primera clase.' : '.'}</p>
       <div className="mt-5 max-w-md"><PrimaryButton icon="class" onClick={() => onProgramming(nextClass)}>Abrir siguiente clase</PrimaryButton></div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <SecondaryButton icon="signups" onClick={() => setContextDetail(contextDetail === 'person' ? null : 'person')}>Ver persona nueva</SecondaryButton>
-        <SecondaryButton icon="exceptions" onClick={() => setContextDetail(contextDetail === 'adaptation' ? null : 'adaptation')}>Ver adaptación</SecondaryButton>
-        {hasFirstClass && <SecondaryButton icon="signups" onClick={onFirstClass}>{shift.firstClassRecord ? 'Ver primera clase registrada' : 'Registrar primera clase'}</SecondaryButton>}
+      <div className="mt-4 space-y-2">
+        {hasFirstClass && firstClassDue && !shift.firstClassRecord && <SecondaryButton icon="signups" onClick={onFirstClass}>Registrar primera clase de Alex</SecondaryButton>}
+        {feedbackStatus.pending.map((item) => <SecondaryButton key={item.key} icon="class" onClick={() => onProgramming(item, 'feedback')}>Dar feedback de {item.type}</SecondaryButton>)}
         <SecondaryButton icon="incidents" onClick={onIncident}>Anotar una incidencia</SecondaryButton>
-        <SecondaryButton icon="spark" onClick={onProtocol}>Consultar protocolo</SecondaryButton>
-        <SecondaryButton icon="class" onClick={() => onProgramming(nextClass, 'feedback')}>Dar feedback</SecondaryButton>
       </div>
-      {contextDetail === 'person' && <LightCard className="mt-4"><p className="text-sm font-bold text-[#A729AD]">Alex Vega · primera clase</p><p className="mt-2 text-base leading-7 text-[#604B63]">Carga inicial conservadora, demostraciones breves y posición próxima al entrenador.</p></LightCard>}
-      {contextDetail === 'adaptation' && <LightCard className="mt-4"><p className="text-sm font-bold text-[#A729AD]">Adaptación relevante</p><p className="mt-2 text-base leading-7 text-[#604B63]">Si la coordinación limita el trabajo, reducir carga y practicar un patrón cada vez.</p></LightCard>}
       <p className="mt-3 text-sm font-semibold text-[#806E82]">Las acciones aparecen por el contexto de esta clase. El feedback se guarda únicamente en Programación.</p>
     </section>
   )
 }
 
-function ClosingPanel({ shift, onReview }) {
-  const blockers = getClosingBlockers(shift, shift.trainerId)
+function ClosingPanel({ shift, feedbackStatus, onReview }) {
+  const [showBlockers, setShowBlockers] = useState(false)
+  const blockers = getShiftCompletionBlockers(getClosingBlockers(shift, shift.trainerId), feedbackStatus)
+  const feedbackSummary = feedbackStatus.totalDue === 0
+    ? 'Aún no hay clases finalizadas con feedback obligatorio.'
+    : `${feedbackStatus.completedCount} de ${feedbackStatus.totalDue} modalidades impartidas con feedback.`
   return (
     <section aria-labelledby="finish-title" className="rounded-2xl border border-[#DCCEDD] bg-white p-5 sm:p-6">
       <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#A729AD]">Cuando termine el turno</p>
-      <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><h2 id="finish-title" className="font-evo-display text-3xl font-semibold">{shift.endMode === 'handover' ? 'Entregar turno' : 'Cerrar centro'}</h2><p className="mt-2 text-base leading-7 text-[#604B63]">{shift.endMode === 'handover' ? 'Llega otro entrenador: el relevo será breve y no exige cerrar el centro.' : 'Eres el último turno: al terminar aparecerá el cierre completo.'}</p>{blockers.length > 0 && <p className="mt-2 text-sm font-semibold text-[#806E82]">{blockers.length} obligaciones del turno siguen pendientes.</p>}</div><div className="w-full max-w-sm"><PrimaryButton icon="check" onClick={onReview}>{shift.endMode === 'handover' ? 'Preparar entrega' : 'Empezar cierre'}</PrimaryButton></div></div>
+      <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><h2 id="finish-title" className="font-evo-display text-3xl font-semibold">{shift.endMode === 'handover' ? 'Entregar turno' : 'Cerrar centro'}</h2><p className="mt-2 text-base leading-7 text-[#604B63]">{shift.endMode === 'handover' ? 'Llega otro entrenador: el relevo será breve y no exige cerrar el centro.' : 'Eres el último turno: al terminar aparecerá el cierre completo.'}</p><ul className="mt-4 space-y-1 text-sm font-semibold text-[#604B63]"><li>{feedbackSummary}</li><li>{shift.firstClassRecord ? 'Primera clase de Alex registrada.' : 'Primera clase de Alex pendiente.'}</li><li>{shift.incidents.every((incident) => incident.status !== 'open' || (incident.ownerId && incident.dueAt && incident.nextAction)) ? 'Incidencias del turno gestionadas.' : 'Existe una incidencia sin asignar.'}</li></ul>{blockers.length > 0 && <><p className="mt-3 text-sm font-extrabold text-[#6A1F6D]">{blockers.length} tareas obligatorias pendientes.</p><TextButton onClick={() => setShowBlockers((value) => !value)}>{showBlockers ? 'Ocultar pendientes' : 'Ver qué falta'}</TextButton>{showBlockers && <ul className="mt-2 space-y-1 rounded-xl bg-[#FFFFE2] p-3 text-sm leading-6 text-[#5B465E]">{blockers.map((blocker) => <li key={blocker.id}>• {blocker.label}</li>)}</ul>}</>}</div><div className="w-full max-w-sm"><PrimaryButton icon="check" disabled={blockers.length > 0} onClick={onReview}>{shift.endMode === 'handover' ? 'Entregar turno' : 'Cerrar centro'}</PrimaryButton></div></div>
     </section>
   )
 }
@@ -498,7 +515,7 @@ function AuditSummary({ shift }) {
   )
 }
 
-function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming }) {
+function TodayScreen({ flow, programmingStatus, onAction, onOpenProtocol, onProgramming }) {
   const shift = flow.currentShift
   const openingComplete = !shift || shift.arrivalMode === 'handover' || shift.centerOpening?.status === 'completed'
   const stage = !shift ? 'start' : !openingComplete ? 'opening' : !shift.shiftPreparation ? 'preparation' : 'work'
@@ -506,7 +523,7 @@ function TodayScreen({ flow, onAction, onOpenProtocol, onProgramming }) {
     <div>
       <ScreenHeading eyebrow="Mi turno · Hoy" title={shift ? 'Tu turno, con lo necesario' : 'Iniciar turno'} detail={shift ? 'Una decisión principal por momento y contexto solo cuando hace falta.' : 'Registra la entrada real y el turno asignado.'} />
       {!shift && <StartShiftCard onStart={flow.start} />}
-      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} onConfirm={flow.confirmCenterOperational} onProblem={() => onAction({ type: 'incident', previousClosing: true })} onOpenProtocol={() => onOpenProtocol('opening')} />}{stage === 'preparation' && <PreparationStep flow={flow} shift={shift} onProgramming={onProgramming} />}{stage === 'work' && <><WorkStep shift={shift} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} onProtocol={() => onOpenProtocol('first-class')} /><ClosingPanel shift={shift} onReview={() => onAction({ type: 'closing' })} /></>}</>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
+      {shift && <div className="space-y-5"><SequenceProgress shift={shift} stage={stage} /><ShiftSummary shift={shift} programmingStatus={programmingStatus} />{shift.status === 'closed' ? <AuditSummary shift={shift} /> : <>{stage === 'opening' && <OpeningStep shift={shift} onConfirm={flow.confirmCenterOperational} onProblem={() => onAction({ type: 'incident', previousClosing: true })} onOpenProtocol={() => onOpenProtocol('opening')} />}{stage === 'preparation' && <PreparationStep flow={flow} shift={shift} onProgramming={onProgramming} onFirstClass={() => onAction({ type: 'first-class' })} onIncident={(prefill) => onAction({ type: 'incident', prefill })} />}{stage === 'work' && <><WorkStep shift={shift} feedbackStatus={programmingStatus} onIncident={() => onAction({ type: 'incident' })} onFirstClass={() => onAction({ type: 'first-class' })} onProgramming={onProgramming} /><ClosingPanel shift={shift} feedbackStatus={programmingStatus} onReview={() => onAction({ type: 'closing' })} /></>}</>}<button type="button" onClick={flow.reset} className="min-h-11 text-sm font-bold text-[#806E82] underline underline-offset-4 hover:text-[#6A1F6D]">Reiniciar datos sintéticos</button></div>}
     </div>
   )
 }
@@ -539,6 +556,7 @@ function TeamScreen() {
 
 export default function IncorporacionesApp() {
   const flow = useLocalShiftFlow()
+  const programmingStatus = useProgrammingFeedbackStatus(todayClasses)
   const [context, setContext] = useState('coach')
   const [globalArea, setGlobalArea] = useState('shift')
   const [shiftArea, setShiftArea] = useState('today')
@@ -558,7 +576,7 @@ export default function IncorporacionesApp() {
   }
 
   function openProgrammingFeedback(target = programmingFeedbackTarget, mode = 'class') {
-    setProgrammingTarget(target)
+    setProgrammingTarget(buildProgrammingNavigationTarget(target, mode))
     setGlobalArea('programming')
     flow.clearMessages()
   }
@@ -568,11 +586,15 @@ export default function IncorporacionesApp() {
     else setAction(null)
   }
 
+  if (globalArea === 'programming') {
+    const target = programmingTarget || { ...todayClasses[0], mode: 'class', token: Date.now() }
+    return <CoachView shiftBridge={{ ...target, onReturn: () => setGlobalArea(context === 'coach' ? 'shift' : 'operations') }} />
+  }
+
   let screen
-  if (globalArea === 'programming') screen = <ProgrammingReference target={programmingTarget} returnLabel={context === 'coach' ? 'Mi turno' : 'Operativa'} onReturn={() => setGlobalArea(context === 'coach' ? 'shift' : 'operations')} />
-  else if (context === 'coach' && shiftArea === 'protocols') screen = <ProtocolsScreen initialProtocol={protocolToOpen} />
+  if (context === 'coach' && shiftArea === 'protocols') screen = <ProtocolsScreen initialProtocol={protocolToOpen} />
   else if (context === 'coach' && shiftArea === 'evolution') screen = <EvolutionScreen />
-  else if (context === 'coach') screen = <TodayScreen flow={flow} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} />
+  else if (context === 'coach') screen = <TodayScreen flow={flow} programmingStatus={programmingStatus} onAction={(nextAction) => { flow.clearMessages(); setAction(nextAction) }} onOpenProtocol={(protocolId) => { setProtocolToOpen(protocolId); setShiftArea('protocols') }} onProgramming={openProgrammingFeedback} />
   else if (globalArea === 'evaluations') screen = <EvaluationsScreen />
   else if (globalArea === 'team') screen = <TeamScreen />
   else screen = <OperationsScreen exceptions={exceptions} />
@@ -582,7 +604,7 @@ export default function IncorporacionesApp() {
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[1480px]">
         <aside className="sticky top-0 hidden h-[100dvh] w-72 shrink-0 flex-col border-r border-white/10 bg-[#0C0B0C]/95 px-5 py-6 backdrop-blur-xl lg:flex">
           <div className="flex items-center gap-3 px-2"><EvoLogo imgClassName="h-10 w-auto object-contain" /><div><p className="font-evo-display text-xl font-bold uppercase tracking-[0.12em] text-white">Programming EVO</p><p className="text-base font-bold text-[#C86CCE]">Entrenador y operativa</p></div></div>
-          <nav aria-label={`Áreas de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="mt-10 space-y-2">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => setGlobalArea(item.id)} className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-base font-bold transition focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]/70 ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/65 hover:bg-white/[0.06] hover:text-white'}`}><Icon name={item.icon} className="h-5 w-5" />{item.label}</button>)}</nav>
+          <nav aria-label={`Áreas de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="mt-10 space-y-2">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => item.id === 'programming' ? openProgrammingFeedback(todayClasses[0]) : setGlobalArea(item.id)} className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-base font-bold transition focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]/70 ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/65 hover:bg-white/[0.06] hover:text-white'}`}><Icon name={item.icon} className="h-5 w-5" />{item.label}</button>)}</nav>
           {context === 'coach' && globalArea === 'shift' && <nav aria-label="Áreas de Mi turno" className="mt-5 border-l border-white/15 pl-4">{shiftNavigation.map((item) => <button key={item.id} type="button" onClick={() => { setProtocolToOpen(null); setShiftArea(item.id) }} className={`min-h-11 w-full rounded-xl px-3 text-left text-base font-semibold ${shiftArea === item.id ? 'bg-white/10 text-white' : 'text-white/55 hover:text-white'}`}>{item.label}</button>)}</nav>}
           <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-sm font-bold text-[#C86CCE]">Fase 2.3 · Local</p><p className="mt-1 text-sm leading-6 text-white/55">Secuencia guiada · Datos ficticios</p></div>
         </aside>
@@ -592,10 +614,10 @@ export default function IncorporacionesApp() {
           <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">{flow.notice && <p role="status" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{flow.notice}</p>}{flow.error && !action && <p role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">{flow.error}</p>}{screen}</main>
         </div>
       </div>
-      <nav aria-label={`Navegación móvil de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0C0B0C]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => setGlobalArea(item.id)} className={`flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 text-base font-bold ${context === 'direction' ? 'min-w-[7rem]' : ''} ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/55'}`}><Icon name={item.icon} className="h-5 w-5" /><span>{item.label}</span></button>)}</div></nav>
-      {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} previousClosing={action.previousClosing} openingItemId={action.openingItemId} openingCheckId={action.openingCheckId} closingItemId={action.closingItemId} closingCheckId={action.closingCheckId} error={flow.error} onClose={closeAction} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
+      <nav aria-label={`Navegación móvil de ${context === 'coach' ? 'Entrenador' : 'Dirección'}`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0C0B0C]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">{globalNavigation.map((item) => <button key={item.id} type="button" onClick={() => item.id === 'programming' ? openProgrammingFeedback(todayClasses[0]) : setGlobalArea(item.id)} className={`flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 text-base font-bold ${context === 'direction' ? 'min-w-[7rem]' : ''} ${globalArea === item.id ? 'bg-[#A729AD] text-white' : 'text-white/55'}`}><Icon name={item.icon} className="h-5 w-5" /><span>{item.label}</span></button>)}</div></nav>
+      {action?.type === 'incident' && flow.currentShift && <IncidentDialog shift={flow.currentShift} previousClosing={action.previousClosing} openingItemId={action.openingItemId} openingCheckId={action.openingCheckId} closingItemId={action.closingItemId} closingCheckId={action.closingCheckId} prefill={action.prefill} error={flow.error} onClose={closeAction} onConfirm={flow.recordIncident} onClearError={flow.clearMessages} />}
       {action?.type === 'first-class' && flow.currentShift && <FirstClassDialog shift={flow.currentShift} error={flow.error} onClose={() => setAction(null)} onConfirm={flow.recordFirstClass} onClearError={flow.clearMessages} />}
-      {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} error={flow.error} onClose={() => setAction(null)} />}
+      {action?.type === 'closing' && flow.currentShift && <ClosingDialog shift={flow.currentShift} flow={flow} programmingStatus={programmingStatus} error={flow.error} onClose={() => setAction(null)} />}
     </div>
   )
 }

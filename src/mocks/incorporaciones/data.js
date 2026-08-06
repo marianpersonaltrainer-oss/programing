@@ -1,7 +1,14 @@
 export const todayClasses = [
-  { id: 'class-0700', time: '07:00', type: 'EVO Funcional', room: 'Sala A', trainer: 'Lara Demo', attendees: ['Mia Demo', 'Leo Demo', 'Sol Demo', 'Pau Demo'], objective: 'Moverse con ritmo estable y técnica consistente.', blocks: ['Activación', 'Fuerza técnica', 'Condicionamiento'], material: 'Kettlebells, cajones y esterillas.', adaptations: 'Alternativa sin impacto disponible.', alerts: 'Sin avisos adicionales.', previousFeedback: 'Buen ritmo general; reforzar la explicación del bloque final.' },
-  { id: 'class-1030', time: '10:30', type: 'EVO Fuerza', room: 'Sala A', trainer: 'Lara Demo', attendees: ['Nora Sol', 'Izan Demo', 'Vera Demo'], objective: 'Construir fuerza de pierna con control del tempo.', blocks: ['Movilidad', 'Sentadilla', 'Accesorios'], material: 'Barras, discos y bancos.', adaptations: 'Nora Sol: variante sin impacto y rango cómodo.', alerts: 'Remo 04 fuera de uso.', previousFeedback: 'Nora trabajó cómoda con cajón alto y carga ligera.' },
-  { id: 'class-1330', time: '13:30', type: 'EVO Basics', room: 'Sala B', trainer: 'Lara Demo', attendees: ['Alex Vega', 'Noa Demo', 'Teo Demo'], objective: 'Aprender patrones básicos con carga conservadora.', blocks: ['Bienvenida', 'Técnica guiada', 'Trabajo simple'], material: 'Mancuernas ligeras, picas y esterillas.', adaptations: 'Alex Vega: primera clase y posición próxima al entrenador.', alerts: 'Cambio de sala confirmado: Sala B.', previousFeedback: 'Primera sesión del día en Sala B; comprobar recorrido y material.' },
+  { id: 'class-0700', classLabel: 'EvoFuncional', time: '07:00', endTime: '08:00', type: 'EVO Funcional', room: 'Sala A', trainer: 'Lara Demo', attendees: ['Mia Demo', 'Leo Demo', 'Sol Demo', 'Pau Demo'], objective: 'Moverse con ritmo estable y técnica consistente.', blocks: ['Activación', 'Fuerza técnica', 'Condicionamiento'], material: 'Kettlebells, cajones y esterillas.', sessionNote: 'Buen ritmo general; reforzar la explicación del bloque final.', adaptations: 'Alternativa sin impacto disponible.', alerts: 'Sin avisos adicionales.', indicators: [] },
+  { id: 'class-1030', classLabel: 'EvoFuerza', time: '10:30', endTime: '11:30', type: 'EVO Fuerza', room: 'Sala A', trainer: 'Lara Demo', attendees: ['Nora Sol', 'Izan Demo', 'Vera Demo'], objective: 'Construir fuerza de pierna con control del tempo.', blocks: ['Movilidad', 'Sentadilla', 'Accesorios'], material: 'Barras, discos y bancos.', sessionNote: 'Trabajar el tempo con rango cómodo y alternativa sin impacto disponible.', adaptations: 'Nora Sol: variante sin impacto y rango cómodo.', alerts: 'Remo 04 fuera de uso.', indicators: ['1 adaptación', '1 aviso'] },
+  { id: 'class-1330', classLabel: 'EvoBasics', time: '13:30', endTime: '14:30', type: 'EVO Basics', room: 'Sala B', trainer: 'Lara Demo', attendees: ['Alex Vega', 'Noa Demo', 'Teo Demo'], objective: 'Aprender patrones básicos con carga conservadora.', blocks: ['Bienvenida', 'Técnica guiada', 'Trabajo simple'], material: 'Mancuernas ligeras, picas y esterillas.', sessionNote: 'Primera sesión en Sala B: comprobar recorrido y material antes de empezar.', adaptations: 'Alex Vega: primera clase y posición próxima al entrenador.', alerts: 'Cambio de sala confirmado: Sala B.', indicators: ['1 persona nueva', '1 aviso'] },
+]
+
+export const importantShiftItems = [
+  { id: 'alex-first-class', kind: 'first-class', subject: 'Alex Vega', label: 'Primera clase', classId: 'class-1330', reason: 'Es su primera sesión y necesita una carga inicial conservadora.', action: 'Registrar primera clase' },
+  { id: 'nora-adaptation', kind: 'adaptation', subject: 'Nora Sol', label: 'Adaptación', classId: 'class-1030', reason: 'Preparar una variante sin impacto y trabajar en rango cómodo.', action: 'Abrir clase' },
+  { id: 'rower-out', kind: 'incident', subject: 'Remo 04 fuera de uso', label: 'Material', classId: 'class-1030', reason: 'No utilizar hasta que Dirección confirme la revisión.', action: 'Anotar incidencia' },
+  { id: 'basics-room', kind: 'room-change', subject: 'EVO Basics', label: 'Cambio a Sala B', classId: 'class-1330', reason: 'La última clase del turno cambia de espacio.', action: 'Abrir clase' },
 ]
 
 export const previousShiftHandover = {
@@ -45,6 +52,7 @@ export const programmingFeedbackTarget = {
   dateLabel: 'Hoy',
   time: '13:30',
   className: 'EVO Basics',
+  classLabel: 'EvoBasics',
 }
 
 export const protocols = [

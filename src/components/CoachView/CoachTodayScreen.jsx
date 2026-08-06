@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { madridWeekdayChipIndex, madridWeekdayLabelEs } from '../../utils/coachTime.js'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 import { MESOCYCLES } from '../../constants/evoColors.js'
@@ -180,8 +180,10 @@ export default function CoachTodayScreen({
   onConsultAssistant,
   exerciseLibrary = [],
   todayHandoffs = [],
+  openTarget = null,
 }) {
   const [wodModal, setWodModal] = useState(null)
+  const openedTargetRef = useRef(null)
   const dias = weekData?.dias || []
   const workWeek = useMemo(() => dias, [dias])
 
@@ -201,6 +203,29 @@ export default function CoachTodayScreen({
   const madridChipIndex = useMemo(() => madridWeekdayChipIndex(), [])
   const useDailyHandoffs = dia ? selectedDayIsMadridCalendarToday(dia.nombre) : false
   const classDefsForDay = useMemo(() => classDefsWithContentForDay(dia), [dia])
+
+  useEffect(() => {
+    if (!openTarget?.token || openedTargetRef.current === openTarget.token || !dia) return
+    const classDef = classDefsForDay.find((candidate) => normClassLabel(candidate.label) === normClassLabel(openTarget.classLabel))
+    if (!classDef) return
+    const sessionRaw = sessionText(dia[classDef.key])
+    if (!hasProgrammedSessionText(sessionRaw)) return
+    const sessionFeedbackRaw = sessionText(dia[classDef.feedbackKey])
+    const hasSessionFeedback = hasNonTrivialPublishedFeedback(sessionFeedbackRaw)
+    const daily = selectedDayIsMadridCalendarToday(dia.nombre)
+      ? latestDailyHandoffForClass(todayHandoffs, classDef.label)
+      : null
+    setWodModal({
+      sessionKey: classDef.key,
+      classLabel: classDef.label,
+      sessionText: sessionRaw,
+      sessionFeedback: hasSessionFeedback ? String(sessionFeedbackRaw).trim() : '',
+      dailyFeedback: daily,
+      accentColor: classAccentBySessionKey(classDef.key),
+      dayName: dia.nombre,
+    })
+    openedTargetRef.current = openTarget.token
+  }, [openTarget?.token, openTarget?.classLabel, dia, classDefsForDay, todayHandoffs])
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-[#0C0B0C]">

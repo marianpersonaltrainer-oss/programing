@@ -654,6 +654,34 @@ El turno asignado indica si llega otro entrenador o si es el último. La entrega
 - el adaptador local sigue siendo sustituible y exportable;
 - los datos de Fase 2.2 se recuperan de forma compatible o se reinician explícitamente, nunca mediante un fallo silencioso.
 
+## Ajuste autorizado · coordinación con Programación
+
+Marian autorizó el 6 de agosto de 2026 una conexión limitada con las funciones ya existentes de Programming EVO dentro de esta misma fase:
+
+- sustituir la pantalla ficticia de Programación por la superficie real de `CoachView`;
+- abrir el día y la modalidad correctos y, cuando corresponda, activar `mainTab === 'pase'` con `feedbackPrefill`;
+- guardar exclusivamente mediante `CoachSessionFeedbackForm` y `saveCoachSessionFeedback`;
+- derivar el pendiente de los registros existentes, sin persistir un segundo estado en `Mi turno`;
+- mantener primera clase e incidencias en sus flujos operativos actuales;
+- ordenar el briefing con `Lo importante de tu turno` antes del horario compacto y eliminar listados generales, detalles duplicados, porcentajes y acciones genéricas.
+
+Esta excepción modifica únicamente el límite que protegía `?coach` frente a cambios de Fase 1. No autoriza tablas, migraciones, APIs, formularios alternativos, WodBuster, producción ni Fase 3.
+
+### Resultado del ajuste de coordinación
+
+Implementado y validado técnicamente el 6 de agosto de 2026:
+
+- `ProgrammingReference` fue eliminado; las acciones abren `CoachView`, la clase existente o `mainTab === 'pase'` según el contexto;
+- `CoachSessionFeedbackForm` recibe `feedbackPrefill` y fija día y modalidad sin pedir una segunda selección;
+- `Mi turno` consulta los registros de la semana publicada y deriva pendientes por día y modalidad, sin escribir feedback ni guardar un indicador paralelo;
+- un error de lectura o guardado conserva el pendiente, y el cierre combina bloqueos propios con obligaciones vencidas de Programación;
+- el briefing muestra `Lo importante de tu turno` antes del horario compacto, oculta los asistentes por defecto y retira `Feedback anterior`, porcentajes y acciones genéricas;
+- `npm run test:ci` superó 57 archivos y 343 pruebas y completó el build; `npm run build` y `git diff --check` también terminaron correctamente;
+- la revisión en navegador confirmó el recorrido, la persistencia del turno, el bloqueo tras un error y el reflujo sin scroll horizontal a 1440 × 1000 y 390 × 844;
+- el guardado real no pudo ejecutarse en este entorno local porque no existe `.env.local` ni una semana activa accesible. No se crearon credenciales ni un fallback para ocultar esa limitación.
+
+**Veredicto técnico provisional:** no aprobar el ajuste hasta repetir el guardado real en un entorno autorizado con la configuración existente de Programming EVO. No iniciar Fase 3.
+
 ## Lenguaje activo
 
 Usar exclusivamente los nombres aprobados para el recorrido. Retirar de la interfaz `Información especial`, `Feedback operativo`, `Casos especiales` y `Briefing especial`.

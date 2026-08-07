@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import MiCaminoApp from './MiCaminoApp.jsx'
 
 /**
  * Arranque estándar de Vite: sin service worker y sin comprobaciones de build en cliente.
@@ -15,8 +16,10 @@ import App from './App.jsx'
  * y encadenados provocaban recargas repetidas y mezcla de dos versiones en pantalla.
  * No volver a añadir recargas automáticas en cliente: si el HTML no se cachea, no hacen falta.
  */
+const isMiCaminoRoute = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    {isMiCaminoRoute ? <MiCaminoApp /> : <App />}
   </StrictMode>,
 )

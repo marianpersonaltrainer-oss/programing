@@ -1,173 +1,170 @@
 # Mi Camino EVO V1 — Technical Architecture
 
-Status: build foundation
+Status: **foundation + evidence gates**
 Target: web, mobile-first, externally hosted
 Repository: `marianpersonaltrainer-oss/programing`
 
 ## 1. Architecture decision
 
-Use the existing Programming EVO repository and Supabase organization rather than creating another isolated stack.
-
-Logical surfaces:
+Reuse the existing Programming EVO repository, Supabase organization and Vercel deployment path.
 
 ```text
 WodBuster
-  │ official API / RestHooks + reconciliation
+  │ verified API / RestHooks / reconciliation only
   ▼
 Server-side WodBuster adapter
   ▼
-Supabase / Nucleus EVO (`mc_*` domain)
+Supabase / Nucleus EVO (`mc_*`)
   ├─ journeys + check-ins + Plan B
   ├─ milestones + challenges
   ├─ resources + settings
   ├─ coach tasks + observations
-  └─ event mirror + audit
+  └─ mirrors + sync state + audit
        │
-       ├────────────► Mi Camino EVO (customer web)
-       ├────────────► EVO Coach (existing Programming EVO surface)
-       └────────────► Admin EVO
+       ├────────► Mi Camino EVO · customer web
+       ├────────► EVO Coach · existing trainer surface
+       └────────► Admin EVO
 
-GitHub → PR/CI → Vercel Preview/Staging → Vercel Production
+GitHub → PR/CI → Vercel Preview/Staging → Production after launch gate
 ```
 
-## 2. Why this shape
+## 2. Core rule after external audit
 
-- Reuses existing React/Vite/Tailwind/Supabase stack.
-- One identity model and one event layer.
-- Clear domain separation through `mc_*` tables rather than another database by default.
-- WodBuster continues to own administrative truth.
-- Coach work stays in the existing trainer product.
-- Customer UI can evolve independently as its own route/shell.
+The product is not being redesigned. The execution sequence changes:
 
-## 3. Web hosting
+- **Data truth gate:** no critical automation may rely on a WodBuster field/event until verified for the EVO account.
+- **Human truth gate:** no expansion beyond the first R01 slice until a 5–8 person concierge test proves comprehension and coach workload.
+- `31→180`, Story of Evolution, EVO del Mes and expanded gamification remain designed but frozen.
 
-### Production recommendation
+## 3. Hosting and environments
 
-**Vercel** for the React/Vite web application and serverless API routes.
+**Vercel** remains the web host.
 
-Reasons:
-- the repository already has Vercel tooling/deployment history;
-- PR previews support autonomous agent QA;
-- environment separation is straightforward;
-- rollback can use prior deployments;
-- no local server is required for users.
+- Preview: every PR, external URL.
+- Staging: must use `programing-evo-staging` Supabase.
+- Production: separate Supabase/secret set only after launch gate.
 
-### Environments
+One canonical Vercel project must be chosen before production. No local-only production path.
 
-- `Preview`: every PR.
-- `Staging`: stable branch/deployment connected to `programing-evo-staging` Supabase.
-- `Production`: main/release deployment connected to `Programing Evo` Supabase only after launch gate.
+## 4. Frontend surfaces
 
-Do not use production Supabase from previews.
-
-### Domain
-
-Do not invent or purchase a new domain during build. V1 can run under the existing Vercel project route. At launch, Marian chooses whether Mi Camino is exposed through an existing EVO domain route or dedicated subdomain. This is a launch decision, not a build blocker.
-
-## 4. Frontend routing
-
-Target routes:
-
+Customer:
 ```text
-/mi-camino              customer shell
 /mi-camino/hoy
 /mi-camino/camino
 /mi-camino/evolucion
 /mi-camino/perfil
-
-/coach                   EVO Coach shell (existing capability, progressively consolidated)
-/admin/mi-camino         Admin EVO
 ```
 
-During incremental migration, legacy query modes (`?coach`, `?v2`) may remain. New Mi Camino code should not depend on query parameters as its final routing model.
+Coach:
+```text
+/coach
+```
 
-Recommended implementation: add `react-router-dom` only if route handling cannot be kept simple with the existing app shell. Avoid a routing migration unrelated to Mi Camino unless needed.
+Admin:
+```text
+/admin/mi-camino
+```
 
-## 5. Customer shell
+Customer Home stays intentionally sparse: one primary action + weekly state + next milestone.
 
-Bottom navigation V1:
+## 5. Customer state model
 
-1. **Hoy** — one next action, weekly state, next milestone.
-2. **Mi camino** — current journey/stage, active action, check-in/resource, Plan B when relevant.
-3. **Evolución** — badges, timeline, personal challenge, collective mission, occasional team challenge, Story of Evolution.
-4. **Perfil** — identity/account and minimal plan information.
+Support two entry modes:
 
-### Home priority resolver
+### New customer
+- day 0 journey;
+- intake/barrier hypothesis;
+- first-class flow;
+- R01 0→30 pilot path.
 
-`Hoy` must not become a dashboard. The server/domain layer computes one primary card using ordered priority:
+### Veteran customer
+- historical identity and attendance imported where source data permits;
+- no fake day-0 journey;
+- no burst of retroactive public milestones;
+- compute next relevant future milestone.
 
-1. safety/human review required;
-2. action requiring response today;
-3. check-in due;
-4. Plan B/recovery action due;
-5. upcoming class;
-6. no action — positive continuity summary.
+Veteran UX can ship after the first new-customer slice, but schema and routing must support it now.
 
-Week progress and next milestone are secondary only.
+## 6. Data freshness and stale state
 
-## 6. EVO Coach integration
+Customer-facing decisions based on WodBuster-derived data must expose freshness metadata when relevant.
 
-EVO Coach consumes `mc_coach_tasks` and does not reconstruct customer history client-side.
+If synchronization is delayed:
+- do not accuse the customer of missing training;
+- show neutral stale-data copy such as `Datos actualizados hace X`;
+- suppress automated negative actions when source freshness is below the configured trust threshold;
+- raise admin integration-health warning instead.
 
-Task payload includes:
-- what happened;
-- what the customer expressed;
-- what the system tried;
-- conversation goal;
+## 7. EVO Coach integration
+
+`mc_coach_tasks` is the work queue. Coach UI must not reconstruct history manually.
+
+Every task has:
+- owner;
+- due time;
+- priority;
+- briefing;
+- exact goal;
 - suggested wording;
 - one recommended proposal;
-- permitted outcomes.
+- closed outcomes.
 
-Task types include first class, quick contact, checkpoint review, milestone recognition, class-option validation and sensitive review.
+### Missed-task path
+If not completed:
+1. status becomes `overdue`;
+2. system reassigns to next eligible coach when a future class exists, otherwise to the valid exposure-based owner **only if the required exposure data is verified**;
+3. unresolved tasks escalate to admin as exceptions.
 
-Ordinary intervention budget: **2–3 minutes**.
+Vacations/substitutions must not require routine Marian redistribution.
 
-## 7. Admin EVO
+## 8. Admin EVO
 
-Configuration areas:
-- journeys and published versions;
-- Plan B catalog;
-- contextual resource library;
-- milestone definitions and thresholds;
-- challenges / collective missions;
-- messages/coach scripts;
-- business-rule settings;
-- WodBuster integration health;
+Admin controls versioned configuration for:
+- journeys;
+- Plan B catalogue;
+- contextual resources;
+- milestones/badges;
+- coach scripts;
+- thresholds;
+- challenge definitions;
+- integration health;
+- recognition exception flag;
 - audit log.
 
-Admin changes that affect live customers are versioned/published rather than silently editing historical plan definitions.
+No normal admin operation should require editing raw JSON or code.
 
-## 8. Supabase domains
+## 9. Supabase domains
 
-Foundation migration creates these tables:
+Foundation tables:
 
-### Identity/state
+Identity/state:
 - `mc_people`
 - `mc_enrollments`
 - `mc_goal_cycles`
 
-### Plan/content
+Plan/content:
 - `mc_plan_templates`
 - `mc_plan_versions`
 - `mc_resources`
 - `mc_resource_deliveries`
 
-### Check-in/coach
+Coach/check-in:
 - `mc_checkins`
 - `mc_observations`
 - `mc_coach_tasks`
 
-### Plan B
+Plan B:
 - `mc_plan_b_catalog`
 - `mc_plan_b_activations`
 
-### Gamification
+Gamification:
 - `mc_milestone_definitions`
 - `mc_milestone_awards`
 - `mc_challenges`
 - `mc_challenge_progress`
 
-### Integration/ops
+Integration/ops:
 - `mc_wodbuster_events`
 - `mc_wodbuster_reservations`
 - `mc_wodbuster_attendance`
@@ -175,11 +172,9 @@ Foundation migration creates these tables:
 - `mc_settings`
 - `mc_audit_log`
 
-## 9. Event model
+## 10. Event model
 
-Every external or internal change should become a normalized event before deriving tasks/hits.
-
-Suggested event names:
+Normalized events remain the internal contract:
 
 ```text
 person.created
@@ -192,8 +187,6 @@ plan_b.offered
 plan_b.accepted
 plan_b.completed
 journey.checkpoint_due
-journey.day_90_reached
-journey.day_180_reached
 milestone.earned
 milestone.validated
 milestone.celebrated
@@ -201,11 +194,32 @@ coach_task.completed
 class_option.unlocked
 ```
 
-Derivations must be idempotent.
+All derivations must be idempotent.
 
-## 10. WodBuster adapter
+## 11. WodBuster capability gate
 
-Create one server-side module boundary, e.g.:
+Before live transport, verify whether the EVO account can reliably provide:
+- user identity/creation;
+- reservations;
+- cancellations;
+- no-show;
+- confirmed attendance;
+- class/session id;
+- timestamp;
+- coach id;
+- RestHook/event availability;
+- authentication and request verification;
+- reconciliation/history.
+
+### Capability tree
+
+**Complete** → implement full adapter.
+
+**Partial** → disable/redesign only dependent functions. Never infer a missing coach or attendance event from unrelated aggregates.
+
+**Insufficient** → simplify affected automation or define an explicit operational capture flow. CSV/manual data may support analysis/recovery but is not the permanent autonomous trigger for critical flows.
+
+Stable module boundary:
 
 ```text
 api/lib/wodbuster/
@@ -216,173 +230,179 @@ api/lib/wodbuster/
   verifyWebhook.js
 ```
 
-Public interface should remain stable even if WodBuster endpoint details change:
+Exact endpoints/auth/signature are filled only from verified current access.
 
-```ts
-interface WodBusterAdapter {
-  listUsers(updatedSince?: Date): Promise<UserRecord[]>
-  listReservations(range: DateRange): Promise<ReservationRecord[]>
-  listAttendance(range: DateRange): Promise<AttendanceRecord[]>
-  verifyInboundRequest(request: Request): Promise<boolean>
-}
-```
+## 12. Reconciliation and health
 
-Exact endpoint/auth mapping is filled only from verified official access. UI and business rules must run against fixtures until then.
+Webhooks/RestHooks provide freshness, reconciliation provides correctness.
 
-## 11. Reconciliation
+`mc_sync_state` tracks:
+- last start;
+- last success;
+- lag;
+- cursor;
+- error.
 
-RestHooks/webhooks provide freshness but are not enough for correctness.
+Failed or stale sync creates an admin-only operational alert. It must not trigger customer blame or risk messaging.
 
-Run scheduled reconciliation:
-- recent reservations: frequent rolling window;
-- recent attendance: after classes / rolling window;
-- users: daily or based on supported update cursor;
-- full sanity reconciliation: lower frequency.
-
-The exact schedule is configuration, not hardcoded business logic.
-
-A failed reconciliation updates `mc_sync_state` and produces an admin-only operational alert. It must not automatically contact customers.
-
-## 12. Authentication and authorization
+## 13. Authentication/linking
 
 Use Supabase Auth.
 
-Roles:
-- customer: linked by `mc_people.user_id`;
-- coach/programmer: `profiles.role`;
-- admin: `profiles.role = admin`.
+- customer: `mc_people.user_id`;
+- coach/programmer/admin: `profiles.role`;
+- RLS is authorization, not hidden UI.
 
-RLS is the authorization layer, not hidden UI.
+Critical rule: client browser cannot choose its own external WodBuster id. Linking is trusted server/admin work.
 
-Legacy shared coach codes/localStorage credentials are not acceptable for access to Mi Camino customer information. They may remain temporarily for unrelated legacy screens during migration.
+## 14. Deterministic rule engine
 
-## 13. Rule engine
+Routine product state is not LLM-decided.
 
-V1 does **not** require an LLM to decide routine state transitions.
-
-Use deterministic rules for:
-- attendance milestones;
-- check-in due dates;
+Deterministic rules handle:
+- milestones;
+- check-in timing;
 - Plan B triggers;
-- no-attendance risk thresholds;
-- checkpoint tasks;
-- day 90/180 transitions;
-- collective mission totals.
+- attendance-risk thresholds;
+- coach tasks;
+- checkpoint timing;
+- mission totals.
 
-LLM use, if any, is limited to drafting/summarizing human-readable briefings from approved structured data and must not invent health decisions or business rules.
+LLM use, if any, is limited to safe human-readable summaries from approved structured data.
 
-## 14. Plan B selector
+## 15. Canonical Plan B families
 
-Inputs:
-- reason for missed session;
-- customer stage/month;
-- training level/autonomy;
-- current goal;
-- available time;
-- available equipment;
-- recent training context;
-- safety exclusions;
-- prior Plan B history.
+The implementation source of truth is:
 
-Output:
-- one primary Plan B;
-- optional one alternative;
-- or `safety_blocked`.
+- **B1 · Mantener el vínculo**
+- **B2 · Sustituir la sesión**
+- **B3 · Mantener el estímulo**
 
-No random workout rotation just for novelty.
+Plan B never increments confirmed attendance.
 
-## 15. Milestone engine
+Safety signals block automatic exercise recommendations.
 
-Attendance milestone source: only `mc_wodbuster_attendance.confirmed = true` after normalized WodBuster attendance.
+## 16. Milestones and independent clocks
 
-Initial active public milestone can start with 10 confirmed trainings. More thresholds are configuration and can remain disabled until approved.
+Attendance milestones use **confirmed attendance only**.
 
-Technical/evolution milestones require a validation workflow before award when configured with `requires_validation`.
+Calendar checkpoints and attendance milestones are independent:
+- day 30 runs on day 30;
+- attendance 10 runs when count reaches 10;
+- neither blocks the other.
 
-Public recognition queue is sorted by priority and limits each class to two public recognition tasks.
+This is important for 2x/week plans where attendance 10 may occur after day 30.
 
-## 16. Challenges / mini-competition
+## 17. Recognition rule
 
-No permanent user leaderboard.
+Safe milestones are public by default.
 
-V1 data model supports:
-- personal challenge;
-- collective EVO mission;
-- temporary team challenge.
+Do not expose a general customer privacy toggle. Provide an admin/staff exception flag (`private_recognition`) for explicit requests or sensitive circumstances.
 
-Points/contribution rules must cap healthy behavior and never reward attendance beyond the agreed sustainable frequency.
+Never publicly reveal health/body/injury/nutrition/private-absence information.
 
-## 17. Voice/content
+## 18. Notifications
 
-Content is structured and versioned. UI does not hardcode long coaching copy in components.
+Risk recovery cannot rely only on app-open behavior.
 
-Message fields can be rendered from published resource/plan/milestone configuration while keeping a safe fallback in code.
-
-Every customer message follows the Marian/EVO voice guide: close, clear, short, one main action.
-
-## 18. Visual system
-
-Base tokens are the existing EVO palette.
-
-Mi Camino uses the approved **light premium-active** direction:
-- warm/lilac surfaces;
-- deep EVO purple for hierarchy;
-- energetic accent used sparingly;
-- achievement moments may use a formalized warm metallic/gold tonal extension, but this must be represented as a design token before implementation;
-- badges feel premium/game-like, not childish;
-- ordinary operational screens remain calm and sparse.
-
-The customer Home has only one primary action and should be understandable in ~5 seconds.
-
-## 19. Observability
-
-Minimum operational signals:
-- inbound WodBuster event count/failures;
-- reconciliation last success + lag;
-- rule processing failures;
-- open/overdue coach tasks;
-- duplicate-event prevention count;
-- customer auth/linking failures;
-- client/server API errors.
-
-Do not log credentials, raw sensitive health text unnecessarily or service-role tokens.
-
-## 20. Backup / rollback
-
-- Preserve/verify existing Supabase backup workflow.
-- Every schema change is a migration in Git.
-- Destructive migrations require explicit approval and a restore path.
-- Vercel deployment rollback uses the prior verified deployment.
-- WodBuster mirrors are rebuildable from reconciliation where source availability permits.
-
-## 21. Build order
-
-1. staging schema + RLS + seeds + security audit;
-2. auth/identity linking;
-3. WodBuster adapter contract + fixtures + live verification;
-4. event/rule engine;
-5. customer shell and first vertical journey slice;
-6. EVO Coach task surface;
-7. milestone/recognition end-to-end;
-8. Admin configuration;
-9. day 90→180 bridge;
-10. final reliability/security/accessibility/load QA;
-11. production launch.
-
-## 22. First proof
-
-The first vertical slice must demonstrate:
-
+Architecture requirement:
 ```text
-customer exists
-→ journey assigned
-→ first-class briefing task
-→ attendance/check-in data arrives
-→ risk triggers Plan B if necessary
-→ unresolved risk creates 2–3 min coach task
-→ confirmed attendance count reaches 10
-→ milestone award + recognition task
-→ day 30 checkpoint
+critical action
+  → in-app state
+  + configurable external notification channel
 ```
 
-No production launch until this flow can be tested deterministically in staging.
+Do not select a new notification vendor by default. Concierge uses the existing operational channel; final automation is chosen after existing capabilities are reviewed.
+
+## 19. Baseline and product analytics
+
+Store a historical baseline before pilot interpretation where data permits:
+- early attendance/frequency;
+- frequency drop;
+- continuity around day 30/90;
+- absence/reactivation patterns.
+
+Pilot success must be compared to baseline, not to an isolated target percentage.
+
+## 20. Privacy/legal launch gate
+
+Treat sleep/fatigue/energy/sensitive signals conservatively until professional review confirms exact classification and basis.
+
+Before production close:
+- privacy notice;
+- legal basis/consents as applicable;
+- retention/deletion rules;
+- vendor/processor agreements;
+- data-region/residency record;
+- role/access review;
+- audit-log retention.
+
+Agents prepare technical evidence. Legal approval is not delegated to Codex.
+
+## 21. Visual/accessibility constraints
+
+Use the approved light premium-active direction and EVO tokens.
+
+Accessibility:
+- 44×44 minimum touch targets;
+- visible focus states;
+- 16px minimum body copy in app;
+- do not use yellow as low-contrast text on pale surfaces;
+- use `#FFFF4C` as accent or with dark EVO text where contrast is sufficient;
+- stale-data state must be visible when source freshness matters.
+
+## 22. Observability
+
+Minimum signals:
+- inbound event success/failure;
+- reconciliation last success + lag;
+- rule processor failures;
+- open/overdue/reassigned coach tasks;
+- duplicate prevention count;
+- auth/linking failures;
+- customer/server errors;
+- suppressed actions caused by stale source data.
+
+Do not log secrets or unnecessary sensitive free text.
+
+## 23. Backup / rollback
+
+- every schema change is a migration;
+- destructive migration requires explicit approval + restore path;
+- backup restore rehearsal before launch;
+- Vercel rollback rehearsal before launch;
+- WodBuster mirrors rebuildable where source access permits.
+
+## 24. Current build order
+
+1. verify WodBuster + capability tree;
+2. calculate historical baseline;
+3. run R01 0→14 concierge in parallel;
+4. close minimum staging/RLS/rollback blockers;
+5. secure invite/link + external critical-notification contract;
+6. implement WodBuster live only against verified capabilities;
+7. implement only R01 0→30 rule engine;
+8. implement customer + minimum coach surface;
+9. staging rehearsal with real team;
+10. launch gate.
+
+## 25. First proof
+
+The first proof is no longer expressed as a forced linear order between milestone 10 and day 30.
+
+```text
+customer linked
+→ R01 assigned
+→ first-class briefing
+→ attendance/check-in facts arrive
+→ Plan B if verified trigger occurs
+→ unresolved risk creates 2–3 min coach task
+→ day-30 checkpoint happens on calendar
+
+independently:
+confirmed attendance count reaches 10
+→ milestone award
+→ next eligible class recognition
+```
+
+No 31→180 expansion until this first proof works and the two evidence gates have passed.

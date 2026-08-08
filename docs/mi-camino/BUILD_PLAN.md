@@ -1,225 +1,274 @@
 # Mi Camino EVO V1 — Autonomous Build Plan
 
+Status: **reordered after external audit — 2026-08-08**
+
 ## Objective
 
-Deliver a production-ready web experience with the least possible Marian intervention. Engineering agents own implementation decisions; Marian only enters at documented human approval gates.
+Deliver a production-ready web experience with the least possible Marian intervention. Engineering agents own implementation decisions; Marian only enters at documented method, experience, privacy, irreversible-production or launch gates.
 
-## Build principle
+## Non-negotiable sequencing rule
 
-Do not build the whole product as parallel disconnected screens. Complete vertical slices using shared engines, then expand.
+**Do not expand product functionality while two critical hypotheses remain unverified:**
 
-## Phase 0 — Foundation / no product-wide coding yet
+1. **Data truth:** what WodBuster can actually provide at the granularity Mi Camino needs.
+2. **Human truth:** whether real customers and coaches understand/use the first 0→14 day loop as designed.
+
+The 0→180 product remains designed and frozen. `31→180`, Story of Evolution, EVO del Mes and expanded gamification are **backlog, not current build scope**.
+
+## Maximum active workstreams
+
+Only two strategic workstreams may be active until the evidence gates pass.
+
+### Workstream A — Data truth
+
+Deliverables:
+- verified WodBuster capability matrix;
+- decision tree `complete / partial / insufficient API`;
+- credential rotation before live connection;
+- historical adherence/retention baseline;
+- minimum staging/RLS/rollback readiness needed to safely test the slice.
+
+### Workstream B — Human truth
+
+Run a concierge test for Journey R01, days 0→14:
+- 5–8 compatible participants;
+- existing operational communication channel, no new notification tool required;
+- simulate next action, check-in, Plan B and coach tasks manually where necessary;
+- measure comprehension, coach time, ignored tasks, perceived support and copy friction.
+
+Recommended exit gate:
+- ≥80% understand the principal actions without extra explanation;
+- ordinary coach tasks fit within 2–3 real minutes;
+- no structural friction invalidates the R01 model.
+
+---
+
+## Gate A — WodBuster contract before live integration
+
+Verify with current official account access whether EVO can reliably obtain/receive:
+- customer identity / creation;
+- reservation created;
+- cancellation;
+- no-show;
+- confirmed attendance;
+- class/session identifier;
+- class date/time;
+- coach identifier;
+- available RestHooks/events;
+- authentication/signature model;
+- historical/reconciliation access.
+
+### Branch A — Complete
+Keep the planned architecture and implement the live adapter.
+
+### Branch B — Partial
+Keep only functions supported by reliable data. Redesign **only** the functions that depend on missing fields. Example: if coach-per-session is unavailable, do not fake exposure-based assignment.
+
+### Branch C — Insufficient
+Do not automate from guessed data. Simplify the affected feature or define an explicit operational capture path. CSV/manual import is acceptable for analysis/recovery, not as the permanent source for critical autonomous triggers.
+
+No endpoint, header, event or webhook signature may be invented from memory.
+
+---
+
+## Phase 0 — Foundation and evidence
 
 ### F0.1 Repository contract
-- `AGENTS.md` exists and is binding for Codex work.
-- All feature work uses branch → tests → preview/staging → PR.
-- No direct production-first migrations.
+- `AGENTS.md` remains binding.
+- branch → tests → preview/staging → PR.
+- no production-first migrations.
 
 ### F0.2 Supabase staging
-- Review and apply `20260807170000_mi_camino_evo_foundation.sql` to `programing-evo-staging`.
-- Generate TS types after migration.
-- Run security + performance advisors.
-- Fix every RLS blocker before customer test accounts are linked.
-- Explicitly audit old permissive anonymous policies outside `mc_*`; do not assume they are acceptable for Mi Camino.
+- `mc_*` schema stays in `programing-evo-staging` first.
+- complete negative RLS tests for customer/coach/admin.
+- run security/performance advisors after DDL changes.
+- preserve production isolation.
 
-### F0.3 Auth
-- Customer login uses Supabase Auth.
-- Preferred production customer UX: email magic link; password flow may remain as fallback/staging.
-- Customer is linked to `mc_people.user_id` by trusted server/admin process, not by arbitrary browser claims.
-- Coach/Admin access uses authenticated roles + RLS.
-- Legacy shared coach code is not an authorization mechanism for Mi Camino data.
+### F0.3 Authentication/linking
+- Supabase Auth.
+- trusted server/admin process links `auth.users.id` ↔ `mc_people.user_id` ↔ external WodBuster identity.
+- browser must never self-claim a WodBuster identity.
+- invite/account UX remains a functional gate before real customer testing.
 
-### F0.4 Hosting
-- Existing Vercel project remains preferred host.
-- PR Preview → staging → production.
-- Vercel Preview/Stage must use staging Supabase values.
-- Production values are separate and added only at launch gate.
-- `vercel.json` already rewrites SPA routes to `index.html`, so `/mi-camino/*` can be externally served.
+### F0.4 Hosting/recovery
+- external web via Vercel, never local-only.
+- Preview/Staging use staging Supabase.
+- choose one canonical Vercel project before production.
+- verify rollback and backup restore rehearsal before launch.
 
-### F0.5 WodBuster
-- Verify official API/RestHook access and auth for the account.
-- Rotate any old/exposed credential before production.
-- Add secrets only to server environment.
-- Finish `api/lib/wodbuster` transport only after verification.
-- Build fixture-backed integration tests before connecting live.
+### F0.5 Legal/privacy launch package
+Agents prepare the technical inventory; professional/human review owns the legal gate. Before production close:
+- privacy notice and lawful basis/consents as applicable;
+- sensitive-data treatment;
+- retention/deletion;
+- processor/vendor agreements where needed;
+- data region/residency;
+- role access;
+- audit-log retention.
 
-### F0.6 Observability / recovery
-- Verify existing backup workflow actually runs.
-- Add integration-health logging without secrets.
-- Document rollback for DB migration + Vercel deployment.
+### F0.6 Historical baseline
+Before pilot results are interpreted, save a baseline from available historical data. Minimum useful metrics where available:
+- first-weeks attendance/frequency;
+- frequency drop;
+- continuity around 30/90 days;
+- reactivation/absence patterns.
 
 ### Phase 0 exit
-- staging schema passes advisors;
-- customer, coach, admin test users prove RLS boundaries;
-- PR preview is external web URL;
-- WodBuster live connector either verified or explicitly marked as the only external blocker with adapter/fixtures ready.
+- WodBuster branch chosen;
+- baseline stored;
+- concierge gate passed;
+- RLS/staging/rollback minimum verified;
+- invite/linking path defined;
+- critical external notification path defined at architecture level.
 
 ---
 
-## Phase 1 — First vertical slice: customer → day 30
+## Phase 1 — First vertical slice: R01 customer → day 30
+
+Only after Phase 0 evidence gates.
 
 ### V1.1 Customer shell
-Already scaffolded:
-- `/mi-camino/*` entry;
-- `Hoy`;
-- `Mi camino`;
-- `Evolución`;
-- `Perfil`;
-- loading/empty/error/login states.
+- `/mi-camino/*`;
+- `Hoy`, `Mi camino`, `Evolución`, `Perfil`;
+- loading/empty/error/data-stale states;
+- `Hoy` = one primary action + week + next milestone only.
 
-Finish:
-- accessibility/keyboard QA;
-- real badge artwork component;
-- content states from published configs;
-- visual regression screenshots.
+### V1.2 Enrollment/linking
+- trusted customer link;
+- Journey R01 assignment;
+- confirmed barrier hypothesis;
+- first-class coach task.
 
-### V1.2 Enrollment
-Build trusted admin/server workflow:
-- receive/sync WodBuster customer;
-- link existing/new Supabase auth user;
-- create `mc_people`;
-- assign one of three active journey templates;
-- persist confirmed barrier hypothesis;
-- generate first-class task.
+### V1.3 First class + missed-task path
+Coach gets briefing and quick observation. Every task has owner, due time and status.
+If not completed:
+1. mark `overdue`;
+2. reassign to next eligible coach or exposure-based owner when data supports it;
+3. unresolved exception escalates to admin.
 
-### V1.3 First class
-EVO Coach task shows:
-- brief from intake;
-- exact first-class questions/fields;
-- required quick observation;
-- padrino/madrina reminder if applicable;
-- one-tap completion.
+Vacations/substitutions must not require Marian to redistribute routine tasks manually.
 
-### V1.4 Week 2 + weekly check-in
-Customer check-in is <1 minute and uses only three approved questions.
-
-Rules cross-check check-in with attendance/reservations/Plan B.
+### V1.4 Check-in
+Approved 3-question check-in, <1 minute.
 
 ### V1.5 Plan B
-- cancellation/no-show event;
-- projected frequency risk;
-- wait 24h without replacement;
-- deterministic Plan B family B1/B2/B3;
-- safety blocking;
-- completion does not increment attendance.
+Trigger only from verified facts and approved rules. Safety exclusions block automatic exercise proposals.
 
-### V1.6 Coach escalation
-When continuity alerts persist:
-- create one task owner;
-- assign next-class coach, otherwise highest-exposure coach;
-- render 2–3 minute script + one recommendation;
-- three one-tap outcomes;
-- follow-up closes automatically when evidence changes.
+Canonical families for implementation:
+- **B1 · Mantener el vínculo**
+- **B2 · Sustituir la sesión**
+- **B3 · Mantener el estímulo**
 
-### V1.7 Attendance milestone 10
-- source = confirmed WodBuster attendance only;
-- award `En marcha` (configurable milestone definition);
-- next-class recognition task;
-- max two public recognitions per class;
-- absent → defer to next class;
-- mark celebrated.
+### V1.6 Critical notification
+A risk-triggered action cannot depend only on app-open behavior. Architecture exposes a configurable external notification channel.
 
-### V1.8 Day 30 review
-- auto-summarize objective metrics;
-- assigned coach adds max 2 categories + one line;
-- customer receives concise evolution output;
-- route to continue / one adjustment / human review.
+Do **not** select a new tool by default. Concierge uses the existing operational channel; automation choice comes after reviewing existing capabilities.
+
+### V1.7 Coach escalation
+- one owner;
+- brief + exact wording + one recommended proposal;
+- 2–3 minute budget;
+- closed outcomes.
+
+### V1.8 Attendance milestones are event-driven
+Attendance milestones come only from confirmed attendance.
+
+**Important:** milestone 10 and day-30 checkpoint are independent clocks. A 2x/week customer may reach attendance 10 after day 30; this is valid and must not block day-30 review.
+
+### V1.9 Day 30
+Calendar checkpoint runs on schedule regardless of attendance milestone state.
 
 ### Phase 1 exit
-One staging customer can be driven through the whole slice with deterministic fixtures and no Marian intervention.
+A staging customer can complete R01 0→30 with stable and Plan-B scenarios, no false data assumptions and no Marian routine intervention.
 
 ---
 
-## Phase 2 — Complete days 31–90
+## Veteran-member compatibility
 
-Reuse the same engines, add:
-- day 60 checkpoint;
-- month 3 novelty/commitment logic;
-- all-or-nothing reflection and compassionate operational response;
-- organization window-of-compliance experiment;
-- sleep/energy adaptive module inside return-after-pause journey only;
-- week 11 Story of Evolution + coach validation;
-- day 90 outcome decision.
+The model must support two entry states:
+- new customer with day 0 journey;
+- existing/veteran customer with imported history where available.
 
-Do not create another engine per journey. Journey templates configure shared primitives.
+Veterans do not pretend to start from zero and do not receive a burst of retroactive public celebrations. Compute the next relevant future milestone.
 
-### Phase 2 exit
-All three 0–90 journeys pass scripted staging scenarios.
+Veteran UX may be built after the first 0→30 slice, but schema/routing must not make it impossible.
 
 ---
 
-## Phase 3 — Bridge 90–180
+## Recognition privacy rule
 
-Common bridge structure:
-- one next goal;
-- recommended frequency;
-- one outside-training action;
-- short challenge only when useful;
-- inherited barrier context;
-- exception-based follow-up;
-- day 180 review.
+Safe EVO milestones remain public by default. Do not expose a general privacy preference in the customer UI.
 
-No paid-product checkout in V1 unless separately approved. Only recommendation slots can exist.
+Provide an admin/staff exception flag such as `private_recognition` when:
+- the person explicitly asks not to be named publicly; or
+- a sensitive circumstance makes public recognition inappropriate.
+
+Never publicly expose health, body, injury, nutrition, sensitive goals or private reasons for absence.
 
 ---
 
-## Phase 4 — Gamification + community polish
+## Phase 2 — Coach minimum for R01
 
-Complete:
-- badge library and neutral names;
-- personal best / personal streak designed around sustainability;
-- collective EVO missions;
-- temporary team challenges;
-- EVO del Mes nomination/validation;
-- special-workout template reference to Programming EVO.
+Only what the 0→30 slice needs:
+- first-class briefing/closure;
+- contextual 2–3 min contact;
+- milestone recognition when event occurs;
+- overdue/reassignment/escalation behavior.
 
-Never add permanent person-to-person leaderboard.
+Before real pilot, estimate aggregate coach load for expected new-customer volume.
 
 ---
 
-## Phase 5 — Admin EVO
+## Phase 3 — Reliability / launch gate
 
-Admin must edit without code:
-- active journey/version;
-- milestone thresholds/copy/badge;
-- Plan B catalog;
-- contextual resources;
-- check-in copy;
-- coach scripts;
-- alert thresholds;
-- challenge definitions;
-- integration health.
-
-Publishing is versioned and audited.
+Before production:
+- live WodBuster tests for every capability actually used;
+- negative RLS tests for all roles;
+- restore rehearsal;
+- Vercel rollback rehearsal;
+- privacy/legal package closed;
+- external critical notification path operational;
+- coach capacity + substitution rule documented;
+- historical baseline stored;
+- concierge gate passed;
+- real-team staging rehearsal;
+- Marian launch approval.
 
 ---
 
-## Phase 6 — Reliability and launch
+## Frozen backlog — do not build yet
 
-Required:
-- security advisor clean for blocking findings;
-- RLS test matrix;
-- e2e tests across customer/coach/admin;
-- WodBuster retry/reconciliation test;
-- duplicate event/idempotency test;
-- accessibility pass;
-- responsive pass on common mobile widths;
-- real trainer pilot;
-- real-customer usability pilot;
-- backup restore rehearsal;
-- rollback drill;
-- production environment variable checklist;
-- final launch approval.
+Preserve as approved, but blocked until R01 0→30 proves the engine:
+- days 31→90;
+- Story of Evolution week 11;
+- Bridge 90→180;
+- EVO del Mes / special workout;
+- temporary team competition expansion;
+- broader badge catalogue;
+- paid post-180 products.
+
+Do not delete this work and do not redesign it unless real evidence shows a structural problem.
+
+## Current strict execution order
+
+1. WodBuster capability verification + decision tree.
+2. Historical baseline calculation (parallel to #1).
+3. Concierge R01 0→14 (parallel workstream).
+4. Finish minimum #14/#21 staging, RLS and rollback blockers.
+5. Resolve secure invitation/linking + external critical notification channel contract.
+6. Build #16 live only against verified WodBuster capabilities.
+7. Build #17 only for R01 0→30 rules.
+8. Build #18 + minimum #19 for R01 0→30.
+9. Real-team staging rehearsal.
+10. Launch gate.
 
 ## Human actions that may remain
 
-Codex should not ask Marian to do technical work it can do itself.
+Codex must not ask Marian for technical work it can do.
 
-Only likely owner-only actions:
-1. rotate/enable WodBuster credentials or account API/RestHook access;
-2. approve/pick production domain if a domain change is wanted;
-3. approve customer-facing method/privacy/launch decisions;
-4. approve any external service with material cost;
-5. complete third-party account verification that requires owner identity.
-
-Everything else should be done by the engineering agent and reported after completion.
+Likely owner-only actions:
+1. enable/rotate third-party credentials/account access;
+2. approve method/customer experience/privacy changes;
+3. provide/approve professional legal review where required;
+4. approve paid external service changes;
+5. final production launch approval.

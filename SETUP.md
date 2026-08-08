@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- **Node.js 20.x** (coincide con `engines` en `package.json`) → https://nodejs.org
+- **Node.js 22.x** (coincide con `engines` en `package.json`) → https://nodejs.org
 
 ## Instalación
 

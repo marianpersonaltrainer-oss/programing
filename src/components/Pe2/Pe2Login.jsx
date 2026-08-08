@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { evoBrand } from '../../constants/evoBrand.js'
 
 export default function Pe2Login({ onSignIn, loading, error }) {
-  const [email, setEmail] = useState('marianpersonaltrainer@gmail.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   async function handleSubmit(e) {
@@ -24,7 +24,7 @@ export default function Pe2Login({ onSignIn, loading, error }) {
           Iniciar sesión
         </h1>
         <p className="text-sm mb-6" style={{ color: evoBrand.muted }}>
-          Acceso con Supabase Auth. Programadores entran al módulo de programación; coaches a Sala (Fase 2).
+          Acceso con Supabase Auth. Programadores entran al módulo de programación; entrenadores a Mi turno.
         </p>
 
         {error ? (

@@ -8,13 +8,16 @@
   },
   "scripts": {
     "dev": "vite",
+    "validate:deployment": "node scripts/validate-deployment-target.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:ci": "vitest run && vite build",
+    "test:ci": "vitest run && npm run test:migration:shift-protocols && vite build",
     "test:prompts": "vitest run src/constants/systemPromptCore.test.js src/domain/method/methodEvoV1.test.js src/utils/coachSupportContext.test.js",
     "test:method": "vitest run src/utils/methodPrompt.test.js src/utils/weeklyOffer.test.js api/programming-week-briefing.test.js api/programming-week-briefing.handler.test.js api/lib/briefingTimeBudget.test.js src/utils/parseJsonApiResponse.test.js src/utils/buildDeterministicBriefingProposal.test.js src/utils/excelGenerationJobStorage.test.js src/components/ExcelGeneratorModal/ExcelGeneratorModal.generationFlow.test.js",
     "test:evo-rules": "vitest run src/domain/method/evoBasicsSkills.test.js src/domain/method/methodEvoV1.test.js src/utils/methodPrompt.test.js src/constants/systemPromptCore.test.js",
+    "test:shift-protocols": "vitest run src/domain/shiftProtocolLog.test.js src/domain/shiftNote.test.js src/domain/shiftTaskProgress.test.js src/components/Pe2/Pe2ShiftView.interface.test.js src/constants/shiftProtocolResources.test.js src/utils/shiftProtocolTime.test.js supabase/migrations/pe2_auth_foundation.test.js supabase/migrations/shift_protocol_logs.test.js",
+    "test:migration:shift-protocols": "node scripts/test-shift-protocols-migration-local.mjs",
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
     "db:apply-pe2-structured-auth": "node scripts/apply-migration-pe2-structured-auth.mjs",
@@ -34,6 +37,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "pg": "^8.14.1",

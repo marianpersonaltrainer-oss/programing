@@ -86,7 +86,7 @@ function getServerConfig() {
     serviceKey: String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
     adminSecret: String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim(),
     anthropicApiKey: String(
-      process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '',
+      process.env.ANTHROPIC_API_KEY || '',
     ).trim(),
   }
 }

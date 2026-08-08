@@ -558,7 +558,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'JSON inválido' })
   }
 
-  const apiKey = (process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '').trim()
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
   if (!apiKey) {
     return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY en el servidor.' })
   }

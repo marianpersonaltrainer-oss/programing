@@ -2,6 +2,9 @@ import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { validateDeploymentTarget } from './scripts/validate-deployment-target.mjs'
+
+validateDeploymentTarget(process.env)
 
 function resolveBuildId() {
   const fromVercel = String(process.env.VERCEL_GIT_COMMIT_SHA || '').trim().slice(0, 7)

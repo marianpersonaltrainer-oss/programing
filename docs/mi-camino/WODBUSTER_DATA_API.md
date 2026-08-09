@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Contrato funcional confirmado para V1.**
+**Contrato funcional confirmado para V1. Endpoints/auth exactos pendientes de confirmación final de soporte.**
 
 Soporte WodBuster confirmó que la primera fase puede resolverse con API de Datos usando:
 
@@ -19,13 +19,15 @@ Esta integración es infraestructura compartida:
 
 `WodBuster → worker server-side → Nucleus EVO / Supabase`
 
-No depende del frontend ni del despliegue de Programming EVO. Programming/EVO Coach y la app independiente Mi Camino EVO consumen datos normalizados desde Nucleus mediante vistas/RPC con RLS. Ninguna app cliente recibe la clave WodBuster ni la service role.
+No depende del frontend ni del despliegue de Programming EVO. Programming/EVO Coach y la app independiente Mi Camino EVO consumen datos normalizados desde Nucleus. Ninguna app cliente recibe credenciales WodBuster ni Supabase service role.
 
 ## Contrato funcional confirmado
 
 ### Atletas
 
 Fuente de identidad externa de clientes. Se conserva el identificador WodBuster como clave de enlace.
+
+`mc_people` recibe únicamente los campos normalizados necesarios. **Nunca** se guarda el payload bruto de `Atletas` en `mc_people.metadata`, porque esa tabla puede ser auto-legible por el cliente mediante RLS y el raw administrativo puede contener PII innecesaria.
 
 ### CuantoEntrenan
 
@@ -42,86 +44,124 @@ Reglas:
 
 - **reserva ≠ asistencia**;
 - **asistencia confirmada** = `FechaLecturaTorno` con valor;
-- **no-show** = sesión finalizada + no cancelada + sin `FechaLecturaTorno`.
+- **no-show** = sesión finalizada + no cancelada + sin `FechaLecturaTorno`;
+- fecha y hora separadas se combinan en `Europe/Madrid`, evitando clasificar como no-show una clase futura del mismo día.
 
 ### CuantoEnseñan
 
 Sesiones impartidas con fecha/hora, entrenamiento y coach. Se cruza con `CuantoEntrenan` por ID de sesión; si WodBuster no entrega ID en una respuesta concreta, el normalizador usa una clave estable de fecha + hora + entrenamiento.
 
-La exposición de coach se calculará después contando únicamente sesiones con asistencia confirmada.
+La exposición de coach se calculará después contando únicamente sesiones con asistencia confirmada. Las sesiones con más de un coach se conservan en el mirror `mc_wodbuster_coach_sessions`.
 
 ## Implementación de V1
 
 Código compartido:
 
 - `integrations/wodbuster/adapter.js`: transporte server-side;
-- `integrations/wodbuster/normalize.js`: normalización e IDs estables;
-- `integrations/wodbuster/reconcile.js`: upserts idempotentes;
+- `integrations/wodbuster/normalize.js`: normalización, fechas/horas e IDs estables;
+- `integrations/wodbuster/reconcile.js`: upserts idempotentes y corrección de cambios tardíos;
 - `integrations/wodbuster/freshness.js`: guard de datos desfasados;
-- `integrations/wodbuster/recovery.js`: candidatos neutrales a seguimiento, sin decidir todavía Plan B;
+- `integrations/wodbuster/recovery.js`: candidatos neutrales a seguimiento, sin decidir Plan B;
 - `scripts/sync-wodbuster.mjs`: worker independiente;
-- `.github/workflows/wodbuster-reconciliation.yml`: ejecución en staging.
+- `.github/workflows/wodbuster-reconciliation.yml`: ejecución controlada en staging.
 
-## Ventanas de reconciliación
+## Reconciliación
 
-Configurables, no hardcodeadas en producto:
+Ventanas configurables, no hardcodeadas en producto:
 
 - `frequent`: últimos 3 días;
 - `daily`: últimos 45 días;
 - `historical`: rango explícito `WODBUSTER_SYNC_FROM` → `WODBUSTER_SYNC_TO`.
 
-El objetivo es que cambios tardíos/correcciones en WodBuster reparen Nucleus sin duplicar efectos.
+Una corrección posterior de WodBuster debe reparar Nucleus sin duplicar efectos.
 
-## Seguridad
+### Corrección de asistencia
 
-- Las claves WodBuster y Supabase service role son **solo servidor**.
-- Prohibido cualquier `VITE_*` para secretos.
-- Las credenciales visibles históricamente deben rotarse antes del primer live test con datos reales.
-- Las tablas raw/mirror no son superficie de cliente; su lectura directa queda limitada a admin por RLS.
-- Si la sincronización está stale/degraded, se suprimen acciones negativas automáticas hacia clientes.
+`mc_wodbuster_attendance` mantiene un registro estable por reserva:
+
+- `confirmed=true` → asistencia real y única señal válida para frecuencia/hitos;
+- `confirmed=false` → no cuenta como asistencia;
+- `attended_at` puede ser `null`.
+
+Esto permite que una `FechaLecturaTorno` añadida o retirada posteriormente corrija el mismo registro en la siguiente reconciliación. Nunca se conserva una asistencia fantasma por haber sido confirmada erróneamente en una consulta anterior.
+
+### Recolocación tras una semana complicada
+
+El checkpoint de producto sigue siendo 24 h después de cancelación/cancelación tardía/no-show. Si al revisar existe una reserva válida futura, esa clase puede celebrarse varios días después: no se exige que el entrenamiento ocurra dentro de las primeras 24 h.
+
+La decisión final sobre riesgo de frecuencia y Plan B pertenece a la capa de producto (#17), no a #16.
+
+## Seguridad y minimización
+
+- Credenciales WodBuster y Supabase service role: **solo servidor**.
+- Prohibido cualquier secreto bajo `VITE_*`.
+- Las credenciales visibles históricamente se rotan antes del primer live test.
+- Raw de reservas/asistencia/coach queda fuera de la superficie cliente y con lectura directa restringida a admin.
+- Raw de `Atletas` no se guarda en `mc_people`.
+- El sync no sobrescribe `mc_people.metadata` de producto.
+- Si la sincronización está stale/degraded, se suprimen acciones negativas automáticas.
 - Nunca registrar credenciales en logs ni persistirlas en `raw`.
 
-## Variables de staging
+## Configuración de staging
 
-Configurar exclusivamente en el GitHub Environment `programing-evo-staging`:
+El destino es exclusivamente el GitHub Environment `programing-evo-staging` y el Supabase staging.
+
+Variables de transporte previstas por el adapter actual:
 
 - `WODBUSTER_DATA_ATLETAS_URL`
 - `WODBUSTER_DATA_CUANTO_ENTRENAN_URL`
 - `WODBUSTER_DATA_CUANTO_ENSENAN_URL`
-- `WODBUSTER_DATA_ACCESS_KEY`
+- credencial/autenticación WodBuster server-side
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `MC_ORG_ID`
+- `EVO_TIMEZONE=Europe/Madrid`
 
-Opcionales:
+**Importante:** los nombres/modo exacto de autenticación WodBuster se consideran provisionales hasta recibir la confirmación solicitada a soporte. No configurar una credencial real contra una suposición de header/auth.
 
-- `WODBUSTER_DATA_AUTH_HEADER` (default `API_ACCESS_KEY`)
-- `WODBUSTER_DATA_TIMEOUT_MS` (default `15000`)
-- `EVO_TIMEZONE` (default `Europe/Madrid`)
+## Migraciones de #16
 
-## Runbook de staging
+En una instalación nueva:
 
-1. Aplicar `20260809170000_mi_camino_wodbuster_data_sync.sql` solo en `programing-evo-staging`.
-2. Ejecutar advisors de seguridad/performance y resolver cualquier error crítico propio de `mc_*`.
-3. Rotar la credencial WodBuster expuesta históricamente.
-4. Configurar los secretos del GitHub Environment de staging.
-5. Ejecutar manualmente el workflow en modo `frequent`.
-6. Verificar en Nucleus un caso real controlado de:
-   `persona → sesión → reserva/estado → asistencia/no-show → coach`.
-7. Repetir el mismo rango y confirmar idempotencia.
-8. Corregir en WodBuster un dato de prueba permitido o ampliar la ventana y comprobar que reconciliación actualiza sin duplicar.
-9. Confirmar `mc_sync_state.last_status = ok` y que el guard stale funciona si se fuerza un fallo controlado.
-10. Solo después dejar habilitado el schedule de staging.
+1. `20260809170000_mi_camino_wodbuster_data_sync.sql`
+2. `20260809173000_wodbuster_security_hardening.sql`
+3. `20260809180000_wodbuster_attendance_correction.sql`
+4. `20260809181000_wodbuster_people_data_minimization.sql`
+
+Staging ya tiene aplicados los cambios equivalentes. Producción no se ha tocado.
+
+## Live test antes del merge
+
+No es necesario fusionar #16 para ejecutar la prueba real.
+
+El workflow acepta un evento `pull_request:labeled` y solo ejecuta el sync real cuando el PR recibe explícitamente la etiqueta:
+
+`run-wodbuster-live`
+
+Secuencia:
+
+1. confirmar endpoints y auth oficiales;
+2. rotar/crear una credencial WodBuster exclusiva para esta integración;
+3. configurar únicamente los secretos del environment `programing-evo-staging`;
+4. añadir `run-wodbuster-live` al PR #27;
+5. ejecutar modo `frequent` contra staging;
+6. verificar un caso real de `persona → sesión → reserva/estado → asistencia/no-show → coach`;
+7. repetir el rango y confirmar idempotencia;
+8. verificar una corrección posterior y confirmar que Nucleus se repara;
+9. confirmar `mc_sync_state.last_status = ok` y freshness saludable;
+10. retirar la etiqueta o mantener el workflow sin nuevas ejecuciones hasta la decisión de merge.
+
+Así `main` y producción permanecen intactos durante el gate.
 
 ## Rollback
 
-El worker puede detenerse deshabilitando el workflow sin tocar Programming EVO ni Mi Camino EVO.
+El worker puede detenerse sin tocar Programming EVO ni Mi Camino EVO.
 
-La migración es aditiva. Si hubiese que retirar esta versión antes de lanzamiento:
+Si hubiese que retirar esta versión antes de lanzamiento:
 
-1. deshabilitar workflow;
-2. retirar secretos del environment;
-3. conservar mirrors para auditoría hasta decidir su borrado;
+1. no fusionar/cerrar PR;
+2. retirar secretos del environment de staging;
+3. conservar mirrors de staging solo mientras sean útiles para auditoría;
 4. no borrar datos automáticamente desde CI.
 
 ## Criterio de aceptación #16
@@ -133,10 +173,12 @@ En staging debe quedar demostrado:
 más:
 
 - reconciliación idempotente;
-- recuperación de cambios posteriores;
+- recuperación de cambios posteriores, incluida retirada de una asistencia errónea;
 - reserva nunca cuenta como asistencia;
 - multi-coach no se pierde;
+- una clase futura del mismo día no se convierte prematuramente en no-show;
 - datos stale no generan acciones negativas;
-- cero secretos en navegador, repo o logs.
+- cero secretos en navegador, repo o logs;
+- cero payload bruto de `Atletas` en una tabla auto-legible por cliente.
 
 Hasta completar el live test controlado, #16 está **implementado pero no cerrado**.

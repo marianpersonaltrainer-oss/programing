@@ -56,13 +56,16 @@ export async function reconcileWodBuster({
 
     const syncedAt = now.toISOString()
 
+    // mc_people can be exposed to the person herself through RLS. Keep only the
+    // normalized identity fields needed by Mi Camino and never persist the full
+    // Atletas payload here (it may contain DNI, phone, address, tariff, etc.).
+    // Omit metadata from the upsert so existing product metadata is preserved.
     await upsert(db, 'mc_people', athletes.map((athlete) => ({
       org_id: orgId,
       wodbuster_user_id: athlete.externalPersonId,
       full_name: athlete.fullName,
       email: athlete.email,
       joined_at: athlete.joinedAt,
-      metadata: { wodbuster_snapshot: athlete.raw },
       updated_at: syncedAt,
     })), 'org_id,wodbuster_user_id')
 

@@ -111,7 +111,7 @@ describe('freshness and neutral recovery detection', () => {
 })
 
 describe('idempotent reconciliation', () => {
-  it('uses stable conflict keys and persists confirmed attendance only as confirmed=true', async () => {
+  it('uses stable conflict keys, minimizes person data and persists confirmed attendance', async () => {
     const writes = []
     const db = {
       from: (table) => ({
@@ -122,7 +122,7 @@ describe('idempotent reconciliation', () => {
       }),
     }
     const adapter = {
-      listAthletes: async () => [{ IdAtleta: 3, Nombre: 'Eva' }],
+      listAthletes: async () => [{ IdAtleta: 3, Nombre: 'Eva', Dni: 'SENSITIVE', Telefono: '600000000' }],
       listTraining: async () => [raw({ FechaLecturaTorno: '2026-08-01T10:00:00Z' })],
       listCoaching: async () => [
         { IdClase: 10, FechaClase: '2026-08-01', HoraClase: '10:00:00', IdCoach: 2, Coach: 'Ana' },
@@ -132,6 +132,9 @@ describe('idempotent reconciliation', () => {
 
     await reconcileWodBuster({ adapter, db, orgId: 'org', from: '2026-08-01', to: '2026-08-03', now })
 
+    const person = writes.find((entry) => entry.table === 'mc_people')
+    expect(person.rows[0]).not.toHaveProperty('metadata')
+    expect(person.rows[0]).not.toHaveProperty('raw')
     const attendance = writes.find((entry) => entry.table === 'mc_wodbuster_attendance')
     expect(attendance.rows[0].confirmed).toBe(true)
     expect(attendance.rows[0].attended_at).toBe('2026-08-01T10:00:00.000Z')

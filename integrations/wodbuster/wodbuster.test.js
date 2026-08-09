@@ -111,7 +111,7 @@ describe('freshness and neutral recovery detection', () => {
 })
 
 describe('idempotent reconciliation', () => {
-  it('uses stable conflict keys and persists attendance only when confirmed', async () => {
+  it('uses stable conflict keys and persists confirmed attendance only as confirmed=true', async () => {
     const writes = []
     const db = {
       from: (table) => ({
@@ -134,11 +134,12 @@ describe('idempotent reconciliation', () => {
 
     const attendance = writes.find((entry) => entry.table === 'mc_wodbuster_attendance')
     expect(attendance.rows[0].confirmed).toBe(true)
+    expect(attendance.rows[0].attended_at).toBe('2026-08-01T10:00:00.000Z')
     expect(attendance.options.onConflict).toBe('org_id,external_attendance_id')
     expect(writes.find((entry) => entry.table === 'mc_wodbuster_coach_sessions').rows).toHaveLength(2)
   })
 
-  it('does not write attendance for a no-show', async () => {
+  it('mirrors a no-show as confirmed=false so a prior erroneous attendance can be corrected', async () => {
     const writes = []
     const db = {
       from: (table) => ({
@@ -154,7 +155,10 @@ describe('idempotent reconciliation', () => {
       listCoaching: async () => [],
     }
 
-    await reconcileWodBuster({ adapter, db, orgId: 'org', from: '2026-08-01', to: '2026-08-03', now })
-    expect(writes.some((entry) => entry.table === 'mc_wodbuster_attendance')).toBe(false)
+    const result = await reconcileWodBuster({ adapter, db, orgId: 'org', from: '2026-08-01', to: '2026-08-03', now })
+    const attendance = writes.find((entry) => entry.table === 'mc_wodbuster_attendance')
+    expect(attendance.rows[0].confirmed).toBe(false)
+    expect(attendance.rows[0].attended_at).toBe(null)
+    expect(result.attendance).toBe(0)
   })
 })

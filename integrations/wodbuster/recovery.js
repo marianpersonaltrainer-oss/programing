@@ -28,12 +28,17 @@ export function findRecoveryCandidates(
     const eligibleAt = new Date(trigger.getTime() + waitHours * 3600000)
     if (eligibleAt > now) continue
 
+    // At the 24h checkpoint we only need to know whether the person has already
+    // recovered continuity by holding a later valid booking/attendance. The
+    // replacement class itself may be several days later; limiting its start to
+    // the first 24h would create false follow-up tasks for people who rebooked
+    // promptly into the next class that actually fits their schedule.
     const relocated = reservations.some((other) => {
       if (other.wodbuster_user_id !== missed.wodbuster_user_id) return false
       if (other.external_reservation_id === missed.external_reservation_id) return false
       if (!['reserved', 'attended'].includes(other.status)) return false
       const nextStart = new Date(other.starts_at)
-      return !Number.isNaN(nextStart.valueOf()) && nextStart > trigger && nextStart <= eligibleAt
+      return !Number.isNaN(nextStart.valueOf()) && nextStart > trigger
     })
 
     if (!relocated && !seen.has(missed.external_reservation_id)) {

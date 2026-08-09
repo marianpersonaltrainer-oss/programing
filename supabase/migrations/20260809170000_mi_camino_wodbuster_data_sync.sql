@@ -2,13 +2,16 @@
 -- This migration contains data-ingestion infrastructure only; no Mi Camino UI/product tables.
 
 create extension if not exists pgcrypto;
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
 
-create or replace function public.mc_shared_is_admin()
+create or replace function private.mc_shared_is_admin()
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, private
 as $$
   select exists (
     select 1
@@ -18,8 +21,8 @@ as $$
   );
 $$;
 
-revoke all on function public.mc_shared_is_admin() from public, anon;
-grant execute on function public.mc_shared_is_admin() to authenticated;
+revoke all on function private.mc_shared_is_admin() from public, anon;
+grant execute on function private.mc_shared_is_admin() to authenticated;
 
 create table if not exists public.mc_people (
   id uuid primary key default gen_random_uuid(),
@@ -130,11 +133,11 @@ create table if not exists public.mc_sync_state (
   unique (org_id, source, sync_key)
 );
 
-create index if not exists mc_wb_res_user_start_idx
+create index if not exists mc_wodbuster_reservations_user_start_idx
   on public.mc_wodbuster_reservations(org_id, wodbuster_user_id, starts_at);
 create index if not exists mc_wb_res_status_start_idx
   on public.mc_wodbuster_reservations(org_id, status, starts_at);
-create index if not exists mc_wb_att_user_date_idx
+create index if not exists mc_wodbuster_attendance_user_date_idx
   on public.mc_wodbuster_attendance(org_id, wodbuster_user_id, attended_at);
 create index if not exists mc_wb_coach_session_start_idx
   on public.mc_wodbuster_coach_sessions(org_id, starts_at, coach_external_id);
@@ -148,14 +151,12 @@ alter table public.mc_wodbuster_attendance enable row level security;
 alter table public.mc_wodbuster_coach_sessions enable row level security;
 alter table public.mc_sync_state enable row level security;
 
--- Raw WodBuster mirrors are never available to anonymous users.
 revoke all on table public.mc_wodbuster_events from anon;
 revoke all on table public.mc_wodbuster_reservations from anon;
 revoke all on table public.mc_wodbuster_attendance from anon;
 revoke all on table public.mc_wodbuster_coach_sessions from anon;
 revoke all on table public.mc_sync_state from anon;
 
--- Authenticated users need SELECT privilege for RLS to decide; only admins get rows here.
 grant select on table public.mc_wodbuster_events to authenticated;
 grant select on table public.mc_wodbuster_reservations to authenticated;
 grant select on table public.mc_wodbuster_attendance to authenticated;
@@ -164,23 +165,23 @@ grant select on table public.mc_sync_state to authenticated;
 
 drop policy if exists mc_shared_wb_events_admin_read on public.mc_wodbuster_events;
 create policy mc_shared_wb_events_admin_read on public.mc_wodbuster_events
-  for select to authenticated using (public.mc_shared_is_admin());
+  for select to authenticated using (private.mc_shared_is_admin());
 
 drop policy if exists mc_shared_wb_res_admin_read on public.mc_wodbuster_reservations;
 create policy mc_shared_wb_res_admin_read on public.mc_wodbuster_reservations
-  for select to authenticated using (public.mc_shared_is_admin());
+  for select to authenticated using (private.mc_shared_is_admin());
 
 drop policy if exists mc_shared_wb_att_admin_read on public.mc_wodbuster_attendance;
 create policy mc_shared_wb_att_admin_read on public.mc_wodbuster_attendance
-  for select to authenticated using (public.mc_shared_is_admin());
+  for select to authenticated using (private.mc_shared_is_admin());
 
 drop policy if exists mc_shared_wb_coach_admin_read on public.mc_wodbuster_coach_sessions;
 create policy mc_shared_wb_coach_admin_read on public.mc_wodbuster_coach_sessions
-  for select to authenticated using (public.mc_shared_is_admin());
+  for select to authenticated using (private.mc_shared_is_admin());
 
 drop policy if exists mc_shared_sync_admin_read on public.mc_sync_state;
 create policy mc_shared_sync_admin_read on public.mc_sync_state
-  for select to authenticated using (public.mc_shared_is_admin());
+  for select to authenticated using (private.mc_shared_is_admin());
 
 comment on table public.mc_wodbuster_events is 'Server-side mirror/audit of WodBuster snapshots; never stores integration credentials.';
 comment on table public.mc_wodbuster_reservations is 'Normalized reservation/cancel/no-show state from CuantoEntrenan.';

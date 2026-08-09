@@ -95,8 +95,8 @@ create table if not exists public.mc_wodbuster_attendance (
   class_name text,
   coach_external_id text,
   coach_name text,
-  attended_at timestamptz not null,
-  confirmed boolean not null default true,
+  attended_at timestamptz,
+  confirmed boolean not null default false,
   raw jsonb not null default '{}'::jsonb,
   synced_at timestamptz not null default now(),
   unique (org_id, external_attendance_id)
@@ -185,6 +185,6 @@ create policy mc_shared_sync_admin_read on public.mc_sync_state
 
 comment on table public.mc_wodbuster_events is 'Server-side mirror/audit of WodBuster snapshots; never stores integration credentials.';
 comment on table public.mc_wodbuster_reservations is 'Normalized reservation/cancel/no-show state from CuantoEntrenan.';
-comment on table public.mc_wodbuster_attendance is 'Confirmed attendance only; reservation is never treated as attendance.';
+comment on table public.mc_wodbuster_attendance is 'Attendance confirmation mirror keyed by reservation; only confirmed=true counts as real attendance.';
 comment on table public.mc_wodbuster_coach_sessions is 'Normalized class/coach sessions from CuantoEnsenan.';
 comment on table public.mc_sync_state is 'Health and reconciliation state for shared external data sources.';

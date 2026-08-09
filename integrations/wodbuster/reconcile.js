@@ -92,8 +92,11 @@ export async function reconcileWodBuster({
       synced_at: syncedAt,
     })), 'org_id,external_reservation_id')
 
-    const attendance = reservations.filter((reservation) => reservation.attendedAt)
-    await upsert(db, 'mc_wodbuster_attendance', attendance.map((reservation) => ({
+    // Mirror the attendance state for every reservation, not only confirmed rows.
+    // This lets a later WodBuster correction (for example, attendance removed after
+    // an erroneous check) reconcile the same stable row back to confirmed=false.
+    // Product logic must always filter confirmed=true before counting attendance/hits.
+    await upsert(db, 'mc_wodbuster_attendance', reservations.map((reservation) => ({
       org_id: orgId,
       external_attendance_id: `attendance:${reservation.externalReservationId}`,
       external_reservation_id: reservation.externalReservationId,
@@ -103,7 +106,7 @@ export async function reconcileWodBuster({
       coach_external_id: reservation.coaches[0]?.externalCoachId || null,
       coach_name: reservation.coaches.map((coach) => coach.coachName).filter(Boolean).join(', ') || null,
       attended_at: reservation.attendedAt,
-      confirmed: true,
+      confirmed: Boolean(reservation.attendedAt),
       raw: reservation.raw,
       synced_at: syncedAt,
     })), 'org_id,external_attendance_id')
@@ -119,10 +122,11 @@ export async function reconcileWodBuster({
       synced_at: syncedAt,
     })), 'org_id,external_class_id,coach_external_id')
 
+    const confirmedAttendance = reservations.filter((reservation) => reservation.attendedAt).length
     const result = {
       athletes: athletes.length,
       reservations: reservations.length,
-      attendance: attendance.length,
+      attendance: confirmedAttendance,
       coachSessions: coachSessions.length,
       from,
       to,

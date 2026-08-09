@@ -32,6 +32,11 @@ describe('WodBuster normalization', () => {
     expect(normalized.startsAt).toBe('2026-08-01T08:00:00.000Z')
   })
 
+  it('does not mark a same-day future class as no-show before its start time', () => {
+    const beforeClass = new Date('2026-08-01T07:00:00Z')
+    expect(normalizeTraining(raw(), { now: beforeClass }).status).toBe('reserved')
+  })
+
   it('preserves explicit timezone values', () => {
     expect(toIso('2026-08-01T10:00:00Z')).toBe('2026-08-01T10:00:00.000Z')
   })
@@ -82,6 +87,16 @@ describe('freshness and neutral recovery detection', () => {
       starts_at: '2026-08-02T09:00:00Z',
     }
     expect(findRecoveryCandidates([missed, relocated], [], healthy, { now }).candidates).toEqual([])
+  })
+
+  it('treats a valid later booking as recovery even when that class is more than 24h away', () => {
+    const laterClass = {
+      external_reservation_id: 'r3',
+      wodbuster_user_id: 'p1',
+      status: 'reserved',
+      starts_at: '2026-08-05T18:00:00Z',
+    }
+    expect(findRecoveryCandidates([missed, laterClass], [], healthy, { now }).candidates).toEqual([])
   })
 
   it('creates one candidate after 24h and deduplicates repeated input', () => {

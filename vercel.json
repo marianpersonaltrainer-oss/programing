@@ -1,4 +1,8 @@
 {
+  "crons": [
+    { "path": "/api/mi-camino-wodbuster-sync", "schedule": "*/30 * * * *" },
+    { "path": "/api/mi-camino-wodbuster-sync?mode=daily", "schedule": "17 3 * * *" }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

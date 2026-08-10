@@ -57,14 +57,21 @@ function authHeaders(config) {
   return { [config.authHeader]: config.accessKey }
 }
 
+function endpointCandidates(resource, endpoint) {
+  const primary = new URL(endpoint)
+  if (resource !== 'coaching' || !primary.pathname.endsWith('/CuantoEnsenan')) return [primary]
+
+  // The WodBuster UI names this permission “CuantoEnseñan”. Some tenant
+  // routes preserve the ñ while config/secrets commonly use ASCII-only names.
+  // Try the literal UI route only after the configured route returns 404.
+  const literalUiRoute = new URL(primary)
+  literalUiRoute.pathname = literalUiRoute.pathname.replace(/CuantoEnsenan$/, 'CuantoEnseñan')
+  return [primary, literalUiRoute]
+}
+
 export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fetchImpl = fetch } = {}) {
   async function request(resource, params = {}) {
-    const endpoint = config.endpoints[resource]
-    const url = new URL(endpoint)
-    for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value)
-    }
-
+    const candidates = endpointCandidates(resource, config.endpoints[resource])
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
     const headers = {
@@ -73,27 +80,40 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
     }
 
     try {
-      // WodBuster's Data API documentation exposes the resource URL but not a
-      // stable method contract for every tenant. Probe GET first; if the route
-      // explicitly rejects that method (405), retry the same authenticated
-      // request as POST. We do not retry other HTTP errors, so auth/permission
-      // failures remain visible instead of being masked.
-      let response = await fetchImpl(url, {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-      })
+      let lastResponse = null
 
-      if (response.status === 405) {
-        response = await fetchImpl(url, {
-          method: 'POST',
+      for (const baseUrl of candidates) {
+        const url = new URL(baseUrl)
+        for (const [key, value] of Object.entries(params)) {
+          if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value)
+        }
+
+        let response = await fetchImpl(url, {
+          method: 'GET',
           headers,
           signal: controller.signal,
         })
+
+        // Live staging showed the Data API route rejects GET with 405. Retry
+        // the exact same authenticated request as POST; do not mask auth errors.
+        if (response.status === 405) {
+          response = await fetchImpl(url, {
+            method: 'POST',
+            headers,
+            signal: controller.signal,
+          })
+        }
+
+        lastResponse = response
+        if (response.ok) return unwrapRows(await response.json())
+
+        // Only the coaching route has one verified naming ambiguity from the
+        // WodBuster UI (Ensenan vs Enseñan). Continue solely on 404.
+        if (resource === 'coaching' && response.status === 404) continue
+        throw new Error(`WodBuster ${resource} respondió HTTP ${response.status}`)
       }
 
-      if (!response.ok) throw new Error(`WodBuster ${resource} respondió HTTP ${response.status}`)
-      return unwrapRows(await response.json())
+      throw new Error(`WodBuster ${resource} respondió HTTP ${lastResponse?.status || 'desconocido'}`)
     } finally {
       clearTimeout(timeout)
     }

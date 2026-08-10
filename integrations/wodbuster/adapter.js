@@ -58,7 +58,7 @@ function authHeaders(config) {
 }
 
 export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fetchImpl = fetch } = {}) {
-  async function get(resource, params = {}) {
+  async function request(resource, params = {}) {
     const endpoint = config.endpoints[resource]
     const url = new URL(endpoint)
     for (const [key, value] of Object.entries(params)) {
@@ -67,15 +67,31 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
+    const headers = {
+      Accept: 'application/json',
+      ...authHeaders(config),
+    }
+
     try {
-      const response = await fetchImpl(url, {
+      // WodBuster's Data API documentation exposes the resource URL but not a
+      // stable method contract for every tenant. Probe GET first; if the route
+      // explicitly rejects that method (405), retry the same authenticated
+      // request as POST. We do not retry other HTTP errors, so auth/permission
+      // failures remain visible instead of being masked.
+      let response = await fetchImpl(url, {
         method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          ...authHeaders(config),
-        },
+        headers,
         signal: controller.signal,
       })
+
+      if (response.status === 405) {
+        response = await fetchImpl(url, {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+        })
+      }
+
       if (!response.ok) throw new Error(`WodBuster ${resource} respondió HTTP ${response.status}`)
       return unwrapRows(await response.json())
     } finally {
@@ -84,8 +100,8 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
   }
 
   return {
-    listAthletes: () => get('athletes'),
-    listTraining: ({ from, to }) => get('training', { FechaInicio: from, FechaFin: to }),
-    listCoaching: ({ from, to }) => get('coaching', { FechaInicio: from, FechaFin: to }),
+    listAthletes: () => request('athletes'),
+    listTraining: ({ from, to }) => request('training', { FechaInicio: from, FechaFin: to }),
+    listCoaching: ({ from, to }) => request('coaching', { FechaInicio: from, FechaFin: to }),
   }
 }

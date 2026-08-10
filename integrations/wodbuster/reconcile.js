@@ -40,7 +40,19 @@ export async function reconcileWodBuster({
       adapter.listCoaching({ from, to }),
     ])
 
-    const coachSessions = coachingRaw.map((row) => normalizeCoachSession(row, { timezone }))
+    // WodBuster can return repeated CuantoEnseñan rows for the same
+    // class+coach pair. PostgreSQL rejects duplicate conflict keys inside one
+    // INSERT ... ON CONFLICT statement, so deduplicate the snapshot before the
+    // mirror upsert. This does not collapse genuinely multi-coach sessions.
+    const coachSessionMap = new Map()
+    for (const row of coachingRaw) {
+      const session = normalizeCoachSession(row, { timezone })
+      if (!session) continue
+      const key = `${session.externalClassId}|${session.externalCoachId || 'unknown'}`
+      coachSessionMap.set(key, session)
+    }
+    const coachSessions = [...coachSessionMap.values()]
+
     const coachesBySession = new Map()
     for (const session of coachSessions) {
       coachesBySession.set(session.externalClassId, [

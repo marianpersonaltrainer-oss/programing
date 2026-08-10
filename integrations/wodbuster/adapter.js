@@ -20,13 +20,21 @@ export function getWodBusterServerConfig(env = process.env) {
     throw new WodBusterConfigurationError('WODBUSTER_DATA_TIMEOUT_MS debe ser un número positivo')
   }
 
+  const username = String(env.WODBUSTER_DATA_USER || '').trim() || null
+  const authMode = String(env.WODBUSTER_DATA_AUTH_MODE || (username ? 'basic' : 'header')).trim().toLowerCase()
+  if (!['basic', 'header'].includes(authMode)) {
+    throw new WodBusterConfigurationError('WODBUSTER_DATA_AUTH_MODE debe ser basic o header')
+  }
+
   return {
     endpoints: {
       athletes: required(env, 'WODBUSTER_DATA_ATLETAS_URL'),
       training: required(env, 'WODBUSTER_DATA_CUANTO_ENTRENAN_URL'),
       coaching: required(env, 'WODBUSTER_DATA_CUANTO_ENSENAN_URL'),
     },
+    username,
     accessKey: required(env, 'WODBUSTER_DATA_ACCESS_KEY'),
+    authMode,
     authHeader: String(env.WODBUSTER_DATA_AUTH_HEADER || 'API_ACCESS_KEY').trim(),
     timeoutMs,
   }
@@ -38,6 +46,15 @@ function unwrapRows(body) {
     if (Array.isArray(body?.[key])) return body[key]
   }
   return []
+}
+
+function authHeaders(config) {
+  if (config.authMode === 'basic') {
+    if (!config.username) throw new WodBusterConfigurationError('WODBUSTER_DATA_USER es obligatorio con auth basic')
+    const token = Buffer.from(`${config.username}:${config.accessKey}`, 'utf8').toString('base64')
+    return { Authorization: `Basic ${token}` }
+  }
+  return { [config.authHeader]: config.accessKey }
 }
 
 export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fetchImpl = fetch } = {}) {
@@ -55,7 +72,7 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          [config.authHeader]: config.accessKey,
+          ...authHeaders(config),
         },
         signal: controller.signal,
       })

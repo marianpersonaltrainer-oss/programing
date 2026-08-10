@@ -48,7 +48,7 @@ describe('WodBuster normalization', () => {
 })
 
 describe('transport', () => {
-  it('keeps credentials in the configured server-side header', async () => {
+  it('supports a configurable server-side header without leaking credentials', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) })
     const adapter = createWodBusterAdapter({
       config: {
@@ -57,7 +57,9 @@ describe('transport', () => {
           training: 'https://example.test/t',
           coaching: 'https://example.test/c',
         },
+        username: null,
         accessKey: 'secret',
+        authMode: 'header',
         authHeader: 'API_ACCESS_KEY',
         timeoutMs: 20,
       },
@@ -67,6 +69,27 @@ describe('transport', () => {
     expect(fetchImpl.mock.calls[0][1].headers.API_ACCESS_KEY).toBe('secret')
     expect(String(fetchImpl.mock.calls[0][0])).toContain('FechaInicio=2026-08-01')
     expect(String(fetchImpl.mock.calls[0][0])).toContain('FechaFin=2026-08-02')
+  })
+
+  it('supports scoped WodBuster user + access key with Basic auth for live validation', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
+    const adapter = createWodBusterAdapter({
+      config: {
+        endpoints: {
+          athletes: 'https://example.test/a',
+          training: 'https://example.test/t',
+          coaching: 'https://example.test/c',
+        },
+        username: 'mi-camino-evo',
+        accessKey: 'secret',
+        authMode: 'basic',
+        authHeader: 'API_ACCESS_KEY',
+        timeoutMs: 20,
+      },
+      fetchImpl,
+    })
+    await adapter.listAthletes()
+    expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBe(`Basic ${Buffer.from('mi-camino-evo:secret').toString('base64')}`)
   })
 })
 

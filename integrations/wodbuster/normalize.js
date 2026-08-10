@@ -19,48 +19,100 @@ export function toIso(value, { timezone = 'Europe/Madrid' } = {}) {
   return Number.isNaN(date.valueOf()) ? null : date.toISOString()
 }
 
+function localDay(value) {
+  const raw = text(value)
+  if (!raw) return null
+  return raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0]
+}
+
 function sessionDateTime(raw, options = {}) {
   const direct = first(raw, ['FechaHoraClase', 'FechaHora', 'dateTime', 'startsAt'])
   if (direct) return toIso(direct, options)
-  const day = text(first(raw, ['FechaClase', 'Fecha', 'day', 'date']))
-  const time = text(first(raw, ['HoraClase', 'Hora', 'start', 'time']))
+  const day = localDay(first(raw, ['FechaClase', 'Fecha', 'day', 'date']))
+  const time = text(first(raw, ['HoraClase', 'HoraComienzo', 'Hora', 'start', 'time']))
   if (!day) return null
   return toIso(time ? `${day}T${time}` : day, options)
 }
 
+function normalizedEmail(raw) {
+  return text(first(raw, ['Email', 'email']))?.toLowerCase() || null
+}
+
+function normalizedPhone(raw) {
+  const phone = text(first(raw, ['Telefono', 'Teléfono', 'phone']))
+  if (!phone) return null
+  return phone.replace(/\D+/g, '') || null
+}
+
+function composedName(raw) {
+  const explicit = text(first(raw, ['NombreCompleto', 'fullName', 'name']))
+  if (explicit) return explicit
+  const parts = [
+    text(first(raw, ['Nombre'])),
+    text(first(raw, ['Apellido1'])),
+    text(first(raw, ['Apellido2'])),
+  ].filter(Boolean)
+  return parts.join(' ') || null
+}
+
+export function personKey(raw) {
+  const native = text(first(raw, ['IdAtleta', 'AtletaId', 'IdPersona', 'PersonaId', 'userId', 'id']))
+  if (native) return native
+
+  // The live Data API export currently omits a native athlete id from both
+  // Atletas and CuantoEntrenan. Derive the same privacy-safe cross-dataset key
+  // from contact identity without persisting the contact value in the id.
+  const email = normalizedEmail(raw)
+  if (email) return stableId('person', ['email', email])
+  const phone = normalizedPhone(raw)
+  if (phone) return stableId('person', ['phone', phone])
+  const name = composedName(raw)?.toLowerCase()
+  return name ? stableId('person', ['name', name]) : null
+}
+
 export function sessionKey(raw) {
   return text(first(raw, ['IdClase', 'ClaseId', 'IdSesion', 'SesionId', 'classId', 'scheduleEventId'])) || stableId('session', [
-    first(raw, ['FechaClase', 'Fecha', 'day', 'date']),
-    first(raw, ['HoraClase', 'Hora', 'start', 'time']),
-    first(raw, ['Entrenamiento', 'TipoEntrenamiento', 'className', 'trainingName']),
+    localDay(first(raw, ['FechaClase', 'Fecha', 'day', 'date'])),
+    first(raw, ['HoraClase', 'HoraComienzo', 'Hora', 'start', 'time']),
+    first(raw, ['Entrenamiento', 'NombreEntrenamiento', 'TipoEntrenamiento', 'className', 'trainingName']),
   ])
 }
 
+export function isWithinLocalDateWindow(startsAt, from, to, { timezone = 'Europe/Madrid' } = {}) {
+  if (!startsAt || !from || !to) return false
+  const value = new Date(startsAt)
+  const start = fromZonedTime(`${from}T00:00:00`, timezone)
+  const end = fromZonedTime(`${to}T23:59:59.999`, timezone)
+  return !Number.isNaN(value.valueOf()) && value >= start && value <= end
+}
+
 export function normalizeAthlete(raw, options = {}) {
-  const externalPersonId = text(first(raw, ['IdAtleta', 'AtletaId', 'IdPersona', 'PersonaId', 'userId', 'id']))
+  const externalPersonId = personKey(raw)
   if (!externalPersonId) return null
   return {
     externalPersonId,
-    fullName: text(first(raw, ['NombreCompleto', 'Nombre', 'name', 'fullName'])) || 'Atleta WodBuster',
-    email: text(first(raw, ['Email', 'email'])),
-    joinedAt: toIso(first(raw, ['FechaAlta', 'Alta', 'joinedAt']), options),
+    fullName: composedName(raw) || 'Atleta WodBuster',
+    email: normalizedEmail(raw),
+    joinedAt: toIso(first(raw, ['FechaAlta', 'Alta', 'Creado', 'joinedAt']), options),
     raw,
   }
 }
 
 export function normalizeCoachSession(raw, options = {}) {
+  const coachName = text(first(raw, ['Coach', 'Entrenador', 'NombreCoach', 'coachName']))
+  const nativeCoachId = text(first(raw, ['IdCoach', 'CoachId', 'IdEntrenador', 'EntrenadorId', 'coachId']))
   return {
     externalClassId: sessionKey(raw),
-    className: text(first(raw, ['Entrenamiento', 'TipoEntrenamiento', 'className', 'trainingName'])),
+    className: text(first(raw, ['Entrenamiento', 'NombreEntrenamiento', 'TipoEntrenamiento', 'className', 'trainingName'])),
     startsAt: sessionDateTime(raw, options),
-    externalCoachId: text(first(raw, ['IdCoach', 'CoachId', 'IdEntrenador', 'EntrenadorId', 'coachId'])),
-    coachName: text(first(raw, ['Coach', 'Entrenador', 'NombreCoach', 'coachName'])),
+    externalCoachId: nativeCoachId || (coachName ? stableId('coach', [coachName.toLowerCase()]) : null),
+    coachName,
     raw,
   }
 }
 
 export function normalizeTraining(raw, { now = new Date(), coaches = new Map(), timezone = 'Europe/Madrid' } = {}) {
-  const externalPersonId = text(first(raw, ['IdAtleta', 'AtletaId', 'IdPersona', 'PersonaId', 'userId']))
+  const externalPersonId = personKey(raw)
   if (!externalPersonId) return null
 
   const externalClassId = sessionKey(raw)
@@ -78,13 +130,18 @@ export function normalizeTraining(raw, { now = new Date(), coaches = new Map(), 
         : 'reserved'
 
   const coachList = coaches.get(externalClassId) || []
-  const externalReservationId = text(first(raw, ['IdReserva', 'ReservaId', 'reservationId', 'id'])) || stableId('reservation', [externalPersonId, externalClassId, startsAt])
+  const externalReservationId = text(first(raw, ['IdReserva', 'ReservaId', 'reservationId', 'id'])) || stableId('reservation', [
+    externalPersonId,
+    externalClassId,
+    startsAt,
+    first(raw, ['TipoReserva', 'reservationType']),
+  ])
 
   return {
     externalReservationId,
     externalPersonId,
     externalClassId,
-    className: text(first(raw, ['Entrenamiento', 'TipoEntrenamiento', 'className', 'trainingName'])),
+    className: text(first(raw, ['NombreEntrenamiento', 'Entrenamiento', 'TipoEntrenamiento', 'className', 'trainingName'])),
     startsAt,
     cancelledAt,
     attendedAt,

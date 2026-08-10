@@ -1,4 +1,4 @@
-import { normalizeAthlete, normalizeCoachSession, normalizeTraining, rawEventId } from './normalize.js'
+import { isWithinLocalDateWindow, normalizeAthlete, normalizeCoachSession, normalizeTraining, rawEventId } from './normalize.js'
 
 const assertOk = (error, operation) => {
   if (error) throw new Error(`${operation}: ${error.message}`)
@@ -40,14 +40,13 @@ export async function reconcileWodBuster({
       adapter.listCoaching({ from, to }),
     ])
 
-    // WodBuster can return repeated CuantoEnseñan rows for the same
-    // class+coach pair. PostgreSQL rejects duplicate conflict keys inside one
-    // INSERT ... ON CONFLICT statement, so deduplicate the snapshot before the
-    // mirror upsert. This does not collapse genuinely multi-coach sessions.
+    // The live tenant currently returns full-history Data API arrays even when
+    // date parameters are supplied. Enforce the requested window locally so a
+    // frequent sync never mirrors old history accidentally.
     const coachSessionMap = new Map()
     for (const row of coachingRaw) {
       const session = normalizeCoachSession(row, { timezone })
-      if (!session) continue
+      if (!session || !isWithinLocalDateWindow(session.startsAt, from, to, { timezone })) continue
       const key = `${session.externalClassId}|${session.externalCoachId || 'unknown'}`
       coachSessionMap.set(key, session)
     }
@@ -64,7 +63,7 @@ export async function reconcileWodBuster({
     const athletes = athleteRaw.map((row) => normalizeAthlete(row, { timezone })).filter(Boolean)
     const reservations = trainingRaw
       .map((row) => normalizeTraining(row, { now, coaches: coachesBySession, timezone }))
-      .filter(Boolean)
+      .filter((reservation) => reservation && isWithinLocalDateWindow(reservation.startsAt, from, to, { timezone }))
 
     const syncedAt = now.toISOString()
 

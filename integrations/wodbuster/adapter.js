@@ -40,9 +40,20 @@ export function getWodBusterServerConfig(env = process.env) {
   }
 }
 
-function safeShape(body) {
+function safeShape(body, resource) {
   if (Array.isArray(body)) {
-    return { type: 'array', length: body.length, firstRowKeys: body[0] && typeof body[0] === 'object' ? Object.keys(body[0]).sort() : [] }
+    const shape = {
+      type: 'array',
+      length: body.length,
+      firstRowKeys: body[0] && typeof body[0] === 'object' ? Object.keys(body[0]).sort() : [],
+    }
+    if (resource === 'training') {
+      shape.presence = {
+        FechaLecturaTorno: body.filter((row) => String(row?.FechaLecturaTorno || '').trim()).length,
+        FechaBorrado: body.filter((row) => String(row?.FechaBorrado || '').trim()).length,
+      }
+    }
+    return shape
   }
   if (body && typeof body === 'object') {
     const topKeys = Object.keys(body).sort()
@@ -54,7 +65,7 @@ function safeShape(body) {
 
 function unwrapRows(body, resource) {
   // Safe diagnostics: field names/counts only, never values or credentials.
-  console.log(JSON.stringify({ wodbusterShape: resource, ...safeShape(body) }))
+  console.log(JSON.stringify({ wodbusterShape: resource, ...safeShape(body, resource) }))
   if (Array.isArray(body)) return body
   for (const key of ['data', 'result', 'results', 'items', 'rows']) {
     if (Array.isArray(body?.[key])) return body[key]
@@ -109,9 +120,6 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
           signal: controller.signal,
         })
 
-        // Live staging verified that Data API resources reject GET with 405.
-        // Retry as POST, sending date filters both in query and urlencoded body;
-        // WodBuster's tenant endpoint accepted POST but ignored query-only dates.
         if (response.status === 405) {
           response = await fetchImpl(url, {
             method: 'POST',

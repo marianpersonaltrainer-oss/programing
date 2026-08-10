@@ -40,7 +40,21 @@ export function getWodBusterServerConfig(env = process.env) {
   }
 }
 
-function unwrapRows(body) {
+function safeShape(body) {
+  if (Array.isArray(body)) {
+    return { type: 'array', length: body.length, firstRowKeys: body[0] && typeof body[0] === 'object' ? Object.keys(body[0]).sort() : [] }
+  }
+  if (body && typeof body === 'object') {
+    const topKeys = Object.keys(body).sort()
+    const arrays = Object.fromEntries(topKeys.filter((key) => Array.isArray(body[key])).map((key) => [key, body[key].length]))
+    return { type: 'object', topKeys, arrays }
+  }
+  return { type: typeof body }
+}
+
+function unwrapRows(body, resource) {
+  // Safe diagnostics: field names/counts only, never values or credentials.
+  console.log(JSON.stringify({ wodbusterShape: resource, ...safeShape(body) }))
   if (Array.isArray(body)) return body
   for (const key of ['data', 'result', 'results', 'items', 'rows']) {
     if (Array.isArray(body?.[key])) return body[key]
@@ -61,9 +75,6 @@ function endpointCandidates(resource, endpoint) {
   const primary = new URL(endpoint)
   if (resource !== 'coaching' || !primary.pathname.endsWith('/CuantoEnsenan')) return [primary]
 
-  // The WodBuster UI names this permission “CuantoEnseñan”. Some tenant
-  // routes preserve the ñ while config/secrets commonly use ASCII-only names.
-  // Try the literal UI route only after the configured route returns 404.
   const literalUiRoute = new URL(primary)
   literalUiRoute.pathname = literalUiRoute.pathname.replace(/CuantoEnsenan$/, 'CuantoEnseñan')
   return [primary, literalUiRoute]
@@ -74,7 +85,7 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
     const candidates = endpointCandidates(resource, config.endpoints[resource])
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
-    const headers = {
+    const baseHeaders = {
       Accept: 'application/json',
       ...authHeaders(config),
     }
@@ -84,31 +95,35 @@ export function createWodBusterAdapter({ config = getWodBusterServerConfig(), fe
 
       for (const baseUrl of candidates) {
         const url = new URL(baseUrl)
+        const form = new URLSearchParams()
         for (const [key, value] of Object.entries(params)) {
-          if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value)
+          if (value !== undefined && value !== null && value !== '') {
+            url.searchParams.set(key, value)
+            form.set(key, value)
+          }
         }
 
         let response = await fetchImpl(url, {
           method: 'GET',
-          headers,
+          headers: baseHeaders,
           signal: controller.signal,
         })
 
-        // Live staging showed the Data API route rejects GET with 405. Retry
-        // the exact same authenticated request as POST; do not mask auth errors.
+        // Live staging verified that Data API resources reject GET with 405.
+        // Retry as POST, sending date filters both in query and urlencoded body;
+        // WodBuster's tenant endpoint accepted POST but ignored query-only dates.
         if (response.status === 405) {
           response = await fetchImpl(url, {
             method: 'POST',
-            headers,
+            headers: { ...baseHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: form.size ? form.toString() : undefined,
             signal: controller.signal,
           })
         }
 
         lastResponse = response
-        if (response.ok) return unwrapRows(await response.json())
+        if (response.ok) return unwrapRows(await response.json(), resource)
 
-        // Only the coaching route has one verified naming ambiguity from the
-        // WodBuster UI (Ensenan vs Enseñan). Continue solely on 404.
         if (resource === 'coaching' && response.status === 404) continue
         throw new Error(`WodBuster ${resource} respondió HTTP ${response.status}`)
       }

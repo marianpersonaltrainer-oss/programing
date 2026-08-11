@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends age jq
+          sudo apt-get install -y --no-install-recommends gnupg jq
 
       - name: Create encrypted production dump
         id: backup
@@ -58,12 +58,12 @@ jobs:
           SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          AGE_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
           umask 077
 
-          if [ -z "${AGE_PASSPHRASE:-}" ]; then
+          if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
             echo "BACKUP_ENCRYPTION_PASSPHRASE is required."
             exit 1
           fi
@@ -133,11 +133,41 @@ jobs:
           fi
           unset CANDIDATE_URL RAW_URL
 
+          export DB_URL
+          DB_URL="$(python3 - <<'PY'
+          import os
+          from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+          project_ref = os.environ['PROD_PROJECT_REF']
+          parsed = urlsplit(os.environ['DB_URL'])
+          username = parsed.username or ''
+          password = parsed.password or ''
+          hostname = parsed.hostname or ''
+          port = parsed.port
+
+          if hostname == f'db.{project_ref}.supabase.co':
+              username = f'postgres.{project_ref}'
+              hostname = 'aws-0-eu-central-1.pooler.supabase.com'
+              port = 5432
+
+          userinfo = username
+          if password:
+              userinfo += f':{password}'
+          netloc = f'{userinfo}@{hostname}' if userinfo else hostname
+          if port:
+              netloc += f':{port}'
+
+          query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+          query['sslmode'] = 'require'
+          print(urlunsplit((parsed.scheme, netloc, parsed.path, urlencode(query), parsed.fragment)))
+          PY
+          )"
+
           echo "::add-mask::$DB_URL"
           DATE_UTC="$(date -u +%F)"
           BACKUP_BASENAME="evo-prod-${DATE_UTC}-${GITHUB_RUN_ID}"
           DUMP_FILE="${BACKUP_BASENAME}.dump"
-          ENCRYPTED_FILE="${DUMP_FILE}.age"
+          ENCRYPTED_FILE="${DUMP_FILE}.gpg"
 
           docker run --rm \
             -e DB_URL="$DB_URL" \
@@ -148,7 +178,10 @@ jobs:
               --compress=9 \
               --no-owner \
               --no-privileges | \
-            age --passphrase --output "$ENCRYPTED_FILE"
+            gpg --batch --yes --pinentry-mode loopback \
+              --passphrase-fd 3 \
+              --symmetric --cipher-algo AES256 --compress-algo none \
+              --output "$ENCRYPTED_FILE" 3<<< "$BACKUP_PASSPHRASE"
 
           docker run --rm \
             -e DB_URL="$DB_URL" \
@@ -170,7 +203,7 @@ jobs:
 
           printf '%s\n' \
             "backup=${BACKUP_BASENAME}" \
-            "encryption=age-scrypt-passphrase" \
+            "encryption=openpgp-symmetric-aes256-s2k" \
             "retention_days=${BACKUP_RETENTION_DAYS}" \
             "source_project_ref=${PROD_PROJECT_REF}" \
             "postgres_client=17" > backup-metadata.txt
@@ -183,14 +216,17 @@ jobs:
         env:
           DUMP_FILE: ${{ steps.backup.outputs.dump_file }}
           ENCRYPTED_FILE: ${{ steps.backup.outputs.encrypted_file }}
-          AGE_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
           RESTORE_PASSWORD: restore-only-ephemeral
         run: |
           set -euo pipefail
           umask 077
           RESTORED_DUMP="restored-${DUMP_FILE}"
 
-          age --decrypt --output "$RESTORED_DUMP" "$ENCRYPTED_FILE"
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 3 \
+            --decrypt --output "$RESTORED_DUMP" "$ENCRYPTED_FILE" \
+            3<<< "$BACKUP_PASSPHRASE"
 
           docker run --detach --rm \
             --name evo-supabase-restore \

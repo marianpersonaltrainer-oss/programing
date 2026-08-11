@@ -47,8 +47,8 @@ jobs:
         run: |
           shellcheck scripts/backup/*.sh
           node --check scripts/backup/validate-db-url.mjs
-          node --check scripts/backup/validate-db-url.test.mjs
-          node scripts/backup/validate-db-url.test.mjs
+          node --check scripts/backup/validate-db-url.check.mjs
+          node scripts/backup/validate-db-url.check.mjs
 
       - name: Synthetic backup, encryption and restore test
         run: scripts/backup/test-backup-restore.sh
@@ -99,6 +99,5 @@ jobs:
             ${{ env.BACKUP_FILE }}
             ${{ env.BACKUP_CHECKSUM_FILE }}
           make_latest: false
-          overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

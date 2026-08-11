@@ -105,6 +105,11 @@ jobs:
           valid_database = parsed.path.rstrip('/') == '/postgres'
           contains_ref = expected_ref in os.environ['DB_URL']
           if not all((valid_scheme, valid_host, valid_database, contains_ref)):
+              print(
+                  'Safe URI diagnostics: '
+                  f'scheme={valid_scheme}, host={valid_host}, '
+                  f'database={valid_database}, project_ref={contains_ref}'
+              )
               raise SystemExit('Connection URI structure or production project reference is invalid.')
           PY
 
@@ -274,4 +279,3 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
-

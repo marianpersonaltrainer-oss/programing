@@ -9,91 +9,269 @@ on:
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
+    inputs:
+      confirm_production_backup:
+        description: Type BACKUP_PRODUCTION_READ_ONLY
+        required: true
+        default: ""
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: supabase-production-backup
+  cancel-in-progress: false
 
 jobs:
-  backup:
+  backup-and-restore:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PROD_PROJECT_REF: wxrqvcthrkabjllvqghq
+      BACKUP_RETENTION_DAYS: "7"
+      PGCONNECT_TIMEOUT: "15"
+
     steps:
+      - name: Confirm read-only production operation
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRMATION: ${{ inputs.confirm_production_backup }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRMATION" != "BACKUP_PRODUCTION_READ_ONLY" ]; then
+            echo "Explicit production backup confirmation is required."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install encryption client
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client jq gh
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age jq
 
-      - name: Generate dump
+      - name: Create encrypted production dump
+        id: backup
         env:
           SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          AGE_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-          RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
-          if [ -z "${RAW_URL:-}" ]; then
-            echo "Either SUPABASE_POOLER_URL or SUPABASE_DB_URL secret is required"
+          umask 077
+
+          if [ -z "${AGE_PASSPHRASE:-}" ]; then
+            echo "BACKUP_ENCRYPTION_PASSPHRASE is required."
             exit 1
           fi
-          DB_URL="$(echo "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^"//' -e 's/"$//')"
-          # Guard against the most common copy typo: db-<ref>.supabase.co
-          DB_URL="${DB_URL/@db-/@db.}"
-          # Guard against copied markdown wrappers or separators.
+
+          RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
+          if [ -z "${RAW_URL:-}" ]; then
+            echo "A Supabase database connection URI is required."
+            exit 1
+          fi
+
+          DB_URL="$(printf '%s' "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^`//' -e 's/`$//' -e 's/^"//' -e 's/"$//')"
           DB_URL="${DB_URL//|/}"
           DB_URL="${DB_URL//[/}"
           DB_URL="${DB_URL//]/}"
+          DB_URL="${DB_URL/@db-/@db.}"
+
+          if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]] && [[ "$DB_URL" == *"@"* ]] && [[ "$DB_URL" == *"/"* ]]; then
+            DB_URL="postgresql://${DB_URL}"
+          fi
+
           if [[ "$DB_URL" == *"YOUR-PASSWORD"* ]]; then
             if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
-              echo "Connection URI contains YOUR-PASSWORD. Set SUPABASE_DB_PASSWORD secret or replace placeholder in URI."
+              echo "The connection URI still contains a password placeholder."
               exit 1
             fi
-            ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD",""), safe=""))')"
+            ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD", ""), safe=""))')"
             DB_URL="${DB_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
           fi
-          if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
-            exit 1
-          fi
-          if [[ "$DB_URL" != *"sslmode="* ]]; then
-            if [[ "$DB_URL" == *"?"* ]]; then
-              DB_URL="${DB_URL}&sslmode=require"
-            else
-              DB_URL="${DB_URL}?sslmode=require"
-            fi
-          fi
+
+          export DB_URL
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          expected_ref = os.environ['PROD_PROJECT_REF']
+          parsed = urlparse(os.environ['DB_URL'])
+          valid_scheme = parsed.scheme in {'postgres', 'postgresql'}
+          valid_host = bool(parsed.hostname and parsed.hostname.endswith('.supabase.com'))
+          valid_database = parsed.path.rstrip('/') == '/postgres'
+          contains_ref = expected_ref in os.environ['DB_URL']
+          if not all((valid_scheme, valid_host, valid_database, contains_ref)):
+              raise SystemExit('Connection URI structure or production project reference is invalid.')
+          PY
+
           echo "::add-mask::$DB_URL"
           DATE_UTC="$(date -u +%F)"
-          FILE="backup-${DATE_UTC}.sql"
-          pg_dump --dbname="${DB_URL}" --no-owner --no-privileges --format=plain --file "${FILE}"
-          gzip -f "${FILE}"
-          echo "BACKUP_TAG=backup-${DATE_UTC}" >> "$GITHUB_ENV"
-          echo "BACKUP_FILE=${FILE}.gz" >> "$GITHUB_ENV"
+          BACKUP_BASENAME="evo-prod-${DATE_UTC}-${GITHUB_RUN_ID}"
+          DUMP_FILE="${BACKUP_BASENAME}.dump"
+          ENCRYPTED_FILE="${DUMP_FILE}.age"
 
-      - name: Upload backup as release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.BACKUP_TAG }}
-          name: ${{ env.BACKUP_TAG }}
-          files: ${{ env.BACKUP_FILE }}
-          make_latest: false
-          overwrite_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          docker run --rm \
+            -e DB_URL="$DB_URL" \
+            -v "$PWD:/work" \
+            postgres:17 \
+            pg_dump \
+              --dbname="$DB_URL" \
+              --format=custom \
+              --compress=9 \
+              --no-owner \
+              --no-privileges \
+              --file="/work/${DUMP_FILE}"
 
-      - name: Retention (keep latest 30 backup releases)
+          docker run --rm \
+            -e DB_URL="$DB_URL" \
+            postgres:17 \
+            psql "$DB_URL" --no-psqlrc --tuples-only --no-align --quiet --command="
+              select jsonb_build_object(
+                'schemas', (select count(*) from pg_namespace where nspname in ('public','auth','storage','supabase_migrations')),
+                'public_tables', (select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'),
+                'public_functions', (select count(*) from information_schema.routines where routine_schema='public'),
+                'published_weeks', (select count(*) from public.published_weeks),
+                'coach_sessions', (select count(*) from public.coach_sessions),
+                'coach_messages', (select count(*) from public.coach_messages),
+                'auth_users', (select count(*) from auth.users),
+                'storage_buckets', (select count(*) from storage.buckets),
+                'migration_rows', (select count(*) from supabase_migrations.schema_migrations)
+              );" > source-control.json
+
+          age --passphrase --output "$ENCRYPTED_FILE" "$DUMP_FILE"
+          sha256sum "$ENCRYPTED_FILE" > "${ENCRYPTED_FILE}.sha256"
+
+          printf '%s\n' \
+            "backup=${BACKUP_BASENAME}" \
+            "encryption=age-scrypt-passphrase" \
+            "retention_days=${BACKUP_RETENTION_DAYS}" \
+            "source_project_ref=${PROD_PROJECT_REF}" \
+            "postgres_client=17" > backup-metadata.txt
+
+          echo "dump_file=$DUMP_FILE" >> "$GITHUB_OUTPUT"
+          echo "encrypted_file=$ENCRYPTED_FILE" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=supabase-production-${DATE_UTC}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore encrypted dump in isolated ephemeral Postgres
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DUMP_FILE: ${{ steps.backup.outputs.dump_file }}
+          ENCRYPTED_FILE: ${{ steps.backup.outputs.encrypted_file }}
+          AGE_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          RESTORE_PASSWORD: restore-only-ephemeral
         run: |
           set -euo pipefail
-          mapfile -t backup_tags < <(gh release list --limit 200 --json tagName --jq '.[] | .tagName' | awk '/^backup-/')
-          if [ "${#backup_tags[@]}" -le 30 ]; then
-            echo "No cleanup needed (${#backup_tags[@]} backups)."
-            exit 0
-          fi
-          for tag in "${backup_tags[@]:30}"; do
-            echo "Deleting old backup release: ${tag}"
-            gh release delete "${tag}" --yes --cleanup-tag
+          umask 077
+          RESTORED_DUMP="restored-${DUMP_FILE}"
+
+          age --decrypt --output "$RESTORED_DUMP" "$ENCRYPTED_FILE"
+
+          docker run --detach --rm \
+            --name evo-supabase-restore \
+            --publish 127.0.0.1:55432:5432 \
+            --env POSTGRES_PASSWORD="$RESTORE_PASSWORD" \
+            supabase/postgres:17.6.1.136 \
+            postgres -c config_file=/etc/postgresql/postgresql.conf
+
+          cleanup() {
+            docker stop evo-supabase-restore >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if docker run --rm --network host \
+              --env PGPASSWORD="$RESTORE_PASSWORD" \
+              postgres:17 \
+              pg_isready --host=127.0.0.1 --port=55432 --username=postgres --dbname=postgres >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "Ephemeral restore database did not become ready."
+              exit 1
+            fi
+            sleep 2
           done
+
+          for role in anon authenticated service_role authenticator supabase_admin dashboard_user supabase_auth_admin supabase_storage_admin; do
+            docker run --rm --network host \
+              --env PGPASSWORD="$RESTORE_PASSWORD" \
+              postgres:17 \
+              psql --host=127.0.0.1 --port=55432 --username=postgres --dbname=postgres \
+                --no-psqlrc --set=ON_ERROR_STOP=1 \
+                --command="DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN EXECUTE 'CREATE ROLE ${role} NOLOGIN'; END IF; END \$\$;" >/dev/null
+          done
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            postgres:17 \
+            createdb --host=127.0.0.1 --port=55432 --username=postgres --template=template0 evo_restore
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            -v "$PWD:/work" \
+            postgres:17 \
+            pg_restore \
+              --host=127.0.0.1 \
+              --port=55432 \
+              --username=postgres \
+              --dbname=evo_restore \
+              --exit-on-error \
+              --no-owner \
+              --no-privileges \
+              "/work/${RESTORED_DUMP}"
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            postgres:17 \
+            psql --host=127.0.0.1 --port=55432 --username=postgres --dbname=evo_restore \
+              --no-psqlrc --tuples-only --no-align --quiet --command="
+                select jsonb_build_object(
+                  'schemas', (select count(*) from pg_namespace where nspname in ('public','auth','storage','supabase_migrations')),
+                  'public_tables', (select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'),
+                  'public_functions', (select count(*) from information_schema.routines where routine_schema='public'),
+                  'published_weeks', (select count(*) from public.published_weeks),
+                  'coach_sessions', (select count(*) from public.coach_sessions),
+                  'coach_messages', (select count(*) from public.coach_messages),
+                  'auth_users', (select count(*) from auth.users),
+                  'storage_buckets', (select count(*) from storage.buckets),
+                  'migration_rows', (select count(*) from supabase_migrations.schema_migrations)
+                );" > restored-control.json
+
+          jq --sort-keys . source-control.json > source-control.sorted.json
+          jq --sort-keys . restored-control.json > restored-control.sorted.json
+          if ! cmp --silent source-control.sorted.json restored-control.sorted.json; then
+            echo "Restored control manifest does not match the source manifest."
+            exit 1
+          fi
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            postgres:17 \
+            psql --host=127.0.0.1 --port=55432 --username=postgres --dbname=evo_restore \
+              --no-psqlrc --tuples-only --no-align --quiet --command="
+                select case when
+                  to_regclass('public.published_weeks') is not null
+                  and to_regclass('public.coach_sessions') is not null
+                  and to_regclass('public.coach_messages') is not null
+                  and to_regprocedure('public.pe2_my_org()') is not null
+                  and to_regprocedure('public.save_published_week_draft_v2(text,integer,text,jsonb,uuid,bigint,uuid,text,text,text,integer,jsonb,jsonb,timestamp with time zone)') is not null
+                then 'ok' else 'missing' end;" | grep -qx ok
+
+          printf '%s\n' "restore=pass" "control_manifest=match" >> backup-metadata.txt
+
+      - name: Upload encrypted private backup
+        if: ${{ always() && steps.backup.outputs.encrypted_file != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.backup.outputs.artifact_name }}
+          path: |
+            ${{ steps.backup.outputs.encrypted_file }}
+            ${{ steps.backup.outputs.encrypted_file }}.sha256
+            backup-metadata.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 

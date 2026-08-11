@@ -68,42 +68,48 @@ jobs:
             exit 1
           fi
 
-          RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
-          if [ -z "${RAW_URL:-}" ]; then
+          if [ -z "${SUPABASE_POOLER_URL:-}" ] && [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "A Supabase database connection URI is required."
             exit 1
           fi
 
-          DB_URL="$(printf '%s' "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^`//' -e 's/`$//' -e 's/^"//' -e 's/"$//')"
-          DB_URL="${DB_URL//|/}"
-          DB_URL="${DB_URL//[/}"
-          DB_URL="${DB_URL//]/}"
-          DB_URL="${DB_URL/@db-/@db.}"
-
-          if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]] && [[ "$DB_URL" == *"@"* ]] && [[ "$DB_URL" == *"/"* ]]; then
-            DB_URL="postgresql://${DB_URL}"
-          fi
-
-          if [[ "$DB_URL" == *"YOUR-PASSWORD"* ]]; then
-            if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
-              echo "The connection URI still contains a password placeholder."
-              exit 1
+          DB_URL=""
+          CANDIDATE_NUMBER=0
+          for RAW_URL in "${SUPABASE_POOLER_URL:-}" "${SUPABASE_DB_URL:-}"; do
+            if [ -z "${RAW_URL:-}" ]; then
+              continue
             fi
-            ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD", ""), safe=""))')"
-            DB_URL="${DB_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
-          fi
+            CANDIDATE_NUMBER=$((CANDIDATE_NUMBER + 1))
+            CANDIDATE_URL="$(printf '%s' "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^`//' -e 's/`$//' -e 's/^"//' -e 's/"$//')"
+            CANDIDATE_URL="${CANDIDATE_URL//|/}"
+            CANDIDATE_URL="${CANDIDATE_URL//[/}"
+            CANDIDATE_URL="${CANDIDATE_URL//]/}"
+            CANDIDATE_URL="${CANDIDATE_URL/@db-/@db.}"
 
-          export DB_URL
-          python3 - <<'PY'
+            if [[ ! "$CANDIDATE_URL" =~ ^postgres(ql)?:// ]] && [[ "$CANDIDATE_URL" == *"@"* ]] && [[ "$CANDIDATE_URL" == *"/"* ]]; then
+              CANDIDATE_URL="postgresql://${CANDIDATE_URL}"
+            fi
+
+            if [[ "$CANDIDATE_URL" == *"YOUR-PASSWORD"* ]]; then
+              if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+                echo "Candidate ${CANDIDATE_NUMBER} contains a password placeholder and no password secret."
+                continue
+              fi
+              ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD", ""), safe=""))')"
+              CANDIDATE_URL="${CANDIDATE_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
+            fi
+
+            export CANDIDATE_URL
+            if python3 - <<'PY'
           import os
           from urllib.parse import urlparse
 
           expected_ref = os.environ['PROD_PROJECT_REF']
-          parsed = urlparse(os.environ['DB_URL'])
+          parsed = urlparse(os.environ['CANDIDATE_URL'])
           valid_scheme = parsed.scheme in {'postgres', 'postgresql'}
           valid_host = bool(parsed.hostname and parsed.hostname.endswith('.supabase.com'))
           valid_database = parsed.path.rstrip('/') == '/postgres'
-          contains_ref = expected_ref in os.environ['DB_URL']
+          contains_ref = expected_ref in os.environ['CANDIDATE_URL']
           if not all((valid_scheme, valid_host, valid_database, contains_ref)):
               print(
                   'Safe URI diagnostics: '
@@ -112,6 +118,17 @@ jobs:
               )
               raise SystemExit('Connection URI structure or production project reference is invalid.')
           PY
+            then
+              DB_URL="$CANDIDATE_URL"
+              break
+            fi
+          done
+
+          if [ -z "$DB_URL" ]; then
+            echo "No valid production database URI candidate was found."
+            exit 1
+          fi
+          unset CANDIDATE_URL RAW_URL
 
           echo "::add-mask::$DB_URL"
           DATE_UTC="$(date -u +%F)"

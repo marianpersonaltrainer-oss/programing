@@ -1,99 +1,104 @@
 name: Backup Supabase
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/backup-supabase.yml
+      - scripts/backup/**
+      - RUNBOOK_BACKUPS.md
   push:
     branches:
       - main
     paths:
       - .github/workflows/backup-supabase.yml
+      - scripts/backup/**
+      - RUNBOOK_BACKUPS.md
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: programing-evo-backup-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: false
 
 jobs:
-  backup:
+  validate:
+    name: Validate backup and restore path
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install shellcheck
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client jq gh
+          sudo apt-get install -y shellcheck
 
-      - name: Generate dump
-        env:
-          SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Validate workflow syntax
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
+
+      - name: Validate scripts
         run: |
-          set -euo pipefail
-          RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
-          if [ -z "${RAW_URL:-}" ]; then
-            echo "Either SUPABASE_POOLER_URL or SUPABASE_DB_URL secret is required"
-            exit 1
-          fi
-          DB_URL="$(echo "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^"//' -e 's/"$//')"
-          # Guard against the most common copy typo: db-<ref>.supabase.co
-          DB_URL="${DB_URL/@db-/@db.}"
-          # Guard against copied markdown wrappers or separators.
-          DB_URL="${DB_URL//|/}"
-          DB_URL="${DB_URL//[/}"
-          DB_URL="${DB_URL//]/}"
-          if [[ "$DB_URL" == *"YOUR-PASSWORD"* ]]; then
-            if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
-              echo "Connection URI contains YOUR-PASSWORD. Set SUPABASE_DB_PASSWORD secret or replace placeholder in URI."
-              exit 1
-            fi
-            ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD",""), safe=""))')"
-            DB_URL="${DB_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
-          fi
-          if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
-            exit 1
-          fi
-          if [[ "$DB_URL" != *"sslmode="* ]]; then
-            if [[ "$DB_URL" == *"?"* ]]; then
-              DB_URL="${DB_URL}&sslmode=require"
-            else
-              DB_URL="${DB_URL}?sslmode=require"
-            fi
-          fi
-          echo "::add-mask::$DB_URL"
-          DATE_UTC="$(date -u +%F)"
-          FILE="backup-${DATE_UTC}.sql"
-          pg_dump --dbname="${DB_URL}" --no-owner --no-privileges --format=plain --file "${FILE}"
-          gzip -f "${FILE}"
-          echo "BACKUP_TAG=backup-${DATE_UTC}" >> "$GITHUB_ENV"
-          echo "BACKUP_FILE=${FILE}.gz" >> "$GITHUB_ENV"
+          shellcheck scripts/backup/*.sh
+          node --check scripts/backup/validate-db-url.mjs
+          node --check scripts/backup/validate-db-url.test.mjs
+          node scripts/backup/validate-db-url.test.mjs
 
-      - name: Upload backup as release
+      - name: Synthetic backup, encryption and restore test
+        run: scripts/backup/test-backup-restore.sh
+
+  backup:
+    name: Encrypted production backup and isolated restore
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: programing-evo-production
+    permissions:
+      contents: write
+    env:
+      SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PRODUCTION_PROJECT_REF: ${{ secrets.SUPABASE_PRODUCTION_PROJECT_REF }}
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      BACKUP_REQUIRED_TABLES: >-
+        public.published_weeks public.coach_sessions public.coach_messages
+        public.coach_session_feedback
+      BACKUP_REQUIRED_FUNCTIONS: >-
+        save_published_week_draft_v2 publish_published_week_draft_v2
+        save_and_publish_published_week_v2
+      BACKUP_WEEK_TABLE: public.published_weeks
+      BACKUP_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      BACKUP_POSTGRES_IMAGE: postgres:17-bookworm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate, encrypt and verify backup
+        run: scripts/backup/run-backup.sh
+
+      - name: Publish verified encrypted backup
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.BACKUP_TAG }}
           name: ${{ env.BACKUP_TAG }}
-          files: ${{ env.BACKUP_FILE }}
+          body: |
+            Encrypted Supabase production backup.
+            Restore verification: PASS.
+            Source commit: ${{ github.sha }}.
+            Workflow run: ${{ github.run_id }} attempt ${{ github.run_attempt }}.
+            PostgreSQL client/restore image: ${{ env.BACKUP_POSTGRES_IMAGE }}.
+          files: |
+            ${{ env.BACKUP_FILE }}
+            ${{ env.BACKUP_CHECKSUM_FILE }}
           make_latest: false
-          overwrite_files: true
+          overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Retention (keep latest 30 backup releases)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          mapfile -t backup_tags < <(gh release list --limit 200 --json tagName --jq '.[] | .tagName' | awk '/^backup-/')
-          if [ "${#backup_tags[@]}" -le 30 ]; then
-            echo "No cleanup needed (${#backup_tags[@]} backups)."
-            exit 0
-          fi
-          for tag in "${backup_tags[@]:30}"; do
-            echo "Deleting old backup release: ${tag}"
-            gh release delete "${tag}" --yes --cleanup-tag
-          done
-

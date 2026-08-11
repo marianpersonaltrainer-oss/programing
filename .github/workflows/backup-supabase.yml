@@ -121,15 +121,14 @@ jobs:
 
           docker run --rm \
             -e DB_URL="$DB_URL" \
-            -v "$PWD:/work" \
             postgres:17 \
             pg_dump \
               --dbname="$DB_URL" \
               --format=custom \
               --compress=9 \
               --no-owner \
-              --no-privileges \
-              --file="/work/${DUMP_FILE}"
+              --no-privileges | \
+            age --passphrase --output "$ENCRYPTED_FILE"
 
           docker run --rm \
             -e DB_URL="$DB_URL" \
@@ -147,7 +146,6 @@ jobs:
                 'migration_rows', (select count(*) from supabase_migrations.schema_migrations)
               );" > source-control.json
 
-          age --passphrase --output "$ENCRYPTED_FILE" "$DUMP_FILE"
           sha256sum "$ENCRYPTED_FILE" > "${ENCRYPTED_FILE}.sha256"
 
           printf '%s\n' \

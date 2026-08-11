@@ -153,7 +153,7 @@ jobs:
 
           if hostname == f'db.{project_ref}.supabase.co':
               username = f'postgres.{project_ref}'
-              hostname = 'aws-0-eu-central-1.pooler.supabase.com'
+              hostname = 'aws-1-eu-central-1.pooler.supabase.com'
               port = 5432
 
           userinfo = username

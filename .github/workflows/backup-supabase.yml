@@ -107,7 +107,10 @@ jobs:
           expected_ref = os.environ['PROD_PROJECT_REF']
           parsed = urlparse(os.environ['CANDIDATE_URL'])
           valid_scheme = parsed.scheme in {'postgres', 'postgresql'}
-          valid_host = bool(parsed.hostname and parsed.hostname.endswith('.supabase.com'))
+          valid_host = bool(parsed.hostname and (
+              parsed.hostname.endswith('.supabase.com') or
+              parsed.hostname.endswith('.supabase.co')
+          ))
           valid_database = parsed.path.rstrip('/') == '/postgres'
           contains_ref = expected_ref in os.environ['CANDIDATE_URL']
           if not all((valid_scheme, valid_host, valid_database, contains_ref)):

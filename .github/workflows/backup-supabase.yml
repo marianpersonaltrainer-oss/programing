@@ -86,6 +86,12 @@ jobs:
             CANDIDATE_URL="${CANDIDATE_URL//]/}"
             CANDIDATE_URL="${CANDIDATE_URL/@db-/@db.}"
 
+            if [[ "$CANDIDATE_URL" == *"postgresql://"* ]]; then
+              CANDIDATE_URL="postgresql://${CANDIDATE_URL#*postgresql://}"
+            elif [[ "$CANDIDATE_URL" == *"postgres://"* ]]; then
+              CANDIDATE_URL="postgres://${CANDIDATE_URL#*postgres://}"
+            fi
+
             if [[ ! "$CANDIDATE_URL" =~ ^postgres(ql)?:// ]] && [[ "$CANDIDATE_URL" == *"@"* ]] && [[ "$CANDIDATE_URL" == *"/"* ]]; then
               CANDIDATE_URL="postgresql://${CANDIDATE_URL}"
             fi

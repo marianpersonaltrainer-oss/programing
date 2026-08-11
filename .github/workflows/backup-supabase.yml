@@ -142,12 +142,13 @@ jobs:
           export DB_URL
           DB_URL="$(python3 - <<'PY'
           import os
-          from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+          from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
           project_ref = os.environ['PROD_PROJECT_REF']
           parsed = urlsplit(os.environ['DB_URL'])
           username = parsed.username or ''
-          password = parsed.password or ''
+          configured_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
+          password = quote(configured_password, safe='') if configured_password else (parsed.password or '')
           hostname = parsed.hostname or ''
           port = parsed.port
 

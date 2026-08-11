@@ -73,6 +73,11 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "SUPABASE_DB_PASSWORD is required as a GitHub Actions secret."
+            exit 1
+          fi
+
           DB_URL=""
           CANDIDATE_NUMBER=0
           for RAW_URL in "${SUPABASE_POOLER_URL:-}" "${SUPABASE_DB_URL:-}"; do
@@ -148,7 +153,7 @@ jobs:
           parsed = urlsplit(os.environ['DB_URL'])
           username = parsed.username or ''
           configured_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
-          password = quote(configured_password, safe='') if configured_password else (parsed.password or '')
+          password = quote(configured_password, safe='')
           hostname = parsed.hostname or ''
           port = parsed.port
 

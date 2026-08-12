@@ -371,7 +371,6 @@ async function requestBriefingFromAnthropic({ apiKey, model, systemPrompt, messa
     data = rawText ? JSON.parse(rawText) : {}
   } catch {
     const err = new Error('Anthropic devolvió cuerpo no JSON')
-    err.preview = rawText?.slice(0, 200)
     err.httpStatus = upstream.status
     throw err
   }
@@ -422,8 +421,9 @@ function summarizeAnthropicContentTypes(data) {
  * Si la migración no está aplicada en Supabase o falla RLS, el briefing sigue funcionando sin ese bloque.
  */
 function logOptionalTableSkip(label, err) {
-  const msg = err?.message || String(err || '')
-  console.warn(`[programming-week-briefing] ${label} omitido:`, msg)
+  console.warn(`[programming-week-briefing] ${label} omitido`, {
+    code: err?.code || err?.name || 'unknown',
+  })
 }
 
 async function fetchContextPack(supabase, target) {
@@ -558,7 +558,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'JSON inválido' })
   }
 
-  const apiKey = (process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '').trim()
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
   if (!apiKey) {
     return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY en el servidor.' })
   }
@@ -586,7 +586,9 @@ export default async function handler(req, res) {
       })
     }
   } catch (error) {
-    console.error('[programming-week-briefing] rate limit unavailable:', error?.message || error)
+    console.error('[programming-week-briefing] rate limit unavailable', {
+      code: error?.code || error?.name || 'unknown',
+    })
     return res.status(503).json({ error: 'rate_limit_unavailable' })
   }
   if (!adminSecretsMatch(body.secret, serverSecret)) {
@@ -722,14 +724,6 @@ export default async function handler(req, res) {
         messages,
       }))
     } catch (e) {
-      if (e?.preview) {
-        const bodyErr = { error: e.message, preview: e.preview, requestId, phase: 'proposal_ia' }
-        if (stream) {
-          stream.finishError(Number(e?.httpStatus) || 502, bodyErr)
-          return
-        }
-        return res.status(Number(e?.httpStatus) || 502).json(bodyErr)
-      }
       const bodyErr = {
         error: e?.message || 'Error al contactar con Anthropic.',
         requestId,
@@ -832,7 +826,10 @@ export default async function handler(req, res) {
     }
     return res.status(200).json(payload)
   } catch (e) {
-    console.error('[programming-week-briefing]', e)
+    console.error('[programming-week-briefing]', {
+      code: e?.code || e?.name || 'unknown',
+      requestId,
+    })
     return res.status(500).json({
       error: e?.message || 'Error al generar briefing',
       requestId,

@@ -6,6 +6,7 @@ dist
 .vercel
 .env.vercel.pull
 .env.vercel.dev
+.env.vercel
 supabase/.temp/
 
 # Material local del usuario (no código)

@@ -265,7 +265,9 @@ export default async function handler(req, res) {
       })
     }
   } catch (e) {
-    console.error('Rate limit check failed:', e)
+    console.error('Rate limit check failed', {
+      code: e?.code || e?.name || 'unknown',
+    })
   }
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -277,11 +279,7 @@ export default async function handler(req, res) {
     })
   }
 
-  const apiKey = (
-    process.env.ANTHROPIC_API_KEY ||
-    process.env.VITE_ANTHROPIC_API_KEY ||
-    ''
-  ).trim()
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
 
   if (!apiKey) {
     return res.status(500).json({
@@ -356,21 +354,25 @@ export default async function handler(req, res) {
     try {
       data = rawText ? JSON.parse(rawText) : {}
     } catch {
-      console.error('Anthropic no-JSON body:', rawText?.slice(0, 500))
+      console.error('Anthropic returned a non-JSON body', {
+        status: response.status,
+      })
       clearHeartbeat()
       return res.end(
         JSON.stringify({
           error: {
             message:
               'La API de Anthropic devolvió un cuerpo que no es JSON. Revisa el modelo y los logs de Vercel (Functions → anthropic).',
-            preview: String(rawText || '').slice(0, 200),
           },
         }),
       )
     }
 
     if (!response.ok) {
-      console.error('Anthropic API Error:', response.status, data)
+      console.error('Anthropic API error', {
+        status: response.status,
+        type: data?.error?.type || 'unknown',
+      })
       const message = userFacingMessage(data, response.status)
       const baseError =
         data && typeof data.error === 'object' && !Array.isArray(data.error)
@@ -416,7 +418,9 @@ export default async function handler(req, res) {
         ip,
       })
     } catch (e) {
-      console.error('api_usage_log insert failed:', e)
+      console.error('api_usage_log insert failed', {
+        code: e?.code || e?.name || 'unknown',
+      })
     }
 
     clearHeartbeat()
@@ -443,15 +447,15 @@ export default async function handler(req, res) {
         },
       })
     }
-    const msg = error?.message ? String(error.message).slice(0, 500) : 'unknown'
-    console.error('Serverless Function Error:', error)
+    console.error('Serverless Function Error', {
+      code: error?.code || error?.name || 'unknown',
+    })
     if (streamStarted && !res.writableEnded) {
       return res.end(
         JSON.stringify({
           error: {
             message:
-              'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y que el proyecto use Node 20. Detalle técnico (sin claves): ' +
-              msg,
+              'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y la versión de Node.',
           },
         }),
       )
@@ -459,8 +463,7 @@ export default async function handler(req, res) {
     return res.status(500).json({
       error: {
         message:
-          'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y que el proyecto use Node 20. Detalle técnico (sin claves): ' +
-          msg,
+          'Error interno al llamar a Anthropic. Si es la primera vez tras redeploy, revisa ANTHROPIC_API_KEY y la versión de Node.',
       },
     })
   } finally {

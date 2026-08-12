@@ -387,12 +387,6 @@ export function useAgent(weekState) {
       systemWithContext += `\n\n${synthesis}`
     }
 
-    console.group('[ProgramingEvo] Contexto enviado a la IA')
-    console.log('targetDay:', targetDay)
-    console.log('SÍNTESIS DE CONTEXTO:\n', synthesis || '(vacío)')
-    console.log(`System prompt completo (${systemWithContext.length} caracteres):`, systemWithContext)
-    console.groupEnd()
-
     const newMessages = [
       ...messagesRef.current,
       { role: 'user', content: userText },

@@ -439,8 +439,7 @@ export default function CoachView() {
 
       // Misma fila activa: JSON actualizado en remoto (p. ej. programador → «Guardar cambios»).
       setWeekData(normalized)
-    } catch (e) {
-      console.warn('CoachView: refreshActiveWeekOnFocus', e)
+    } catch {
       setIsWeekSwitching(false)
     }
   }, [step, resetWeekDerivedState])
@@ -467,18 +466,6 @@ export default function CoachView() {
     const viernesTardeOk = dayOfWeekIso === 5 && hour >= 16
     const yaCompletadoEstaSemana = String(evoCheckinWeekStored).trim() === weekIso
     const mostrar = viernesTardeOk && !yaCompletadoEstaSemana
-
-    console.log('[weekly-checkin gate]', {
-      step,
-      weekdayLabelMadrid: weekdayLabel,
-      madridDayOfWeekIso: dayOfWeekIso,
-      madridHour: hour,
-      weekIsoActual: weekIso,
-      evo_checkin_week: evoCheckinWeekStored,
-      viernesTardeOk,
-      yaCompletadoEstaSemana,
-      mostrarModal: mostrar,
-    })
 
     setShowWeeklyCheckin(mostrar)
   }, [step])
@@ -594,11 +581,6 @@ export default function CoachView() {
   async function handleSubmitWeeklyCheckin() {
     const weekIso = isoWeekString(new Date())
     const mood = Number(weeklyCheckinForm.moodScore || 0)
-    console.log('[WeeklyCheckinModal] submit click', {
-      moodScoreRaw: weeklyCheckinForm.moodScore,
-      moodScoreType: typeof weeklyCheckinForm.moodScore,
-      moodParsed: mood,
-    })
     if (mood < 1 || mood > 5) {
       setWeeklyCheckinSubmitError('Elige cómo ha ido la semana (1–5) antes de enviar.')
       return
@@ -611,7 +593,7 @@ export default function CoachView() {
       /* noop */
     }
     try {
-      const saved = await createWeeklyCheckin(
+      await createWeeklyCheckin(
         {
           coach_name: coachName || 'Coach',
           week_iso: weekIso,
@@ -622,7 +604,6 @@ export default function CoachView() {
         },
         { accessCode: coachAccessCode },
       )
-      console.log('[WeeklyCheckinModal] envío correcto', saved)
       try {
         localStorage.setItem('evo_checkin_week', weekIso)
       } catch {
@@ -631,7 +612,6 @@ export default function CoachView() {
       setShowWeeklyCheckin(false)
     } catch (e) {
       const msg = e?.message || 'No se pudo guardar el check-in semanal'
-      console.error('[WeeklyCheckinModal] error al enviar (mensaje mostrado)', msg, e)
       setWeeklyCheckinSubmitError(msg)
       setError(msg)
     }
@@ -802,7 +782,6 @@ export default function CoachView() {
     }, 8000)
 
     async function init() {
-      console.log('CoachView: Starting init...')
       try {
         const week = await getActiveWeek()
         if (!mounted) return
@@ -833,8 +812,7 @@ export default function CoachView() {
         } else {
           setStep('name')
         }
-      } catch (err) {
-        console.error('CoachView: Init crash:', err)
+      } catch {
         setError('Error conectando con la base de datos')
         setStep('noweek')
       } finally {
@@ -909,8 +887,7 @@ export default function CoachView() {
       setSessionId(session.id)
       setStep('chat')
       setActiveDay(defaultActiveDayNameFromWeek(normalizedSession))
-    } catch (e) {
-      console.error('CoachView: StartSession error:', e)
+    } catch {
       setError('Error iniciando sesión')
       setStep('noweek')
     }

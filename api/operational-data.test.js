@@ -27,7 +27,7 @@ function request(body) {
 function harness(overrides = {}) {
   const deps = {
     createClientImpl: vi.fn(() => ({ kind: 'service-client' })),
-    checkRateLimitImpl: vi.fn().mockResolvedValue(true),
+    checkRateLimitImpl: vi.fn().mockResolvedValue(false),
     executeActionImpl: vi.fn().mockResolvedValue({ data: { id: 'ok' }, error: null }),
     ...overrides,
   }
@@ -111,6 +111,25 @@ describe('POST /api/operational-data', () => {
 
     expect(res.statusCode).toBe(503)
     expect(res.body).toEqual({ error: 'Servicio temporalmente no disponible' })
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('rechaza la petición cuando el bucket supera el límite', async () => {
+    const { handler, deps } = harness({
+      checkRateLimitImpl: vi.fn().mockResolvedValue(true),
+    })
+    const res = response()
+
+    await handler(
+      request({
+        action: 'list_assistant_history',
+        adminSecret: 'admin-secret',
+        payload: {},
+      }),
+      res,
+    )
+
+    expect(res.statusCode).toBe(429)
     expect(deps.executeActionImpl).not.toHaveBeenCalled()
   })
 

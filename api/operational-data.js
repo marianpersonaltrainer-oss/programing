@@ -406,12 +406,12 @@ export function createOperationalDataHandler({
     })
 
     try {
-      const allowed = await checkRateLimitImpl(supabase, req, {
+      const exceeded = await checkRateLimitImpl(supabase, req, {
         endpoint: `/api/operational-data/${action}`,
         limit: 180,
         windowMinutes: 10,
       })
-      if (!allowed) return res.status(429).json({ error: 'Demasiadas solicitudes' })
+      if (exceeded) return res.status(429).json({ error: 'Demasiadas solicitudes' })
 
       const { data, error } = await executeActionImpl(supabase, action, body.payload || {})
       if (error) {

@@ -40,9 +40,7 @@ function parseBody(req) {
 
 function getServerConfig() {
   return {
-    apiKey: String(
-      process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY || '',
-    ).trim(),
+    apiKey: String(process.env.ANTHROPIC_API_KEY || '').trim(),
     adminSecret: String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim(),
     serviceKey: String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
     supabaseUrl: String(

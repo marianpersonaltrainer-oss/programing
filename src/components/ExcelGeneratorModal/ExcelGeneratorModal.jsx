@@ -2674,13 +2674,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     // Siempre 1 día por POST: con briefing + método + ejemplos el prompt es muy grande; 2 días
     // en la misma llamada provocaba timeouts (504/502) frecuentes en Vercel.
     const dayChunks = buildConsecutiveDayChunks(daysToGenerate, 1)
-    console.log('[ProgramingEvo][Excel UI] trozos (1 día/post) enviados a la IA', {
-      numChunks: dayChunks.length,
-      packChars: pack.length,
-      chunks: dayChunks.map((c) => [...c]),
-      juevesEnAlgunChunk: dayChunks.some((c) => c.has('JUEVES')),
-    })
-
     if (daysToGenerate.size === 0) {
       if (
         resumeFromJob?.partialWeek &&
@@ -2982,11 +2975,6 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           lightweight: isFirstApiCall,
         })
         const userMessageForApi = buildChunkMessage(chunk, coherenceBlock, { isFirstApiCall })
-        console.log('[ProgramingEvo][Excel → IA] petición', ci + 1, '/', total, {
-          diasEnEstePOST: [...chunk],
-          juevesEnEstePOST: chunk.has('JUEVES'),
-          generationCallIndex: callIdx,
-        })
         const part = await callApi(userMessageForApi, systemExcelFull, weekContextText, 0, {
           generationCallIndex: callIdx,
           secret: generationAdminSecret,
@@ -3004,13 +2992,6 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
           expectedDatesByDay,
           holidayMergeOptions,
         )
-        const ji = EXCEL_DAY_ORDER.indexOf('JUEVES')
-        if (ji >= 0 && chunk.has('JUEVES')) {
-          const jf = String(acc.dias[ji]?.evofuncional ?? '')
-          console.log('[ProgramingEvo][Excel merge] tras chunk', ci + 1, 'JUEVES evofuncional length:', jf.length, {
-            preview: jf.slice(0, 100),
-          })
-        }
         return part
       }
 
@@ -3845,7 +3826,6 @@ Respeta QUÉ DÍAS GENERAR del prompt del sistema.`
       })
     } catch (err) {
       if (err instanceof StaleGenerationResponseError) return
-      console.error(err)
       setErrorMsg(err?.message || 'No se pudo regenerar el feedback.')
     } finally {
       if (feedbackRunRef.current === feedbackRunId) setRegeneratingFeedbackKey(null)
@@ -4089,7 +4069,6 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
       setDayAiDraftByIdx((prev) => ({ ...prev, [diaIdx]: '' }))
     } catch (err) {
       if (err instanceof StaleGenerationResponseError) return
-      console.error(err)
       setErrorMsg(err?.message || 'No se pudo aplicar la edición con IA.')
     } finally {
       if (dayEditRunRef.current === dayEditRunId) setDayEditAiBusy(false)

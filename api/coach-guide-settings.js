@@ -82,7 +82,9 @@ export default async function handler(req, res) {
     .maybeSingle()
 
   if (error) {
-    console.error('coach-guide-settings update:', error)
+    console.error('coach-guide-settings update failed', {
+      code: error.code || 'unknown',
+    })
     return res.status(500).json({ error: error.message || 'Error Supabase' })
   }
 

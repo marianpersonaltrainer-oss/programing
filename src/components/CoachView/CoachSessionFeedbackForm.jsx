@@ -344,7 +344,6 @@ export default function CoachSessionFeedbackForm({
       setChangedSomething(false)
       await onAfterSave?.()
     } catch (err) {
-      console.error(err)
       setError(err?.message || 'No se pudo guardar. Revisa conexión y permisos en Supabase.')
     } finally {
       setSaving(false)

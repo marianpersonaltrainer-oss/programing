@@ -5,24 +5,20 @@
  *
  * Body JSON:
  * - accessCode — debe coincidir (trim, case-insensitive) con COACH_ACCESS_CODE
- *   o, en su defecto, VITE_COACH_ACCESS_CODE (mismo valor que en build del front).
+ *   configurado exclusivamente como variable privada de servidor.
  * - coach_name, week_iso, mood_score (1–5)
  * - feedback_text, highlights, improvements (opcionales, pueden ser null)
  *
  * Env Vercel / servidor:
  * - SUPABASE_SERVICE_ROLE_KEY
  * - SUPABASE_URL o VITE_SUPABASE_URL
- * - COACH_ACCESS_CODE (recomendado) o VITE_COACH_ACCESS_CODE
+ * - COACH_ACCESS_CODE
  */
 
 import { createClient } from '@supabase/supabase-js'
 
 function expectedCoachCodeFromEnv() {
-  const a = (process.env.COACH_ACCESS_CODE || '').trim()
-  if (a) return a
-  const b = (process.env.VITE_COACH_ACCESS_CODE || '').trim()
-  if (b) return b
-  return ''
+  return (process.env.COACH_ACCESS_CODE || '').trim()
 }
 
 function codesMatch(input, expected) {
@@ -46,19 +42,6 @@ export default async function handler(req, res) {
   const accessCodeRecibido = body?.accessCode
   const expectedCode = expectedCoachCodeFromEnv()
 
-  console.log('[coach-weekly-checkin] START debug', {
-    rawReqBodyType: typeof req.body,
-    parsedBody: body,
-    accessCodeRecibido,
-    accessCodeRecibidoTipo: typeof accessCodeRecibido,
-    accessCodeTrimLength: String(accessCodeRecibido ?? '').trim().length,
-    process_env_COACH_ACCESS_CODE: process.env.COACH_ACCESS_CODE,
-    process_env_COACH_ACCESS_CODE_trimmed_length: String(process.env.COACH_ACCESS_CODE ?? '').trim().length,
-    process_env_VITE_COACH_ACCESS_CODE_trimmed_length: String(process.env.VITE_COACH_ACCESS_CODE ?? '').trim().length,
-    expectedCodeResolvedLength: expectedCode.length,
-    codesMatch: codesMatch(accessCodeRecibido, expectedCode),
-  })
-
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
 
@@ -69,7 +52,7 @@ export default async function handler(req, res) {
   }
   if (!expectedCode) {
     return res.status(500).json({
-      error: 'Servidor sin configurar: COACH_ACCESS_CODE (o VITE_COACH_ACCESS_CODE) para validar al coach.',
+      error: 'Servidor sin configurar: COACH_ACCESS_CODE para validar al coach.',
     })
   }
 
@@ -113,7 +96,7 @@ export default async function handler(req, res) {
     .single()
 
   if (error) {
-    console.error('coach-weekly-checkin upsert:', error)
+    console.error('coach-weekly-checkin upsert failed', { code: error.code || 'unknown' })
     return res.status(500).json({
       error: [error.message, error.code, error.details, error.hint].filter(Boolean).join(' | ') || 'Error Supabase',
     })

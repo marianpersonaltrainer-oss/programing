@@ -205,7 +205,9 @@ async function exportFileAsPlainText(jwt, file) {
     }
     return null
   } catch (e) {
-    console.warn('[programming-drive-import] skip file', name, e?.message || e)
+    console.warn('[programming-drive-import] skipped unreadable file', {
+      code: e?.code || e?.name || 'unknown',
+    })
     return null
   }
 }
@@ -336,7 +338,10 @@ export default async function handler(req, res) {
   } catch (e) {
     const status = e.status === 404 ? 404 : e.status === 403 ? 403 : 500
     const msg = e.message || String(e)
-    console.error('[programming-drive-import]', msg)
+    console.error('[programming-drive-import]', {
+      code: e?.code || e?.name || 'unknown',
+      status,
+    })
     if (status === 403 || /403|accessNotConfigured|insufficientPermissions/i.test(msg)) {
       return res.status(403).json({
         error:

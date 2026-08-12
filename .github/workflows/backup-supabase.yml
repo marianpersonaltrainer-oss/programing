@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PROD_PROJECT_REF: wxrqvcthrkabjllvqghq
+      EXPECTED_PROD_PROJECT_REF: wxrqvcthrkabjllvqghq
       BACKUP_RETENTION_DAYS: "7"
       PGCONNECT_TIMEOUT: "15"
 
@@ -55,8 +55,8 @@ jobs:
       - name: Create encrypted production dump
         id: backup
         env:
+          PROD_PROJECT_REF: ${{ secrets.SUPABASE_PRODUCTION_PROJECT_REF }}
           SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
@@ -68,8 +68,18 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${SUPABASE_POOLER_URL:-}" ] && [ -z "${SUPABASE_DB_URL:-}" ]; then
-            echo "A Supabase database connection URI is required."
+          if [ -z "${PROD_PROJECT_REF:-}" ]; then
+            echo "SUPABASE_PRODUCTION_PROJECT_REF is required as a GitHub Actions secret."
+            exit 1
+          fi
+
+          if [ "$PROD_PROJECT_REF" != "$EXPECTED_PROD_PROJECT_REF" ]; then
+            echo "Production project reference does not match the approved project."
+            exit 1
+          fi
+
+          if [ -z "${SUPABASE_POOLER_URL:-}" ]; then
+            echo "SUPABASE_POOLER_URL is required as a GitHub Actions secret."
             exit 1
           fi
 
@@ -78,100 +88,24 @@ jobs:
             exit 1
           fi
 
-          DB_URL=""
-          CANDIDATE_NUMBER=0
-          for RAW_URL in "${SUPABASE_POOLER_URL:-}" "${SUPABASE_DB_URL:-}"; do
-            if [ -z "${RAW_URL:-}" ]; then
-              continue
-            fi
-            CANDIDATE_NUMBER=$((CANDIDATE_NUMBER + 1))
-            CANDIDATE_URL="$(printf '%s' "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^`//' -e 's/`$//' -e 's/^"//' -e 's/"$//')"
-            CANDIDATE_URL="${CANDIDATE_URL//|/}"
-            CANDIDATE_URL="${CANDIDATE_URL//[/}"
-            CANDIDATE_URL="${CANDIDATE_URL//]/}"
-            CANDIDATE_URL="${CANDIDATE_URL/@db-/@db.}"
-
-            if [[ "$CANDIDATE_URL" == *"postgresql://"* ]]; then
-              CANDIDATE_URL="postgresql://${CANDIDATE_URL#*postgresql://}"
-            elif [[ "$CANDIDATE_URL" == *"postgres://"* ]]; then
-              CANDIDATE_URL="postgres://${CANDIDATE_URL#*postgres://}"
-            fi
-
-            if [[ ! "$CANDIDATE_URL" =~ ^postgres(ql)?:// ]] && [[ "$CANDIDATE_URL" == *"@"* ]] && [[ "$CANDIDATE_URL" == *"/"* ]]; then
-              CANDIDATE_URL="postgresql://${CANDIDATE_URL}"
-            fi
-
-            if [[ "$CANDIDATE_URL" == *"YOUR-PASSWORD"* ]]; then
-              if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
-                echo "Candidate ${CANDIDATE_NUMBER} contains a password placeholder and no password secret."
-                continue
-              fi
-              ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD", ""), safe=""))')"
-              CANDIDATE_URL="${CANDIDATE_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
-            fi
-
-            export CANDIDATE_URL
-            if python3 - <<'PY'
-          import os
-          from urllib.parse import urlparse
-
-          expected_ref = os.environ['PROD_PROJECT_REF']
-          parsed = urlparse(os.environ['CANDIDATE_URL'])
-          valid_scheme = parsed.scheme in {'postgres', 'postgresql'}
-          valid_host = bool(parsed.hostname and (
-              parsed.hostname.endswith('.supabase.com') or
-              parsed.hostname.endswith('.supabase.co')
-          ))
-          valid_database = parsed.path.rstrip('/') == '/postgres'
-          contains_ref = expected_ref in os.environ['CANDIDATE_URL']
-          if not all((valid_scheme, valid_host, valid_database, contains_ref)):
-              print(
-                  'Safe URI diagnostics: '
-                  f'scheme={valid_scheme}, host={valid_host}, '
-                  f'database={valid_database}, project_ref={contains_ref}'
-              )
-              raise SystemExit('Connection URI structure or production project reference is invalid.')
-          PY
-            then
-              DB_URL="$CANDIDATE_URL"
-              break
-            fi
-          done
-
-          if [ -z "$DB_URL" ]; then
-            echo "No valid production database URI candidate was found."
-            exit 1
-          fi
-          unset CANDIDATE_URL RAW_URL
-
-          export DB_URL
+          export PROD_PROJECT_REF SUPABASE_POOLER_URL SUPABASE_DB_PASSWORD
           DB_URL="$(python3 - <<'PY'
           import os
-          from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+          import re
+          from urllib.parse import quote
 
           project_ref = os.environ['PROD_PROJECT_REF']
-          parsed = urlsplit(os.environ['DB_URL'])
-          username = parsed.username or ''
-          configured_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
-          password = quote(configured_password, safe='')
-          hostname = parsed.hostname or ''
-          port = parsed.port
+          pooler_value = os.environ['SUPABASE_POOLER_URL']
+          host_match = re.search(r'(?i)([a-z0-9-]+\.pooler\.supabase\.com)', pooler_value)
+          if not host_match:
+              raise SystemExit('SUPABASE_POOLER_URL does not contain a Supabase pooler host.')
 
-          if hostname == f'db.{project_ref}.supabase.co':
-              username = f'postgres.{project_ref}'
-              hostname = 'aws-1-eu-central-1.pooler.supabase.com'
-              port = 5432
-
-          userinfo = username
-          if password:
-              userinfo += f':{password}'
-          netloc = f'{userinfo}@{hostname}' if userinfo else hostname
-          if port:
-              netloc += f':{port}'
-
-          query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-          query['sslmode'] = 'require'
-          print(urlunsplit((parsed.scheme, netloc, parsed.path, urlencode(query), parsed.fragment)))
+          hostname = host_match.group(1).lower()
+          password = quote(os.environ['SUPABASE_DB_PASSWORD'], safe='')
+          print(
+              f'postgresql://postgres.{project_ref}:{password}'
+              f'@{hostname}:5432/postgres?sslmode=require'
+          )
           PY
           )"
 

@@ -174,7 +174,7 @@ jobs:
             if docker run --rm --network host \
               --env PGPASSWORD="$RESTORE_PASSWORD" \
               postgres:17 \
-              pg_isready --host=127.0.0.1 --port=55432 --username=postgres --dbname=postgres >/dev/null 2>&1; then
+              pg_isready --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=postgres >/dev/null 2>&1; then
               break
             fi
             if [ "$attempt" -eq 60 ]; then
@@ -188,7 +188,7 @@ jobs:
             docker run --rm --network host \
               --env PGPASSWORD="$RESTORE_PASSWORD" \
               postgres:17 \
-              psql --host=127.0.0.1 --port=55432 --username=postgres --dbname=postgres \
+              psql --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=postgres \
                 --no-psqlrc --set=ON_ERROR_STOP=1 \
                 --command="DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN EXECUTE 'CREATE ROLE ${role} NOLOGIN'; END IF; END \$\$;" >/dev/null
           done
@@ -196,7 +196,7 @@ jobs:
           docker run --rm --network host \
             --env PGPASSWORD="$RESTORE_PASSWORD" \
             postgres:17 \
-            createdb --host=127.0.0.1 --port=55432 --username=postgres --template=template0 evo_restore
+            createdb --host=127.0.0.1 --port=55432 --username=supabase_admin --template=template0 evo_restore
 
           docker run --rm --network host \
             --env PGPASSWORD="$RESTORE_PASSWORD" \
@@ -205,7 +205,7 @@ jobs:
             pg_restore \
               --host=127.0.0.1 \
               --port=55432 \
-              --username=postgres \
+              --username=supabase_admin \
               --dbname=evo_restore \
               --exit-on-error \
               --no-owner \
@@ -215,7 +215,7 @@ jobs:
           docker run --rm --network host \
             --env PGPASSWORD="$RESTORE_PASSWORD" \
             postgres:17 \
-            psql --host=127.0.0.1 --port=55432 --username=postgres --dbname=evo_restore \
+            psql --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=evo_restore \
               --no-psqlrc --tuples-only --no-align --quiet --command="
                 select jsonb_build_object(
                   'schemas', (select count(*) from pg_namespace where nspname in ('public','auth','storage','supabase_migrations')),
@@ -239,7 +239,7 @@ jobs:
           docker run --rm --network host \
             --env PGPASSWORD="$RESTORE_PASSWORD" \
             postgres:17 \
-            psql --host=127.0.0.1 --port=55432 --username=postgres --dbname=evo_restore \
+            psql --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=evo_restore \
               --no-psqlrc --tuples-only --no-align --quiet --command="
                 select case when
                   to_regclass('public.published_weeks') is not null

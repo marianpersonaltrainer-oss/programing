@@ -25,6 +25,37 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
 
 export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null
 
+const COACH_AUTH_STORAGE_KEY = 'evo_coach_auth'
+
+function readCoachAccessCode() {
+  try {
+    return String(localStorage.getItem(COACH_AUTH_STORAGE_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+async function callOperationalData(action, payload = {}, authorization = 'auto') {
+  const body = { action, payload }
+  if (authorization === 'coach' || authorization === 'auto') {
+    body.accessCode = readCoachAccessCode()
+  }
+  if (authorization === 'admin' || authorization === 'auto') {
+    body.adminSecret = readCoachAdminSecret()
+  }
+
+  const response = await fetch('/api/operational-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(json?.error || `Error ${response.status} en operación segura.`)
+  }
+  return json?.data ?? null
+}
+
 // ── Semanas publicadas ────────────────────────────────────────────────────────
 
 export async function getActiveWeek() {
@@ -332,55 +363,26 @@ export async function listWeeksLastYear(limit = 40, { signal } = {}) {
 // ── Sesiones coach ────────────────────────────────────────────────────────────
 
 export async function createCoachSession(weekId, coachName) {
-  const { data, error } = await supabase
-    .from('coach_sessions')
-    .insert({ week_id: weekId, coach_name: coachName })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return callOperationalData('create_coach_session', { weekId, coachName }, 'coach')
 }
 
 export async function updateSessionActivity(sessionId) {
-  await supabase
-    .from('coach_sessions')
-    .update({ last_activity: new Date().toISOString() })
-    .eq('id', sessionId)
+  await callOperationalData('touch_coach_session', { sessionId }, 'coach')
 }
 
 export async function getAllSessions() {
-  const { data, error } = await supabase
-    .from('coach_sessions')
-    .select(`
-      *,
-      published_weeks (titulo, semana, mesociclo),
-      coach_messages (count)
-    `)
-    .order('last_activity', { ascending: false })
-
-  if (error) throw error
+  const data = await callOperationalData('list_coach_sessions', {}, 'admin')
   return data || []
 }
 
 // ── Mensajes ──────────────────────────────────────────────────────────────────
 
 export async function saveMessage(sessionId, role, content) {
-  const { error } = await supabase
-    .from('coach_messages')
-    .insert({ session_id: sessionId, role, content })
-
-  if (error) throw error
+  await callOperationalData('insert_coach_message', { sessionId, role, content }, 'coach')
 }
 
 export async function getSessionMessages(sessionId) {
-  const { data, error } = await supabase
-    .from('coach_messages')
-    .select('*')
-    .eq('session_id', sessionId)
-    .order('created_at', { ascending: true })
-
-  if (error) throw error
+  const data = await callOperationalData('list_session_messages', { sessionId }, 'admin')
   return data || []
 }
 
@@ -408,19 +410,10 @@ export async function getCoachGuideSettings() {
 
 export async function getAssistantWeekContext(mesociclo, semana) {
   if (!mesociclo || semana == null) return null
-  const { data, error } = await supabase
-    .from('assistant_week_context')
-    .select('*')
-    .eq('mesociclo', String(mesociclo))
-    .eq('semana', Number(semana))
-    .maybeSingle()
-  if (error) {
-    if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
-      return null
-    }
-    throw error
-  }
-  return data || null
+  return callOperationalData('get_assistant_context', {
+    mesociclo: String(mesociclo),
+    semana: Number(semana),
+  }, 'auto')
 }
 
 export async function upsertAssistantWeekContext(payload) {
@@ -432,13 +425,7 @@ export async function upsertAssistantWeekContext(payload) {
     adaptations: Array.isArray(payload?.adaptations) ? payload.adaptations : [],
     updated_at: new Date().toISOString(),
   }
-  const { data, error } = await supabase
-    .from('assistant_week_context')
-    .upsert(row, { onConflict: 'mesociclo,semana', ignoreDuplicates: false })
-    .select('*')
-    .single()
-  if (error) throw error
-  return data
+  return callOperationalData('upsert_assistant_context', row, 'admin')
 }
 
 export async function insertAssistantQuestionHistory(payload) {
@@ -453,22 +440,11 @@ export async function insertAssistantQuestionHistory(payload) {
     answer: String(payload?.answer || '').trim(),
   }
   if (!row.question || !row.answer) return null
-  const { data, error } = await supabase.from('assistant_question_history').insert(row).select('id').single()
-  if (error) throw error
-  return data || null
+  return callOperationalData('insert_assistant_history', row, 'coach')
 }
 
 export async function listAssistantQuestionHistory(filters = {}) {
-  let q = supabase.from('assistant_question_history').select('*').order('created_at', { ascending: false }).limit(filters.limit || 400)
-  if (filters.mesociclo) q = q.eq('mesociclo', String(filters.mesociclo))
-  if (filters.semana != null) q = q.eq('semana', Number(filters.semana))
-  const { data, error } = await q
-  if (error) {
-    if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
-      return []
-    }
-    throw error
-  }
+  const data = await callOperationalData('list_assistant_history', filters, 'admin')
   return data || []
 }
 
@@ -478,38 +454,28 @@ export async function listAssistantQuestionHistory(filters = {}) {
  * @param {object} row — columnas de `coach_session_feedback`
  */
 export async function saveCoachSessionFeedback(row) {
-  const { data, error } = await supabase.from('coach_session_feedback').insert(row).select('id').single()
-
-  if (error) throw error
-  return data
+  return callOperationalData('insert_feedback', row, 'coach')
 }
 
 export async function listCoachSessionFeedback() {
-  const { data, error } = await supabase
-    .from('coach_session_feedback')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
+  const data = await callOperationalData('list_feedback_all', {}, 'admin')
   return data || []
 }
 
 /** Feedback de coaches filtrado por semana publicada (pase de turno mañana ↔ tarde). */
 export async function listCoachSessionFeedbackForWeek(weekId) {
   if (weekId == null) return []
-  const { data, error } = await supabase
-    .from('coach_session_feedback')
-    .select('*')
-    .eq('week_id', weekId)
-    .order('created_at', { ascending: false })
-    .limit(50)
+  const data = await callOperationalData('list_feedback_week', { weekId, limit: 50 }, 'auto')
+  return data || []
+}
 
-  if (error) {
-    console.warn('listCoachSessionFeedbackForWeek failed', {
-      code: error.code || 'unknown',
-    })
-    return []
-  }
+export async function listCoachSessionFeedbackForWeeks(weekIds, limit = 40) {
+  const ids = [...new Set((weekIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return []
+  const data = await callOperationalData('list_feedback_weeks', {
+    weekIds: ids,
+    limit,
+  }, 'admin')
   return data || []
 }
 
@@ -519,38 +485,21 @@ export async function listCoachSessionFeedbackForWeek(weekId) {
  */
 export async function fetchCoachSessionFeedbackForPublishedWeekExport(publishedWeekId) {
   if (publishedWeekId == null || publishedWeekId === '') return []
-  const { data, error } = await supabase
-    .from('coach_session_feedback')
-    .select(
-      'id, week_id, day_key, class_label, coach_name, session_how, time_for_explanation, changed_something, changed_details, group_feelings, notes_next_week, created_at',
-    )
-    .eq('week_id', publishedWeekId)
-    .order('created_at', { ascending: false })
-    .limit(500)
-
-  if (error) {
-    console.warn('fetchCoachSessionFeedbackForPublishedWeekExport failed', {
-      code: error.code || 'unknown',
-    })
-    return []
-  }
+  const data = await callOperationalData('list_feedback_week', {
+    weekId: publishedWeekId,
+    limit: 500,
+  }, 'admin')
   return data || []
 }
 
 /** ¿Este coach ya pulsó «Leído» en el pase de turno para esta semana? (RPC, persiste en Supabase). */
 export async function coachHasReadHandoverForWeek(weekId, coachName) {
   if (weekId == null || !String(coachName || '').trim()) return false
-  const { data, error } = await supabase.rpc('coach_has_read_handover', {
-    p_week_id: weekId,
-    p_coach_name: String(coachName).trim(),
-  })
-  if (error) {
-    console.warn('coachHasReadHandoverForWeek failed', {
-      code: error.code || 'unknown',
-    })
-    return false
-  }
-  return !!data
+  const data = await callOperationalData('handover_status', {
+    weekId,
+    coachName: String(coachName).trim(),
+  }, 'coach')
+  return Boolean(data)
 }
 
 /** Marca el pase de turno como leído para coach + semana (tabla coach_handover_reads). */
@@ -558,11 +507,10 @@ export async function recordCoachHandoverRead(weekId, coachName) {
   if (weekId == null || !String(coachName || '').trim()) {
     throw new Error('Falta semana o nombre de coach')
   }
-  const { error } = await supabase.rpc('record_coach_handover_read', {
-    p_week_id: weekId,
-    p_coach_name: String(coachName).trim(),
-  })
-  if (error) throw error
+  await callOperationalData('mark_handover_read', {
+    weekId,
+    coachName: String(coachName).trim(),
+  }, 'coach')
 }
 
 // ── Biblioteca de ejercicios EVO (coach_exercise_library) ─────────────────────
@@ -588,47 +536,16 @@ export async function getCoachExerciseLibrary() {
 // ── Pase diario y check-in semanal ───────────────────────────────────────────
 
 export async function listTodayHandoffs() {
-  const madridNow = new Date().toLocaleString('en-CA', { timeZone: 'Europe/Madrid' }).slice(0, 10)
-  const { data, error } = await supabase
-    .from('daily_handoffs')
-    .select('*')
-    .gte('created_at', `${madridNow}T00:00:00+01:00`)
-    .lt('created_at', `${madridNow}T23:59:59+01:00`)
-    .order('created_at', { ascending: false })
-  if (error) throw error
+  const data = await callOperationalData('list_today_handoffs', {}, 'coach')
   return data || []
 }
 
 export async function createDailyHandoff(payload) {
-  const { data: authData } = await supabase.auth.getUser()
-  const coachId = authData?.user?.id || null
-  const row = { ...payload, coach_id: coachId }
-  const { data, error } = await supabase.from('daily_handoffs').insert(row).select('*').single()
-  if (error) throw error
-  return data
+  return callOperationalData('insert_daily_handoff', payload, 'coach')
 }
 
 export async function listDailyHandoffsHistory(filters = {}) {
-  let q = supabase.from('daily_handoffs').select('*').order('created_at', { ascending: false }).limit(filters.limit || 25)
-  if (filters.fromDate) q = q.gte('created_at', `${filters.fromDate}T00:00:00`)
-  if (filters.toDate) q = q.lte('created_at', `${filters.toDate}T23:59:59`)
-  if (filters.coachName) q = q.eq('coach_name', filters.coachName)
-  if (filters.classType) q = q.eq('class_type', filters.classType)
-  if (filters.onlyIncident) q = q.eq('had_incident', true)
-  const { data, error } = await q
-  if (error) {
-    const msg = String(error?.message || '').toLowerCase()
-    const missingTable =
-      error?.code === 'PGRST205' ||
-      msg.includes('could not find the table') ||
-      msg.includes('daily_handoffs') && msg.includes('schema cache')
-    if (missingTable) {
-      throw new Error(
-        'No existe la tabla daily_handoffs en este proyecto Supabase. Ejecuta la migración `20260417145500_coach_handoffs_and_weekly_checkins.sql` y vuelve a cargar.',
-      )
-    }
-    throw error
-  }
+  const data = await callOperationalData('list_daily_handoffs', filters, 'admin')
   return data || []
 }
 
@@ -640,46 +557,18 @@ export async function listDailyHandoffsHistory(filters = {}) {
  */
 export async function upsertMissingExerciseVideos(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return []
-  const { data, error } = await supabase
-    .from('ejercicios_sin_video')
-    .upsert(rows, {
-      onConflict: 'mesociclo,semana,day_key,class_label,exercise_norm',
-      ignoreDuplicates: false,
-    })
-    .select('*')
-  if (error) throw error
+  const data = await callOperationalData('upsert_missing_exercises', { rows }, 'admin')
   return data || []
 }
 
 export async function listMissingExerciseVideos(filters = {}) {
-  let q = supabase
-    .from('ejercicios_sin_video')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(filters.limit || 300)
-  if (filters.mesociclo) q = q.eq('mesociclo', filters.mesociclo)
-  if (filters.semana != null) q = q.eq('semana', Number(filters.semana))
-  if (filters.onlyUnresolved !== false) q = q.eq('resolved', false)
-  const { data, error } = await q
-  if (error) throw error
+  const data = await callOperationalData('list_missing_exercises', filters, 'admin')
   return data || []
 }
 
 export async function updateMissingExerciseVideo(id, patch) {
   if (!id) throw new Error('Falta id')
-  const { data, error } = await supabase
-    .from('ejercicios_sin_video')
-    .update({
-      suggested_url: patch?.suggested_url ?? null,
-      resolved: patch?.resolved === true,
-      notes: patch?.notes ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select('*')
-    .single()
-  if (error) throw error
-  return data
+  return callOperationalData('update_missing_exercise', { id, ...patch }, 'admin')
 }
 
 export async function getCurrentCoachWeeklyCheckin(weekIso, coachName) {
@@ -696,18 +585,9 @@ export async function getCurrentCoachWeeklyCheckin(weekIso, coachName) {
     if (error) throw error
     return data || null
   }
-  const nameNorm = String(coachName ?? '')
-    .trim()
-    .toLowerCase()
-  if (!nameNorm) return null
-  const { data, error } = await supabase
-    .from('weekly_checkins')
-    .select('*')
-    .eq('week_iso', weekIso)
-    .eq('coach_name_norm', nameNorm)
-    .maybeSingle()
-  if (error) throw error
-  return data || null
+  const name = String(coachName ?? '').trim()
+  if (!name) return null
+  return callOperationalData('get_weekly_checkin', { weekIso, coachName: name }, 'coach')
 }
 
 function formatWeeklyCheckinWriteError(error) {
@@ -722,8 +602,6 @@ function formatWeeklyCheckinWriteError(error) {
 }
 
 const SESSION_EXPIRED_MSG = 'Sesión expirada. Recarga la página e inicia sesión de nuevo.'
-
-const COACH_AUTH_STORAGE_KEY = 'evo_coach_auth'
 
 async function createWeeklyCheckinViaServer(payload, accessCode) {
   const trimmed = String(accessCode ?? '').trim()
@@ -804,9 +682,6 @@ export async function createWeeklyCheckin(payload, options = {}) {
 }
 
 export async function listWeeklyCheckinsByWeek(weekIso) {
-  let q = supabase.from('weekly_checkins').select('*').order('created_at', { ascending: false })
-  if (weekIso) q = q.eq('week_iso', weekIso)
-  const { data, error } = await q
-  if (error) throw error
+  const data = await callOperationalData('list_weekly_checkins', { weekIso }, 'admin')
   return data || []
 }

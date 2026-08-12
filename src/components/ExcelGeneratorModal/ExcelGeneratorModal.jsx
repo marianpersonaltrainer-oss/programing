@@ -23,12 +23,12 @@ import {
   getPublishedWeekByMesocycleAndWeek,
   listPublishedWeekVersionsForMesocycle,
   listPublishedWeeksForMesocycle,
+  listCoachSessionFeedbackForWeeks,
   upsertMissingExerciseVideos,
   listMissingExerciseVideos,
   updateMissingExerciseVideo,
   upsertPublishedWeekBySlot,
   publicationAdminSecret,
-  supabase,
 } from '../../lib/supabase.js'
 import { buildGeneratorLibraryBlock } from '../../utils/buildGeneratorLibraryContext.js'
 import { withTimeout } from '../../utils/withTimeout.js'
@@ -2523,15 +2523,8 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setGenStep('Recopilando feedback de coaches…')
     try {
       if (synthesisSelectedWeekIds.length) {
-        const feedbackQuery = supabase
-          .from('coach_session_feedback')
-          .select('class_label, notes_next_week, created_at, week_id')
-          .in('week_id', synthesisSelectedWeekIds)
-          .not('notes_next_week', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(40)
-        const { data } = await withTimeout(
-          feedbackQuery,
+        const data = await withTimeout(
+          listCoachSessionFeedbackForWeeks(synthesisSelectedWeekIds, 40),
           12_000,
           'Feedback de coaches omitido por tiempo de espera.',
         )

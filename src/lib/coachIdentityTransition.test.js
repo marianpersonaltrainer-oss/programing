@@ -19,10 +19,18 @@ describe('EVO Coach individual Auth transition contract', () => {
     expect(server).toContain("method: 'coach_access_code'")
   })
 
-  it('no envía el código compartido cuando existe una sesión individual habilitada', () => {
+  it('solo sustituye el código compartido si la sesión tiene un contexto Coach único', () => {
+    expect(client).toContain(".rpc('evo_my_capabilities')")
+    expect(client).toContain('hasUniqueCoachCapabilityContext(capabilityRows)')
     expect(client).toContain('hasIndividualSession = true')
     expect(client).toContain('&& !hasIndividualSession')
     expect(client).toContain('headers.Authorization = `Bearer ${token}`')
+  })
+
+  it('mantiene el rollback legacy para sesiones sin capacidad Coach', () => {
+    expect(client).toContain('if (individualAccessToken)')
+    expect(client).toContain('session?.user && !isCoachIndividualAuthEnabled()')
+    expect(client).toContain('return createWeeklyCheckinViaServer(payload, { accessCode })')
   })
 
   it('protege el check-in por capability, origen y rate limit', () => {

@@ -36,6 +36,30 @@ function readCoachAccessCode() {
   }
 }
 
+export function hasUniqueCoachCapabilityContext(rows = []) {
+  const organizationIds = new Set(
+    rows
+      .filter((row) => row?.capability_key === 'coach.workspace.access')
+      .map((row) => row?.organization_id)
+      .filter(Boolean),
+  )
+  return organizationIds.size === 1
+}
+
+async function getIndividualCoachAccessToken() {
+  if (!isCoachIndividualAuthEnabled() || !supabase) return ''
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  const token = String(sessionData?.session?.access_token || '').trim()
+  if (sessionError || !token) return ''
+
+  const { data: capabilityRows, error: capabilityError } = await supabase
+    .rpc('evo_my_capabilities')
+  if (capabilityError || !hasUniqueCoachCapabilityContext(capabilityRows)) return ''
+
+  return token
+}
+
 async function callOperationalData(action, payload = {}, authorization = 'auto') {
   const body = { action, payload }
   if (authorization === 'admin' || authorization === 'auto') {
@@ -45,9 +69,8 @@ async function callOperationalData(action, payload = {}, authorization = 'auto')
   const headers = { 'Content-Type': 'application/json' }
   let hasIndividualSession = false
   try {
-    const { data } = await supabase?.auth?.getSession()
-    const token = String(data?.session?.access_token || '').trim()
-    if (token && isCoachIndividualAuthEnabled()) {
+    const token = await getIndividualCoachAccessToken()
+    if (token) {
       headers.Authorization = `Bearer ${token}`
       hasIndividualSession = true
     }
@@ -683,13 +706,14 @@ export async function createWeeklyCheckin(payload, options = {}) {
     improvements: payload.improvements ?? null,
   }
 
-  if (session?.user && isCoachIndividualAuthEnabled()) {
+  const individualAccessToken = await getIndividualCoachAccessToken()
+  if (individualAccessToken) {
     return createWeeklyCheckinViaServer(payload, {
-      accessToken: session.access_token,
+      accessToken: individualAccessToken,
     })
   }
 
-  if (session?.user) {
+  if (session?.user && !isCoachIndividualAuthEnabled()) {
     const coachId = session.user.id
     row.coach_id = coachId
 

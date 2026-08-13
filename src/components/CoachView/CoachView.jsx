@@ -55,6 +55,7 @@ import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
 import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
 import { isoWeekString, madridCheckinGateParts, madridDateParts, defaultActiveDayNameFromWeek } from '../../utils/coachTime.js'
 import { normalizePublishedWeekForConsumers } from '../../utils/normalizeWeekDataForEditor.js'
+import { hasIndividualCoachAccess } from '../../lib/coachIdentityAccess.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -783,7 +784,10 @@ export default function CoachView() {
 
     async function init() {
       try {
-        const week = await getActiveWeek()
+        const [week, individualCoachAccess] = await Promise.all([
+          getActiveWeek(),
+          hasIndividualCoachAccess().catch(() => false),
+        ])
         if (!mounted) return
 
         if (!week) {
@@ -795,14 +799,16 @@ export default function CoachView() {
         setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
         activeWeekDataSigRef.current = JSON.stringify(normalizedInit ?? null)
 
-        const authed = localStorage.getItem(COACH_AUTH_KEY)
-        const expected = getExpectedCoachCode()
-        const authedNorm = authed?.trim().toUpperCase() ?? ''
-        const expectedNorm = expected.trim().toUpperCase()
+        if (!individualCoachAccess) {
+          const authed = localStorage.getItem(COACH_AUTH_KEY)
+          const expected = getExpectedCoachCode()
+          const authedNorm = authed?.trim().toUpperCase() ?? ''
+          const expectedNorm = expected.trim().toUpperCase()
 
-        if (!authedNorm || authedNorm !== expectedNorm) {
-          setStep('code')
-          return
+          if (!authedNorm || authedNorm !== expectedNorm) {
+            setStep('code')
+            return
+          }
         }
 
         const savedName = localStorage.getItem(COACH_NAME_KEY)

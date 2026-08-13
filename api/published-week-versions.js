@@ -279,7 +279,17 @@ export default async function handler(req, res) {
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
   ).trim()
   if (!serverSecret || !serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: 'server_not_configured_for_publication' })
+    const missing = [
+      !serverSecret ? 'COACH_GUIDE_ADMIN_SECRET' : null,
+      !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+      !supabaseUrl ? 'SUPABASE_URL (o VITE_SUPABASE_URL)' : null,
+    ].filter(Boolean)
+    return res.status(500).json({
+      error: 'server_not_configured_for_publication',
+      missing_env: missing,
+      hint:
+        'En Vercel → programing-evo → Environment Variables, activa estas variables también para Preview (no solo Production) y redeploy.',
+    })
   }
   const action = String(body.action || '')
   const mesocycle = String(body.mesocycle || body.mesociclo || '').trim()

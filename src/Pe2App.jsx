@@ -13,13 +13,22 @@ export default function Pe2App() {
   const [view, setView] = useState('home')
   const [selectedDraftId, setSelectedDraftId] = useState(null)
   const [slot, setSlot] = useState(null)
+  const canManageProgramming = auth.can('programming.manage')
+  const canAccessCoachWorkspace = auth.can('coach.workspace.access')
+  const accessRole = canManageProgramming
+    ? 'programmer'
+    : canAccessCoachWorkspace
+      ? 'coach'
+      : auth.role
+  const programmingOrgId = auth.organizationIdFor('programming.manage')
+    || auth.orgId
 
   useEffect(() => {
-    if (!auth.isAuthenticated || auth.role !== 'programmer') return
+    if (!auth.isAuthenticated || !canManageProgramming) return
     getPe2ActiveSlot()
       .then(setSlot)
       .catch(() => setSlot(null))
-  }, [auth.isAuthenticated, auth.role])
+  }, [auth.isAuthenticated, canManageProgramming])
 
   if (auth.loading) {
     return (
@@ -29,18 +38,21 @@ export default function Pe2App() {
     )
   }
 
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated || auth.recoveryMode) {
     return (
       <Pe2Login
         loading={auth.loading}
         error={auth.error}
         onSignIn={auth.signIn}
+        recoveryMode={auth.recoveryMode}
+        onRequestPasswordReset={auth.requestPasswordReset}
+        onUpdatePassword={auth.updatePassword}
       />
     )
   }
 
   return (
-    <RoleGate role={auth.role}>
+    <RoleGate role={accessRole}>
       <div
         className="h-screen flex flex-col overflow-hidden font-evo-body selection:bg-[#A729AD]/30"
         style={{ backgroundColor: evoBrand.app, color: evoBrand.text }}
@@ -57,7 +69,7 @@ export default function Pe2App() {
               <Pe2WeekView slot={slot} draftId={selectedDraftId} />
             ) : (
               <Pe2HomeView
-                orgId={auth.orgId}
+                orgId={programmingOrgId}
                 selectedDraftId={selectedDraftId}
                 onSelectDraft={setSelectedDraftId}
                 onOpenWeek={() => setView('week')}

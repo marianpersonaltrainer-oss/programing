@@ -4,8 +4,10 @@ import Pe2HomeView from './components/Pe2/Pe2HomeView.jsx'
 import Pe2WeekView from './components/Pe2/Pe2WeekView.jsx'
 import Pe2Login from './components/Pe2/Pe2Login.jsx'
 import RoleGate from './components/Pe2/RoleGate.jsx'
+import NucleusPilotPanel from './components/Pe2/NucleusPilotPanel.jsx'
 import { usePe2Auth } from './hooks/usePe2Auth.js'
 import { getPe2ActiveSlot } from './lib/pe2Supabase.js'
+import { isNucleusPilotVisible } from './lib/nucleusPilot.js'
 import { evoBrand } from './constants/evoBrand.js'
 
 export default function Pe2App() {
@@ -22,6 +24,10 @@ export default function Pe2App() {
       : auth.role
   const programmingOrgId = auth.organizationIdFor('programming.manage')
     || auth.orgId
+  const showNucleusPilot = canManageProgramming && isNucleusPilotVisible({
+    enabled: import.meta.env.VITE_NUCLEUS_PILOT_ENABLED,
+    search: globalThis.location?.search,
+  })
 
   useEffect(() => {
     if (!auth.isAuthenticated || !canManageProgramming) return
@@ -65,6 +71,7 @@ export default function Pe2App() {
             onSignOut={auth.signOut}
           />
           <main className="flex-1 min-w-0 overflow-y-auto p-6 sm:p-8 lg:p-10">
+            {showNucleusPilot ? <NucleusPilotPanel /> : null}
             {view === 'week' ? (
               <Pe2WeekView slot={slot} draftId={selectedDraftId} />
             ) : (

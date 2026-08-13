@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evo.local/schemas/nucleus/evo-event-envelope-v1.json",
+  "title": "EVO-S canonical event envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "observed_at",
+    "source",
+    "organization_id",
+    "person_id",
+    "external_id",
+    "schema_version",
+    "payload",
+    "idempotency_key",
+    "correlation_id",
+    "causation_id",
+    "source_updated_at",
+    "reconciled_at",
+    "sync_status"
+  ],
+  "properties": {
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "event_type": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$"
+    },
+    "occurred_at": { "$ref": "#/$defs/timestamp" },
+    "observed_at": { "$ref": "#/$defs/timestamp" },
+    "source": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_-]+$"
+    },
+    "organization_id": { "$ref": "#/$defs/uuid" },
+    "person_id": {
+      "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+    },
+    "external_id": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 240 },
+        { "type": "null" }
+      ]
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "payload": { "type": "object" },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "correlation_id": { "$ref": "#/$defs/uuid" },
+    "causation_id": {
+      "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+    },
+    "source_updated_at": {
+      "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "reconciled_at": {
+      "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "sync_status": {
+      "enum": ["pending", "synced", "error", "reconciled"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "sync_status": { "const": "reconciled" } },
+        "required": ["sync_status"]
+      },
+      "then": {
+        "properties": {
+          "reconciled_at": { "$ref": "#/$defs/timestamp" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

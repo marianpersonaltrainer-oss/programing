@@ -17,13 +17,12 @@ export default function Pe2App() {
   const [slot, setSlot] = useState(null)
   const canManageProgramming = auth.can('programming.manage')
   const canAccessCoachWorkspace = auth.can('coach.workspace.access')
-  const accessRole = canManageProgramming
-    ? 'programmer'
+  const workspace = canManageProgramming
+    ? 'programming'
     : canAccessCoachWorkspace
       ? 'coach'
-      : auth.role
+      : null
   const programmingOrgId = auth.organizationIdFor('programming.manage')
-    || auth.orgId
   const showNucleusPilot = canManageProgramming && isNucleusPilotVisible({
     enabled: import.meta.env.VITE_NUCLEUS_PILOT_ENABLED,
     search: globalThis.location?.search,
@@ -31,10 +30,10 @@ export default function Pe2App() {
 
   useEffect(() => {
     if (!auth.isAuthenticated || !canManageProgramming) return
-    getPe2ActiveSlot()
+    getPe2ActiveSlot(programmingOrgId)
       .then(setSlot)
       .catch(() => setSlot(null))
-  }, [auth.isAuthenticated, canManageProgramming])
+  }, [auth.isAuthenticated, canManageProgramming, programmingOrgId])
 
   if (auth.loading) {
     return (
@@ -58,7 +57,7 @@ export default function Pe2App() {
   }
 
   return (
-    <RoleGate role={accessRole}>
+    <RoleGate workspace={workspace}>
       <div
         className="h-screen flex flex-col overflow-hidden font-evo-body selection:bg-[#A729AD]/30"
         style={{ backgroundColor: evoBrand.app, color: evoBrand.text }}
@@ -68,6 +67,7 @@ export default function Pe2App() {
             activeView={view}
             onNavigate={setView}
             profile={auth.profile}
+            roles={auth.roles}
             onSignOut={auth.signOut}
           />
           <main className="flex-1 min-w-0 overflow-y-auto p-6 sm:p-8 lg:p-10">

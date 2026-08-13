@@ -6,7 +6,7 @@ const NAV_ITEMS = [
   { id: 'week', label: 'Semana' },
 ]
 
-export default function Pe2Sidebar({ activeView, onNavigate, profile, onSignOut }) {
+export default function Pe2Sidebar({ activeView, onNavigate, profile, roles = [], onSignOut }) {
   return (
     <aside
       className="w-[260px] flex-shrink-0 flex flex-col border-r min-h-0"
@@ -20,7 +20,7 @@ export default function Pe2Sidebar({ activeView, onNavigate, profile, onSignOut 
               Programación V2
             </p>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C4A8C4]">
-              {profile?.role || 'programmer'}
+              {roles.length > 0 ? roles.join(' · ') : 'capability activa'}
             </p>
           </div>
         </div>

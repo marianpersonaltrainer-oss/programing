@@ -119,12 +119,11 @@ export function usePe2Auth() {
     requestPasswordReset,
     updatePassword,
     isAuthenticated: Boolean(session?.user),
-    role: profile?.role || null,
     roles: identity?.roles || [],
     memberships: identity?.memberships || [],
     capabilities: identity?.capabilities || [],
     identitySource: identity?.source || null,
-    orgId: identity?.primaryOrganizationId || profile?.org_id || null,
+    orgId: identity?.primaryOrganizationId || null,
     can: (capabilityKey, organizationId) => (
       identityHasCapability(identity, capabilityKey, organizationId)
     ),

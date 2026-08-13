@@ -41,7 +41,7 @@ export default function Pe2HomeView({
     setLoading(true)
     setError('')
     try {
-      const activeSlot = await getPe2ActiveSlot()
+      const activeSlot = await getPe2ActiveSlot(orgId)
       setSlot(activeSlot)
       onSlotChange?.(activeSlot)
       await loadDrafts(activeSlot)
@@ -51,7 +51,7 @@ export default function Pe2HomeView({
     } finally {
       setLoading(false)
     }
-  }, [loadDrafts, onSlotChange])
+  }, [loadDrafts, onSlotChange, orgId])
 
   useEffect(() => {
     refresh()
@@ -67,7 +67,7 @@ export default function Pe2HomeView({
     setSavingSlot(true)
     setError('')
     try {
-      const saved = await setPe2ActiveSlot(next)
+      const saved = await setPe2ActiveSlot(next, orgId)
       setSlot(saved)
       onSlotChange?.(saved)
       await loadDrafts(saved)

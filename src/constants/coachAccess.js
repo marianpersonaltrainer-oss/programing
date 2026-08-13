@@ -4,6 +4,12 @@ export const COACH_CODE_KEY = 'programingevo_coach_code'
 /** Si no hay env ni valor guardado, se usa este código. */
 export const DEFAULT_COACH_ACCESS_CODE = 'EVO19'
 
+export function isCoachIndividualAuthEnabled(
+  value = import.meta.env.VITE_COACH_INDIVIDUAL_AUTH_ENABLED,
+) {
+  return String(value || '').trim().toLowerCase() === 'true'
+}
+
 function coachCodeFromEnv() {
   const v = import.meta.env.VITE_COACH_ACCESS_CODE
   if (v == null || v === '') return ''

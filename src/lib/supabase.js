@@ -8,6 +8,7 @@ import {
   withInferredPublicationStatus,
 } from '../utils/publishedWeeksLegacy.js'
 import { readCoachAdminSecret } from '../utils/coachAdminSecretStorage.js'
+import { isCoachIndividualAuthEnabled } from '../constants/coachAccess.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -37,20 +38,27 @@ function readCoachAccessCode() {
 
 async function callOperationalData(action, payload = {}, authorization = 'auto') {
   const body = { action, payload }
-  if (authorization === 'coach' || authorization === 'auto') {
-    body.accessCode = readCoachAccessCode()
-  }
   if (authorization === 'admin' || authorization === 'auto') {
     body.adminSecret = readCoachAdminSecret()
   }
 
   const headers = { 'Content-Type': 'application/json' }
+  let hasIndividualSession = false
   try {
     const { data } = await supabase?.auth?.getSession()
     const token = String(data?.session?.access_token || '').trim()
-    if (token) headers.Authorization = `Bearer ${token}`
+    if (token && isCoachIndividualAuthEnabled()) {
+      headers.Authorization = `Bearer ${token}`
+      hasIndividualSession = true
+    }
   } catch {
     // El código compartido temporal sigue disponible durante la transición.
+  }
+  if (
+    (authorization === 'coach' || authorization === 'auto')
+    && !hasIndividualSession
+  ) {
+    body.accessCode = readCoachAccessCode()
   }
 
   const response = await fetch('/api/operational-data', {
@@ -612,27 +620,34 @@ function formatWeeklyCheckinWriteError(error) {
 
 const SESSION_EXPIRED_MSG = 'Sesión expirada. Recarga la página e inicia sesión de nuevo.'
 
-async function createWeeklyCheckinViaServer(payload, accessCode) {
+async function createWeeklyCheckinViaServer(
+  payload,
+  { accessCode = '', accessToken = '' } = {},
+) {
   const trimmed = String(accessCode ?? '').trim()
-
-  if (!trimmed) {
+  const token = String(accessToken ?? '').trim()
+  if (!trimmed && !token) {
     throw new Error(SESSION_EXPIRED_MSG)
   }
 
   const apiPath = '/api/coach-weekly-checkin'
 
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const body = {
+    coach_name: payload.coach_name,
+    week_iso: payload.week_iso,
+    mood_score: Number(payload.mood_score),
+    feedback_text: payload.feedback_text ?? null,
+    highlights: payload.highlights ?? null,
+    improvements: payload.improvements ?? null,
+  }
+  if (trimmed) body.accessCode = trimmed
+
   const res = await fetch(apiPath, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      accessCode: trimmed,
-      coach_name: payload.coach_name,
-      week_iso: payload.week_iso,
-      mood_score: Number(payload.mood_score),
-      feedback_text: payload.feedback_text ?? null,
-      highlights: payload.highlights ?? null,
-      improvements: payload.improvements ?? null,
-    }),
+    headers,
+    body: JSON.stringify(body),
   })
 
   let json = {}
@@ -668,6 +683,12 @@ export async function createWeeklyCheckin(payload, options = {}) {
     improvements: payload.improvements ?? null,
   }
 
+  if (session?.user && isCoachIndividualAuthEnabled()) {
+    return createWeeklyCheckinViaServer(payload, {
+      accessToken: session.access_token,
+    })
+  }
+
   if (session?.user) {
     const coachId = session.user.id
     row.coach_id = coachId
@@ -687,7 +708,7 @@ export async function createWeeklyCheckin(payload, options = {}) {
     throw new Error(SESSION_EXPIRED_MSG)
   }
 
-  return createWeeklyCheckinViaServer(payload, accessCode)
+  return createWeeklyCheckinViaServer(payload, { accessCode })
 }
 
 export async function listWeeklyCheckinsByWeek(weekIso) {

@@ -1,106 +1,192 @@
-/**
- * POST /api/coach-weekly-checkin
- * Escribe en `weekly_checkins` con service role: la vista ?coach no usa Supabase Auth,
- * así que el cliente no puede insertar con anon si RLS o el proyecto exigen JWT.
- *
- * Body JSON:
- * - accessCode — debe coincidir (trim, case-insensitive) con COACH_ACCESS_CODE
- *   configurado exclusivamente como variable privada de servidor.
- * - coach_name, week_iso, mood_score (1–5)
- * - feedback_text, highlights, improvements (opcionales, pueden ser null)
- *
- * Env Vercel / servidor:
- * - SUPABASE_SERVICE_ROLE_KEY
- * - SUPABASE_URL o VITE_SUPABASE_URL
- * - COACH_ACCESS_CODE
- */
-
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+import { adminSecretsMatch, checkAdminRateLimit } from './lib/evoAdminAuth.js'
+import {
+  capabilityAuthErrorResponse,
+  requireEvoCapability,
+} from './lib/evoCapabilityAuth.js'
+import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 
-function expectedCoachCodeFromEnv() {
-  return (process.env.COACH_ACCESS_CODE || '').trim()
-}
-
-function codesMatch(input, expected) {
-  const x = String(input ?? '').trim().toUpperCase()
-  const y = String(expected ?? '').trim().toUpperCase()
-  return x.length > 0 && y.length > 0 && x === y
-}
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' })
-  }
-
-  let body
+function parseBody(req) {
   try {
-    body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+    if (Buffer.isBuffer(req.body)) return JSON.parse(req.body.toString('utf8') || '{}')
+    if (typeof req.body === 'string') return JSON.parse(req.body || '{}')
+    return req.body && typeof req.body === 'object' ? req.body : {}
   } catch {
-    return res.status(400).json({ error: 'JSON inválido' })
+    return null
   }
-
-  const accessCodeRecibido = body?.accessCode
-  const expectedCode = expectedCoachCodeFromEnv()
-
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
-  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
-
-  if (!serviceKey || !supabaseUrl) {
-    return res.status(500).json({
-      error: 'Servidor sin configurar: SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
-    })
-  }
-  if (!expectedCode) {
-    return res.status(500).json({
-      error: 'Servidor sin configurar: COACH_ACCESS_CODE para validar al coach.',
-    })
-  }
-
-  const { accessCode, coach_name, week_iso, mood_score, feedback_text, highlights, improvements } = body || {}
-
-  if (!codesMatch(accessCode, expectedCode)) {
-    return res.status(401).json({ error: 'Código de acceso coach incorrecto o no enviado.' })
-  }
-
-  const name = String(coach_name ?? '').trim()
-  if (!name) {
-    return res.status(400).json({ error: 'Falta coach_name' })
-  }
-  const week = String(week_iso ?? '').trim()
-  if (!week) {
-    return res.status(400).json({ error: 'Falta week_iso' })
-  }
-  const mood = Number(mood_score)
-  if (!Number.isFinite(mood) || mood < 1 || mood > 5) {
-    return res.status(400).json({ error: 'mood_score debe ser un entero entre 1 y 5' })
-  }
-
-  const row = {
-    coach_name: name,
-    week_iso: week,
-    mood_score: mood,
-    feedback_text: feedback_text == null || feedback_text === '' ? null : String(feedback_text),
-    highlights: highlights == null || highlights === '' ? null : String(highlights),
-    improvements: improvements == null || improvements === '' ? null : String(improvements),
-    coach_id: null,
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-
-  const { data, error } = await supabase
-    .from('weekly_checkins')
-    .upsert(row, { onConflict: 'week_iso,coach_name_norm' })
-    .select('*')
-    .single()
-
-  if (error) {
-    console.error('coach-weekly-checkin upsert failed', { code: error.code || 'unknown' })
-    return res.status(500).json({
-      error: [error.message, error.code, error.details, error.hint].filter(Boolean).join(' | ') || 'Error Supabase',
-    })
-  }
-
-  return res.status(200).json({ ok: true, data })
 }
+
+function readConfig(env) {
+  return {
+    coachCode: String(env.COACH_ACCESS_CODE || '').trim(),
+    individualAuthEnabled: String(
+      env.COACH_INDIVIDUAL_AUTH_ENABLED || '',
+    ).trim().toLowerCase() === 'true',
+    serviceKey: String(env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
+    supabaseUrl: String(env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim(),
+  }
+}
+
+function coachCodesMatch(input, expected) {
+  return adminSecretsMatch(
+    String(input || '').trim().toUpperCase(),
+    String(expected || '').trim().toUpperCase(),
+  )
+}
+
+function optionalText(value, max) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) return null
+  if (normalized.length > max) throw new Error('invalid_input')
+  return normalized
+}
+
+function checkinRow(body, coachId) {
+  const coachName = optionalText(body?.coach_name, 120)
+  const weekIso = optionalText(body?.week_iso, 20)
+  const moodScore = Number(body?.mood_score)
+  if (!coachName || !weekIso || !Number.isInteger(moodScore)) {
+    throw new Error('invalid_input')
+  }
+  if (moodScore < 1 || moodScore > 5) throw new Error('invalid_input')
+
+  return {
+    coach_name: coachName,
+    week_iso: weekIso,
+    mood_score: moodScore,
+    feedback_text: optionalText(body?.feedback_text, 4000),
+    highlights: optionalText(body?.highlights, 4000),
+    improvements: optionalText(body?.improvements, 4000),
+    coach_id: coachId,
+  }
+}
+
+async function resolveCoachAuthorization(
+  req,
+  body,
+  config,
+  requireCapabilityImpl,
+) {
+  if (config.individualAuthEnabled) {
+    try {
+      const identity = await requireCapabilityImpl(req, 'coach.workspace.access')
+      return { method: 'individual_identity', identity }
+    } catch (error) {
+      if (!['authentication_required', 'capability_denied'].includes(error?.code)) {
+        throw error
+      }
+    }
+  }
+
+  if (config.coachCode && coachCodesMatch(body?.accessCode, config.coachCode)) {
+    return { method: 'coach_access_code', identity: null }
+  }
+  return null
+}
+
+export function createCoachWeeklyCheckinHandler({
+  createClientImpl = createClient,
+  requireCapabilityImpl = requireEvoCapability,
+  checkRateLimitImpl = checkAdminRateLimit,
+  readConfigImpl = readConfig,
+  requestIdImpl = randomUUID,
+  logger = console,
+} = {}) {
+  return async function coachWeeklyCheckinHandler(req, res) {
+    const requestId = requestIdImpl()
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed', requestId })
+    }
+
+    const originValue = getRequestOrigin(req)
+    const isDev = process.env.NODE_ENV === 'development'
+    if (!(isDev && !originValue) && !isEvoOriginAllowed(originValue)) {
+      return res.status(403).json({ error: 'origin_not_allowed', requestId })
+    }
+
+    const config = readConfigImpl(process.env)
+    if (
+      !config.serviceKey
+      || !config.supabaseUrl
+      || (!config.coachCode && !config.individualAuthEnabled)
+    ) {
+      return res.status(500).json({ error: 'server_not_configured', requestId })
+    }
+
+    const body = parseBody(req)
+    if (body === null) {
+      return res.status(400).json({ error: 'invalid_json', requestId })
+    }
+
+    let authorization
+    try {
+      authorization = await resolveCoachAuthorization(
+        req,
+        body,
+        config,
+        requireCapabilityImpl,
+      )
+    } catch (error) {
+      const response = capabilityAuthErrorResponse(error)
+      return res.status(response.status).json({ ...response.body, requestId })
+    }
+    if (!authorization) {
+      return res.status(401).json({ error: 'coach_authentication_required', requestId })
+    }
+
+    let row
+    try {
+      row = checkinRow(body, authorization.identity?.user?.id || null)
+    } catch {
+      return res.status(400).json({ error: 'invalid_checkin_input', requestId })
+    }
+
+    const supabase = createClientImpl(config.supabaseUrl, config.serviceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    })
+
+    try {
+      const exceeded = await checkRateLimitImpl(supabase, req, {
+        endpoint: '/api/coach-weekly-checkin',
+        limit: 20,
+        windowMinutes: 10,
+      })
+      if (exceeded) {
+        return res.status(429).json({
+          error: 'rate_limit_exceeded',
+          retry_after_seconds: 600,
+          requestId,
+        })
+      }
+    } catch {
+      return res.status(503).json({ error: 'rate_limit_unavailable', requestId })
+    }
+
+    const { data, error } = await supabase
+      .from('weekly_checkins')
+      .upsert(row, { onConflict: 'week_iso,coach_name_norm' })
+      .select('*')
+      .single()
+
+    if (error) {
+      logger.error?.('coach_weekly_checkin_write_failed', {
+        requestId,
+        code: error.code || 'unknown',
+      })
+      return res.status(503).json({ error: 'checkin_write_unavailable', requestId })
+    }
+
+    logger.info?.('coach_weekly_checkin_recorded', {
+      requestId,
+      method: authorization.method,
+    })
+    return res.status(200).json({ ok: true, data, requestId })
+  }
+}
+
+export default createCoachWeeklyCheckinHandler()

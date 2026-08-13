@@ -38,7 +38,12 @@ import {
 } from './CoachGuideViews.jsx'
 import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } from './coachTheme.js'
 import EvoLogo from '../EvoLogo.jsx'
-import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
+import {
+  COACH_CODE_KEY,
+  coachCodesMatch,
+  getExpectedCoachCode,
+  isCoachIndividualAuthEnabled,
+} from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import {
   parseAnthropicProxyBody,
@@ -784,9 +789,12 @@ export default function CoachView() {
 
     async function init() {
       try {
+        const individualAuthEnabled = isCoachIndividualAuthEnabled()
         const [week, individualCoachAccess] = await Promise.all([
           getActiveWeek(),
-          hasIndividualCoachAccess().catch(() => false),
+          individualAuthEnabled
+            ? hasIndividualCoachAccess().catch(() => false)
+            : Promise.resolve(false),
         ])
         if (!mounted) return
 

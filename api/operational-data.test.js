@@ -46,6 +46,7 @@ beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
   process.env.COACH_ACCESS_CODE = 'COACH-CODE'
   process.env.COACH_GUIDE_ADMIN_SECRET = 'admin-secret'
+  process.env.COACH_INDIVIDUAL_AUTH_ENABLED = 'true'
 })
 
 afterEach(() => {
@@ -53,6 +54,7 @@ afterEach(() => {
   delete process.env.SUPABASE_SERVICE_ROLE_KEY
   delete process.env.COACH_ACCESS_CODE
   delete process.env.COACH_GUIDE_ADMIN_SECRET
+  delete process.env.COACH_INDIVIDUAL_AUTH_ENABLED
   vi.restoreAllMocks()
 })
 
@@ -115,6 +117,25 @@ describe('POST /api/operational-data', () => {
       'coach.workspace.access',
     )
     expect(deps.executeActionImpl).toHaveBeenCalledOnce()
+  })
+
+  it('mantiene la identidad individual cerrada cuando el flag está desactivado', async () => {
+    process.env.COACH_INDIVIDUAL_AUTH_ENABLED = 'false'
+    const requireCapabilityImpl = vi.fn().mockResolvedValue({
+      user: { id: 'user-1' },
+      capability: 'coach.workspace.access',
+      organizationId: 'org-a',
+    })
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({ action: 'handover_status', payload: {} })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(401)
+    expect(requireCapabilityImpl).not.toHaveBeenCalled()
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
   })
 
   it('no convierte una capability coach en permiso administrativo', async () => {

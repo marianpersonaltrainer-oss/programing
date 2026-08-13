@@ -93,17 +93,26 @@ function requireConfigured(action) {
   const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const coachCode = String(process.env.COACH_ACCESS_CODE || '').trim()
   const adminSecret = String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim()
+  const individualCoachAuthEnabled = String(
+    process.env.COACH_INDIVIDUAL_AUTH_ENABLED || '',
+  ).trim().toLowerCase() === 'true'
   const needsCoachCode = COACH_ACTIONS.has(action)
   const needsAdminSecret = ADMIN_ACTIONS.has(action)
   if (
     !supabaseUrl
     || !serviceKey
-    || (needsCoachCode && !coachCode)
+    || (needsCoachCode && !coachCode && !individualCoachAuthEnabled)
     || (needsAdminSecret && !adminSecret)
   ) {
     throw new Error('server_not_configured')
   }
-  return { supabaseUrl, serviceKey, coachCode, adminSecret }
+  return {
+    supabaseUrl,
+    serviceKey,
+    coachCode,
+    adminSecret,
+    individualCoachAuthEnabled,
+  }
 }
 
 async function resolveAuthorization(
@@ -120,6 +129,8 @@ async function resolveAuthorization(
   if (adminAllowed) return { method: 'admin_secret' }
   if (coachAllowed) return { method: 'coach_access_code' }
   if (!COACH_ACTIONS.has(action)) return null
+
+  if (!config.individualCoachAuthEnabled) return null
 
   try {
     const identity = await requireCapabilityImpl(

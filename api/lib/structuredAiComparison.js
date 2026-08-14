@@ -24,12 +24,18 @@ export function estimateStructuredAiCostUsd(usage, pricing) {
 
 function normalizeEvaluation(value) {
   if (typeof value === 'boolean') {
-    return { passed: value, score: value ? 1 : 0 }
+    return { passed: value, score: value ? 1 : 0, issueCodes: [] }
   }
   const score = Math.max(0, Math.min(1, Number(value?.score) || 0))
+  const issueCodes = [...new Set(
+    (Array.isArray(value?.issueCodes) ? value.issueCodes : [])
+      .map((code) => String(code || '').trim().slice(0, 100))
+      .filter(Boolean),
+  )].slice(0, 25)
   return {
     passed: value?.passed === undefined ? score >= 1 : Boolean(value.passed),
     score,
+    issueCodes,
   }
 }
 
@@ -117,6 +123,7 @@ export async function runStructuredAiComparison({
           ok: true,
           qualityPassed: evaluation.passed,
           qualityScore: evaluation.score,
+          qualityIssueCodes: evaluation.issueCodes,
           latencyMs: Math.max(0, Number(now()) - startedAt),
           ...usage,
           estimatedCostUsd: estimateStructuredAiCostUsd(
@@ -133,6 +140,7 @@ export async function runStructuredAiComparison({
           ok: false,
           qualityPassed: false,
           qualityScore: null,
+          qualityIssueCodes: [],
           latencyMs: Math.max(0, Number(now()) - startedAt),
           inputTokens: 0,
           outputTokens: 0,

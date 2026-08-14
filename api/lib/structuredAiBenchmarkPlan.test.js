@@ -18,6 +18,8 @@ describe('structured AI benchmark plan', () => {
       expect(request.schema).toBe(EVO_DAY_OUTPUT_SCHEMA)
       expect(request.maxTokens).toBe(2_200)
       expect(request.messages[0].content).not.toMatch(/@|\bcliente\b|\bemail\b/i)
+      expect(request.messages[0].content).toContain('— N MIN')
+      expect(request.messages[0].content).toContain('cadencia de 3 minutos')
     }
   })
 
@@ -25,6 +27,10 @@ describe('structured AI benchmark plan', () => {
     expect(evaluateStructuredAiBenchmarkOutput(
       { dia: { nombre: 'LUNES' } },
       STRUCTURED_AI_BENCHMARK_CASES[0],
-    )).toEqual({ passed: false, score: 0 })
+    )).toEqual({
+      passed: false,
+      score: 0,
+      issueCodes: ['BENCHMARK-CONTRACT-001'],
+    })
   })
 })

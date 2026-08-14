@@ -58,6 +58,9 @@ export function buildStructuredAiBenchmarkRequest(testCase) {
         `Clases seleccionadas: ${selected}.`,
         'Rellena las clases seleccionadas con contenido real y su feedback.',
         'Mantén todas las clases no seleccionadas como cadenas vacías.',
+        'Antes de responder, comprueba que cada bloque visible empieza por A), B) o C) y que su título contiene «— N MIN».',
+        'Si un bloque de fuerza usa una cadencia de 3 minutos o más, incluye un segundo movimiento o accesorio; para un único movimiento usa una cadencia menor.',
+        'Reutiliza el material de montaje alto en otro movimiento o bloque, o explica en el feedback por qué no se reutiliza.',
         'Devuelve sólo el objeto raíz "dia" exigido por el schema.',
       ].join('\n'),
     }],
@@ -90,8 +93,13 @@ export function evaluateStructuredAiBenchmarkOutput(output, testCase) {
     return {
       passed: errors === 0,
       score: errors ? 0 : Math.max(0, 1 - warnings * 0.05),
+      issueCodes: [...new Set(findings.map((entry) => entry.code).filter(Boolean))],
     }
   } catch {
-    return { passed: false, score: 0 }
+    return {
+      passed: false,
+      score: 0,
+      issueCodes: ['BENCHMARK-CONTRACT-001'],
+    }
   }
 }

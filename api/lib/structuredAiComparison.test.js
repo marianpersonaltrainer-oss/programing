@@ -23,6 +23,7 @@ describe('structured AI comparison', () => {
       evaluate: (output) => ({
         passed: output?.dia?.nombre === 'LUNES',
         score: 0.9,
+        issueCodes: ['VAL-TEST-001', 'VAL-TEST-001'],
       }),
       pricingByProvider: {
         anthropic: { inputPerMillionUsd: 3, outputPerMillionUsd: 15 },
@@ -41,6 +42,7 @@ describe('structured AI comparison', () => {
       latencyMs: 120,
       inputTokens: 1_000,
       outputTokens: 500,
+      qualityIssueCodes: ['VAL-TEST-001'],
     })
     expect(result.records[0].estimatedCostUsd).toBeCloseTo(0.0105, 8)
     expect(result.records[0]).not.toHaveProperty('request')
@@ -77,6 +79,7 @@ describe('structured AI comparison', () => {
       provider: 'openai',
       ok: true,
       qualityPassed: true,
+      qualityIssueCodes: [],
     })
   })
 

@@ -10,6 +10,7 @@ import {
   signOutPe2,
   updatePe2Password,
 } from '../lib/pe2Auth.js'
+import { isPasswordRecoveryLocation } from '../lib/passwordRecoveryUrl.js'
 
 export function usePe2Auth() {
   const [session, setSession] = useState(null)
@@ -17,7 +18,9 @@ export function usePe2Auth() {
   const [identity, setIdentity] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [recoveryMode, setRecoveryMode] = useState(false)
+  const [recoveryMode, setRecoveryMode] = useState(() => (
+    isPasswordRecoveryLocation(globalThis.location)
+  ))
 
   const loadIdentity = useCallback(async (userId) => {
     if (!userId) {

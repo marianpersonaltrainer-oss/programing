@@ -9,6 +9,7 @@ import EvoLogo from './components/EvoLogo.jsx'
 import { coachBg, coachBorder, coachNav, coachText } from './components/CoachView/coachTheme.js'
 import { useWeekState } from './hooks/useWeekState.js'
 import { useAgent } from './hooks/useAgent.js'
+import { isPasswordRecoveryLocation } from './lib/passwordRecoveryUrl.js'
 
 const EditModal = lazy(() => import('./components/EditModal/EditModal.jsx'))
 const ExcelGeneratorModal = lazy(() => import('./components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'))
@@ -21,7 +22,7 @@ const Pe2App = lazy(() => import('./Pe2App.jsx'))
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
-const isPe2Mode = appSearch.has('v2')
+const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
 
 function AppLoading() {
   return (

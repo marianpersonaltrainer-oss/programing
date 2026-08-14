@@ -16,6 +16,7 @@ describe('EVO Coach individual Auth transition contract', () => {
     expect(client).toContain('isCoachIndividualAuthEnabled()')
     expect(coach).toContain('isCoachIndividualAuthEnabled()')
     expect(server).toContain('COACH_INDIVIDUAL_AUTH_ENABLED')
+    expect(server).toContain('COACH_SHARED_CODE_FALLBACK_ENABLED')
     expect(server).toContain("method: 'coach_access_code'")
   })
 
@@ -31,6 +32,7 @@ describe('EVO Coach individual Auth transition contract', () => {
     expect(client).toContain('if (individualAccessToken)')
     expect(client).toContain('session?.user && !isCoachIndividualAuthEnabled()')
     expect(client).toContain('return createWeeklyCheckinViaServer(payload, { accessCode })')
+    expect(client).toContain('isCoachSharedCodeFallbackEnabled()')
   })
 
   it('protege el check-in por capability, origen y rate limit', () => {

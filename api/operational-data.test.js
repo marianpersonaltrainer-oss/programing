@@ -47,6 +47,7 @@ beforeEach(() => {
   process.env.COACH_ACCESS_CODE = 'COACH-CODE'
   process.env.COACH_GUIDE_ADMIN_SECRET = 'admin-secret'
   process.env.COACH_INDIVIDUAL_AUTH_ENABLED = 'true'
+  process.env.COACH_SHARED_CODE_FALLBACK_ENABLED = 'true'
 })
 
 afterEach(() => {
@@ -55,6 +56,7 @@ afterEach(() => {
   delete process.env.COACH_ACCESS_CODE
   delete process.env.COACH_GUIDE_ADMIN_SECRET
   delete process.env.COACH_INDIVIDUAL_AUTH_ENABLED
+  delete process.env.COACH_SHARED_CODE_FALLBACK_ENABLED
   vi.restoreAllMocks()
 })
 
@@ -84,6 +86,21 @@ describe('POST /api/operational-data', () => {
 
     await handler(request({
       action: 'list_weekly_checkins',
+      accessCode: 'COACH-CODE',
+      payload: {},
+    }), res)
+
+    expect(res.statusCode).toBe(401)
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('rechaza el código coach cuando staging exige identidad individual', async () => {
+    process.env.COACH_SHARED_CODE_FALLBACK_ENABLED = 'false'
+    const { handler, deps } = harness()
+    const res = response()
+
+    await handler(request({
+      action: 'handover_status',
       accessCode: 'COACH-CODE',
       payload: {},
     }), res)

@@ -43,6 +43,7 @@ import {
   coachCodesMatch,
   getExpectedCoachCode,
   isCoachIndividualAuthEnabled,
+  isCoachSharedCodeFallbackEnabled,
 } from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import {
@@ -808,6 +809,11 @@ export default function CoachView() {
         activeWeekDataSigRef.current = JSON.stringify(normalizedInit ?? null)
 
         if (!individualCoachAccess) {
+          if (individualAuthEnabled && !isCoachSharedCodeFallbackEnabled()) {
+            setError('Tu sesión no tiene acceso individual a EVO Coach.')
+            setStep('noweek')
+            return
+          }
           const authed = localStorage.getItem(COACH_AUTH_KEY)
           const expected = getExpectedCoachCode()
           const authedNorm = authed?.trim().toUpperCase() ?? ''

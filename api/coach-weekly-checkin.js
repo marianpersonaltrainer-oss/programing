@@ -23,6 +23,9 @@ function readConfig(env) {
     individualAuthEnabled: String(
       env.COACH_INDIVIDUAL_AUTH_ENABLED || '',
     ).trim().toLowerCase() === 'true',
+    sharedCodeFallbackEnabled: String(
+      env.COACH_SHARED_CODE_FALLBACK_ENABLED ?? 'true',
+    ).trim().toLowerCase() !== 'false',
     serviceKey: String(env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
     supabaseUrl: String(env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim(),
   }
@@ -79,7 +82,11 @@ async function resolveCoachAuthorization(
     }
   }
 
-  if (config.coachCode && coachCodesMatch(body?.accessCode, config.coachCode)) {
+  if (
+    config.sharedCodeFallbackEnabled
+    && config.coachCode
+    && coachCodesMatch(body?.accessCode, config.coachCode)
+  ) {
     return { method: 'coach_access_code', identity: null }
   }
   return null
@@ -109,7 +116,10 @@ export function createCoachWeeklyCheckinHandler({
     if (
       !config.serviceKey
       || !config.supabaseUrl
-      || (!config.coachCode && !config.individualAuthEnabled)
+      || (
+        !config.individualAuthEnabled
+        && (!config.coachCode || !config.sharedCodeFallbackEnabled)
+      )
     ) {
       return res.status(500).json({ error: 'server_not_configured', requestId })
     }

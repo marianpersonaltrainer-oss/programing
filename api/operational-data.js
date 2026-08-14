@@ -96,12 +96,19 @@ function requireConfigured(action) {
   const individualCoachAuthEnabled = String(
     process.env.COACH_INDIVIDUAL_AUTH_ENABLED || '',
   ).trim().toLowerCase() === 'true'
+  const sharedCodeFallbackEnabled = String(
+    process.env.COACH_SHARED_CODE_FALLBACK_ENABLED ?? 'true',
+  ).trim().toLowerCase() !== 'false'
   const needsCoachCode = COACH_ACTIONS.has(action)
   const needsAdminSecret = ADMIN_ACTIONS.has(action)
   if (
     !supabaseUrl
     || !serviceKey
-    || (needsCoachCode && !coachCode && !individualCoachAuthEnabled)
+    || (
+      needsCoachCode
+      && !individualCoachAuthEnabled
+      && (!coachCode || !sharedCodeFallbackEnabled)
+    )
     || (needsAdminSecret && !adminSecret)
   ) {
     throw new Error('server_not_configured')
@@ -112,6 +119,7 @@ function requireConfigured(action) {
     coachCode,
     adminSecret,
     individualCoachAuthEnabled,
+    sharedCodeFallbackEnabled,
   }
 }
 
@@ -123,6 +131,7 @@ async function resolveAuthorization(
   requireCapabilityImpl,
 ) {
   const coachAllowed = COACH_ACTIONS.has(action)
+    && config.sharedCodeFallbackEnabled
     && coachCodeMatches(body.accessCode, config.coachCode)
   const adminAllowed = ADMIN_ACTIONS.has(action)
     && adminSecretsMatch(body.adminSecret, config.adminSecret)

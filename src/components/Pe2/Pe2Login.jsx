@@ -8,6 +8,8 @@ export default function Pe2Login({
   recoveryMode,
   loading,
   error,
+  eyebrow = 'ProgramingEvo V2',
+  description = 'Acceso con Supabase Auth. Programadores entran al módulo de programación; coaches a Sala (Fase 2).',
 }) {
   const [email, setEmail] = useState('marianpersonaltrainer@gmail.com')
   const [password, setPassword] = useState('')
@@ -92,13 +94,13 @@ export default function Pe2Login({
         style={{ backgroundColor: evoBrand.card, borderColor: `${evoBrand.purple}33` }}
       >
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: evoBrand.muted }}>
-          ProgramingEvo V2
+          {eyebrow}
         </p>
         <h1 className="font-evo-display text-2xl font-bold mb-2" style={{ color: evoBrand.text }}>
           Iniciar sesión
         </h1>
         <p className="text-sm mb-6" style={{ color: evoBrand.muted }}>
-          Acceso con Supabase Auth. Programadores entran al módulo de programación; coaches a Sala (Fase 2).
+          {description}
         </p>
 
         {error ? (

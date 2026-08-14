@@ -8,7 +8,10 @@ import {
   withInferredPublicationStatus,
 } from '../utils/publishedWeeksLegacy.js'
 import { readCoachAdminSecret } from '../utils/coachAdminSecretStorage.js'
-import { isCoachIndividualAuthEnabled } from '../constants/coachAccess.js'
+import {
+  isCoachIndividualAuthEnabled,
+  isCoachSharedCodeFallbackEnabled,
+} from '../constants/coachAccess.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -80,6 +83,7 @@ async function callOperationalData(action, payload = {}, authorization = 'auto')
   if (
     (authorization === 'coach' || authorization === 'auto')
     && !hasIndividualSession
+    && isCoachSharedCodeFallbackEnabled()
   ) {
     body.accessCode = readCoachAccessCode()
   }
@@ -725,7 +729,9 @@ export async function createWeeklyCheckin(payload, options = {}) {
     return data
   }
 
-  const accessCode = options.accessCode ?? options.coachAccessCode
+  const accessCode = isCoachSharedCodeFallbackEnabled()
+    ? options.accessCode ?? options.coachAccessCode
+    : ''
 
   if (!String(accessCode ?? '').trim()) {
     console.warn('[weekly_checkins] sin sesión Supabase y sin accessCode — no se llama al insert del cliente')

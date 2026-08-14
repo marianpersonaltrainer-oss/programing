@@ -59,6 +59,7 @@ function harness(options = {}) {
   const config = options.config || {
     coachCode: 'LEGACY-CODE',
     individualAuthEnabled: true,
+    sharedCodeFallbackEnabled: true,
     serviceKey: 'service-role',
     supabaseUrl: 'https://staging.supabase.test',
   }
@@ -111,6 +112,7 @@ describe('POST /api/coach-weekly-checkin', () => {
       config: {
         coachCode: 'LEGACY-CODE',
         individualAuthEnabled: false,
+        sharedCodeFallbackEnabled: true,
         serviceKey: 'service-role',
         supabaseUrl: 'https://staging.supabase.test',
       },
@@ -130,6 +132,7 @@ describe('POST /api/coach-weekly-checkin', () => {
       config: {
         coachCode: 'LEGACY-CODE',
         individualAuthEnabled: false,
+        sharedCodeFallbackEnabled: true,
         serviceKey: 'service-role',
         supabaseUrl: 'https://staging.supabase.test',
       },
@@ -143,6 +146,28 @@ describe('POST /api/coach-weekly-checkin', () => {
     expect(unit.query.upsert).toHaveBeenCalledWith(expect.objectContaining({
       coach_id: null,
     }), { onConflict: 'week_iso,coach_name_norm' })
+  })
+
+  it('rechaza el código compartido cuando staging apaga el rollback', async () => {
+    const unit = harness({
+      config: {
+        coachCode: 'LEGACY-CODE',
+        individualAuthEnabled: true,
+        sharedCodeFallbackEnabled: false,
+        serviceKey: 'service-role',
+        supabaseUrl: 'https://staging.supabase.test',
+      },
+      requireCapabilityImpl: vi.fn().mockRejectedValue(
+        new EvoCapabilityAuthError('authentication_required', 401),
+      ),
+    })
+    const res = response()
+
+    await unit.handler(request({ accessCode: 'LEGACY-CODE' }), res)
+
+    expect(res.statusCode).toBe(401)
+    expect(res.body.error).toBe('coach_authentication_required')
+    expect(unit.query.upsert).not.toHaveBeenCalled()
   })
 
   it('propaga un fallo cerrado de autorización sin filtrar detalles', async () => {

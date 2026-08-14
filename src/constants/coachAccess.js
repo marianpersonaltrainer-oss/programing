@@ -10,6 +10,16 @@ export function isCoachIndividualAuthEnabled(
   return String(value || '').trim().toLowerCase() === 'true'
 }
 
+/**
+ * Rollback temporal del acceso compartido. Se mantiene activo por defecto para
+ * no alterar Production hasta que el rollout individual haya pasado staging.
+ */
+export function isCoachSharedCodeFallbackEnabled(
+  value = import.meta.env.VITE_COACH_SHARED_CODE_FALLBACK_ENABLED,
+) {
+  return String(value ?? 'true').trim().toLowerCase() !== 'false'
+}
+
 function coachCodeFromEnv() {
   const v = import.meta.env.VITE_COACH_ACCESS_CODE
   if (v == null || v === '') return ''

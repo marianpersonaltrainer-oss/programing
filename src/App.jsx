@@ -13,7 +13,7 @@ import { isPasswordRecoveryLocation } from './lib/passwordRecoveryUrl.js'
 
 const EditModal = lazy(() => import('./components/EditModal/EditModal.jsx'))
 const ExcelGeneratorModal = lazy(() => import('./components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'))
-const CoachView = lazy(() => import('./components/CoachView/CoachView.jsx'))
+const CoachAuthGate = lazy(() => import('./components/CoachView/CoachAuthGate.jsx'))
 const CoachReview = lazy(() => import('./components/CoachReview/CoachReview.jsx'))
 const MethodPanel = lazy(() => import('./components/MethodPanel/MethodPanel.jsx'))
 const ExerciseLibrary = lazy(() => import('./components/ExerciseLibrary/ExerciseLibrary.jsx'))
@@ -50,7 +50,7 @@ export default function App() {
   if (isCoachMode) {
     return (
       <Suspense fallback={<AppLoading />}>
-        <CoachView />
+        <CoachAuthGate />
       </Suspense>
     )
   }

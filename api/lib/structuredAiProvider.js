@@ -4,9 +4,14 @@ import {
   isAnthropicStructuredRequestError,
   requestAnthropicStructuredOutput,
 } from './anthropicStructuredRequest.js'
+import {
+  isOpenAiStructuredRequestError,
+  requestOpenAiStructuredOutput,
+} from './openaiStructuredRequest.js'
 
 export const STRUCTURED_AI_PROVIDERS = Object.freeze({
   ANTHROPIC: 'anthropic',
+  OPENAI: 'openai',
 })
 
 export const DEFAULT_STRUCTURED_AI_PROVIDER = STRUCTURED_AI_PROVIDERS.ANTHROPIC
@@ -31,6 +36,7 @@ export class StructuredAiProviderConfigurationError extends Error {
 export function isStructuredAiRequestError(error) {
   return (
     isAnthropicStructuredRequestError(error)
+    || isOpenAiStructuredRequestError(error)
     || error instanceof StructuredAiProviderConfigurationError
   )
 }
@@ -39,6 +45,7 @@ export function createStructuredAiRequester({
   provider = DEFAULT_STRUCTURED_AI_PROVIDER,
   adapters = {
     [STRUCTURED_AI_PROVIDERS.ANTHROPIC]: requestAnthropicStructuredOutput,
+    [STRUCTURED_AI_PROVIDERS.OPENAI]: requestOpenAiStructuredOutput,
   },
 } = {}) {
   const normalizedProvider = String(provider || '').trim().toLowerCase()

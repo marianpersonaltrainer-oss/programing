@@ -45,6 +45,36 @@ describe('structured AI provider contract', () => {
     })
   })
 
+  it('registra OpenAI sin convertirlo en el proveedor por defecto', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'req-openai' },
+      text: vi.fn().mockResolvedValue(JSON.stringify({
+        model: 'gpt-test',
+        output_text: '{"ok":true}',
+      })),
+    })
+    const request = createStructuredAiRequester({ provider: 'openai' })
+
+    await expect(request({
+      apiKey: 'test-key',
+      model: 'gpt-test',
+      messages: [{ role: 'user', content: 'hola' }],
+      schema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+        additionalProperties: false,
+      },
+      fetchImpl,
+    })).resolves.toMatchObject({
+      output: { ok: true },
+      provider: 'openai',
+    })
+    expect(DEFAULT_STRUCTURED_AI_PROVIDER).toBe('anthropic')
+  })
+
   it('falla cerrado si el proveedor no tiene adaptador registrado', () => {
     expect(() => createStructuredAiRequester({ provider: 'unknown', adapters: {} }))
       .toThrow(StructuredAiProviderConfigurationError)

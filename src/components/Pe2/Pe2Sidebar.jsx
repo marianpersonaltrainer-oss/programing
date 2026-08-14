@@ -1,12 +1,25 @@
 import EvoLogo from '../EvoLogo.jsx'
 import { evoBrand } from '../../constants/evoBrand.js'
 
-const NAV_ITEMS = [
+const PROGRAMMING_NAV_ITEMS = [
   { id: 'home', label: 'Inicio' },
   { id: 'week', label: 'Semana' },
 ]
 
-export default function Pe2Sidebar({ activeView, onNavigate, profile, roles = [], onSignOut }) {
+export default function Pe2Sidebar({
+  activeView,
+  onNavigate,
+  profile,
+  roles = [],
+  canManageProgramming = false,
+  canManageIdentity = false,
+  onSignOut,
+}) {
+  const navItems = [
+    ...(canManageProgramming ? PROGRAMMING_NAV_ITEMS : []),
+    ...(canManageIdentity ? [{ id: 'trainers', label: 'Entrenadores' }] : []),
+  ]
+
   return (
     <aside
       className="w-[260px] flex-shrink-0 flex flex-col border-r min-h-0"
@@ -27,7 +40,7 @@ export default function Pe2Sidebar({ activeView, onNavigate, profile, roles = []
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map(({ id, label }) => {
+        {navItems.map(({ id, label }) => {
           const active = activeView === id
           return (
             <button

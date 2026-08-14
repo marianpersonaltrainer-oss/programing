@@ -1,7 +1,7 @@
 import { evoBrand } from '../../constants/evoBrand.js'
 
 export default function RoleGate({ workspace, children }) {
-  if (workspace === 'programming') return children
+  if (workspace === 'programming' || workspace === 'admin') return children
 
   if (workspace === 'coach') {
     return (

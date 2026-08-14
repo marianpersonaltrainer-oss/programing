@@ -4,8 +4,8 @@ import { EVO_SESSION_CLASS_DEFS } from '../src/constants/evoClasses.js'
 import { EVO_DAY_OUTPUT_SCHEMA } from '../src/constants/evoDayOutputSchema.js'
 import { DEFAULT_PROGRAMMING_MODEL } from '../src/constants/anthropicModels.js'
 import {
-  requestAnthropicStructuredOutput,
-} from './lib/anthropicStructuredRequest.js'
+  requestStructuredAiOutput,
+} from './lib/structuredAiProvider.js'
 import {
   getGenerationJobSnapshot,
   sanitizeGenerationJob,
@@ -461,7 +461,7 @@ function sendJson(res, status, payload, {
 export function createProgrammingGenerationStepHandler({
   createClientImpl = createClient,
   checkRateLimitImpl = checkAdminRateLimit,
-  requestStructuredImpl = requestAnthropicStructuredOutput,
+  requestStructuredImpl = requestStructuredAiOutput,
   getServerConfigImpl = getServerConfig,
   newRequestIdImpl = newRequestId,
   nowImpl = Date.now,

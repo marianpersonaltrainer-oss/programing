@@ -10,11 +10,11 @@ import {
 } from '../src/constants/anthropicModels.js'
 import { EVO_DAY_OUTPUT_SCHEMA } from '../src/constants/evoDayOutputSchema.js'
 import {
-  ANTHROPIC_STRUCTURED_ERROR_CODES,
-  AnthropicStructuredRequestError,
-  isAnthropicStructuredRequestError,
-  requestAnthropicStructuredOutput,
-} from './lib/anthropicStructuredRequest.js'
+  STRUCTURED_AI_ERROR_CODES,
+  StructuredAiRequestError,
+  isStructuredAiRequestError,
+  requestStructuredAiOutput,
+} from './lib/structuredAiProvider.js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
 import {
   adminSecretsMatch,
@@ -66,8 +66,8 @@ function assertRepresentativeDay(output, providerRequestId) {
   const dayFields = daySchema.required
 
   const invalid = (message) => {
-    throw new AnthropicStructuredRequestError(message, {
-      code: ANTHROPIC_STRUCTURED_ERROR_CODES.INVALID_OUTPUT,
+    throw new StructuredAiRequestError(message, {
+      code: STRUCTURED_AI_ERROR_CODES.INVALID_OUTPUT,
       status: 502,
       providerRequestId,
       retriable: false,
@@ -147,7 +147,7 @@ export function createProgrammingAiCheckHandler({
   createClientImpl = createClient,
   checkRateLimitImpl = checkAdminRateLimit,
   checkGenerationPersistenceImpl = checkGenerationPersistence,
-  requestStructuredImpl = requestAnthropicStructuredOutput,
+  requestStructuredImpl = requestStructuredAiOutput,
   startJsonStreamImpl = startJsonStream,
   getServerConfigImpl = getServerConfig,
   newRequestIdImpl = newRequestId,
@@ -271,7 +271,7 @@ export function createProgrammingAiCheckHandler({
     } catch (error) {
       providerRequestId = providerRequestId || error?.providerRequestId || null
       const latencyMs = Math.max(0, Number(nowImpl()) - Number(startedAt))
-      const status = isAnthropicStructuredRequestError(error)
+      const status = isStructuredAiRequestError(error)
         ? errorStatus(error)
         : 502
 

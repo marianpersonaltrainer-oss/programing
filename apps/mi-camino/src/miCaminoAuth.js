@@ -79,7 +79,15 @@ export async function signOutMiCamino() {
 
 export async function requestMiCaminoPasswordReset(email) {
   if (!miCaminoSupabase) throw new Error('Mi Camino no está configurado todavía.')
-  const redirectTo = `${globalThis.location?.origin || ''}/?recovery=1`
+  const origin = String(globalThis.location?.origin || '').trim()
+  const pathname = String(globalThis.location?.pathname || '')
+  // La recuperación debe volver a esta superficie privada, no a la pantalla
+  // histórica de Programming. Supabase conserva el token en la URL y App
+  // detecta `recovery=1` sin exponerlo a otra aplicación.
+  const redirectPath = pathname.startsWith('/mi-camino')
+    ? '/mi-camino?recovery=1'
+    : '/?recovery=1'
+  const redirectTo = `${origin}${redirectPath}`
   const { error } = await miCaminoSupabase.auth.resetPasswordForEmail(email, { redirectTo })
   if (error) throw error
 }

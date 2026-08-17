@@ -31,6 +31,7 @@ describe('Mi Camino independent identity boundary', () => {
     expect(auth).toContain('signInWithOtp')
     expect(auth).toContain('shouldCreateUser: false')
     expect(auth).toContain("'/mi-camino'")
+    expect(auth).toContain("'/mi-camino?recovery=1'")
   })
 
   it('convierte los límites temporales de correo en una instrucción clara y segura', () => {

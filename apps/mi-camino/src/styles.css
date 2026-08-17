@@ -1,0 +1,24 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #1A0A1A; background: #F6E8F9; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input { font: inherit; }
+button { min-height: 44px; border-radius: 12px; border: 0; padding: 0 16px; cursor: pointer; font-weight: 700; background: #A729AD; color: white; }
+button:focus-visible, input:focus-visible { outline: 3px solid #6A1F6D; outline-offset: 2px; }
+.auth-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(145deg, #F6E8F9, #FFFFE2); }
+.auth-card, .content-card { width: min(100%, 640px); border: 1px solid #6A1F6D33; border-radius: 24px; background: white; padding: clamp(24px, 6vw, 48px); box-shadow: 0 18px 50px #6A1F6D16; }
+.auth-card label { display: grid; gap: 8px; font-size: 14px; font-weight: 700; margin-top: 18px; }
+input { min-height: 48px; border: 1px solid #6A1F6D55; border-radius: 12px; padding: 0 14px; color: #1A0A1A; }
+.auth-card > button[type="submit"] { width: 100%; margin-top: 24px; }
+.text-button { color: #6A1F6D; background: transparent; padding-inline: 0; }
+.auth-card .text-button { width: 100%; margin-top: 8px; }
+.eyebrow { margin: 0 0 8px; color: #6A1F6D; font-size: 12px; font-weight: 800; letter-spacing: .14em; }
+h1 { margin: 0 0 12px; font-size: clamp(30px, 7vw, 48px); line-height: 1.05; }
+.muted, .content-card p { color: #5C4D5C; line-height: 1.55; }
+.notice, .error { border-radius: 12px; padding: 12px; font-size: 14px; }
+.notice { background: #ECFDF5; color: #065F46; }.error { background: #FEF2F2; color: #991B1B; }
+.app-shell { min-height: 100vh; max-width: 900px; margin: auto; padding: 24px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 24px; } header strong { font-size: 25px; }
+nav { display: flex; overflow-x: auto; gap: 8px; margin-bottom: 24px; } nav button { background: #FFFFFF; color: #5C4D5C; border: 1px solid #6A1F6D33; white-space: nowrap; } nav button.active { background: #6A1F6D; color: white; }
+.hero-card button { margin: 18px 0; }.small-muted { font-size: 13px; }
+.next-step { margin: 18px 0; font-weight: 700; color: #6A1F6D; }
+@media (max-width: 540px) { .app-shell { padding: 16px; } header { align-items: flex-start; } }

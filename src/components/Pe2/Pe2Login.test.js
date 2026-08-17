@@ -23,4 +23,9 @@ describe('PE2 password recovery', () => {
     expect(login).toContain('autoComplete="new-password"')
     expect(login).toContain('minLength={8}')
   })
+
+  it('no precarga datos personales en el formulario de acceso', () => {
+    expect(login).toContain("const [email, setEmail] = useState('')")
+    expect(login).not.toContain('marianpersonaltrainer@gmail.com')
+  })
 })

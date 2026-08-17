@@ -11,7 +11,7 @@ export default function Pe2Login({
   eyebrow = 'ProgramingEvo V2',
   description = 'Acceso con Supabase Auth. Programadores entran al módulo de programación; coaches a Sala (Fase 2).',
 }) {
-  const [email, setEmail] = useState('marianpersonaltrainer@gmail.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [resetSent, setResetSent] = useState(false)
   const [resetting, setResetting] = useState(false)

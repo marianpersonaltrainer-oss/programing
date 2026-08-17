@@ -21,4 +21,6 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 nav { display: flex; overflow-x: auto; gap: 8px; margin-bottom: 24px; } nav button { background: #FFFFFF; color: #5C4D5C; border: 1px solid #6A1F6D33; white-space: nowrap; } nav button.active { background: #6A1F6D; color: white; }
 .hero-card button { margin: 18px 0; }.small-muted { font-size: 13px; }
 .next-step { margin: 18px 0; font-weight: 700; color: #6A1F6D; }
+.progress-track { height: 12px; overflow: hidden; border-radius: 999px; background: #F6E8F9; margin-top: 20px; }
+.progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6A1F6D, #A729AD); transition: width .2s ease; }
 @media (max-width: 540px) { .app-shell { padding: 16px; } header { align-items: flex-start; } }

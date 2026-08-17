@@ -16,6 +16,12 @@ import {
   updateMiCaminoPassword,
 } from './miCaminoAuth.js'
 import { MI_CAMINO_ROUTES, miCaminoPath, resolveMiCaminoRoute, routeLabel } from './routes.js'
+import {
+  projectionActionStatusLabel,
+  projectionDataStatusLabel,
+  projectionProgressPercent,
+  projectionStageLabel,
+} from './miCaminoPilotView.js'
 
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
 
@@ -168,21 +174,22 @@ function PrivateProjection({ route, isAdmin, projection, projectionError }) {
   }
 
   if (route === MI_CAMINO_ROUTES.JOURNEY) {
-    return <section className="content-card"><p className="eyebrow">MI CAMINO</p><h1>Día {projection.journey_day}</h1><p>Estás en la etapa inicial. Tu recorrido real se mostrará cuando la fuente de datos esté lista.</p></section>
+    return <section className="content-card"><p className="eyebrow">MI CAMINO</p><h1>{projectionStageLabel(projection)}</h1><p>Etapa actual: {projection.stage_key}.</p><p className="small-muted">La información procede de tu recorrido privado de EVO.</p></section>
   }
   if (route === MI_CAMINO_ROUTES.EVOLUTION) {
-    return <section className="content-card"><p className="eyebrow">EVOLUCIÓN</p><h1>Progreso claro, sin comparaciones</h1><p>Acciones completadas: {projection.progress.completed_action_count} de {projection.progress.total_action_count}.</p></section>
+    const percentage = projectionProgressPercent(projection)
+    return <section className="content-card"><p className="eyebrow">EVOLUCIÓN</p><h1>Progreso claro, sin comparaciones</h1><p>Acciones completadas: {projection.progress.completed_action_count} de {projection.progress.total_action_count}.</p><div className="progress-track" aria-label={`${percentage}% de acciones completadas`}><span style={{ width: `${percentage}%` }} /></div><p className="small-muted">{percentage}% del recorrido preparado hasta ahora.</p></section>
   }
   if (route === MI_CAMINO_ROUTES.PROFILE) {
     return <section className="content-card"><p className="eyebrow">PERFIL</p><h1>Tu cuenta EVO</h1><p>Los datos del perfil se habilitarán desde una fuente privada validada.</p></section>
   }
   return (
     <section className="content-card hero-card">
-      <p className="eyebrow">HOY · DEMOSTRACIÓN SEGURA</p>
+      <p className="eyebrow">HOY · {projectionStageLabel(projection)}</p>
       <h1>{projection.next_action.title}</h1>
-      <p>Un solo siguiente paso. Sin presión, comparaciones ni datos de salud.</p>
-      <p className="next-step">Siguiente paso disponible cuando el recorrido privado esté activado.</p>
-      <p className="small-muted">Estado de datos: {projection.freshness.status === 'unknown' ? 'pendiente de conectar' : projection.freshness.status}.</p>
+      <p>Un solo siguiente paso, seleccionado para tu recorrido. Sin presión, comparaciones ni datos de salud.</p>
+      <p className="next-step">Estado: {projectionActionStatusLabel(projection.next_action.status)}.</p>
+      <p className="small-muted">Estado de datos: {projectionDataStatusLabel(projection.freshness.status)}.</p>
     </section>
   )
 }

@@ -37,4 +37,10 @@ describe('Mi Camino independent identity boundary', () => {
     expect(app).toContain('espera unos minutos antes de solicitar otro correo')
     expect(app).toContain('emailAccessNotice')
   })
+
+  it('muestra solamente la acción y progreso contenidos en la proyección P2 validada', () => {
+    expect(app).toContain('projectionProgressPercent(projection)')
+    expect(app).toContain('projection.next_action.title')
+    expect(app).toContain('Sin presión, comparaciones ni datos de salud')
+  })
 })

@@ -8,10 +8,31 @@ export const MI_CAMINO_ROUTES = Object.freeze({
 
 const ROUTE_SET = new Set(Object.values(MI_CAMINO_ROUTES))
 
-export function resolveMiCaminoRoute(pathname = '/') {
-  const normalized = `/${String(pathname || '/').replace(/^\/+|\/+$/g, '')}`
+function normalizePath(pathname = '/') {
+  return `/${String(pathname || '/').replace(/^\/+|\/+$/g, '')}`.replace(/\/$/, '') || '/'
+}
+
+function normalizeBasePath(basePath = '') {
+  const normalized = normalizePath(basePath)
+  return normalized === '/' ? '' : normalized
+}
+
+export function resolveMiCaminoRoute(pathname = '/', basePath = '') {
+  const normalizedBasePath = normalizeBasePath(basePath)
+  let normalized = normalizePath(pathname)
+  if (normalizedBasePath) {
+    if (normalized === normalizedBasePath) normalized = '/'
+    else if (normalized.startsWith(`${normalizedBasePath}/`)) normalized = normalized.slice(normalizedBasePath.length)
+    else return MI_CAMINO_ROUTES.TODAY
+  }
   if (normalized === '/') return MI_CAMINO_ROUTES.TODAY
   return ROUTE_SET.has(normalized) ? normalized : MI_CAMINO_ROUTES.TODAY
+}
+
+export function miCaminoPath(route, basePath = '') {
+  const normalizedBasePath = normalizeBasePath(basePath)
+  const resolvedRoute = ROUTE_SET.has(route) ? route : MI_CAMINO_ROUTES.TODAY
+  return `${normalizedBasePath}${resolvedRoute}` || MI_CAMINO_ROUTES.TODAY
 }
 
 export function routeLabel(route) {

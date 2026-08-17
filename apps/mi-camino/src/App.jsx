@@ -14,7 +14,7 @@ import {
   signOutMiCamino,
   updateMiCaminoPassword,
 } from './miCaminoAuth.js'
-import { MI_CAMINO_ROUTES, resolveMiCaminoRoute, routeLabel } from './routes.js'
+import { MI_CAMINO_ROUTES, miCaminoPath, resolveMiCaminoRoute, routeLabel } from './routes.js'
 
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
 
@@ -160,13 +160,13 @@ function PrivateProjection({ route, isAdmin, projection, projectionError }) {
   )
 }
 
-export default function App() {
+export default function App({ basePath = '' }) {
   const [session, setSession] = useState(null)
   const [capabilities, setCapabilities] = useState([])
   const [projection, setProjection] = useState(DEMO_ENABLED ? DEMO_PROJECTION : null)
   const [projectionError, setProjectionError] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [route, setRoute] = useState(() => resolveMiCaminoRoute(globalThis.location?.pathname))
+  const [route, setRoute] = useState(() => resolveMiCaminoRoute(globalThis.location?.pathname, basePath))
   const recoveryMode = isMiCaminoRecoveryLocation()
 
   async function refreshIdentity() {
@@ -217,7 +217,7 @@ export default function App() {
   ]
 
   function navigate(nextRoute) {
-    window.history.pushState({}, '', nextRoute)
+    window.history.pushState({}, '', miCaminoPath(nextRoute, basePath))
     setRoute(nextRoute)
   }
 

@@ -4,7 +4,7 @@ const ERROR_MESSAGES = Object.freeze({
   authentication_required: 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
   capability_denied: 'Tu cuenta no tiene permiso para gestionar entrenadores.',
   organization_context_required: 'Selecciona una organización antes de continuar.',
-  user_already_registered: 'Ese correo ya tiene una cuenta. Si aparece abajo, reactiva su acceso.',
+  user_already_registered: 'Ese correo ya existe, pero no se pudo identificar su cuenta de forma segura.',
   invalid_invite: 'Revisa el nombre y el correo electrónico.',
   rate_limit_exceeded: 'Demasiadas operaciones seguidas. Espera unos minutos.',
   identity_read_unavailable: 'No se pudo cargar el equipo en este momento.',

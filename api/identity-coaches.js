@@ -82,6 +82,19 @@ async function listCoachMemberships(supabase, organizationId) {
   }))
 }
 
+async function findAuthUserByEmail(supabase, email) {
+  const perPage = 1000
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+    if (error) throw new Error('identity_user_lookup_failed')
+    const users = data?.users || []
+    const match = users.find((user) => String(user?.email || '').trim().toLowerCase() === email)
+    if (match?.id) return match
+    if (users.length < perPage) return null
+  }
+  throw new Error('identity_user_lookup_failed')
+}
+
 async function inviteCoach(supabase, identity, invite, redirectTo) {
   const { data: invitation, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
     invite.email,
@@ -90,13 +103,18 @@ async function inviteCoach(supabase, identity, invite, redirectTo) {
       data: { full_name: invite.fullName },
     },
   )
-  const userId = invitation?.user?.id
+  let userId = invitation?.user?.id
+  let invited = Boolean(userId && !inviteError)
   if (inviteError || !userId) {
     const normalizedMessage = String(inviteError?.message || '').toLowerCase()
     if (normalizedMessage.includes('already') || normalizedMessage.includes('registered')) {
-      throw new Error('user_already_registered')
+      const existingUser = await findAuthUserByEmail(supabase, invite.email)
+      if (!existingUser?.id) throw new Error('user_already_registered')
+      userId = existingUser.id
+      invited = false
+    } else {
+      throw new Error('invite_failed')
     }
-    throw new Error('invite_failed')
   }
 
   try {
@@ -119,11 +137,11 @@ async function inviteCoach(supabase, identity, invite, redirectTo) {
   } catch (error) {
     // Compensación segura: solo elimina el usuario recién creado por esta
     // invitación si no fue posible concederle una membership válida.
-    await supabase.auth.admin.deleteUser(userId).catch(() => {})
+    if (invited) await supabase.auth.admin.deleteUser(userId).catch(() => {})
     throw error
   }
 
-  return { userId }
+  return { userId, invited }
 }
 
 async function setCoachStatus(supabase, identity, change) {
@@ -148,7 +166,7 @@ function operationError(error) {
   const code = String(error?.message || '')
   if (code === 'user_already_registered') return { status: 409, code }
   if (code === 'coach_membership_not_found') return { status: 404, code }
-  if (code === 'membership_read_failed' || code === 'profile_read_failed') {
+  if (code === 'membership_read_failed' || code === 'profile_read_failed' || code === 'identity_user_lookup_failed') {
     return { status: 503, code: 'identity_read_unavailable' }
   }
   if (code === 'invite_failed') return { status: 502, code }
@@ -232,7 +250,7 @@ export function createIdentityCoachesHandler({
         const redirectTo = `${new URL(trustedOrigin).origin}/?v2&reset-password=1`
         const result = await inviteCoach(supabase, identity, invite, redirectTo)
         logger.info?.('identity_coach_invited', { requestId, organizationId: identity.organizationId })
-        return res.status(201).json({ ok: true, userId: result.userId, requestId })
+        return res.status(201).json({ ok: true, userId: result.userId, invited: result.invited, requestId })
       }
 
       const change = normalizeStatusChange(body)

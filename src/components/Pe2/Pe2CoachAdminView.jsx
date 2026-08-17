@@ -38,10 +38,12 @@ export default function Pe2CoachAdminView() {
     setError('')
     setNotice('')
     try {
-      await inviteIdentityCoach({ fullName, email })
+      const result = await inviteIdentityCoach({ fullName, email })
       setFullName('')
       setEmail('')
-      setNotice('Invitación enviada. El entrenador recibirá un correo para crear su contraseña.')
+      setNotice(result.invited
+        ? 'Invitación enviada. El entrenador recibirá un correo para crear su contraseña.'
+        : 'Acceso Coach activado para la cuenta existente. Ya puede entrar con su contraseña individual.')
       await refresh()
     } catch (nextError) {
       setError(nextError.message || 'No se pudo enviar la invitación.')

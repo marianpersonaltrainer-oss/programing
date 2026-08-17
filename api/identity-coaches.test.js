@@ -144,6 +144,47 @@ describe('POST /api/identity-coaches', () => {
       status: 'active',
       assigned_by: ADMIN_ID,
     }), { onConflict: 'user_id,organization_id,role_key' })
+    expect(res.body.invited).toBe(true)
+  })
+
+  it('activa como coach una cuenta existente sin borrarla ni exigir código', async () => {
+    const profileUpsert = vi.fn().mockResolvedValue({ error: null })
+    const membershipUpsert = vi.fn().mockResolvedValue({ error: null })
+    const deleteUser = vi.fn()
+    const listUsers = vi.fn().mockResolvedValue({
+      data: { users: [{ id: COACH_ID, email: 'coach@example.com' }] },
+      error: null,
+    })
+    const serviceClient = {
+      from: vi.fn((table) => ({
+        upsert: table === 'profiles' ? profileUpsert : membershipUpsert,
+      })),
+      auth: {
+        admin: {
+          inviteUserByEmail: vi.fn().mockResolvedValue({
+            data: { user: null },
+            error: { message: 'User already registered' },
+          }),
+          listUsers,
+          deleteUser,
+        },
+      },
+    }
+    const handler = createIdentityCoachesHandler(baseOptions(serviceClient))
+    const res = response()
+
+    await handler(request({ action: 'invite', fullName: 'Coach Uno', email: 'coach@example.com' }), res)
+
+    expect(res.statusCode).toBe(201)
+    expect(res.body).toEqual(expect.objectContaining({ ok: true, userId: COACH_ID, invited: false }))
+    expect(listUsers).toHaveBeenCalledWith({ page: 1, perPage: 1000 })
+    expect(membershipUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      user_id: COACH_ID,
+      organization_id: ORGANIZATION_ID,
+      role_key: 'coach',
+      status: 'active',
+    }), { onConflict: 'user_id,organization_id,role_key' })
+    expect(deleteUser).not.toHaveBeenCalled()
   })
 
   it('compensa el usuario recién invitado si la membership no puede guardarse', async () => {
@@ -169,6 +210,37 @@ describe('POST /api/identity-coaches', () => {
     expect(res.statusCode).toBe(503)
     expect(res.body.error).toBe('identity_write_unavailable')
     expect(deleteUser).toHaveBeenCalledWith(COACH_ID)
+  })
+
+  it('nunca borra una cuenta existente si falla la activación de membership', async () => {
+    const deleteUser = vi.fn()
+    const serviceClient = {
+      from: vi.fn((table) => ({
+        upsert: vi.fn().mockResolvedValue(
+          table === 'profiles' ? { error: null } : { error: { message: 'db unavailable' } },
+        ),
+      })),
+      auth: {
+        admin: {
+          inviteUserByEmail: vi.fn().mockResolvedValue({
+            data: { user: null },
+            error: { message: 'User already registered' },
+          }),
+          listUsers: vi.fn().mockResolvedValue({
+            data: { users: [{ id: COACH_ID, email: 'coach@example.com' }] },
+            error: null,
+          }),
+          deleteUser,
+        },
+      },
+    }
+    const handler = createIdentityCoachesHandler(baseOptions(serviceClient))
+    const res = response()
+
+    await handler(request({ action: 'invite', fullName: 'Coach Uno', email: 'coach@example.com' }), res)
+
+    expect(res.statusCode).toBe(503)
+    expect(deleteUser).not.toHaveBeenCalled()
   })
 
   it('desactiva de forma reversible solo la membership coach indicada', async () => {

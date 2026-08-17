@@ -12,7 +12,7 @@ import {
 } from '../src/domain/miCamino/miCaminoProjectionEnvelope.js'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const ACTIONS = new Set(['provision', 'deactivate'])
+const ACTIONS = new Set(['provision', 'deactivate', 'list'])
 
 function parseBody(req) {
   try {
@@ -60,6 +60,17 @@ async function deactivateAccess(supabase, identity, userId) {
   if (error) throw new Error('mi_camino_access_write_failed')
 }
 
+async function listAccess(supabase, identity) {
+  const { data, error } = await supabase
+    .from('mi_camino_person_access')
+    .select('user_id, person_id, status, updated_at')
+    .eq('organization_id', identity.organizationId)
+    .order('updated_at', { ascending: false })
+    .limit(100)
+  if (error) throw new Error('mi_camino_access_read_failed')
+  return data || []
+}
+
 function operationError(error) {
   if (error instanceof MiCaminoProjectionContractError) return { status: 400, code: 'invalid_mi_camino_projection' }
   if (String(error?.message) === 'mi_camino_person_access_conflict') return { status: 409, code: 'mi_camino_person_access_conflict' }
@@ -94,7 +105,9 @@ export function createMiCaminoAccessHandler({
     if (body === null) return res.status(400).json({ error: 'invalid_json', requestId })
     const action = String(body.action || '').trim()
     const userId = normalizeUserId(body)
-    if (!ACTIONS.has(action) || !userId) return res.status(400).json({ error: 'invalid_mi_camino_access_request', requestId })
+    if (!ACTIONS.has(action) || (action !== 'list' && !userId)) {
+      return res.status(400).json({ error: 'invalid_mi_camino_access_request', requestId })
+    }
 
     let identity
     try {
@@ -117,6 +130,10 @@ export function createMiCaminoAccessHandler({
     }
 
     try {
+      if (action === 'list') {
+        const data = await listAccess(supabase, identity)
+        return res.status(200).json({ ok: true, action, data, requestId })
+      }
       if (action === 'provision') {
         const projection = createMiCaminoProjectionEnvelope(body.projection)
         if (projection.organization_id !== identity.organizationId) {

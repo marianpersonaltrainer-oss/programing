@@ -4,11 +4,15 @@ import {
 } from '../../../src/domain/miCamino/miCaminoProjectionEnvelope.js'
 import {
   getMiCaminoCapabilities,
+  getMiCaminoAdminOrganizationId,
   getMiCaminoProjection,
   getMiCaminoSession,
+  deactivateMiCaminoAccess,
   isMiCaminoRecoveryLocation,
   isMiCaminoSupabaseConfigured,
+  listMiCaminoAccess,
   miCaminoSupabase,
+  provisionMiCaminoAccess,
   requestMiCaminoPasswordReset,
   requestMiCaminoMagicLink,
   signInMiCamino,
@@ -24,6 +28,7 @@ import {
 } from './miCaminoPilotView.js'
 
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
+const ADMIN_PILOT_ENABLED = String(import.meta.env.VITE_MI_CAMINO_ADMIN_ENABLED || '').toLowerCase() === 'true'
 
 function emailAccessNotice(error) {
   const message = String(error?.message || '').toLowerCase()
@@ -146,16 +151,72 @@ function Login({ recoveryMode, onSignedIn }) {
   )
 }
 
-function PrivateProjection({ route, isAdmin, projection, projectionError }) {
+function newId() {
+  return globalThis.crypto?.randomUUID?.() || ''
+}
+
+function MiCaminoAdminPilot({ organizationId }) {
+  const [rows, setRows] = useState([])
+  const [userId, setUserId] = useState('')
+  const [personId, setPersonId] = useState('')
+  const [journeyDay, setJourneyDay] = useState('0')
+  const [actionTitle, setActionTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+
+  async function refresh() {
+    setBusy(true); setError('')
+    try { setRows(await listMiCaminoAccess()) } catch { setError('No se pudo leer el piloto ahora.') } finally { setBusy(false) }
+  }
+
+  async function provision(event) {
+    event.preventDefault()
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const now = new Date().toISOString()
+      await provisionMiCaminoAccess({
+        userId: userId.trim(),
+        projection: createMiCaminoProjectionEnvelope({
+          projection_id: newId(), organization_id: organizationId, person_id: personId.trim(),
+          entry_mode: 'new', journey_day: Number(journeyDay), stage_key: 'concierge_0_14',
+          next_action: { action_id: newId(), kind: 'approved_content', title: actionTitle.trim(), status: 'available', due_at: null, reference_id: `admin:${newId()}` },
+          progress: { confirmed_attendance_count: 0, completed_action_count: 0, total_action_count: 1, next_milestone_key: null },
+          freshness: { status: 'unknown', source: 'nucleus', source_updated_at: null, observed_at: now },
+          schema_version: 1, updated_at: now,
+        }),
+      })
+      setNotice('Acceso de piloto preparado.'); setActionTitle(''); await refresh()
+    } catch (nextError) { setError(nextError?.message || 'No se pudo preparar el acceso.') } finally { setBusy(false) }
+  }
+
+  async function deactivate(userIdToDeactivate) {
+    setBusy(true); setError(''); setNotice('')
+    try { await deactivateMiCaminoAccess(userIdToDeactivate); setNotice('Acceso desactivado, sin borrar la proyección.'); await refresh() } catch { setError('No se pudo desactivar el acceso.') } finally { setBusy(false) }
+  }
+
+  return <section className="content-card">
+    <p className="eyebrow">ADMINISTRACIÓN · PILOTO 0→30</p><h1>Accesos de Mi Camino</h1>
+    <p>Esta consola sólo opera con cuentas EVO existentes y deja la baja como acción reversible. No crea usuarios ni carga datos automáticamente.</p>
+    {notice ? <p className="notice">{notice}</p> : null}{error ? <p className="error">{error}</p> : null}
+    <form className="admin-form" onSubmit={provision}>
+      <label>Id. de cuenta EVO<input value={userId} onChange={(event) => setUserId(event.target.value)} required /></label>
+      <label>Id. de persona<input value={personId} onChange={(event) => setPersonId(event.target.value)} required /></label>
+      <label>Día de recorrido<input type="number" min="0" max="30" value={journeyDay} onChange={(event) => setJourneyDay(event.target.value)} required /></label>
+      <label>Siguiente acción aprobada<input value={actionTitle} onChange={(event) => setActionTitle(event.target.value)} maxLength="160" required /></label>
+      <button disabled={busy}>Preparar acceso de piloto</button>
+    </form>
+    <button type="button" className="text-button" disabled={busy} onClick={refresh}>Actualizar accesos</button>
+    {rows.length ? <ul className="access-list">{rows.map((row) => <li key={row.user_id}><span>{row.status === 'active' ? 'Activo' : 'Inactivo'} · cuenta {row.user_id}</span>{row.status === 'active' ? <button type="button" disabled={busy} onClick={() => deactivate(row.user_id)}>Dar de baja</button> : null}</li>)}</ul> : null}
+  </section>
+}
+
+function PrivateProjection({ route, isAdmin, organizationId, projection, projectionError }) {
   const isAdminRoute = route === MI_CAMINO_ROUTES.ADMIN
 
   if (isAdminRoute) {
     return isAdmin ? (
-      <section className="content-card">
-        <p className="eyebrow">ADMINISTRACIÓN · PREPARACIÓN</p>
-        <h1>Mi Camino 0→30</h1>
-        <p>La consola de contenido se conectará cuando exista el modelo de datos privado validado. No hay clientes, reglas ni automatizaciones activas todavía.</p>
-      </section>
+      ADMIN_PILOT_ENABLED && organizationId ? <MiCaminoAdminPilot organizationId={organizationId} /> : <section className="content-card"><p className="eyebrow">ADMINISTRACIÓN · PREPARACIÓN</p><h1>Mi Camino 0→30</h1><p>La consola de piloto permanece desactivada hasta validar staging o elegir una única organización. No hay clientes, reglas ni automatizaciones activas todavía.</p></section>
     ) : (
       <section className="content-card"><h1>Sin acceso administrativo</h1><p>Tu cuenta no tiene permiso para esta superficie.</p></section>
     )
@@ -197,6 +258,7 @@ function PrivateProjection({ route, isAdmin, projection, projectionError }) {
 export default function App({ basePath = '' }) {
   const [session, setSession] = useState(null)
   const [capabilities, setCapabilities] = useState([])
+  const [organizationId, setOrganizationId] = useState(null)
   const [projection, setProjection] = useState(DEMO_ENABLED ? DEMO_PROJECTION : null)
   const [projectionError, setProjectionError] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -208,6 +270,7 @@ export default function App({ basePath = '' }) {
     setSession(nextSession)
     const nextCapabilities = nextSession ? await getMiCaminoCapabilities() : []
     setCapabilities(nextCapabilities)
+    setOrganizationId(nextSession ? await getMiCaminoAdminOrganizationId() : null)
     if (!nextSession || DEMO_ENABLED) {
       setProjection(DEMO_ENABLED ? DEMO_PROJECTION : null)
       setProjectionError(false)
@@ -265,7 +328,7 @@ export default function App({ basePath = '' }) {
     <main className="app-shell">
       <header><div><p className="eyebrow">EVOLUTION</p><strong>Mi Camino</strong></div><button className="text-button" type="button" onClick={() => signOutMiCamino()}>Cerrar sesión</button></header>
       <nav aria-label="Mi Camino">{nav.map((item) => <button key={item} type="button" className={item === route ? 'active' : ''} onClick={() => navigate(item)}>{routeLabel(item)}</button>)}</nav>
-      <PrivateProjection route={route} isAdmin={isAdmin} projection={projection} projectionError={projectionError} />
+      <PrivateProjection route={route} isAdmin={isAdmin} organizationId={organizationId} projection={projection} projectionError={projectionError} />
     </main>
   )
 }

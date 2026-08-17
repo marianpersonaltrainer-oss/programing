@@ -23,6 +23,17 @@ export async function getMiCaminoCapabilities() {
   return [...new Set((data || []).map((row) => row?.capability_key).filter(Boolean))]
 }
 
+export async function getMiCaminoAdminOrganizationId() {
+  if (!miCaminoSupabase) return null
+  const { data, error } = await miCaminoSupabase.rpc('evo_my_capabilities')
+  if (error) return null
+  const organizationIds = [...new Set((data || [])
+    .filter((row) => row?.capability_key === 'mi_camino.manage')
+    .map((row) => row?.organization_id)
+    .filter(Boolean))]
+  return organizationIds.length === 1 ? organizationIds[0] : null
+}
+
 export async function getMiCaminoProjection() {
   if (!miCaminoSupabase) return null
   const { data, error } = await miCaminoSupabase
@@ -47,6 +58,33 @@ export async function getMiCaminoProjection() {
     schema_version: data.schema_version,
     updated_at: data.updated_at,
   }
+}
+
+async function callMiCaminoAdmin(action, body = {}) {
+  const session = await getMiCaminoSession()
+  const token = String(session?.access_token || '').trim()
+  if (!token) throw new Error('authentication_required')
+  const response = await fetch('/api/mi-camino-access', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...body }),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(json?.error || 'mi_camino_admin_unavailable')
+  return json
+}
+
+export async function listMiCaminoAccess() {
+  const response = await callMiCaminoAdmin('list')
+  return Array.isArray(response?.data) ? response.data : []
+}
+
+export async function provisionMiCaminoAccess({ userId, projection }) {
+  await callMiCaminoAdmin('provision', { userId, projection })
+}
+
+export async function deactivateMiCaminoAccess(userId) {
+  await callMiCaminoAdmin('deactivate', { userId })
 }
 
 export async function signInMiCamino(email, password) {

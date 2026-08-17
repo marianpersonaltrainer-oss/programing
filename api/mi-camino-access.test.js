@@ -86,4 +86,22 @@ describe('POST /api/mi-camino-access', () => {
     expect(res.statusCode).toBe(200)
     expect(current.supabase.rpc).toHaveBeenCalledWith('evo_set_mi_camino_access_status', expect.objectContaining({ next_status: 'inactive' }))
   })
+
+  it('lista sólo enlaces de acceso de la organización administrada', async () => {
+    const current = unit()
+    current.supabase.from = vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          order: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({ data: [{ user_id: USER_ID, status: 'active' }], error: null }),
+          })),
+        })),
+      })),
+    }))
+    const res = response()
+    await current.handler(request({ action: 'list', userId: undefined, projection: undefined }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.data).toEqual([{ user_id: USER_ID, status: 'active' }])
+    expect(current.supabase.from).toHaveBeenCalledWith('mi_camino_person_access')
+  })
 })

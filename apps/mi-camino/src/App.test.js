@@ -44,4 +44,13 @@ describe('Mi Camino independent identity boundary', () => {
     expect(app).toContain('projection.next_action.title')
     expect(app).toContain('Sin presión, comparaciones ni datos de salud')
   })
+
+  it('mantiene la administración de piloto tras flag, capability y operaciones server-side', () => {
+    expect(app).toContain('VITE_MI_CAMINO_ADMIN_ENABLED')
+    expect(app).toContain('ADMIN_PILOT_ENABLED && organizationId')
+    expect(app).toContain('<MiCaminoAdminPilot organizationId={organizationId}')
+    expect(app).toContain('provisionMiCaminoAccess')
+    expect(app).toContain('deactivateMiCaminoAccess')
+    expect(auth).toContain('getMiCaminoAdminOrganizationId')
+  })
 })

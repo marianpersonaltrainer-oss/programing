@@ -5,6 +5,8 @@ import {
   getIdentityOrganizationId,
   identityHasCapability,
   isMissingIdentityFoundationError,
+  isLegacyIdentityFallbackEnabled,
+  resolvePe2Identity,
 } from './pe2Auth.js'
 
 const profile = {
@@ -117,5 +119,46 @@ describe('EVO-S multirole identity', () => {
     expect(isMissingIdentityFoundationError({ code: '42883' })).toBe(true)
     expect(isMissingIdentityFoundationError({ code: '42501' })).toBe(false)
     expect(isMissingIdentityFoundationError(new Error('network error'))).toBe(false)
+  })
+
+  it('mantiene el bridge legacy apagado por defecto y no convierte un fallo de esquema en acceso', async () => {
+    await expect(resolvePe2Identity({
+      profile,
+      userId: profile.id,
+      loadMemberships: async () => {
+        throw { code: '42P01' }
+      },
+      loadCapabilities: async () => [],
+    })).rejects.toMatchObject({ code: '42P01' })
+  })
+
+  it('permite el bridge sólo con flag explícito y conserva el fail-closed para otros errores', async () => {
+    const legacy = await resolvePe2Identity({
+      profile,
+      userId: profile.id,
+      allowLegacyFallback: true,
+      loadMemberships: async () => {
+        throw { code: 'PGRST205' }
+      },
+      loadCapabilities: async () => [],
+    })
+    expect(legacy.source).toBe('legacy-fallback')
+
+    await expect(resolvePe2Identity({
+      profile,
+      userId: profile.id,
+      allowLegacyFallback: true,
+      loadMemberships: async () => {
+        throw { code: '42501' }
+      },
+      loadCapabilities: async () => [],
+    })).rejects.toMatchObject({ code: '42501' })
+  })
+
+  it('sólo reconoce el valor literal true para habilitar el bridge legacy', () => {
+    expect(isLegacyIdentityFallbackEnabled('true')).toBe(true)
+    expect(isLegacyIdentityFallbackEnabled(' TRUE ')).toBe(true)
+    expect(isLegacyIdentityFallbackEnabled('1')).toBe(false)
+    expect(isLegacyIdentityFallbackEnabled()).toBe(false)
   })
 })

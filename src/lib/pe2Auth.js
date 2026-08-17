@@ -17,6 +17,14 @@ export function isMissingIdentityFoundationError(error) {
   return IDENTITY_FOUNDATION_MISSING_CODES.has(String(error?.code || ''))
 }
 
+// El bridge legacy sólo se activa de forma consciente. En Preview/staging la
+// ausencia del flag prueba que la autorización real procede de memberships.
+// Production puede conservar temporalmente el flag como rollback hasta que su
+// esquema quede verificado, sin conceder permisos por un fallo ordinario.
+export function isLegacyIdentityFallbackEnabled(value) {
+  return String(value || '').trim().toLowerCase() === 'true'
+}
+
 function uniqueRows(rows, keyOf) {
   const seen = new Set()
   return (rows || []).filter((row) => {
@@ -157,22 +165,37 @@ export async function getPe2Capabilities() {
   return data || []
 }
 
-export async function getPe2Identity(userId) {
-  const profile = await getPe2Profile(userId)
+export async function resolvePe2Identity({
+  profile,
+  userId,
+  allowLegacyFallback = false,
+  loadMemberships = getPe2Memberships,
+  loadCapabilities = getPe2Capabilities,
+}) {
   if (!userId) return buildPe2Identity(profile)
 
   try {
     const [memberships, capabilityRows] = await Promise.all([
-      getPe2Memberships(userId),
-      getPe2Capabilities(),
+      loadMemberships(userId),
+      loadCapabilities(),
     ])
     return buildPe2Identity(profile, memberships, capabilityRows)
   } catch (error) {
-    // Compatibilidad temporal con Production antes de aplicar la migración.
-    // Cualquier otro error falla cerrado y no se convierte en autorización.
-    if (!isMissingIdentityFoundationError(error)) throw error
+    // Un error de permisos, red o datos nunca se traduce en autorización.
+    if (!allowLegacyFallback || !isMissingIdentityFoundationError(error)) {
+      throw error
+    }
     return buildLegacyPe2Identity(profile)
   }
+}
+
+export async function getPe2Identity(userId, options = {}) {
+  const profile = await getPe2Profile(userId)
+  const allowLegacyFallback = options.allowLegacyFallback
+    ?? isLegacyIdentityFallbackEnabled(
+      import.meta.env.VITE_EVO_LEGACY_IDENTITY_FALLBACK_ENABLED,
+    )
+  return resolvePe2Identity({ profile, userId, allowLegacyFallback })
 }
 
 export async function signInPe2(email, password) {

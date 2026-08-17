@@ -32,4 +32,9 @@ describe('Mi Camino independent identity boundary', () => {
     expect(auth).toContain('shouldCreateUser: false')
     expect(auth).toContain("'/mi-camino'")
   })
+
+  it('convierte los límites temporales de correo en una instrucción clara y segura', () => {
+    expect(app).toContain('espera unos minutos antes de solicitar otro correo')
+    expect(app).toContain('emailAccessNotice')
+  })
 })

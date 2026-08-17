@@ -19,6 +19,14 @@ import { MI_CAMINO_ROUTES, miCaminoPath, resolveMiCaminoRoute, routeLabel } from
 
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
 
+function emailAccessNotice(error) {
+  const message = String(error?.message || '').toLowerCase()
+  if (message.includes('rate limit')) {
+    return 'Por seguridad, espera unos minutos antes de solicitar otro correo. No necesitas hacer nada más ahora.'
+  }
+  return 'Si tu cuenta EVO está preparada, recibirás un correo seguro. Revisa también la carpeta de spam.'
+}
+
 const DEMO_PROJECTION = createMiCaminoProjectionEnvelope({
   projection_id: '018f1f4d-7b6c-7d8e-9f10-111213141540',
   organization_id: '018f1f4d-7b6c-7d8e-9f10-111213141541',
@@ -84,7 +92,7 @@ function Login({ recoveryMode, onSignedIn }) {
       await requestMiCaminoPasswordReset(email.trim())
       setNotice('Revisa tu correo para continuar con la recuperación.')
     } catch (nextError) {
-      setError(nextError?.message || 'No se pudo enviar el enlace.')
+      setNotice(emailAccessNotice(nextError))
     } finally {
       setBusy(false)
     }
@@ -98,7 +106,7 @@ function Login({ recoveryMode, onSignedIn }) {
       setNotice('Te hemos enviado un enlace seguro. Ábrelo en este mismo navegador para entrar sin contraseña.')
     } catch (nextError) {
       // El mensaje se mantiene neutro para no revelar si una dirección tiene cuenta.
-      setNotice('Si tu cuenta EVO está preparada, recibirás un enlace seguro en tu correo.')
+      setNotice(emailAccessNotice(nextError))
     } finally {
       setBusy(false)
     }

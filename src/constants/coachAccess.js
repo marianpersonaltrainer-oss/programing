@@ -1,8 +1,8 @@
 /** Clave localStorage donde el programador guarda el código (vista principal). */
 export const COACH_CODE_KEY = 'programingevo_coach_code'
 
-/** Si no hay env ni valor guardado, se usa este código. */
-export const DEFAULT_COACH_ACCESS_CODE = 'EVO19'
+/** Sin configuración explícita, el acceso compartido falla de forma cerrada. */
+export const DEFAULT_COACH_ACCESS_CODE = ''
 
 export function isCoachIndividualAuthEnabled(
   value = import.meta.env.VITE_COACH_INDIVIDUAL_AUTH_ENABLED,
@@ -28,9 +28,9 @@ function coachCodeFromEnv() {
 
 /**
  * Código que debe introducir el coach para entrar.
- * 1) `VITE_COACH_ACCESS_CODE` en build (Vercel) — prioridad en producción.
+ * 1) `VITE_COACH_ACCESS_CODE` en build (Vercel) — prioridad durante la transición.
  * 2) Valor en localStorage `programingevo_coach_code` (configurado en la app principal).
- * 3) `EVO19`
+ * 3) Sin código predeterminado: si falta configuración, se deniega el acceso.
  */
 export function getExpectedCoachCode() {
   const fromEnv = coachCodeFromEnv()

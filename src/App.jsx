@@ -4,7 +4,12 @@ import AgentChat from './components/AgentChat/AgentChat.jsx'
 import ExportPanel from './components/ExportPanel/ExportPanel.jsx'
 import SupabaseConfigMissing from './components/SupabaseConfigMissing.jsx'
 import { isSupabaseConfigured } from './lib/supabase.js'
-import { COACH_CODE_KEY, getCoachCodeFieldInitialValue } from './constants/coachAccess.js'
+import {
+  COACH_CODE_KEY,
+  getCoachCodeFieldInitialValue,
+  isCoachIndividualAuthEnabled,
+  isCoachSharedCodeFallbackEnabled,
+} from './constants/coachAccess.js'
 import EvoLogo from './components/EvoLogo.jsx'
 import { coachBg, coachBorder, coachNav, coachText } from './components/CoachView/coachTheme.js'
 import { useWeekState } from './hooks/useWeekState.js'
@@ -95,6 +100,9 @@ function ProgrammerApp() {
   const [showCoachContentPanel, setShowCoachContentPanel] = useState(false)
   const [codeValue, setCodeValue] = useState(() => getCoachCodeFieldInitialValue())
   const [codeSaved, setCodeSaved] = useState(false)
+  const showLegacyCoachCodeControl = !(
+    isCoachIndividualAuthEnabled() && !isCoachSharedCodeFallbackEnabled()
+  )
 
   function handleDayClick(day) {
     setActiveDay((prev) => (prev === day ? null : day))
@@ -166,10 +174,12 @@ function ProgrammerApp() {
               <span aria-hidden>✏️</span>
               Tu método
             </button>
-            <button type="button" onClick={() => setShowCodeConfig((v) => !v)} className={navBtn}>
-              <span aria-hidden>🔐</span>
-              Código coach
-            </button>
+            {showLegacyCoachCodeControl ? (
+              <button type="button" onClick={() => setShowCodeConfig((v) => !v)} className={navBtn}>
+                <span aria-hidden>🔐</span>
+                Código coach temporal
+              </button>
+            ) : null}
             <button type="button" onClick={() => setShowLibrary(true)} className={navBtn}>
               <span aria-hidden>📚</span>
               Biblioteca
@@ -222,7 +232,7 @@ function ProgrammerApp() {
 
       <ExportPanel weekState={weekState} onEditSession={handleEditSession} />
 
-      {showCodeConfig && (
+      {showLegacyCoachCodeControl && showCodeConfig && (
         <div className={`fixed bottom-24 left-[300px] z-40 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-elevated w-80 animate-fade-in`}>
           <div className="flex items-center gap-2 mb-2">
             <p className={`text-[11px] font-bold ${coachText.accent} uppercase tracking-tight font-evo-display`}>Acceso Coach</p>
@@ -239,7 +249,7 @@ function ProgrammerApp() {
                 setCodeSaved(false)
               }}
               className={`flex-1 ${coachBg.card} border ${coachBorder} rounded-xl px-4 py-3 text-sm !text-[#1A0A1A] font-mono tracking-[0.2em] focus:outline-none focus:border-[#A729AD]/50`}
-              placeholder="EVO19"
+              placeholder="Código temporal"
             />
             <button
               type="button"

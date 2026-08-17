@@ -10,6 +10,15 @@ const server = readFileSync(
   new URL('../../api/coach-weekly-checkin.js', import.meta.url),
   'utf8',
 )
+const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8')
+const coachAccess = readFileSync(
+  new URL('../constants/coachAccess.js', import.meta.url),
+  'utf8',
+)
+const handoffHistory = readFileSync(
+  new URL('../components/CoachGuideContentPanel/AdminHandoffHistory.jsx', import.meta.url),
+  'utf8',
+)
 
 describe('EVO Coach individual Auth transition contract', () => {
   it('coordina flags cliente y servidor sin eliminar el rollback legacy', () => {
@@ -41,5 +50,14 @@ describe('EVO Coach individual Auth transition contract', () => {
     expect(server).toContain("endpoint: '/api/coach-weekly-checkin'")
     expect(server).not.toContain('error.message')
     expect(server).not.toContain('error.details')
+  })
+
+  it('retira la autoridad role legacy y el código compartido predeterminado del runtime', () => {
+    expect(handoffHistory).not.toContain('profiles.role')
+    expect(handoffHistory).not.toContain('DAILY_HANDOFFS_MIGRATION_SQL')
+    expect(coachAccess).not.toContain('EVO19')
+    expect(coachAccess).toContain("DEFAULT_COACH_ACCESS_CODE = ''")
+    expect(app).toContain('showLegacyCoachCodeControl')
+    expect(app).not.toContain('EVO19')
   })
 })

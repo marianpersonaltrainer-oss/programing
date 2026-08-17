@@ -17,7 +17,8 @@ describe('ExcelGeneratorModal admin session recovery', () => {
   it('distingue la clave ausente de una clave incorrecta', () => {
     expect(source).toContain("setBriefingErrorCode('missing_admin_secret')")
     expect(source).toContain("setBriefingErrorCode('invalid_admin_secret')")
-    expect(source).toContain('No es el código EVO19')
+    expect(source).toContain('Clave administrativa distinta')
+    expect(source).not.toContain('EVO19')
   })
 
   it('no ofrece el modo manual cuando solo falta autenticación', () => {

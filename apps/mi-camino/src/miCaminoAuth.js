@@ -55,6 +55,22 @@ export async function signInMiCamino(email, password) {
   if (error) throw error
 }
 
+export async function requestMiCaminoMagicLink(email) {
+  if (!miCaminoSupabase) throw new Error('Mi Camino no está configurado todavía.')
+  const origin = String(globalThis.location?.origin || '').trim()
+  const pathname = String(globalThis.location?.pathname || '')
+  const redirectPath = pathname.startsWith('/mi-camino') ? '/mi-camino' : '/'
+  const { error } = await miCaminoSupabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${origin}${redirectPath}`,
+      // Nunca crea una cuenta al solicitar un enlace: solo sirve para identidades EVO existentes.
+      shouldCreateUser: false,
+    },
+  })
+  if (error) throw error
+}
+
 export async function signOutMiCamino() {
   if (!miCaminoSupabase) return
   const { error } = await miCaminoSupabase.auth.signOut()

@@ -10,6 +10,7 @@ import {
   isMiCaminoSupabaseConfigured,
   miCaminoSupabase,
   requestMiCaminoPasswordReset,
+  requestMiCaminoMagicLink,
   signInMiCamino,
   signOutMiCamino,
   updateMiCaminoPassword,
@@ -65,6 +66,7 @@ function Login({ recoveryMode, onSignedIn }) {
         setNotice('Contraseña actualizada. Ya puedes iniciar sesión.')
         setPassword('')
       } else {
+        if (!password) throw new Error('Escribe tu contraseña o usa el enlace por correo.')
         await signInMiCamino(email.trim(), password)
         await onSignedIn()
       }
@@ -88,6 +90,20 @@ function Login({ recoveryMode, onSignedIn }) {
     }
   }
 
+  async function requestMagicLink() {
+    setBusy(true)
+    setError('')
+    try {
+      await requestMiCaminoMagicLink(email.trim())
+      setNotice('Te hemos enviado un enlace seguro. Ábrelo en este mismo navegador para entrar sin contraseña.')
+    } catch (nextError) {
+      // El mensaje se mantiene neutro para no revelar si una dirección tiene cuenta.
+      setNotice('Si tu cuenta EVO está preparada, recibirás un enlace seguro en tu correo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <main className="auth-shell">
       <form className="auth-card" onSubmit={submit}>
@@ -104,10 +120,13 @@ function Login({ recoveryMode, onSignedIn }) {
           </label>
         ) : null}
         <label>Contraseña
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={recoveryMode ? 'new-password' : 'current-password'} minLength={8} required />
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={recoveryMode ? 'new-password' : 'current-password'} minLength={8} required={recoveryMode} />
         </label>
         <button type="submit" disabled={busy}>{busy ? 'Un momento…' : recoveryMode ? 'Guardar contraseña' : 'Entrar'}</button>
-        {!recoveryMode ? <button type="button" className="text-button" disabled={busy || !email.trim()} onClick={resetPassword}>He olvidado mi contraseña</button> : null}
+        {!recoveryMode ? <>
+          <button type="button" className="text-button" disabled={busy || !email.trim()} onClick={requestMagicLink}>Entrar con enlace por correo</button>
+          <button type="button" className="text-button" disabled={busy || !email.trim()} onClick={resetPassword}>He olvidado mi contraseña</button>
+        </> : null}
       </form>
     </main>
   )

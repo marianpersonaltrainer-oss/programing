@@ -25,4 +25,11 @@ describe('Mi Camino independent identity boundary', () => {
     expect(app).not.toContain('SUPABASE_SERVICE_ROLE_KEY')
     expect(app).not.toContain('ANTHROPIC_API_KEY')
   })
+
+  it('permite acceso sin contraseña solo mediante enlace para cuentas existentes', () => {
+    expect(app).toContain('Entrar con enlace por correo')
+    expect(auth).toContain('signInWithOtp')
+    expect(auth).toContain('shouldCreateUser: false')
+    expect(auth).toContain("'/mi-camino'")
+  })
 })

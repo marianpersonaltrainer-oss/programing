@@ -20,40 +20,10 @@ export function isCoachSharedCodeFallbackEnabled(
   return String(value ?? 'true').trim().toLowerCase() !== 'false'
 }
 
-function coachCodeFromEnv() {
-  const v = import.meta.env.VITE_COACH_ACCESS_CODE
-  if (v == null || v === '') return ''
-  return String(v).trim()
-}
-
 /**
- * Código que debe introducir el coach para entrar.
- * 1) `VITE_COACH_ACCESS_CODE` en build (Vercel) — prioridad durante la transición.
- * 2) Valor en localStorage `programingevo_coach_code` (configurado en la app principal).
- * 3) Sin código predeterminado: si falta configuración, se deniega el acceso.
+ * Valor inicial de la caja local de transición. El código real nunca se
+ * publica dentro del build: su comprobación se hace sólo en el servidor.
  */
-export function getExpectedCoachCode() {
-  const fromEnv = coachCodeFromEnv()
-  if (fromEnv) return fromEnv
-  try {
-    const raw = localStorage.getItem(COACH_CODE_KEY)
-    if (raw != null) {
-      const t = String(raw).trim()
-      if (t !== '') return t
-    }
-  } catch {
-    /* ignore */
-  }
-  return DEFAULT_COACH_ACCESS_CODE
-}
-
-export function coachCodesMatch(input) {
-  const a = String(input ?? '').trim().toUpperCase()
-  const b = getExpectedCoachCode().trim().toUpperCase()
-  return a.length > 0 && a === b
-}
-
-/** Valor inicial del campo “código coach” en la app principal (sin pisar un valor ya guardado). */
 export function getCoachCodeFieldInitialValue() {
   try {
     const raw = localStorage.getItem(COACH_CODE_KEY)
@@ -64,5 +34,5 @@ export function getCoachCodeFieldInitialValue() {
   } catch {
     /* ignore */
   }
-  return getExpectedCoachCode()
+  return DEFAULT_COACH_ACCESS_CODE
 }

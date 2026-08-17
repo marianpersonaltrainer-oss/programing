@@ -61,6 +61,25 @@ afterEach(() => {
 })
 
 describe('POST /api/operational-data', () => {
+  it('verifica el bridge coach sólo en servidor sin consultar ni modificar datos', async () => {
+    const { handler, deps } = harness()
+    const res = response()
+
+    await handler(request({
+      action: 'verify_coach_access',
+      accessCode: 'coach-code',
+      payload: {},
+    }), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ ok: true, data: { id: 'ok' } })
+    expect(deps.executeActionImpl).toHaveBeenCalledWith(
+      { kind: 'service-client' },
+      'verify_coach_access',
+      {},
+    )
+  })
+
   it('permite una acción coach con comparación normalizada y rate limit', async () => {
     const { handler, deps } = harness()
     const res = response()

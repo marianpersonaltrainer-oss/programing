@@ -56,6 +56,8 @@ describe('EVO Coach individual Auth transition contract', () => {
     expect(handoffHistory).not.toContain('profiles.role')
     expect(handoffHistory).not.toContain('DAILY_HANDOFFS_MIGRATION_SQL')
     expect(coachAccess).not.toContain('EVO19')
+    expect(coachAccess).not.toContain('VITE_COACH_ACCESS_CODE')
+    expect(coach).toContain('verifyCoachAccessCode')
     expect(coachAccess).toContain("DEFAULT_COACH_ACCESS_CODE = ''")
     expect(app).toContain('showLegacyCoachCodeControl')
     expect(app).not.toContain('EVO19')

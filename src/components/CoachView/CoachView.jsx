@@ -13,6 +13,7 @@ import {
   createWeeklyCheckin,
   getAssistantWeekContext,
   insertAssistantQuestionHistory,
+  verifyCoachAccessCode,
 } from '../../lib/supabase.js'
 import { AI_CONFIG, COACH_ASSISTANT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
@@ -40,8 +41,6 @@ import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } fr
 import EvoLogo from '../EvoLogo.jsx'
 import {
   COACH_CODE_KEY,
-  coachCodesMatch,
-  getExpectedCoachCode,
   isCoachIndividualAuthEnabled,
   isCoachSharedCodeFallbackEnabled,
 } from '../../constants/coachAccess.js'
@@ -814,12 +813,9 @@ export default function CoachView() {
             setStep('noweek')
             return
           }
-          const authed = localStorage.getItem(COACH_AUTH_KEY)
-          const expected = getExpectedCoachCode()
-          const authedNorm = authed?.trim().toUpperCase() ?? ''
-          const expectedNorm = expected.trim().toUpperCase()
-
-          if (!authedNorm || authedNorm !== expectedNorm) {
+          const savedCode = String(localStorage.getItem(COACH_AUTH_KEY) || '').trim()
+          if (!savedCode || !(await verifyCoachAccessCode(savedCode))) {
+            localStorage.removeItem(COACH_AUTH_KEY)
             setStep('code')
             return
           }
@@ -862,9 +858,9 @@ export default function CoachView() {
 
   async function handleCodeSubmit(e) {
     e.preventDefault()
-    if (coachCodesMatch(codeInput)) {
-      const canonical = getExpectedCoachCode().trim()
-      localStorage.setItem(COACH_AUTH_KEY, canonical)
+    const submittedCode = String(codeInput || '').trim()
+    if (submittedCode && await verifyCoachAccessCode(submittedCode)) {
+      localStorage.setItem(COACH_AUTH_KEY, submittedCode)
       const savedName = localStorage.getItem(COACH_NAME_KEY)
       if (savedName) {
         setCoachName(savedName)

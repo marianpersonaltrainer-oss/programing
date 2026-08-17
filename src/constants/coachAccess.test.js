@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  coachCodesMatch,
   DEFAULT_COACH_ACCESS_CODE,
   isCoachIndividualAuthEnabled,
   isCoachSharedCodeFallbackEnabled,
@@ -21,6 +20,5 @@ describe('EVO Coach auth rollout flags', () => {
 
   it('falla de forma cerrada si el código compartido no está configurado', () => {
     expect(DEFAULT_COACH_ACCESS_CODE).toBe('')
-    expect(coachCodesMatch('')).toBe(false)
   })
 })

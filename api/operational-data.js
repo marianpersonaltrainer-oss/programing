@@ -9,6 +9,7 @@ import {
 } from './lib/evoCapabilityAuth.js'
 
 const COACH_ACTIONS = new Set([
+  'verify_coach_access',
   'create_coach_session',
   'touch_coach_session',
   'insert_coach_message',
@@ -224,6 +225,12 @@ function missingExerciseRow(payload = {}) {
 }
 
 async function executeAction(supabase, action, payload = {}) {
+  if (action === 'verify_coach_access') {
+    // La autorización ya se resolvió antes de ejecutar la acción. No lee ni
+    // escribe datos: valida el bridge temporal sin filtrar el código al build.
+    return { data: { verified: true }, error: null }
+  }
+
   if (action === 'create_coach_session') {
     return supabase.from('coach_sessions').insert({
       week_id: uuid(payload.weekId),

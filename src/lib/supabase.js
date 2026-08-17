@@ -100,6 +100,28 @@ async function callOperationalData(action, payload = {}, authorization = 'auto')
   return json?.data ?? null
 }
 
+export async function verifyCoachAccessCode(accessCode) {
+  const normalized = String(accessCode ?? '').trim()
+  if (!normalized) return false
+
+  // Esta comprobación inicial no usa la clave guardada: verifica justo el
+  // valor introducido contra el secreto que sólo existe en el servidor.
+  try {
+    const response = await fetch('/api/operational-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'verify_coach_access',
+        accessCode: normalized,
+        payload: {},
+      }),
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
 // ── Semanas publicadas ────────────────────────────────────────────────────────
 
 export async function getActiveWeek() {

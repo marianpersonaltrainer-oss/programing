@@ -12,20 +12,25 @@ import {
   isCoachIndividualAuthEnabled,
   isCoachSharedCodeFallbackEnabled,
 } from '../constants/coachAccess.js'
+import { isPreviewSupabaseTargetSafe } from './vercelSupabaseEnvironment.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const isPreviewSupabaseTargetAllowed = isPreviewSupabaseTargetSafe({
+  supabaseUrl,
+  vercelEnvironment: import.meta.env.VITE_EVO_VERCEL_ENVIRONMENT,
+})
 
-if (!supabaseUrl || !supabaseKey) {
+if (!supabaseUrl || !supabaseKey || !isPreviewSupabaseTargetAllowed) {
   console.error(
-    'Supabase: Missing environment variables! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env (Vercel: enable Preview too).',
+    'Supabase: missing variables or unsafe Preview target. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
   )
 } else {
   console.log('Supabase: Client initialized with URL:', supabaseUrl.slice(0, 15) + '...')
 }
 
 /** false en previews de Vercel sin variables VITE_* → la app muestra pantalla de configuración. */
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey && isPreviewSupabaseTargetAllowed)
 
 export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null
 

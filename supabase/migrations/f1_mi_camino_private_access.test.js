@@ -6,6 +6,11 @@ const migration = readFileSync(
   'utf8',
 ).toLowerCase()
 
+const hardening = readFileSync(
+  new URL('./20260818120000_f1_mi_camino_read_own_hardening.sql', import.meta.url),
+  'utf8',
+).toLowerCase()
+
 describe('F1 Mi Camino private access', () => {
   it('reutiliza el rol Cliente ya definido y añade capacidades sin perfiles legacy', () => {
     expect(migration).not.toContain('insert into public.evo_roles')
@@ -35,12 +40,17 @@ describe('F1 Mi Camino private access', () => {
     expect(migration).toContain('no almacenar salud, notas internas ni texto libre sensible')
   })
 
-  it('da lectura únicamente a la propia persona o a Administración con capability', () => {
+  it('define el permiso base de lectura y el hardening evita que Administración lea proyecciones ajenas desde la app cliente', () => {
     expect(migration).toContain('create or replace function private.evo_can_read_mi_camino_projection')
     expect(migration).toContain("private.evo_has_capability(target_organization_id, 'mi_camino.manage')")
     expect(migration).toContain("private.evo_has_capability(target_organization_id, 'mi_camino.read_own')")
     expect(migration).toContain('access_map.user_id = (select auth.uid())')
     expect(migration).toContain('access_map.status = \'active\'')
+    expect(hardening).toContain('create or replace function private.evo_can_read_mi_camino_projection')
+    expect(hardening).toContain("private.evo_has_capability(target_organization_id, 'mi_camino.read_own')")
+    expect(hardening).toContain('access_map.user_id = (select auth.uid())')
+    expect(hardening).not.toContain("'mi_camino.manage'")
+    expect(hardening).toContain('la administración usa endpoints server-side separados')
   })
 
   it('cierra anon y todas las escrituras de navegador', () => {

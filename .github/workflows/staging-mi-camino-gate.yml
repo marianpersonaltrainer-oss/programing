@@ -160,7 +160,48 @@ jobs:
               or not has_table_privilege('service_role', 'public.evo_events', 'SELECT, INSERT') then
               raise exception 'Nucleus evo_events grants are broader or narrower than expected';
             end if;
+
+            -- La autorización nueva es memberships + capabilities. No se
+            -- consulta ninguna identidad concreta ni se cambian cuentas.
+            if to_regclass('public.evo_memberships') is null
+              or to_regclass('public.evo_role_capabilities') is null then
+              raise exception 'missing multirole identity tables';
+            end if;
+            if not exists (
+              select 1 from pg_class table_def
+              join pg_namespace table_schema on table_schema.oid = table_def.relnamespace
+              where table_schema.nspname = 'public'
+                and table_def.relname = 'evo_memberships'
+                and table_def.relrowsecurity
+            ) then
+              raise exception 'multirole memberships RLS is not enabled';
+            end if;
+            if has_table_privilege('anon', 'public.evo_memberships', 'SELECT, INSERT, UPDATE, DELETE') then
+              raise exception 'anon may access multirole memberships';
+            end if;
+            if not exists (
+              select 1 from pg_proc function_def
+              join pg_namespace function_schema on function_schema.oid = function_def.pronamespace
+              where function_schema.nspname = 'public'
+                and function_def.proname = 'evo_my_capabilities'
+            ) then
+              raise exception 'missing multirole capability RPC';
+            end if;
+            if has_function_privilege('anon', 'public.evo_my_capabilities()'::regprocedure, 'EXECUTE') then
+              raise exception 'anon may execute multirole capability RPC';
+            end if;
+            select pg_get_functiondef(function_def.oid) into function_source
+            from pg_proc function_def
+            join pg_namespace function_schema on function_schema.oid = function_def.pronamespace
+            where function_schema.nspname = 'private'
+              and function_def.proname = 'evo_has_capability'
+            limit 1;
+            if function_source is null
+              or function_source not like '%public.evo_memberships%'
+              or function_source like '%profiles.role%' then
+              raise exception 'multirole capability helper is not memberships-only';
+            end if;
           end;
           $$;
-          select 'PASS: staging Mi Camino privacy and Nucleus event-store structure verified.';
+          select 'PASS: staging Mi Camino privacy, Nucleus and multirole identity verified.';
           SQL

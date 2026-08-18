@@ -1,0 +1,121 @@
+name: Staging Mi Camino privacy gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'verify_only no escribe; apply_hardening aplica únicamente el refuerzo F1 de lectura propia.'
+        required: true
+        default: verify_only
+        type: choice
+        options:
+          - verify_only
+          - apply_hardening
+      confirmation:
+        description: 'Para aplicar, escribe exactamente STAGING_MI_CAMINO_HARDENING.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evo-staging-mi-camino-gate
+  cancel-in-progress: false
+
+jobs:
+  staging-mi-camino-gate:
+    name: Verify Mi Camino privacy in staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # GitHub Environment puede exigir revisión adicional si se configura más adelante.
+    environment: staging
+    env:
+      # Secreto exclusivo de staging; no reutilizar secretos de otros entornos.
+      SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
+      STAGING_PROJECT_REF: dgkvaorzuebdloegumai
+      OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      MIGRATION_FILE: supabase/migrations/20260818120000_f1_mi_camino_read_own_hardening.sql
+    steps:
+      - name: Checkout selected revision
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      - name: Refuse an empty or non-staging connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const value = process.env.SUPABASE_STAGING_DB_URL || ''
+          if (!value) throw new Error('Missing SUPABASE_STAGING_DB_URL.')
+          let parsed
+          try { parsed = new URL(value) } catch { throw new Error('SUPABASE_STAGING_DB_URL is not a valid PostgreSQL URL.') }
+          if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) throw new Error('SUPABASE_STAGING_DB_URL must use PostgreSQL.')
+          const target = `${parsed.hostname} ${decodeURIComponent(parsed.username)}`.toLowerCase()
+          if (!target.includes(process.env.STAGING_PROJECT_REF)) {
+            throw new Error('Refusing connection: URL is not identified as the approved staging project.')
+          }
+          console.log('Approved staging connection shape.')
+          NODE
+
+      - name: Require deliberate confirmation before writing
+        if: env.OPERATION == 'apply_hardening'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "STAGING_MI_CAMINO_HARDENING"
+          test -f "$MIGRATION_FILE"
+          echo 'Confirmed fixed staging-only hardening migration.'
+
+      - name: Apply fixed staging hardening migration
+        if: env.OPERATION == 'apply_hardening'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # La migración sólo reemplaza una función SECURITY DEFINER y sus grants;
+          # no borra ni transforma filas. psql no imprime la URL ni secretos.
+          psql "$SUPABASE_STAGING_DB_URL" --set=ON_ERROR_STOP=1 --file="$MIGRATION_FILE"
+
+      - name: Verify RLS and least privilege
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_STAGING_DB_URL" --set=ON_ERROR_STOP=1 --tuples-only --no-align <<'SQL'
+          do $$
+          declare
+            function_source text;
+          begin
+            if not exists (
+              select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'private' and p.proname = 'evo_can_read_mi_camino_projection'
+            ) then
+              raise exception 'missing Mi Camino RLS helper';
+            end if;
+
+            select pg_get_functiondef(p.oid) into function_source
+            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'private' and p.proname = 'evo_can_read_mi_camino_projection'
+            limit 1;
+
+            if function_source like '%mi_camino.manage%' then
+              raise exception 'admin capability still grants browser projection read';
+            end if;
+            if function_source not like '%mi_camino.read_own%' or function_source not like '%access_map.user_id = (select auth.uid())%' then
+              raise exception 'self-only projection predicate is missing';
+            end if;
+            if has_function_privilege('anon', 'private.evo_can_read_mi_camino_projection(uuid,uuid)'::regprocedure, 'EXECUTE') then
+              raise exception 'anon may execute Mi Camino RLS helper';
+            end if;
+            if has_table_privilege('anon', 'public.mi_camino_projections', 'SELECT')
+              or has_table_privilege('authenticated', 'public.mi_camino_projections', 'INSERT')
+              or has_table_privilege('authenticated', 'public.mi_camino_projections', 'UPDATE')
+              or has_table_privilege('authenticated', 'public.mi_camino_projections', 'DELETE') then
+              raise exception 'browser table privileges are broader than expected';
+            end if;
+          end;
+          $$;
+          select 'PASS: staging Mi Camino RLS helper and grants verified.';
+          SQL

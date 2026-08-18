@@ -5,6 +5,7 @@ const gate = readFileSync(new URL('./CoachAuthGate.jsx', import.meta.url), 'utf8
 const app = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8')
 const coach = readFileSync(new URL('./CoachView.jsx', import.meta.url), 'utf8')
 const client = readFileSync(new URL('../../lib/supabase.js', import.meta.url), 'utf8')
+const accessMode = readFileSync(new URL('../../lib/coachAccessMode.js', import.meta.url), 'utf8')
 
 describe('EVO Coach individual Auth gate', () => {
   it('exige sesión y capability cuando staging apaga el fallback', () => {
@@ -20,7 +21,8 @@ describe('EVO Coach individual Auth gate', () => {
   })
 
   it('falla cerrado en UI y operaciones si falta identidad individual', () => {
-    expect(coach).toContain('!isCoachSharedCodeFallbackEnabled()')
+    expect(coach).toContain('resolveCoachAccessMode')
+    expect(accessMode).toContain("return 'denied'")
     expect(client).toContain('&& isCoachSharedCodeFallbackEnabled()')
     expect(client).toContain('const accessCode = isCoachSharedCodeFallbackEnabled()')
   })

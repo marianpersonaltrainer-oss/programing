@@ -61,6 +61,7 @@ import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
 import { isoWeekString, madridCheckinGateParts, madridDateParts, defaultActiveDayNameFromWeek } from '../../utils/coachTime.js'
 import { normalizePublishedWeekForConsumers } from '../../utils/normalizeWeekDataForEditor.js'
 import { hasIndividualCoachAccess } from '../../lib/coachIdentityAccess.js'
+import { resolveCoachAccessMode } from '../../lib/coachAccessMode.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -807,8 +808,14 @@ export default function CoachView() {
         setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
         activeWeekDataSigRef.current = JSON.stringify(normalizedInit ?? null)
 
-        if (!individualCoachAccess) {
-          if (individualAuthEnabled && !isCoachSharedCodeFallbackEnabled()) {
+        const accessMode = resolveCoachAccessMode({
+          individualAuthEnabled,
+          sharedCodeFallbackEnabled: isCoachSharedCodeFallbackEnabled(),
+          hasIndividualAccess: individualCoachAccess,
+        })
+
+        if (accessMode !== 'individual') {
+          if (accessMode === 'denied') {
             setError('Tu sesión no tiene acceso individual a EVO Coach.')
             setStep('noweek')
             return

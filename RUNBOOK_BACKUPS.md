@@ -1,53 +1,84 @@
-# Runbook de Backups (ProgramingEvo)
+# Runbook de backups recuperables · Programming EVO
 
-## Qué se respalda y cada cuánto
+## Estado y alcance
 
-- **Frecuencia:** diaria, a las **01:00 UTC** (03:00 Madrid en horario habitual).
-- **Origen:** base de datos de Supabase del proyecto (dump SQL completo vía `pg_dump`).
-- **Retención automática:** se conservan los **30 backups más recientes**.
+- **Origen:** Supabase producción, validado por el project ref esperado antes de ejecutar `pg_dump`.
+- **Frecuencia:** diaria a las **01:00 UTC** y ejecución manual desde GitHub Actions.
+- **Formato:** dump PostgreSQL custom, cifrado con GPG/AES-256 antes de publicarse.
+- **Destino:** GitHub Releases de este repositorio.
+- **Restore de control:** PostgreSQL 17 efímero y aislado, destruido siempre al terminar.
+- **Retención:** no hay borrado automático. No eliminar releases hasta que Dirección apruebe una política.
 
-## Dónde encontrar los backups
+Un archivo cifrado no se considera backup recuperable hasta que el mismo workflow lo descifra, restaura y valida. Si cualquier comprobación falla, el job termina en error y no publica una release.
 
-- Los backups se publican en **GitHub Releases** de este repositorio.
-- Formato de release/tag: `backup-YYYY-MM-DD`.
-- Archivo adjunto típico: `backup-YYYY-MM-DD.sql.gz`.
+## Configuración obligatoria
 
-## Restaurar paso a paso
+El environment de GitHub `programing-evo-production` necesita estos secretos:
 
-1. Ir a GitHub Releases y descargar el asset `backup-YYYY-MM-DD.sql.gz` deseado.
-2. Descomprimir:
-   ```bash
-   gunzip backup-YYYY-MM-DD.sql.gz
-   ```
-   Obtendrás `backup-YYYY-MM-DD.sql`.
-3. Preparar una base de datos destino vacía (Supabase nuevo o DB limpia).
-4. Restaurar con `psql`:
-   ```bash
-   psql "postgresql://USER:PASSWORD@HOST:PORT/postgres?sslmode=require" -f backup-YYYY-MM-DD.sql
-   ```
-5. Verificar tablas clave (`published_weeks`, `coach_sessions`, `coach_messages`, etc.).
+| Secreto | Uso |
+|---|---|
+| `SUPABASE_POOLER_URL` o `SUPABASE_DB_URL` | URI PostgreSQL completa de producción. Para dump se recomienda session pooler o conexión directa; no transaction pooler. |
+| `SUPABASE_DB_PASSWORD` | Solo si la URI contiene el marcador `YOUR-PASSWORD`. |
+| `SUPABASE_PRODUCTION_PROJECT_REF` | Project ref exacto esperado. El job aborta si la URI pertenece a otro proyecto. |
+| `BACKUP_ENCRYPTION_KEY` | Frase aleatoria de al menos 32 caracteres, custodiada separadamente del repositorio y de las releases. |
 
-## Qué hacer si la base actual se corrompe
+No guardar estos valores en archivos, comentarios, tickets o documentación. GitHub enmascara los secretos y los scripts no imprimen URIs, contraseñas, claves ni contenido del dump.
 
-1. Crear un **proyecto nuevo** en Supabase.
-2. En el proyecto nuevo, ir a **Settings → Database** y copiar el **Connection string URI**.
-3. Descargar el último backup sano de GitHub Releases.
-4. Descomprimir el archivo `.sql.gz`.
-5. Restaurar con `psql` sobre la base vacía del proyecto nuevo.
-6. Validar que la app responde con:
-   - semana activa visible,
-   - endpoints API operativos,
-   - tablas de feedback y guía accesibles.
-7. Actualizar variables de entorno en Vercel con las credenciales del nuevo proyecto:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` (si aplica en backend/serverless).
-8. Redeploy en Vercel y hacer smoke test completo.
+## Qué valida el workflow
 
-## Contactos internos y tiempos esperados
+1. La URI tiene protocolo PostgreSQL, apunta al project ref de producción y usa la base `postgres`.
+2. La clave de cifrado existe antes de iniciar cualquier lectura.
+3. `pg_dump` se ejecuta con cliente PostgreSQL 17, formato custom, sin owner ni privilegios.
+4. El dump se cifra; el archivo plano se elimina; se genera SHA-256 del cifrado.
+5. Se verifica el checksum y se descifra una copia de control.
+6. `pg_restore --exit-on-error` restaura en PostgreSQL 17 efímero sin puertos publicados.
+7. Existen las tablas y funciones críticas configuradas, no hay claves foráneas sin validar y puede leerse al menos una semana publicada.
+8. El contenedor y todos los archivos planos se eliminan tanto en PASS como en FAIL.
 
-- **Owner técnico / backend:** responsable de Supabase y restauración SQL.
-- **Owner producto / operaciones:** validación funcional post-restauración.
-- **Tiempo estimado de restauración técnica:** 20–45 min (según tamaño DB).
-- **Tiempo total estimado con validación:** 45–90 min.
+## Ejecutar un backup real
 
+1. Abrir **Actions → Backup Supabase → Run workflow**.
+2. Ejecutar sobre `main`.
+3. Confirmar que los dos jobs terminan en verde:
+   - `Validate backup and restore path`;
+   - `Encrypted production backup and isolated restore`.
+4. Abrir la release `backup-YYYY-MM-DDTHHMMSSZ-RUN_ID`.
+5. Confirmar que solo contiene:
+   - `*.dump.gpg`;
+   - `*.dump.gpg.sha256`.
+6. Revisar que la descripción indica `Restore verification: PASS` y el commit/run correctos.
+
+## Restauración de emergencia
+
+Realizarla primero en una máquina o runner controlado; nunca probar directamente sobre producción.
+
+```bash
+sha256sum -c backup-AAAA-MM-DDTHHMMSSZ-RUN_ID.dump.gpg.sha256
+gpg --batch --pinentry-mode loopback --output restore.dump \
+  --decrypt backup-AAAA-MM-DDTHHMMSSZ-RUN_ID.dump.gpg
+pg_restore --exit-on-error --no-owner --no-privileges \
+  --dbname="postgresql://USUARIO:PASSWORD@DESTINO:5432/postgres" restore.dump
+```
+
+Después, repetir las validaciones del workflow y hacer un smoke test funcional: semana activa visible, publicación/lectura operativa y tablas de Coach presentes. El dump no incluye archivos físicos de Supabase Storage ni configuración externa de Auth, Vercel, proveedores OAuth, Edge Functions o DNS; esos recursos requieren su propio procedimiento.
+
+## Fallos y respuesta
+
+| Fallo | Resultado | Acción |
+|---|---|---|
+| URI ausente, inválida o de otro proyecto | FAIL antes de `pg_dump` | Corregir el secreto; no reintentar a ciegas. |
+| Clave de cifrado ausente o corta | FAIL antes de `pg_dump` | Crear/corregir `BACKUP_ENCRYPTION_KEY`. |
+| Dump o cifrado falla | FAIL, sin release | Revisar versión/conectividad y volver a ejecutar. |
+| Restore o validación falla | FAIL, sin release | Conservar logs sin PII, corregir compatibilidad y repetir. No declarar recuperabilidad. |
+| Secreto aparece en logs | Incidente de seguridad | Cancelar workflow, deshabilitarlo y rotar inmediatamente el secreto afectado. |
+
+## Rollback
+
+1. Deshabilitar `Backup Supabase` desde GitHub Actions.
+2. Revertir únicamente el commit del workflow, `scripts/backup/` y este runbook.
+3. Rotar cualquier secreto potencialmente expuesto.
+4. No borrar releases existentes: el borrado es una acción destructiva separada que necesita autorización.
+
+## Criterio de cierre F0-T01
+
+F0-T01 solo puede marcarse `PASS` cuando exista una ejecución real de producción con artefacto cifrado, checksum, restore aislado completo, validaciones críticas correctas y cero secretos/PII en logs.

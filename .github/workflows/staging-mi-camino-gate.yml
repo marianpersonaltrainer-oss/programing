@@ -79,7 +79,7 @@ jobs:
           # no borra ni transforma filas. psql no imprime la URL ni secretos.
           psql "$SUPABASE_STAGING_DB_URL" --set=ON_ERROR_STOP=1 --file="$MIGRATION_FILE"
 
-      - name: Verify RLS and least privilege
+      - name: Verify RLS, least privilege and Nucleus event store
         shell: bash
         run: |
           set -euo pipefail
@@ -115,7 +115,52 @@ jobs:
               or has_table_privilege('authenticated', 'public.mi_camino_projections', 'DELETE') then
               raise exception 'browser table privileges are broader than expected';
             end if;
+
+            -- Nucleus es infraestructura compartida: se valida su contrato
+            -- estructural sin leer ni escribir eventos ni datos de personas.
+            if to_regclass('public.evo_events') is null then
+              raise exception 'missing Nucleus evo_events store';
+            end if;
+            if not exists (
+              select 1
+              from pg_class table_def
+              join pg_namespace table_schema on table_schema.oid = table_def.relnamespace
+              where table_schema.nspname = 'public'
+                and table_def.relname = 'evo_events'
+                and table_def.relrowsecurity
+                and table_def.relforcerowsecurity
+            ) then
+              raise exception 'Nucleus evo_events RLS is not enforced';
+            end if;
+            if not exists (
+              select 1
+              from pg_indexes
+              where schemaname = 'public'
+                and tablename = 'evo_events'
+                and indexname = 'evo_events_idempotency_uidx'
+                and indexdef like '%UNIQUE%'
+                and indexdef like '%organization_id, source, idempotency_key%'
+            ) then
+              raise exception 'Nucleus idempotency index is missing';
+            end if;
+            if not exists (
+              select 1
+              from pg_trigger trigger_def
+              join pg_class table_def on table_def.oid = trigger_def.tgrelid
+              join pg_namespace table_schema on table_schema.oid = table_def.relnamespace
+              where table_schema.nspname = 'public'
+                and table_def.relname = 'evo_events'
+                and trigger_def.tgname = 'evo_prevent_canonical_event_mutation'
+                and not trigger_def.tgisinternal
+            ) then
+              raise exception 'Nucleus append-only trigger is missing';
+            end if;
+            if has_table_privilege('anon', 'public.evo_events', 'SELECT, INSERT, UPDATE, DELETE')
+              or has_table_privilege('authenticated', 'public.evo_events', 'SELECT, INSERT, UPDATE, DELETE')
+              or not has_table_privilege('service_role', 'public.evo_events', 'SELECT, INSERT') then
+              raise exception 'Nucleus evo_events grants are broader or narrower than expected';
+            end if;
           end;
           $$;
-          select 'PASS: staging Mi Camino RLS helper and grants verified.';
+          select 'PASS: staging Mi Camino privacy and Nucleus event-store structure verified.';
           SQL

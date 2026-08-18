@@ -137,11 +137,19 @@ export async function getPe2Session() {
   return data.session
 }
 
-export async function getPe2Profile(userId) {
+export function pe2ProfileSelect({ includeLegacyRole = false } = {}) {
+  // profiles.role deja de viajar al cliente en la ruta normal. Solo se pide
+  // durante el rollback explícitamente habilitado para instalaciones antiguas.
+  return includeLegacyRole
+    ? 'id, full_name, role, org_id'
+    : 'id, full_name, org_id'
+}
+
+export async function getPe2Profile(userId, { includeLegacyRole = false } = {}) {
   if (!userId) return null
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role, org_id')
+    .select(pe2ProfileSelect({ includeLegacyRole }))
     .eq('id', userId)
     .maybeSingle()
   if (error) throw error
@@ -190,11 +198,13 @@ export async function resolvePe2Identity({
 }
 
 export async function getPe2Identity(userId, options = {}) {
-  const profile = await getPe2Profile(userId)
   const allowLegacyFallback = options.allowLegacyFallback
     ?? isLegacyIdentityFallbackEnabled(
       import.meta.env.VITE_EVO_LEGACY_IDENTITY_FALLBACK_ENABLED,
     )
+  const profile = await getPe2Profile(userId, {
+    includeLegacyRole: allowLegacyFallback,
+  })
   return resolvePe2Identity({ profile, userId, allowLegacyFallback })
 }
 

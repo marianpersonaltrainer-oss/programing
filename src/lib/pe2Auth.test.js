@@ -6,6 +6,7 @@ import {
   identityHasCapability,
   isMissingIdentityFoundationError,
   isLegacyIdentityFallbackEnabled,
+  pe2ProfileSelect,
   resolvePe2Identity,
 } from './pe2Auth.js'
 
@@ -160,5 +161,10 @@ describe('EVO-S multirole identity', () => {
     expect(isLegacyIdentityFallbackEnabled(' TRUE ')).toBe(true)
     expect(isLegacyIdentityFallbackEnabled('1')).toBe(false)
     expect(isLegacyIdentityFallbackEnabled()).toBe(false)
+  })
+
+  it('no lee profiles.role salvo cuando se activa el rollback legacy de forma explícita', () => {
+    expect(pe2ProfileSelect()).toBe('id, full_name, org_id')
+    expect(pe2ProfileSelect({ includeLegacyRole: true })).toBe('id, full_name, role, org_id')
   })
 })

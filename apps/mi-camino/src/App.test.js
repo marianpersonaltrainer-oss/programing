@@ -17,6 +17,8 @@ describe('Mi Camino independent identity boundary', () => {
     expect(auth).not.toContain('mi_camino_person_access')
     expect(app).toContain('createMiCaminoProjectionEnvelope(await getMiCaminoProjection())')
     expect(app).toContain('Tu recorrido se está verificando de forma segura')
+    expect(auth).toContain('selectMiCaminoProjection')
+    expect(auth).toContain("throw new Error('mi_camino_multiple_accesses')")
   })
 
   it('deja el demo explícito y no incluye datos reales en el bundle', () => {

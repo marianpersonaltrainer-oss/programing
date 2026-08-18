@@ -34,16 +34,14 @@ export async function getMiCaminoAdminOrganizationId() {
   return organizationIds.length === 1 ? organizationIds[0] : null
 }
 
-export async function getMiCaminoProjection() {
-  if (!miCaminoSupabase) return null
-  const { data, error } = await miCaminoSupabase
-    .from('mi_camino_projections')
-    .select('id, organization_id, person_id, entry_mode, journey_day, stage_key, next_action, progress, freshness, schema_version, updated_at')
-    .limit(1)
-    .maybeSingle()
-
-  if (error) throw error
-  if (!data) return null
+export function selectMiCaminoProjection(rows) {
+  if (!Array.isArray(rows)) throw new Error('mi_camino_projection_unavailable')
+  if (rows.length === 0) return null
+  // Una misma identidad puede pertenecer a más de una organización. El piloto
+  // no tiene aún un selector de organización, así que nunca elegimos una
+  // proyección arbitrariamente ni mezclamos recorridos privados.
+  if (rows.length !== 1) throw new Error('mi_camino_multiple_accesses')
+  const data = rows[0]
   return {
     projection_id: data.id,
     organization_id: data.organization_id,
@@ -58,6 +56,19 @@ export async function getMiCaminoProjection() {
     schema_version: data.schema_version,
     updated_at: data.updated_at,
   }
+}
+
+export async function getMiCaminoProjection() {
+  if (!miCaminoSupabase) return null
+  const { data, error } = await miCaminoSupabase
+    .from('mi_camino_projections')
+    .select('id, organization_id, person_id, entry_mode, journey_day, stage_key, next_action, progress, freshness, schema_version, updated_at')
+    // Dos filas bastan para detectar que aún falta un selector explícito de
+    // organización. No se devuelve una lista al navegador ni se elige una.
+    .limit(2)
+
+  if (error) throw error
+  return selectMiCaminoProjection(data || [])
 }
 
 async function callMiCaminoAdmin(action, body = {}) {

@@ -27,8 +27,9 @@ import {
   projectionStageLabel,
 } from './miCaminoPilotView.js'
 
+const DEMO_QUERY_ENABLED = new URLSearchParams(globalThis.location?.search || '').has('demo')
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
-  || new URLSearchParams(globalThis.location?.search || '').has('demo')
+  || DEMO_QUERY_ENABLED
 const ADMIN_PILOT_ENABLED = String(import.meta.env.VITE_MI_CAMINO_ADMIN_ENABLED || '').toLowerCase() === 'true'
 
 function emailAccessNotice(error) {
@@ -315,7 +316,8 @@ export default function App({ basePath = '' }) {
   ]
 
   function navigate(nextRoute) {
-    window.history.pushState({}, '', miCaminoPath(nextRoute, basePath))
+    const demoQuery = DEMO_QUERY_ENABLED ? '?demo=1' : ''
+    window.history.pushState({}, '', `${miCaminoPath(nextRoute, basePath)}${demoQuery}`)
     setRoute(nextRoute)
   }
 
@@ -327,7 +329,7 @@ export default function App({ basePath = '' }) {
 
   return (
     <main className="app-shell">
-      <header><div><p className="eyebrow">EVOLUTION</p><strong>Mi Camino</strong></div><button className="text-button" type="button" onClick={() => signOutMiCamino()}>Cerrar sesión</button></header>
+      <header><div><p className="eyebrow">EVOLUTION</p><strong>Mi Camino</strong>{DEMO_ENABLED ? <p className="preview-role">Vista de prueba · cliente ficticio</p> : null}</div><button className="text-button" type="button" onClick={() => signOutMiCamino()}>Cerrar sesión</button></header>
       <nav aria-label="Mi Camino">{nav.map((item) => <button key={item} type="button" className={item === route ? 'active' : ''} onClick={() => navigate(item)}>{routeLabel(item)}</button>)}</nav>
       <PrivateProjection route={route} isAdmin={isAdmin} organizationId={organizationId} projection={projection} projectionError={projectionError} />
     </main>

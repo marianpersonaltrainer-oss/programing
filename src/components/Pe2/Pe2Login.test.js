@@ -28,4 +28,11 @@ describe('PE2 password recovery', () => {
     expect(login).toContain("const [email, setEmail] = useState('')")
     expect(login).not.toContain('marianpersonaltrainer@gmail.com')
   })
+
+  it('mantiene los datos escritos visibles y permite mostrar u ocultar la contraseña', () => {
+    expect(login).toContain("backgroundColor: '#FFFFFF'")
+    expect(login).toContain('color: evoBrand.text')
+    expect(login).toContain("type={showPassword ? 'text' : 'password'}")
+    expect(login).toContain("aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}")
+  })
 })

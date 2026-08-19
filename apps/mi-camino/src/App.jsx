@@ -312,7 +312,7 @@ export default function App({ basePath = '' }) {
     MI_CAMINO_ROUTES.JOURNEY,
     MI_CAMINO_ROUTES.EVOLUTION,
     MI_CAMINO_ROUTES.PROFILE,
-    ...(isAdmin ? [MI_CAMINO_ROUTES.ADMIN] : []),
+    ...(isAdmin && !DEMO_ENABLED ? [MI_CAMINO_ROUTES.ADMIN] : []),
   ]
 
   function navigate(nextRoute) {

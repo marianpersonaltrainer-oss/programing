@@ -1,6 +1,22 @@
 import { useState } from 'react'
 import { evoBrand } from '../../constants/evoBrand.js'
 
+function PasswordVisibilityToggle({ visible, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-semibold transition-colors hover:bg-black/5 focus:outline-none focus:ring-2 focus:ring-[#A729AD]/40"
+      style={{ color: evoBrand.purple }}
+      aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      aria-pressed={visible}
+      title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+    >
+      {visible ? 'Ocultar' : 'Ver'}
+    </button>
+  )
+}
+
 export default function Pe2Login({
   onSignIn,
   onRequestPasswordReset,
@@ -13,6 +29,7 @@ export default function Pe2Login({
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [passwordUpdated, setPasswordUpdated] = useState(false)
@@ -39,6 +56,12 @@ export default function Pe2Login({
     setPasswordUpdated(true)
   }
 
+  const inputStyle = {
+    backgroundColor: '#FFFFFF',
+    borderColor: `${evoBrand.purple}33`,
+    color: evoBrand.text,
+  }
+
   if (recoveryMode) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: evoBrand.app }}>
@@ -63,16 +86,19 @@ export default function Pe2Login({
               {error}
             </div>
           ) : null}
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full mb-6 px-3 py-2.5 rounded-xl border text-sm"
-            style={{ borderColor: `${evoBrand.purple}33` }}
-            minLength={8}
-            required
-            autoComplete="new-password"
-          />
+          <div className="relative mb-6">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2.5 pr-20 rounded-xl border text-sm"
+              style={inputStyle}
+              minLength={8}
+              required
+              autoComplete="new-password"
+            />
+            <PasswordVisibilityToggle visible={showPassword} onToggle={() => setShowPassword((current) => !current)} />
+          </div>
           <button
             type="submit"
             disabled={loading || passwordUpdated}
@@ -117,7 +143,7 @@ export default function Pe2Login({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full mb-4 px-3 py-2.5 rounded-xl border text-sm"
-          style={{ borderColor: `${evoBrand.purple}33` }}
+          style={inputStyle}
           required
           autoComplete="email"
         />
@@ -125,15 +151,18 @@ export default function Pe2Login({
         <label className="block text-xs font-bold uppercase tracking-wide mb-1" style={{ color: evoBrand.purple }}>
           Contraseña
         </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-6 px-3 py-2.5 rounded-xl border text-sm"
-          style={{ borderColor: `${evoBrand.purple}33` }}
-          required
-          autoComplete="current-password"
-        />
+        <div className="relative mb-6">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-3 py-2.5 pr-20 rounded-xl border text-sm"
+            style={inputStyle}
+            required
+            autoComplete="current-password"
+          />
+          <PasswordVisibilityToggle visible={showPassword} onToggle={() => setShowPassword((current) => !current)} />
+        </div>
 
         <button
           type="submit"

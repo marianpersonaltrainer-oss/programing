@@ -9,6 +9,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid #6A1F6D; outline-
 .auth-card label { display: grid; gap: 8px; font-size: 14px; font-weight: 700; margin-top: 18px; }
 input { min-height: 48px; border: 1px solid #6A1F6D55; border-radius: 12px; padding: 0 14px; color: #1A0A1A; }
 .auth-card > button[type="submit"] { width: 100%; margin-top: 24px; }
+.password-field { display: flex; align-items: center; gap: 8px; }
+.password-field input { width: 100%; }
+.password-toggle { min-height: 48px; flex: 0 0 auto; padding: 0 14px; background: #6A1F6D; }
 .text-button { color: #6A1F6D; background: transparent; padding-inline: 0; }
 .auth-card .text-button { width: 100%; margin-top: 8px; }
 .eyebrow { margin: 0 0 8px; color: #6A1F6D; font-size: 12px; font-weight: 800; letter-spacing: .14em; }

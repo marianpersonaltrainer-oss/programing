@@ -28,6 +28,7 @@ import {
 } from './miCaminoPilotView.js'
 
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
+  || new URLSearchParams(globalThis.location?.search || '').has('demo')
 const ADMIN_PILOT_ENABLED = String(import.meta.env.VITE_MI_CAMINO_ADMIN_ENABLED || '').toLowerCase() === 'true'
 
 function emailAccessNotice(error) {

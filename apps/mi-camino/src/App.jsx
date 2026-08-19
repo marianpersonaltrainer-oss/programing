@@ -73,6 +73,7 @@ const DEMO_PROJECTION = createMiCaminoProjectionEnvelope({
 function Login({ recoveryMode, onSignedIn }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -141,7 +142,10 @@ function Login({ recoveryMode, onSignedIn }) {
           </label>
         ) : null}
         <label>Contraseña
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={recoveryMode ? 'new-password' : 'current-password'} minLength={8} required={recoveryMode} />
+          <span className="password-field">
+            <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={recoveryMode ? 'new-password' : 'current-password'} minLength={8} required={recoveryMode} />
+            <button type="button" className="password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>{showPassword ? 'Ocultar' : 'Ver'}</button>
+          </span>
         </label>
         <button type="submit" disabled={busy}>{busy ? 'Un momento…' : recoveryMode ? 'Guardar contraseña' : 'Entrar'}</button>
         {!recoveryMode ? <>

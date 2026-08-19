@@ -24,10 +24,15 @@ const MethodPanel = lazy(() => import('./components/MethodPanel/MethodPanel.jsx'
 const ExerciseLibrary = lazy(() => import('./components/ExerciseLibrary/ExerciseLibrary.jsx'))
 const CoachGuideContentPanel = lazy(() => import('./components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'))
 const Pe2App = lazy(() => import('./Pe2App.jsx'))
+const MiCaminoApp = lazy(async () => {
+  await import('../apps/mi-camino/src/styles.css')
+  return import('../apps/mi-camino/src/App.jsx')
+})
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
 const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
+const isMiCaminoMode = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')
 
 function AppLoading() {
   return (
@@ -56,6 +61,13 @@ export default function App() {
     return (
       <Suspense fallback={<AppLoading />}>
         <CoachAuthGate />
+      </Suspense>
+    )
+  }
+  if (isMiCaminoMode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <MiCaminoApp basePath="/mi-camino" />
       </Suspense>
     )
   }

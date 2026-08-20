@@ -7,6 +7,7 @@ import {
   mergeWeekEvoAiContext,
 } from '../../domain/programming/evoAiContext.js'
 import { projectLegacyWeekForStructuredImport } from '../../domain/programming/legacyWeekImportProjection.js'
+import Pe2ExcelImportReview from './Pe2ExcelImportReview.jsx'
 import { updatePe2Week } from '../../lib/pe2Supabase.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from '../../utils/importProgramingEvoWeekXlsx.js'
 
@@ -136,21 +137,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
           {importing ? 'Leyendo Excel…' : 'Seleccionar Excel para revisar'}
         </button>
 
-        {importPreview ? (
-          <div className="mt-4 rounded-xl p-3" style={{ backgroundColor: '#FAF7FC' }}>
-            <p className="text-sm font-bold" style={{ color: evoBrand.text }}>
-              {importPreview.summary.totalSessions} sesiones detectadas en {importPreview.summary.daysRecognized} días · {importPreview.summary.feedbackIncluded} con feedback
-            </p>
-            <p className="mt-1 text-xs" style={{ color: evoBrand.muted }}>{importPreview.fileName}</p>
-            <ul className="mt-3 grid gap-2 text-sm" style={{ color: evoBrand.text }}>
-              {importPreview.sessions.slice(0, 8).map((session) => (
-                <li key={session.sourceId}><strong>{session.title}</strong>{session.feedback ? ' · feedback incluido' : ''}</li>
-              ))}
-            </ul>
-            {importPreview.sessions.length > 8 ? <p className="mt-2 text-xs" style={{ color: evoBrand.muted }}>Y {importPreview.sessions.length - 8} sesiones más.</p> : null}
-            {importPreview.warnings.length ? <p className="mt-2 text-xs" style={{ color: '#B54708' }}>{importPreview.warnings.length} aviso(s) de lectura; se revisarán antes de una importación definitiva.</p> : null}
-          </div>
-        ) : null}
+        {importPreview ? <Pe2ExcelImportReview review={importPreview} /> : null}
       </div>
 
       {message ? <p className="mt-3 text-sm" style={{ color: message.startsWith('No se pudo') ? '#B42318' : '#18794E' }}>{message}</p> : null}

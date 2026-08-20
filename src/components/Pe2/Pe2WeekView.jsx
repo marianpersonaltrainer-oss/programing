@@ -49,7 +49,7 @@ export default function Pe2WeekView({ slot, draftId }) {
     <div className="flex h-full min-h-0 max-w-6xl flex-col">
       <header className="mb-6">
         <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: evoBrand.muted }}>
-          Revisar semana · {slot ? formatPe2SlotLabel(slot) : '—'}
+          Semana completa · {slot ? formatPe2SlotLabel(slot) : '—'}
         </p>
         <h1 className="font-evo-display text-2xl font-bold sm:text-3xl" style={{ color: evoBrand.text }}>
           {week?.titulo || 'Semana'}
@@ -59,7 +59,7 @@ export default function Pe2WeekView({ slot, draftId }) {
             {PE2_STATUS_LABELS[week.status] || week.status}
             {week.is_primary ? ' · borrador principal' : ''}
             {' · '}
-            {grid.sessions.length} sesión(es) estructurada(s)
+            {grid.sessions.length} clase(s) estructurada(s) en esta semana
           </p>
         ) : (
           <p className="mt-2 text-sm" style={{ color: evoBrand.muted }}>
@@ -91,7 +91,7 @@ export default function Pe2WeekView({ slot, draftId }) {
       ) : null}
 
       <p className="mt-6 text-xs" style={{ color: evoBrand.muted }}>
-        Las sesiones se mantienen estructuradas por separado. El contexto de IA se guarda en este borrador y no modifica ninguna sesión ni publica nada automáticamente.
+        Las clases se organizan por separado para poder revisarlas, pero todas pertenecen a esta misma semana y comparten su ciclo y contexto. Nada se publica automáticamente.
       </p>
     </div>
   )

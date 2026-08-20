@@ -2,8 +2,8 @@ import EvoLogo from '../EvoLogo.jsx'
 import { evoBrand } from '../../constants/evoBrand.js'
 
 const PROGRAMMING_NAV_ITEMS = [
-  { id: 'home', label: 'Crear entrenamiento' },
-  { id: 'week', label: 'Revisar semana' },
+  { id: 'home', label: '1. Preparar semana' },
+  { id: 'week', label: '2. Revisar y compartir' },
 ]
 
 export default function Pe2Sidebar({
@@ -17,7 +17,7 @@ export default function Pe2Sidebar({
 }) {
   const navItems = [
     ...(canManageProgramming ? PROGRAMMING_NAV_ITEMS : []),
-    ...(canManageIdentity ? [{ id: 'trainers', label: 'Equipo' }] : []),
+    ...(canManageIdentity ? [{ id: 'trainers', label: '3. Equipo' }] : []),
   ]
 
   return (
@@ -68,7 +68,7 @@ export default function Pe2Sidebar({
             href="/"
             className="block w-full text-center px-3 py-2 rounded-xl text-[11px] font-semibold text-[#C4A8C4] hover:text-white border border-white/15 hover:border-white/30 transition-colors"
           >
-            Herramientas clásicas
+            Programación clásica (temporal)
           </a>
         ) : null}
         <button

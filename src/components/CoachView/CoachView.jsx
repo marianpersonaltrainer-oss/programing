@@ -1442,6 +1442,7 @@ export default function CoachView() {
                       setActiveDay={setActiveDay}
                       exerciseLibrary={exerciseLibrary}
                       todayHandoffs={todayHandoffs}
+                      onOpenFeedback={() => setMainTab('pase')}
                       onConsultAssistant={(ctx) => openSupport('', ctx)}
                     />
                   ) : (

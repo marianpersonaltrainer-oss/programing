@@ -102,7 +102,7 @@ export default function Pe2HomeView({
   }
 
   async function handleArchive(id) {
-    if (!window.confirm('¿Archivar versión este borrador?')) return
+    if (!window.confirm('¿Archivar esta versión? Podrás conservar las demás versiones de la semana.')) return
     setError('')
     try {
       await archivePe2Week(id)
@@ -121,7 +121,7 @@ export default function Pe2HomeView({
         Programación EVO
       </p>
       <h1 className="font-evo-display text-3xl sm:text-4xl font-bold mb-4" style={{ color: evoBrand.text }}>
-        Programación
+        Tu programación
       </h1>
 
       <div

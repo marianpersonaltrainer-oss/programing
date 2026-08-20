@@ -1,22 +1,28 @@
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
 
-const DAY_NAMES = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO']
+const DAY_NAMES = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO']
 
 function asText(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function normalizeDayName(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replaceAll('Á', 'A')
+    .replaceAll('É', 'E')
+    .replaceAll('Í', 'I')
+    .replaceAll('Ó', 'O')
+    .replaceAll('Ú', 'U')
+    .trim()
+}
+
 function isProgrammableSession(value) {
-  return Boolean(value) && !/^\\(no programada esta semana\\)$/i.test(value)
+  return Boolean(value) && value.toLowerCase() !== '(no programada esta semana)'
 }
 
 function weekdayFromName(name, fallback) {
-  const normalized = String(name || '')
-    .normalize('NFD')
-    .replace(/\\p{M}/gu, '')
-    .toUpperCase()
-    .trim()
-  const index = DAY_NAMES.findIndex((day) => day.normalize('NFD').replace(/\\p{M}/gu, '') === normalized)
+  const index = DAY_NAMES.indexOf(normalizeDayName(name))
   return index >= 0 ? index + 1 : fallback + 1
 }
 

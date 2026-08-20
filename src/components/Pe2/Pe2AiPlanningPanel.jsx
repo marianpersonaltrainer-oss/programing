@@ -43,7 +43,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
         data: mergeWeekEvoAiContext(week, context),
       })
       onSaved?.(saved)
-      setMessage('Contexto guardado para esta semana.')
+      setMessage('Contexto guardado para toda la semana.')
     } catch (error) {
       setMessage(error.message || 'No se pudo guardar el contexto.')
     } finally {
@@ -87,10 +87,10 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
             Preparar IA
           </p>
           <h2 className="mt-1 font-evo-display text-xl font-bold" style={{ color: evoBrand.text }}>
-            Contexto de la programación
+            Contexto de la semana completa
           </h2>
           <p className="mt-1 max-w-2xl text-sm" style={{ color: evoBrand.muted }}>
-            Aquí guardas tus prioridades, normas y referencias para esta semana. Se conserva dentro del borrador y queda listo para el generador asistido.
+            Aquí guardas el contexto común de todas las clases: objetivo del ciclo, normas, restricciones y referencias. Se conserva dentro del borrador semanal y queda listo para el generador asistido.
           </p>
         </div>
         <button type="button" onClick={save} disabled={saving} className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-60" style={{ backgroundColor: evoBrand.accent }}>

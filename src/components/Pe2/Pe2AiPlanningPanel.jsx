@@ -36,7 +36,10 @@ function clean(value) {
 
 function readContext(week) {
   const raw = week?.data?.ai_context
-  return Object.fromEntries(FIELDS.map(({ key }) => [key, clean(raw?.[key])]))
+  return Object.fromEntries(FIELDS.map(({ key }) => [
+    key,
+    clean(raw?.[key] || (key === 'objective' ? week?.proposal : '')),
+  ]))
 }
 
 function buildPreview(context) {

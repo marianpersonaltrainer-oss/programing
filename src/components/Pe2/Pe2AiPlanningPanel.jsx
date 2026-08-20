@@ -1,68 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { updatePe2Week } from '../../lib/pe2Supabase.js'
 import { evoBrand } from '../../constants/evoBrand.js'
-
-const FIELDS = [
-  {
-    key: 'objective',
-    label: 'Objetivo y foco de esta semana',
-    placeholder: 'Qué debe desarrollar la semana, cómo enlaza con el mesociclo y qué no debe perderse.',
-  },
-  {
-    key: 'approvedRules',
-    label: 'Normas EVO aprobadas para esta programación',
-    placeholder: 'Reglas operativas que deben respetarse. Solo decisiones ya aprobadas por Dirección.',
-  },
-  {
-    key: 'constraints',
-    label: 'Material, calendario o restricciones reales',
-    placeholder: 'Material disponible, clases especiales, aforo, eventos o límites de esta semana.',
-  },
-  {
-    key: 'language',
-    label: 'Lenguaje y notas para entrenadores',
-    placeholder: 'Terminología EVO, tono de los briefings y qué debe quedar claro para el equipo.',
-  },
-  {
-    key: 'references',
-    label: 'Referencias que la IA puede seguir',
-    placeholder: 'Pega ejemplos o indicaciones concretas de tu método. No incluyas datos de clientes.',
-  },
-]
-
-function clean(value) {
-  return typeof value === 'string' ? value.slice(0, 5000) : ''
-}
-
-function readContext(week) {
-  const raw = week?.data?.ai_context
-  return Object.fromEntries(FIELDS.map(({ key }) => [
-    key,
-    clean(raw?.[key] || (key === 'objective' ? week?.proposal : '')),
-  ]))
-}
-
-function buildPreview(context) {
-  const sections = FIELDS
-    .map(({ key, label }) => (context[key].trim() ? `## ${label}\n${context[key].trim()}` : ''))
-    .filter(Boolean)
-
-  return [
-    '# Contexto operativo de esta semana',
-    'Este bloque complementa el Método EVO y el catálogo de ejercicios; no los sustituye.',
-    'No inventes movimientos, vídeos, reglas ni datos. Si falta una decisión, señálala para revisión.',
-    ...sections,
-  ].join('\n\n')
-}
+import {
+  buildEvoAiContextPrompt,
+  EVO_AI_CONTEXT_FIELDS,
+  getWeekEvoAiContext,
+  mergeWeekEvoAiContext,
+} from '../../domain/programming/evoAiContext.js'
+import { updatePe2Week } from '../../lib/pe2Supabase.js'
 
 export default function Pe2AiPlanningPanel({ week, onSaved }) {
-  const [context, setContext] = useState(() => readContext(week))
+  const [context, setContext] = useState(() => getWeekEvoAiContext(week))
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const preview = useMemo(() => buildPreview(context), [context])
+  const preview = useMemo(() => buildEvoAiContextPrompt(context), [context])
 
   useEffect(() => {
-    setContext(readContext(week))
+    setContext(getWeekEvoAiContext(week))
     setMessage('')
   }, [week?.id])
 
@@ -74,7 +27,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
     setMessage('')
     try {
       const saved = await updatePe2Week(week.id, {
-        data: { ...(week.data || {}), ai_context: context },
+        data: mergeWeekEvoAiContext(week, context),
       })
       onSaved?.(saved)
       setMessage('Contexto guardado para esta semana.')
@@ -114,7 +67,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
       </div>
 
       <div className="mt-5 grid gap-4">
-        {FIELDS.map(({ key, label, placeholder }) => (
+        {EVO_AI_CONTEXT_FIELDS.map(({ key, label, placeholder }) => (
           <label key={key} className="grid gap-1.5">
             <span className="text-sm font-semibold" style={{ color: evoBrand.text }}>{label}</span>
             <textarea

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { evoBrand } from '../../constants/evoBrand.js'
+import { projectImportedSessionForCoach } from '../../domain/programming/legacySessionDraft.js'
 
 export default function Pe2ExcelImportReview({ review }) {
   const [selectedId, setSelectedId] = useState(() => review?.sessions?.[0]?.sourceId || null)
   const selected = review?.sessions?.find((session) => session.sourceId === selectedId) || review?.sessions?.[0]
+  const coachDraft = selected ? projectImportedSessionForCoach(selected) : null
 
   if (!review) return null
 
@@ -43,16 +45,23 @@ export default function Pe2ExcelImportReview({ review }) {
           })}
         </div>
 
-        {selected ? (
+        {coachDraft ? (
           <article className="rounded-lg border bg-white p-3" style={{ borderColor: evoBrand.border }}>
-            <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: evoBrand.accent }}>{selected.classType}</p>
-            <h3 className="mt-1 text-base font-bold" style={{ color: evoBrand.text }}>{selected.title}</h3>
-            <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: evoBrand.muted }}>Programación</p>
-            <pre className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6" style={{ color: evoBrand.text }}>{selected.programming}</pre>
-            {selected.feedback ? (
+            <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: evoBrand.accent }}>{coachDraft.classType}</p>
+            <h3 className="mt-1 text-base font-bold" style={{ color: evoBrand.text }}>{coachDraft.title}</h3>
+            <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: evoBrand.muted }}>Vista preparada para entrenador</p>
+            <div className="mt-2 grid gap-3">
+              {coachDraft.blocks.map((block, index) => (
+                <section key={`${block.title}-${index}`} className="rounded-lg border p-3" style={{ borderColor: evoBrand.border }}>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em]" style={{ color: evoBrand.muted }}>{block.title}</p>
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6" style={{ color: evoBrand.text }}>{block.rawText}</pre>
+                </section>
+              ))}
+            </div>
+            {coachDraft.feedback ? (
               <>
                 <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: evoBrand.muted }}>Feedback del entrenador</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-6" style={{ color: evoBrand.text }}>{selected.feedback}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-6" style={{ color: evoBrand.text }}>{coachDraft.feedback}</p>
               </>
             ) : null}
           </article>

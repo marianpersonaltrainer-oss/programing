@@ -25,6 +25,7 @@ export default function Pe2HomeView({
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [savingSlot, setSavingSlot] = useState(false)
+  const [weeklyIntent, setWeeklyIntent] = useState('')
   const [error, setError] = useState('')
 
   const loadDrafts = useCallback(async (activeSlot) => {
@@ -88,12 +89,13 @@ export default function Pe2HomeView({
         semana: slot.semana,
         orgId,
         phase: slot.phase,
-        titulo: `${formatPe2SlotLabel(slot)} · borrador`,
+        titulo: `${formatPe2SlotLabel(slot)} · preparación`,
+        proposal: weeklyIntent.trim() || null,
         is_primary: drafts.length === 0,
       })
       onSelectDraft?.(row.id)
+      setWeeklyIntent('')
       await loadDrafts(slot)
-      onOpenWeek?.()
     } catch (e) {
       setError(e.message || 'No se pudo crear el borrador')
     } finally {
@@ -199,6 +201,30 @@ export default function Pe2HomeView({
           {error}
         </div>
       ) : null}
+
+      <div
+        className="rounded-2xl border px-5 py-4 mb-4"
+        style={{ backgroundColor: evoBrand.card, borderColor: `${evoBrand.purple}33` }}
+      >
+        <label className="block">
+          <span className="text-sm font-bold" style={{ color: evoBrand.text }}>
+            ¿Qué quieres conseguir esta semana?
+          </span>
+          <span className="block text-xs mt-1" style={{ color: evoBrand.muted }}>
+            Opcional. Escribe el foco, restricciones o la intención de programación. Se guardará en esta versión para trabajarla aquí.
+          </span>
+          <textarea
+            value={weeklyIntent}
+            onChange={(e) => setWeeklyIntent(e.target.value)}
+            disabled={creating || loading}
+            maxLength={2000}
+            rows={3}
+            placeholder="Ej.: consolidar fuerza sin cargar demasiado las piernas; mantener el trabajo técnico de clean."
+            className="mt-3 w-full px-3 py-2.5 rounded-xl border text-sm resize-y"
+            style={{ borderColor: `${evoBrand.purple}33`, color: evoBrand.text }}
+          />
+        </label>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <button

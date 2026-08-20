@@ -204,7 +204,15 @@ function ProgrammerApp() {
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className={`hidden md:inline text-[10px] font-bold uppercase tracking-wider ${coachText.muted}`}>Programador</span>
+          <button
+            type="button"
+            onClick={() => window.location.assign('/?v2')}
+            className="hidden sm:inline-flex items-center rounded-xl border border-[#A729AD]/70 bg-[#251126] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#F4C7F6] transition hover:bg-[#321634]"
+            title="Abre la nueva programación con borradores, revisión de Excel y preparación de IA. La programación actual no se modifica."
+          >
+            Nueva programación
+          </button>
+          <span className={`hidden md:inline text-[10px] font-bold uppercase tracking-wider ${coachText.muted}`}>Programación actual</span>
           <div className={`w-9 h-9 rounded-xl ${coachBg.card} border ${coachBorder} flex items-center justify-center text-[#A729AD]`}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />

@@ -2,7 +2,7 @@ import EvoLogo from '../EvoLogo.jsx'
 import { evoBrand } from '../../constants/evoBrand.js'
 
 const PROGRAMMING_NAV_ITEMS = [
-  { id: 'home', label: 'Programación' },
+  { id: 'home', label: 'Crear entrenamiento' },
   { id: 'week', label: 'Revisar semana' },
 ]
 

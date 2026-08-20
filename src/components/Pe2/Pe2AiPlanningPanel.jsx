@@ -8,6 +8,7 @@ import {
 } from '../../domain/programming/evoAiContext.js'
 import { projectLegacyWeekForStructuredImport } from '../../domain/programming/legacyWeekImportProjection.js'
 import Pe2ExcelImportReview from './Pe2ExcelImportReview.jsx'
+import Pe2WeeklyDraftBoard from './Pe2WeeklyDraftBoard.jsx'
 import { updatePe2Week } from '../../lib/pe2Supabase.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from '../../utils/importProgramingEvoWeekXlsx.js'
 
@@ -23,6 +24,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
   const [message, setMessage] = useState('')
   const [importing, setImporting] = useState(false)
   const [importPreview, setImportPreview] = useState(null)
+  const [weeklyPlan, setWeeklyPlan] = useState(() => week?.data?.weekly_plan || null)
   const fileInputRef = useRef(null)
   const preview = useMemo(() => buildEvoAiContextPrompt(context), [context])
 
@@ -30,6 +32,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
     setContext(getWeekEvoAiContext(week))
     setMessage('')
     setImportPreview(null)
+    setWeeklyPlan(week?.data?.weekly_plan || null)
   }, [week?.id])
 
   const update = (key, value) => setContext((current) => ({ ...current, [key]: value }))
@@ -58,6 +61,46 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
     } catch {
       setMessage('No se pudo copiar automáticamente. Puedes seleccionar el texto de abajo.')
     }
+  }
+
+  const saveWeeklyPlan = async () => {
+    if (!week?.id || !weeklyPlan) return
+    setSaving(true)
+    setMessage('')
+    try {
+      const saved = await updatePe2Week(week.id, {
+        data: {
+          ...mergeWeekEvoAiContext(week, context),
+          weekly_plan: weeklyPlan,
+        },
+      })
+      onSaved?.(saved)
+      setWeeklyPlan(saved.data?.weekly_plan || weeklyPlan)
+      setMessage('Borrador semanal guardado. Sigue sin estar publicado ni visible para el equipo.')
+    } catch (error) {
+      setMessage(error.message || 'No se pudo guardar el borrador semanal.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const prepareWeeklyPlan = () => {
+    if (!importPreview) return
+    setWeeklyPlan({
+      version: 1,
+      sourceFile: importPreview.fileName || '',
+      sessions: importPreview.sessions.map((session) => ({
+        sourceId: session.sourceId,
+        weekday: session.weekday,
+        dayName: session.dayName,
+        classTypeKey: session.classTypeKey,
+        classType: session.classType,
+        title: session.title,
+        programming: session.programming,
+        feedback: session.feedback,
+      })),
+    })
+    setMessage('La semana está preparada como borrador editable. Revísala y guárdala cuando quieras.')
   }
 
   const reviewExcel = async (event) => {
@@ -137,8 +180,27 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
           {importing ? 'Leyendo Excel…' : 'Seleccionar Excel para revisar'}
         </button>
 
-        {importPreview ? <Pe2ExcelImportReview review={importPreview} /> : null}
+        {importPreview ? (
+          <>
+            <Pe2ExcelImportReview review={importPreview} />
+            <button
+              type="button"
+              onClick={prepareWeeklyPlan}
+              className="mt-3 rounded-xl px-4 py-2 text-sm font-bold text-white"
+              style={{ backgroundColor: evoBrand.accent }}
+            >
+              Preparar borrador semanal editable
+            </button>
+          </>
+        ) : null}
       </div>
+
+      <Pe2WeeklyDraftBoard
+        plan={weeklyPlan}
+        saving={saving}
+        onChange={setWeeklyPlan}
+        onSave={saveWeeklyPlan}
+      />
 
       {message ? <p className="mt-3 text-sm" style={{ color: message.startsWith('No se pudo') ? '#B42318' : '#18794E' }}>{message}</p> : null}
     </section>

@@ -9,6 +9,7 @@ import {
 import { projectLegacyWeekForStructuredImport } from '../../domain/programming/legacyWeekImportProjection.js'
 import Pe2ExcelImportReview from './Pe2ExcelImportReview.jsx'
 import Pe2WeeklyDraftBoard from './Pe2WeeklyDraftBoard.jsx'
+import Pe2WeeklyTeamReview from './Pe2WeeklyTeamReview.jsx'
 import { updatePe2Week } from '../../lib/pe2Supabase.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from '../../utils/importProgramingEvoWeekXlsx.js'
 
@@ -25,6 +26,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
   const [importing, setImporting] = useState(false)
   const [importPreview, setImportPreview] = useState(null)
   const [weeklyPlan, setWeeklyPlan] = useState(() => week?.data?.weekly_plan || null)
+  const [teamReviewPrepared, setTeamReviewPrepared] = useState(() => Boolean(week?.data?.team_review_prepared))
   const fileInputRef = useRef(null)
   const preview = useMemo(() => buildEvoAiContextPrompt(context), [context])
 
@@ -33,6 +35,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
     setMessage('')
     setImportPreview(null)
     setWeeklyPlan(week?.data?.weekly_plan || null)
+    setTeamReviewPrepared(Boolean(week?.data?.team_review_prepared))
   }, [week?.id])
 
   const update = (key, value) => setContext((current) => ({ ...current, [key]: value }))
@@ -72,13 +75,43 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
         data: {
           ...mergeWeekEvoAiContext(week, context),
           weekly_plan: weeklyPlan,
+          team_review_prepared: false,
         },
       })
       onSaved?.(saved)
       setWeeklyPlan(saved.data?.weekly_plan || weeklyPlan)
-      setMessage('Borrador semanal guardado. Sigue sin estar publicado ni visible para el equipo.')
+      setTeamReviewPrepared(false)
+      setMessage('Borrador semanal guardado. Ahora puedes preparar su revisión para el equipo; no se publica automáticamente.')
     } catch (error) {
       setMessage(error.message || 'No se pudo guardar el borrador semanal.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const setReviewPrepared = async (prepared) => {
+    if (!week?.id || !weeklyPlan) return
+    setSaving(true)
+    setMessage('')
+    try {
+      const saved = await updatePe2Week(week.id, {
+        data: {
+          ...mergeWeekEvoAiContext(week, context),
+          weekly_plan: weeklyPlan,
+          team_review_prepared: prepared,
+          team_review_prepared_at: prepared ? new Date().toISOString() : null,
+        },
+      })
+      onSaved?.(saved)
+      setWeeklyPlan(saved.data?.weekly_plan || weeklyPlan)
+      setTeamReviewPrepared(prepared)
+      setMessage(
+        prepared
+          ? 'Revisión del equipo preparada. Sigue privada: todavía no se ha enviado ni publicado nada.'
+          : 'La semana ha vuelto a edición privada.',
+      )
+    } catch (error) {
+      setMessage(error.message || 'No se pudo actualizar la revisión del equipo.')
     } finally {
       setSaving(false)
     }
@@ -200,6 +233,14 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
         saving={saving}
         onChange={setWeeklyPlan}
         onSave={saveWeeklyPlan}
+      />
+
+      <Pe2WeeklyTeamReview
+        plan={weeklyPlan}
+        prepared={teamReviewPrepared}
+        saving={saving}
+        onPrepare={() => setReviewPrepared(true)}
+        onReturnToDraft={() => setReviewPrepared(false)}
       />
 
       {message ? <p className="mt-3 text-sm" style={{ color: message.startsWith('No se pudo') ? '#B42318' : '#18794E' }}>{message}</p> : null}

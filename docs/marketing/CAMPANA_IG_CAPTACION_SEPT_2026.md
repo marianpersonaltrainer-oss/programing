@@ -1,25 +1,27 @@
 # Campaña Instagram · Captación de leads · Septiembre 2026
 
 Evolution Boutique Fitness · Granada
-Versión 2, con vídeos y landing · 23 de agosto de 2026
+Versión 3, objetivo valoración inicial · 23 de agosto de 2026
 
 ## 1. La estrategia en una idea
 
-Tienes tres cosas: vídeos verticales cortos, una landing que explica EVO y termina en un botón de WhatsApp, y una conversación tuya que convierte muy bien. La estrategia consiste en ponerlas en el orden correcto y no pedirle a ninguna que haga el trabajo de otra.
+El objetivo de la campaña no es que te escriban. Es que reserven una valoración inicial. Eso cambia el embudo, porque la valoración no es un regalo: cuesta 20 € y va precedida de un formulario de nueve preguntas, con compromiso mínimo de tres meses y rango de inversión mensual incluidos.
 
-El error habitual con una landing así es mandarle todo el tráfico frío. La landing añade un paso más antes de la conversación, y cada paso pierde gente. Alguien que no conoce EVO no va a leerse una web entera antes de escribir.
+Eso está muy bien. Filtra fortísimo y hace que las valoraciones que llegan sean de gente que va en serio. Pero no se puede pedir en frío. Alguien que ve un vídeo tuyo por primera vez no va a pagar 20 € y contestar nueve preguntas sobre sus lesiones y su presupuesto.
 
-La solución es que el vídeo haga en frío el trabajo que harías con la landing. Un vídeo de 20 segundos filtra igual de bien que una web, cuesta menos y además construye gratis el público al que luego le enseñas la landing.
+Por eso el orden importa tanto:
 
-Queda una escalera de tres peldaños:
+**El vídeo abre. La conversación cualifica. Calendly cierra.**
+
+Calendly no es la puerta de entrada, es la puerta de salida. El enlace se manda cuando ya has hablado con la persona y hay encaje. Ahí las nueve preguntas dejan de ser un obstáculo y pasan a ser lo que son, una preparación de la cita.
 
 | Peldaño | Quién es | Qué ve | A dónde va |
 |---|---|---|---|
-| Frío | Gente de Granada que no te conoce | Vídeo corto de sala real | WhatsApp directo |
-| Templado | Vio la mitad de un vídeo o interactuó con la cuenta, pero no escribió | Otro vídeo distinto | Landing |
-| Caliente | Visitó la landing y no escribió | Anuncio simple, sin vídeo | WhatsApp directo |
+| Frío | Gente de Granada que no te conoce | Vídeo corto de sala real | WhatsApp |
+| Templado | Vio la mitad de un vídeo o interactuó, pero no escribió | Otro vídeo distinto | Landing |
+| Caliente | Visitó la landing y no escribió | Anuncio simple, sin vídeo | WhatsApp o Calendly |
 
-En Meta esta escalera se monta con dos conjuntos de anuncios, no con tres. Con 17,50 € al día no da para más, y partir el presupuesto en tres impide que ninguno salga de la fase de aprendizaje.
+En Meta esta escalera se monta con dos conjuntos de anuncios, no con tres. Con 17,50 € al día no da para más, y partir el presupuesto impide que ninguno salga de la fase de aprendizaje.
 
 ## 2. Qué papel juega cada activo
 
@@ -27,9 +29,33 @@ En Meta esta escalera se monta con dos conjuntos de anuncios, no con tres. Con 1
 
 **La landing.** No sirve para convencer a un desconocido. Sirve para quitar dudas a alguien que ya te ha visto. Las preguntas que resuelve, dónde estáis, cómo es una clase, para quién es, son exactamente las que tiene alguien que ya vio un vídeo y se lo está pensando. Por eso va en el peldaño templado, no en el frío.
 
-**WhatsApp.** Es donde EVO gana. Meta mide de forma nativa cuántas conversaciones se inician, sin depender del píxel, así que optimiza muy bien aunque el presupuesto sea pequeño. Es el destino del tráfico frío y del caliente.
+**WhatsApp.** Es donde EVO gana. Meta mide de forma nativa cuántas conversaciones se inician, sin depender del píxel, así que optimiza bien aunque el presupuesto sea pequeño. Es el destino del tráfico frío.
 
-## 3. Comprobar el píxel antes de arrancar
+**Calendly.** Es el cierre, no la captación. Su formulario largo y el coste de 20 € son un filtro excelente en el momento correcto y un muro en el momento equivocado. Solo se enseña a quien ya ha hablado contigo, o a quien llega desde la landing habiendo visto ya varios vídeos.
+
+## 3. Tu Calendly, lo que hay y lo que cambiaría
+
+Ya tienes montadas dos valoraciones, y están bien planteadas.
+
+| | Presencial | Online |
+|---|---|---|
+| Duración | 30 minutos | 30 minutos |
+| Lugar | C/ San Vicente Ferrer 6, Granada Centro | Videollamada |
+| Coste | 20 €, descontables si se incorpora | 20 €, descontables si se incorpora |
+| Formulario | 9 preguntas, casi todas obligatorias | Las mismas, con el teléfono opcional |
+
+**Para la campaña se usa solo la presencial.** Estás anunciando en un radio de 8 km sobre Granada, así que la gente puede venir. Ver la sala y conocerte en persona convierte mucho mejor que una videollamada. La online se reserva para quien te diga en la conversación que no puede desplazarse.
+
+**Lo que sí cambiaría, por orden de importancia:**
+
+1. **Cobrar los 20 € al reservar.** Ahora mismo el evento no tiene pago activado en Calendly, así que el coste está anunciado en la descripción pero no se cobra al reservar. Eso significa que el compromiso es solo declarativo y las ausencias van a doler. Conectando Stripe o PayPal en Calendly, el hueco solo se bloquea cuando alguien ha pagado. Es el cambio con más impacto de toda la campaña: convierte una lista de reservas en una lista de citas reales.
+2. **Añadir parámetros UTM a los enlaces.** Calendly guarda los UTM que le llegan en la dirección y te los muestra en cada cita. Con eso sabes qué anuncio concreto ha traído cada valoración, sin depender de que la persona conteste bien.
+3. **Dejar el teléfono obligatorio también en la online.** Ahora es opcional ahí y obligatorio en la presencial. Si alguien no aparece, sin teléfono no puedes recuperarlo.
+4. **Recordatorios.** Uno a las 24 horas y otro a las 2 horas antes. En citas de pago pequeño es lo que separa un 60 % de asistencia de un 90 %.
+
+La pregunta «¿Cómo nos has conocido?» ya tiene Instagram entre las opciones, así que la atribución básica la tienes cubierta desde el primer día.
+
+## 4. Comprobar el píxel antes de arrancar
 
 Hay que saber si la landing tiene píxel y si registra algo útil. Sin esto no se puede hacer retargeting de visitantes ni saber qué anuncio trae gente que llega hasta el botón.
 
@@ -48,36 +74,39 @@ Hay que saber si la landing tiene píxel y si registra algo útil. Sin esto no s
 
 Un aviso: los anuncios que van directos a WhatsApp no pasan por la web, así que no alimentan el píxel. Todo tu público de retargeting web vendrá del peldaño templado. Es normal, no es un fallo de configuración.
 
-## 4. Datos que hay que confirmar
+## 5. Datos que hay que confirmar
 
-Estos huecos aparecen marcados en todos los textos. No he inventado ninguno.
+Tu Calendly ya ha resuelto dos de los huecos que tenía marcados:
 
-- `[OFERTA]`: qué recibe exactamente quien escribe. Propuesta: valoración inicial gratuita más una clase de prueba.
-- `[PRECIO]`: si se menciona precio o cuota de inicio, y cuál.
+- **Oferta:** valoración inicial presencial de 30 minutos, 20 € descontables si se incorpora. Confirmado.
+- **Ubicación:** C/ San Vicente Ferrer 6, Granada Centro. Confirmado.
+
+Quedan estos, que no aparecen en ninguna fuente que yo pueda ver:
+
+- `[CUOTA]`: la cuota mensual real. El formulario de Calendly pregunta por rangos de 85 a 120 € y de más de 120 €, pero eso es una pregunta de cualificación, no tu tarifa. No la doy por buena ni la escribo en ningún anuncio hasta que me la confirmes.
 - `[HORARIOS]`: franjas reales con plazas libres en septiembre.
 - `[ENLACE WA]`: enlace `wa.me` del número de EVO.
 - `[URL LANDING]`: dirección de la landing.
-- `[UBICACION]`: dirección o barrio que se nombra en los anuncios.
-- `[PLAZAS]`: solo si de verdad hay un número limitado. Si no lo hay, no se menciona.
+- `[PLAZAS]`: solo si de verdad hay un número limitado de plazas. Si no lo hay, no se menciona.
 
 Regla: si un dato no está confirmado, se quita del anuncio. Un anuncio que promete algo que luego no existe cuesta más caro que un anuncio flojo.
 
-## 5. Estructura en Meta Ads
+## 6. Estructura en Meta Ads
 
-### 5.1 Campaña
+### 6.1 Campaña
 
 - Objetivo: Clientes potenciales (Leads)
 - Presupuesto a nivel de campaña (CBO), 17,50 € al día
 - Categoría especial de anuncios: ninguna
 - Fechas: 1 al 28 de septiembre
 
-### 5.2 Conjunto 1 · Frío Granada (semanas 1 a 4)
+### 6.2 Conjunto 1 · Frío Granada (semanas 1 a 4)
 
 | Ajuste | Valor |
 |---|---|
 | Destino | WhatsApp |
 | Presupuesto | 17,50 € al día en semanas 1 y 2, 12,50 € a partir de la 3 |
-| Ubicación | Granada capital, radio de 8 km desde `[UBICACION]` |
+| Ubicación | Granada capital, radio de 8 km desde San Vicente Ferrer 6 |
 | Tipo | Personas que viven en este lugar |
 | Edad | 25 a 55 |
 | Género | Todos |
@@ -89,7 +118,7 @@ Regla: si un dato no está confirmado, se quita del anuncio. Un anuncio que prom
 
 El público amplio funciona mejor que los intereses en zonas pequeñas. En un radio de 8 km sobre Granada la geografía ya limita el alcance, y añadir intereses de fitness lo estrecha hasta que el coste sube.
 
-### 5.3 Conjunto 2 · Retargeting (semanas 3 y 4)
+### 6.3 Conjunto 2 · Retargeting (semanas 3 y 4)
 
 | Ajuste | Valor |
 |---|---|
@@ -101,7 +130,7 @@ El público amplio funciona mejor que los intereses en zonas pequeñas. En un ra
 
 Aquí van juntos los peldaños templado y caliente, porque por separado el público sería demasiado pequeño para gastar. Meta reparte solo entre las dos versiones. Este conjunto suele dar el coste por conversación más bajo de toda la campaña.
 
-## 6. Cómo usar los vídeos
+## 7. Cómo usar los vídeos
 
 No todos los vídeos valen para lo mismo. Repártelos por función, no por cuál te gusta más.
 
@@ -122,7 +151,7 @@ No todos los vídeos valen para lo mismo. Repártelos por función, no por cuál
 
 Si tienes menos vídeos de los que pide la tabla, prioriza así: primero gancho frío, después prueba. Con esos dos ya se puede arrancar. Confianza y ambiente pueden entrar en la semana 2.
 
-## 7. Los cinco anuncios
+## 8. Los cinco anuncios
 
 Los cuatro primeros salen a la vez el 1 de septiembre en el conjunto 1. En la semana 2 se apaga el que peor rinda. El quinto es del conjunto 2.
 
@@ -169,7 +198,7 @@ Vertical 1080 x 1920 px para vídeo, 1080 x 1350 px para imagen. Margen seguro d
 > Cuéntanos por WhatsApp desde dónde partes y te orientamos.
 
 **Titular:** Volver a entrenar, con cabeza
-**Descripción:** `[OFERTA]`
+**Descripción:** Valoración inicial de 30 minutos
 **Botón:** Enviar mensaje de WhatsApp
 
 ### Anuncio C · Ya entrena, pero va solo
@@ -233,7 +262,7 @@ Vertical 1080 x 1920 px para vídeo, 1080 x 1350 px para imagen. Margen seguro d
 **Descripción:** Escríbenos y lo vemos
 **Botón:** Enviar mensaje de WhatsApp
 
-## 8. Qué ajustar en la landing
+## 9. Qué ajustar en la landing
 
 La landing va a recibir gente templada, no fría. Eso cambia lo que tiene que hacer.
 
@@ -255,7 +284,7 @@ Usa enlaces `wa.me` distintos según de dónde viene la persona, cambiando el me
 
 Así, en cuanto llega el mensaje, sabes por dónde ha entrado sin depender de ninguna herramienta. Añade también parámetros UTM a las direcciones de la landing en los anuncios, para poder distinguirlas en el futuro.
 
-## 9. Lo que no se puede publicar
+## 10. Lo que no se puede publicar
 
 Las políticas de Meta sobre salud y forma física son estrictas, y un anuncio rechazado frena la campaña varios días. Además, nada de esto encaja con la voz de EVO.
 
@@ -266,11 +295,11 @@ Las políticas de Meta sobre salud y forma física son estrictas, y un anuncio r
 - Urgencia inventada. Si no hay plazas limitadas de verdad, no se dice
 - Mayúsculas para gritar y acumulación de exclamaciones
 
-## 10. Qué pasa cuando escriben
+## 11. Qué pasa cuando escriben
 
-El anuncio solo abre la puerta. Aquí se gana o se pierde el cliente.
+El anuncio abre la puerta, la conversación cualifica y Calendly cierra. Esta parte es la que decide la campaña.
 
-**Primer mensaje, en menos de 2 horas:**
+**Paso 1. Primer mensaje, en menos de 2 horas:**
 
 > Hola, `[NOMBRE]`, ¿qué tal? Soy Marian, de Evolution 😊
 >
@@ -278,15 +307,29 @@ El anuncio solo abre la puerta. Aquí se gana o se pierde el cliente.
 >
 > Para orientarte bien, cuéntame una cosa primero: ¿qué te gustaría conseguir entrenando?
 
-**Después de su respuesta:** reconoce lo que ha contado y haz una sola pregunta más. Normalmente: si ha entrenado antes, o qué franja horaria le encaja. Una pregunta cada vez.
+**Paso 2. Después de su respuesta:** reconoce lo que ha contado y haz una sola pregunta más. Normalmente: si ha entrenado antes, o qué franja horaria le encaja. Una pregunta cada vez.
 
-**Propuesta:** relaciona lo que ha dicho con algo concreto de EVO y propón el siguiente paso, que es `[OFERTA]`. Una sola llamada a la acción.
+**Paso 3. Comprobar encaje.** Antes de mandar el enlace, tienes que saber tres cosas: qué busca, si puede venir a los horarios que hay libres, y si la inversión le encaja. Si algo de eso no cuadra, es mejor decirlo ahora que en la valoración.
 
-**Si no contesta:** un único seguimiento a las 48 horas, corto y sin presión. Si tampoco responde, se deja estar. No hay tercer mensaje.
+**Paso 4. Mandar el enlace.** Solo cuando hay encaje:
 
-**Registro:** cada lead se anota con fecha, por dónde entró según el mensaje pre-escrito, qué buscaba y en qué estado está. Sin esto no se puede saber qué anuncio trae gente que de verdad se da de alta.
+> Por lo que me cuentas, creo que podemos ayudarte.
+>
+> El siguiente paso es una valoración inicial. Son 30 minutos aquí en el centro, en San Vicente Ferrer 6, para ver tu punto de partida y decirte con claridad cómo empezarías.
+>
+> Tiene un coste de 20 € que se te descuenta si decides incorporarte.
+>
+> Coge aquí el hueco que mejor te venga: `[ENLACE CALENDLY]`
 
-## 11. Contenido orgánico
+**Paso 5. Si reserva pero no ha pagado**, y todavía no tienes el cobro activado en Calendly, confirma el pago por mensaje el día antes. Es incómodo y es justo la razón por la que conviene activar el cobro en la reserva.
+
+**Paso 6. Si no contesta:** un único seguimiento a las 48 horas, corto y sin presión. Si tampoco responde, se deja estar. No hay tercer mensaje.
+
+**Sobre los 20 €:** no hace falta ponerlos en el anuncio, pero sí decirlos en cuanto propones la valoración, nunca después. Una persona que se entera del coste al final se siente engañada, y eso no se arregla con un descuento.
+
+**Registro:** cada lead se anota con fecha, por dónde entró según el mensaje pre-escrito, qué buscaba y en qué estado está. Los estados útiles son: escribió, cualificado, reservó, asistió, se dio de alta.
+
+## 12. Contenido orgánico
 
 Los vídeos tienen que empezar a trabajar antes que los anuncios. Cada persona que ve un reel tuyo en orgánico entra en el público de retargeting, y eso es presupuesto que no gastas.
 
@@ -307,48 +350,70 @@ Los vídeos tienen que empezar a trabajar antes que los anuncios. Cada persona q
 
 **Stories, a diario:** trozos de clase, una encuesta a la semana, caja de preguntas los jueves y respuesta pública a la duda más repetida.
 
-## 12. Medición
+## 13. Medición
 
-Revisión cada lunes por la mañana, quince minutos.
+El indicador que manda es el coste por valoración asistida, no el coste por conversación. Una campaña con conversaciones baratas y ninguna reserva es una campaña fallida.
 
-| Indicador | Dónde se mira | Señal buena |
+**El embudo completo:**
+
+| Paso | De dónde sale el dato |
+|---|---|
+| Impresiones y clics | Meta Ads |
+| Conversaciones iniciadas | WhatsApp |
+| Conversaciones cualificadas | Tu registro |
+| Valoraciones reservadas | Calendly |
+| Valoraciones asistidas | Calendly |
+| Altas | Tu registro |
+
+**Un ejemplo con números redondos**, para ver dónde duele:
+
+Con 490 € y un coste de 6 € por conversación salen unas 80 conversaciones. Si una de cada tres reserva valoración, son 26 reservas. Si asiste el 65 %, son 17 valoraciones reales, y el coste por valoración asistida queda en 29 €. Con el cobro activado en la reserva, esa asistencia sube hacia el 90 % y las mismas 26 reservas se convierten en 23 valoraciones, con el coste bajando a 21 €.
+
+Ese salto, de 17 a 23 valoraciones sin gastar un euro más, es lo que compra activar el pago en Calendly.
+
+**Revisión cada lunes, quince minutos:**
+
+| Indicador | Dónde | Señal buena |
 |---|---|---|
 | Coste por conversación | Meta Ads | Por debajo de 8 € |
-| Retención a 3 segundos del vídeo | Meta Ads | Por encima del 25 % |
-| Reproducciones de 15 segundos o ThruPlay | Meta Ads | Suficientes para llenar el público de retargeting |
+| Retención a 3 segundos | Meta Ads | Por encima del 25 % |
 | CTR | Meta Ads | Por encima del 1 % |
 | Frecuencia | Meta Ads | Por debajo de 2,5 |
-| Conversaciones iniciadas | WhatsApp | 18 a 28 por semana |
-| Leads que reservan valoración | Registro propio | 40 % o más |
-| Valoraciones que se dan de alta | Registro propio | 40 % o más |
+| Conversación que reserva | Registro y Calendly | 25 % o más |
+| Reserva que asiste | Calendly | 65 % sin cobro, 85 % con cobro |
+| Valoración que se da de alta | Registro | Tu dato, no tengo referencia fiable |
 
 Estas cifras son orientativas, basadas en lo habitual en un negocio local de este tamaño. Los números reales de EVO mandan, y desde la segunda semana la comparación se hace contra tus propios datos.
 
 **Reglas de decisión:**
 
 - Si la retención a 3 segundos baja del 20 %, el problema es el arranque del vídeo. Se cambia el principio, no el texto.
-- Si la gente ve el vídeo pero no escribe, el problema es el final. Falta decir claramente qué tiene que hacer.
+- Si la gente ve el vídeo pero no escribe, el problema es el final. Falta decir qué tiene que hacer.
+- Si escriben pero no reservan, el problema está en la conversación o en el encaje del público. Mira si te llega gente que no puede venir a tus horarios o a la que no le encaja la inversión.
+- Si reservan y no aparecen, el problema es el compromiso. Activa el cobro y los recordatorios.
 - Un anuncio con menos del 0,7 % de CTR después de 1.000 impresiones se apaga.
 - Si la frecuencia pasa de 3, se cambia la creatividad, no el público.
 - No se toca nada durante las primeras 72 horas. Cada cambio reinicia la fase de aprendizaje.
-- Si el coste por conversación pasa de 12 € en la semana 2, se revisa primero la creatividad y después el público.
-- Si en el conjunto 2 la versión de la landing trae menos conversaciones que la de WhatsApp, se le baja el peso. La landing está para quitar dudas, no para competir.
 
-## 13. Calendario
+**Sobre la optimización en Meta:** aunque el objetivo del negocio sean las valoraciones, la campaña se sigue optimizando por conversaciones. Con 20 o 30 reservas al mes, Meta nunca tendría suficientes señales para aprender a optimizar por reservas, y la campaña se quedaría atascada. Las conversaciones son la señal barata y frecuente que Meta necesita. Las reservas son el número que miras tú.
+
+## 14. Calendario
 
 | Fecha | Acción |
 |---|---|
-| 24 al 27 de agosto | Comprobar el píxel, ajustar la landing, confirmar los datos del punto 4 |
+| 24 al 26 de agosto | Activar el cobro de los 20 € en Calendly, poner recordatorios y dejar obligatorio el teléfono en la valoración online |
+| 24 al 27 de agosto | Comprobar el píxel, ajustar la landing con los dos botones, confirmar los datos del punto 5 |
 | 24 al 31 de agosto | Publicar tres o cuatro vídeos en orgánico para calentar el público |
 | 28 de agosto | Seleccionar y etiquetar los vídeos por papel: gancho, prueba, confianza, ambiente |
+| 28 de agosto | Preparar los enlaces de Calendly con UTM, uno por origen |
 | 29 de agosto | Cargar la campaña en Meta Ads y dejarla programada |
 | 1 de septiembre | Arranque. Conjunto 1 con los cuatro anuncios |
 | 8 de septiembre | Primera revisión. Apagar el anuncio más flojo |
 | 15 de septiembre | Crear públicos de retargeting, activar el conjunto 2 y bajar el conjunto 1 a 12,50 € |
 | 22 de septiembre | Revisión. Subir presupuesto al anuncio que mejor convierte |
-| 29 de septiembre | Cierre y balance: coste por lead, altas conseguidas y coste real por alta |
+| 29 de septiembre | Cierre y balance: coste por valoración asistida, altas conseguidas y coste real por alta |
 
-## 14. Presupuesto
+## 15. Presupuesto
 
 | Partida | Importe |
 |---|---|
@@ -357,6 +422,8 @@ Estas cifras son orientativas, basadas en lo habitual en un negocio local de est
 | Conjunto 2, retargeting, semanas 3 y 4 | 70 € |
 | **Total** | **490 €** |
 
-Con un coste por conversación de entre 5 y 8 €, salen entre 60 y 98 leads. Si de esos se da de alta el 20 %, son 12 a 19 altas nuevas. El coste de captación por alta queda entre 26 y 41 €, que para una cuota mensual recurrente se recupera pronto.
+Con un coste por conversación de entre 5 y 8 €, salen entre 60 y 98 conversaciones. Si una de cada tres reserva, son 20 a 32 valoraciones reservadas. Con el cobro activado y una asistencia del 85 %, quedan entre 17 y 27 valoraciones reales, a un coste de entre 18 y 29 € cada una.
+
+Cuántas de esas se dan de alta es tu dato, no tengo referencia fiable. Si fuera la mitad, serían entre 8 y 13 altas nuevas a un coste de captación de entre 37 y 61 €. Para una cuota mensual recurrente eso se recupera en el primer mes o el segundo.
 
 Son estimaciones, no una previsión. Sirven para decidir si merece la pena arrancar, y se sustituyen por los datos reales en cuanto los haya.

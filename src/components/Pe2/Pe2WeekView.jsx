@@ -12,6 +12,12 @@ export default function Pe2WeekView({ slot, draftId }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const refreshGrid = async () => {
+    if (!draftId) return
+    const gridData = await getPe2WeekGridData(draftId)
+    setGrid(gridData)
+  }
+
   useEffect(() => {
     if (!draftId) {
       setWeek(null)
@@ -85,7 +91,7 @@ export default function Pe2WeekView({ slot, draftId }) {
 
       {week ? (
         <div className="mt-6 grid gap-6">
-          <Pe2AiPlanningPanel week={week} onSaved={setWeek} />
+          <Pe2AiPlanningPanel week={week} onSaved={setWeek} onStructuredSaved={refreshGrid} />
           <Pe2CoachPreview sessions={grid.sessions} />
         </div>
       ) : null}

@@ -340,7 +340,20 @@ const coachInput = coachFieldAuth
 const coachBtnPrimary =
   'w-full py-4 rounded-2xl bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-30 text-white font-bold text-sm uppercase tracking-widest transition-all shadow-lg shadow-purple-950/40 active:scale-[0.99] font-evo-body'
 
-export default function CoachView() {
+function ShiftBridgeReturn({ onReturn }) {
+  if (!onReturn) return null
+  return (
+    <button
+      type="button"
+      onClick={onReturn}
+      className="min-h-11 rounded-xl border border-[#6A1F6D] px-4 text-sm font-extrabold text-[#F6E8F9] hover:bg-[#A729AD]/20 focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]"
+    >
+      ← Volver a Mi turno
+    </button>
+  )
+}
+
+export default function CoachView({ shiftBridge = null }) {
   const [step, setStep] = useState('loading')
   const [codeInput, setCodeInput] = useState('')
   const [codeError, setCodeError] = useState(false)
@@ -355,7 +368,7 @@ export default function CoachView() {
   const [isTyping, setIsTyping] = useState(false)
   const [error, setError] = useState('')
   const [activeDay, setActiveDay] = useState(null)
-  const [mainTab, setMainTab] = useState('hoy')
+  const [mainTab, setMainTab] = useState(() => shiftBridge?.mode === 'feedback' ? 'pase' : 'hoy')
   const [guideSettings, setGuideSettings] = useState(null)
   const [exerciseLibrary, setExerciseLibrary] = useState([])
   const [exerciseLibraryLoading, setExerciseLibraryLoading] = useState(true)
@@ -372,7 +385,11 @@ export default function CoachView() {
   /** Feedback guardado por coaches esta semana (pase de turno mañana ↔ tarde). */
   const [peerFeedbackWeek, setPeerFeedbackWeek] = useState([])
   /** Desde Semana → Feedback: { token, dayKey, classLabel } */
-  const [feedbackPrefill, setFeedbackPrefill] = useState(null)
+  const [feedbackPrefill, setFeedbackPrefill] = useState(() => shiftBridge?.mode === 'feedback' ? {
+    token: shiftBridge.token,
+    dayKey: shiftBridge.dayKey,
+    classLabel: shiftBridge.classLabel,
+  } : null)
   const [assistantWeekContext, setAssistantWeekContext] = useState(null)
   /** Evita flash de datos antiguos mientras cambia la semana activa. */
   const [isWeekSwitching, setIsWeekSwitching] = useState(false)
@@ -398,6 +415,21 @@ export default function CoachView() {
   useEffect(() => {
     activeWeekIdRef.current = activeWeekRow?.id ?? null
   }, [activeWeekRow?.id])
+
+  useEffect(() => {
+    if (!shiftBridge?.token) return
+    if (shiftBridge.dayKey && DAYS_ES[shiftBridge.dayKey]) setActiveDay(DAYS_ES[shiftBridge.dayKey])
+    if (shiftBridge.mode === 'feedback') {
+      setMainTab('pase')
+      setFeedbackPrefill({
+        token: shiftBridge.token,
+        dayKey: shiftBridge.dayKey,
+        classLabel: shiftBridge.classLabel,
+      })
+    } else {
+      setMainTab('hoy')
+    }
+  }, [shiftBridge?.token, shiftBridge?.mode, shiftBridge?.dayKey, shiftBridge?.classLabel])
 
   const resetWeekDerivedState = useCallback(() => {
     setPeerFeedbackWeek([])
@@ -1101,7 +1133,9 @@ export default function CoachView() {
   if (step === 'loading') {
     return (
       <div className={coachAuthShell}>
-        <div className="flex gap-2.5">
+        <div className="flex flex-col items-center gap-5">
+          <ShiftBridgeReturn onReturn={shiftBridge?.onReturn} />
+          <div className="flex gap-2.5">
           {[0, 150, 300].map((d) => (
             <div
               key={d}
@@ -1109,6 +1143,7 @@ export default function CoachView() {
               style={{ animationDelay: `${d}ms` }}
             />
           ))}
+          </div>
         </div>
       </div>
     )
@@ -1118,6 +1153,7 @@ export default function CoachView() {
     return (
       <div className={coachAuthShell}>
         <div className="text-center space-y-6 max-w-md">
+          <ShiftBridgeReturn onReturn={shiftBridge?.onReturn} />
           <div className={`w-20 h-20 rounded-2xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto text-3xl`}>
             📋
           </div>
@@ -1134,6 +1170,7 @@ export default function CoachView() {
     return (
       <div className={coachAuthShell}>
         <div className="w-full max-w-sm space-y-8">
+          <ShiftBridgeReturn onReturn={shiftBridge?.onReturn} />
           <div className="text-center space-y-4">
             <div className={`w-20 h-20 rounded-3xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto`}>
               <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
@@ -1166,6 +1203,7 @@ export default function CoachView() {
     return (
       <div className={coachAuthShell}>
         <div className="w-full max-w-sm space-y-8">
+          <ShiftBridgeReturn onReturn={shiftBridge?.onReturn} />
           <div className="text-center space-y-4">
             <div className={`w-20 h-20 rounded-3xl ${coachBg.card} border ${coachBorder} flex items-center justify-center mx-auto`}>
               <span className="text-display text-4xl font-black text-[#A729AD]">E</span>
@@ -1266,6 +1304,15 @@ export default function CoachView() {
           <header
             className={`flex items-center gap-3 px-4 py-3 border-b ${coachBorder} ${coachBg.app} flex-shrink-0 z-30 safe-area-pt`}
           >
+            {shiftBridge?.onReturn ? (
+              <button
+                type="button"
+                onClick={shiftBridge.onReturn}
+                className="min-h-11 shrink-0 rounded-xl border border-[#6A1F6D] px-3 text-xs font-extrabold text-[#F6E8F9] hover:bg-[#A729AD]/20 focus:outline-none focus:ring-2 focus:ring-[#FFFF4C]"
+              >
+                ← Mi turno
+              </button>
+            ) : null}
             <div className="h-10 shrink-0 flex items-center">
               <EvoLogo imgClassName="h-9 w-auto max-w-[120px] object-contain object-left" />
             </div>
@@ -1444,6 +1491,7 @@ export default function CoachView() {
                       todayHandoffs={todayHandoffs}
                       onOpenFeedback={() => setMainTab('pase')}
                       onConsultAssistant={(ctx) => openSupport('', ctx)}
+                      openTarget={shiftBridge?.mode === 'class' ? shiftBridge : null}
                     />
                   ) : (
                     <div className="p-6 text-center text-sm text-[#F6E8F966]">Sin programación para mostrar.</div>

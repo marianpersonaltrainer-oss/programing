@@ -235,8 +235,9 @@ export default function CoachSessionFeedbackForm({
   /** { token: number, dayKey: string, classLabel: string } — se aplica al cambiar token (desde Semana). */
   prefill = null,
 }) {
-  const [dayKey, setDayKey] = useState('monday')
-  const [classLabel, setClassLabel] = useState(ALL_CLASS_LABELS[0] || 'EvoFuncional')
+  const hasLockedPrefill = Boolean(prefill?.dayKey && prefill?.classLabel)
+  const [dayKey, setDayKey] = useState(() => DAYS_ORDER.includes(prefill?.dayKey) ? prefill.dayKey : 'monday')
+  const [classLabel, setClassLabel] = useState(() => ALL_CLASS_LABELS.includes(prefill?.classLabel) ? prefill.classLabel : ALL_CLASS_LABELS[0] || 'EvoFuncional')
   const [timeExplain, setTimeExplain] = useState('si')
   const [changedSomething, setChangedSomething] = useState(false)
   const [changedDetails, setChangedDetails] = useState('')
@@ -248,7 +249,7 @@ export default function CoachSessionFeedbackForm({
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0)
   const [readChangedIds, setReadChangedIds] = useState(() => new Set())
   const [showWeekArchive, setShowWeekArchive] = useState(false)
-  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
+  const [showFeedbackForm, setShowFeedbackForm] = useState(() => prefill?.token != null)
 
   const madridProgramDayKey = useMemo(
     () => getMadridCoachProgramDayKey(),
@@ -343,6 +344,9 @@ export default function CoachSessionFeedbackForm({
       setNotesNextWeek('')
       setChangedSomething(false)
       await onAfterSave?.()
+      window.dispatchEvent(new CustomEvent('evo-coach-feedback-saved', {
+        detail: { weekId: weekRow.id, dayKey, classLabel },
+      }))
     } catch (err) {
       setError(err?.message || 'No se pudo guardar. Revisa conexión y permisos en Supabase.')
     } finally {
@@ -562,6 +566,13 @@ export default function CoachSessionFeedbackForm({
 
       {showFeedbackForm ? (
       <form onSubmit={handleSubmit} className={`space-y-6 ${coachBg.card} border ${coachBorder} rounded-2xl p-6 shadow-sm -mt-4`}>
+        {hasLockedPrefill ? (
+          <div data-testid="feedback-prefill-context" className={`rounded-2xl border ${coachBorder} ${coachBg.cardAlt} px-4 py-3`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.muted}`}>Clase seleccionada desde Mi turno</p>
+            <p className={`mt-1 text-base font-extrabold ${coachText.primary}`}>{DAYS_ES[dayKey] || dayKey} · {classLabel}</p>
+            <p className={`mt-1 text-xs font-semibold ${coachText.muted}`}>El feedback se guardará en esta sesión; no necesitas volver a elegir día ni modalidad.</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Día</label>
@@ -573,7 +584,6 @@ export default function CoachSessionFeedbackForm({
             ))}
           </select>
         </div>
-
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Clase</label>
           <select value={classLabel} onChange={(e) => setClassLabel(e.target.value)} className={coachField}>
@@ -585,6 +595,7 @@ export default function CoachSessionFeedbackForm({
           </select>
         </div>
         </div>
+        )}
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>

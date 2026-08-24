@@ -28,12 +28,14 @@ const MiCaminoApp = lazy(async () => {
   await import('../apps/mi-camino/src/styles.css')
   return import('../apps/mi-camino/src/App.jsx')
 })
+const IncorporacionesApp = lazy(() => import('./IncorporacionesApp.jsx'))
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
 const isPortalMode = appSearch.has('portal')
 const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
 const isMiCaminoMode = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')
+const isIncorporacionesMode = appSearch.has('incorporaciones')
 
 function AppLoading() {
   return (
@@ -93,6 +95,14 @@ function EvoSpacePortal() {
 }
 
 export default function App() {
+  if (isIncorporacionesMode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <IncorporacionesApp />
+      </Suspense>
+    )
+  }
+
   if (!isSupabaseConfigured) {
     return <SupabaseConfigMissing />
   }

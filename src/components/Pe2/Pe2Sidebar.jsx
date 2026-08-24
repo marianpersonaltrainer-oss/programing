@@ -2,8 +2,8 @@ import EvoLogo from '../EvoLogo.jsx'
 import { evoBrand } from '../../constants/evoBrand.js'
 
 const PROGRAMMING_NAV_ITEMS = [
-  { id: 'home', label: 'Inicio' },
-  { id: 'week', label: 'Semana' },
+  { id: 'home', label: '1. Preparar semana' },
+  { id: 'week', label: '2. Revisar y compartir' },
 ]
 
 export default function Pe2Sidebar({
@@ -17,7 +17,7 @@ export default function Pe2Sidebar({
 }) {
   const navItems = [
     ...(canManageProgramming ? PROGRAMMING_NAV_ITEMS : []),
-    ...(canManageIdentity ? [{ id: 'trainers', label: 'Entrenadores' }] : []),
+    ...(canManageIdentity ? [{ id: 'trainers', label: '3. Equipo' }] : []),
   ]
 
   return (
@@ -30,10 +30,10 @@ export default function Pe2Sidebar({
           <EvoLogo />
           <div className="min-w-0">
             <p className="font-evo-display text-sm font-bold uppercase tracking-wide text-white truncate">
-              Programación V2
+              Programación
             </p>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C4A8C4]">
-              {roles.length > 0 ? roles.join(' · ') : 'capability activa'}
+              {roles.length > 0 ? roles.join(' · ') : 'acceso activo'}
             </p>
           </div>
         </div>
@@ -63,6 +63,14 @@ export default function Pe2Sidebar({
         {profile?.full_name ? (
           <p className="text-[11px] text-[#C4A8C4] truncate px-1">{profile.full_name}</p>
         ) : null}
+        {canManageProgramming ? (
+          <a
+            href="/"
+            className="block w-full text-center px-3 py-2 rounded-xl text-[11px] font-semibold text-[#C4A8C4] hover:text-white border border-white/15 hover:border-white/30 transition-colors"
+          >
+            Programación clásica (temporal)
+          </a>
+        ) : null}
         <button
           type="button"
           onClick={onSignOut}
@@ -70,12 +78,6 @@ export default function Pe2Sidebar({
         >
           Cerrar sesión
         </button>
-        <a
-          href="/"
-          className="block w-full text-center px-3 py-2 rounded-xl text-[11px] font-semibold text-[#C4A8C4] hover:text-white border border-white/15 hover:border-white/30 transition-colors"
-        >
-          ← Programador V1
-        </a>
       </div>
     </aside>
   )

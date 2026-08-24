@@ -25,6 +25,7 @@ export default function Pe2HomeView({
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [savingSlot, setSavingSlot] = useState(false)
+  const [weeklyIntent, setWeeklyIntent] = useState('')
   const [error, setError] = useState('')
 
   const loadDrafts = useCallback(async (activeSlot) => {
@@ -88,10 +89,12 @@ export default function Pe2HomeView({
         semana: slot.semana,
         orgId,
         phase: slot.phase,
-        titulo: `${formatPe2SlotLabel(slot)} · borrador`,
+        titulo: `${formatPe2SlotLabel(slot)} · preparación`,
+        proposal: weeklyIntent.trim() || null,
         is_primary: drafts.length === 0,
       })
       onSelectDraft?.(row.id)
+      setWeeklyIntent('')
       await loadDrafts(slot)
     } catch (e) {
       setError(e.message || 'No se pudo crear el borrador')
@@ -101,7 +104,7 @@ export default function Pe2HomeView({
   }
 
   async function handleArchive(id) {
-    if (!window.confirm('¿Archivar este borrador?')) return
+    if (!window.confirm('¿Archivar esta versión? Podrás conservar las demás versiones de la semana.')) return
     setError('')
     try {
       await archivePe2Week(id)
@@ -117,18 +120,41 @@ export default function Pe2HomeView({
   return (
     <div className="max-w-3xl">
       <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: evoBrand.muted }}>
-        ProgramingEvo · V2
+        Ciclo → semana completa → equipo
       </p>
       <h1 className="font-evo-display text-3xl sm:text-4xl font-bold mb-4" style={{ color: evoBrand.text }}>
-        Programación
+        Planificar una semana completa
       </h1>
+
+      <div
+        className="rounded-2xl border px-5 py-4 mb-5"
+        style={{ backgroundColor: evoBrand.card, borderColor: `${evoBrand.purple}33` }}
+      >
+        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: evoBrand.purple }}>
+          Flujo de trabajo
+        </p>
+        <div className="grid sm:grid-cols-3 gap-3 text-sm">
+          <div className="rounded-xl px-3 py-3" style={{ backgroundColor: evoBrand.cardAlt }}>
+            <p className="font-bold" style={{ color: evoBrand.text }}>1. Situar el ciclo</p>
+            <p className="text-xs mt-1" style={{ color: evoBrand.muted }}>Elige el mesociclo y la semana exacta.</p>
+          </div>
+          <div className="rounded-xl px-3 py-3" style={{ backgroundColor: evoBrand.cardAlt }}>
+            <p className="font-bold" style={{ color: evoBrand.text }}>2. Preparar la semana</p>
+            <p className="text-xs mt-1" style={{ color: evoBrand.muted }}>Define el objetivo común y crea un borrador semanal.</p>
+          </div>
+          <div className="rounded-xl px-3 py-3" style={{ backgroundColor: evoBrand.cardAlt }}>
+            <p className="font-bold" style={{ color: evoBrand.text }}>3. Revisar con el equipo</p>
+            <p className="text-xs mt-1" style={{ color: evoBrand.muted }}>Cada clase se revisa como parte de la misma semana.</p>
+          </div>
+        </div>
+      </div>
 
       <div
         className="rounded-2xl border px-5 py-4 mb-6"
         style={{ backgroundColor: evoBrand.paleYellow, borderColor: `${evoBrand.purple}44` }}
       >
         <p className="text-sm font-bold uppercase tracking-wide mb-3" style={{ color: evoBrand.purple }}>
-          Slot activo (Supabase)
+          Ciclo y semana en la que estás trabajando
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="block">
@@ -176,6 +202,30 @@ export default function Pe2HomeView({
         </div>
       ) : null}
 
+      <div
+        className="rounded-2xl border px-5 py-4 mb-4"
+        style={{ backgroundColor: evoBrand.card, borderColor: `${evoBrand.purple}33` }}
+      >
+        <label className="block">
+          <span className="text-sm font-bold" style={{ color: evoBrand.text }}>
+            ¿Qué debe conseguir esta semana dentro del ciclo?
+          </span>
+          <span className="block text-xs mt-1" style={{ color: evoBrand.muted }}>
+            Escribe el foco común, las restricciones y la intención de todas las clases. Se guardará en esta versión semanal para trabajarla aquí.
+          </span>
+          <textarea
+            value={weeklyIntent}
+            onChange={(e) => setWeeklyIntent(e.target.value)}
+            disabled={creating || loading}
+            maxLength={2000}
+            rows={3}
+            placeholder="Ej.: consolidar fuerza sin cargar demasiado las piernas; mantener el trabajo técnico de clean."
+            className="mt-3 w-full px-3 py-2.5 rounded-xl border text-sm resize-y"
+            style={{ borderColor: `${evoBrand.purple}33`, color: evoBrand.text }}
+          />
+        </label>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <button
           type="button"
@@ -184,7 +234,7 @@ export default function Pe2HomeView({
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-colors hover:opacity-90 disabled:opacity-50"
           style={{ backgroundColor: evoBrand.accent }}
         >
-          {creating ? 'Creando…' : 'Nuevo borrador'}
+          {creating ? 'Preparando…' : 'Crear borrador semanal'}
         </button>
         <button
           type="button"
@@ -202,7 +252,7 @@ export default function Pe2HomeView({
             className="px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors hover:bg-black/5"
             style={{ borderColor: `${evoBrand.purple}44`, color: evoBrand.purple }}
           >
-            Abrir semana →
+            Revisar semana →
           </button>
         ) : null}
       </div>
@@ -213,7 +263,7 @@ export default function Pe2HomeView({
       >
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: `${evoBrand.purple}22` }}>
           <p className="text-xs font-bold uppercase tracking-widest" style={{ color: evoBrand.purple }}>
-            Borradores del slot
+            Versiones de esta semana completa
           </p>
           <span className="text-xs" style={{ color: evoBrand.muted }}>
             {loading ? 'Cargando…' : `${drafts.length}`}
@@ -222,7 +272,7 @@ export default function Pe2HomeView({
 
         {drafts.length === 0 && !loading && !error ? (
           <p className="px-4 py-8 text-sm text-center" style={{ color: evoBrand.muted }}>
-            Sin borradores. Crea uno o ejecuta el seed de ejemplo.
+            Todavía no hay una versión creada para esta semana completa.
           </p>
         ) : null}
 

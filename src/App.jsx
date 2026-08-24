@@ -24,10 +24,16 @@ const MethodPanel = lazy(() => import('./components/MethodPanel/MethodPanel.jsx'
 const ExerciseLibrary = lazy(() => import('./components/ExerciseLibrary/ExerciseLibrary.jsx'))
 const CoachGuideContentPanel = lazy(() => import('./components/CoachGuideContentPanel/CoachGuideContentPanel.jsx'))
 const Pe2App = lazy(() => import('./Pe2App.jsx'))
+const MiCaminoApp = lazy(async () => {
+  await import('../apps/mi-camino/src/styles.css')
+  return import('../apps/mi-camino/src/App.jsx')
+})
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
+const isPortalMode = appSearch.has('portal')
 const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
+const isMiCaminoMode = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')
 
 function AppLoading() {
   return (
@@ -47,15 +53,65 @@ function ModalLoading() {
   )
 }
 
+function EvoSpacePortal() {
+  const goTo = (destination) => {
+    window.location.assign(destination)
+  }
+
+  return (
+    <main className="min-h-screen bg-[#160616] px-5 py-10 text-[#F8EDF8] font-evo-body">
+      <section className="mx-auto max-w-5xl">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#E7B8EA]">Evolution · accesos</p>
+        <h1 className="mt-3 font-evo-display text-4xl font-bold sm:text-5xl">Elige tu espacio</h1>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-[#D7C6D8]">
+          Puedes tener más de un rol con la misma cuenta. Cada espacio valida tus permisos antes de mostrar información.
+        </p>
+        <div className="mt-9 grid gap-5 md:grid-cols-3">
+          <button type="button" onClick={() => goTo('/?v2&nucleusPilot=1')} className="rounded-3xl border border-[#7A2A7E] bg-[#251126] p-6 text-left transition hover:border-[#D947DF] hover:bg-[#321634]">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#E7B8EA]">Administración</p>
+            <h2 className="mt-3 font-evo-display text-2xl font-bold">Programación</h2>
+            <p className="mt-3 text-sm leading-6 text-[#D7C6D8]">Gestiona semanas, entrenadores y la operativa del centro.</p>
+            <span className="mt-6 inline-block text-sm font-bold text-[#F1B7F4]">Abrir administración →</span>
+          </button>
+          <button type="button" onClick={() => goTo('/?coach')} className="rounded-3xl border border-[#7A2A7E] bg-[#251126] p-6 text-left transition hover:border-[#D947DF] hover:bg-[#321634]">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#E7B8EA]">Entrenador</p>
+            <h2 className="mt-3 font-evo-display text-2xl font-bold">EVO Coach</h2>
+            <p className="mt-3 text-sm leading-6 text-[#D7C6D8]">Prepara y consulta la programación de las sesiones.</p>
+            <span className="mt-6 inline-block text-sm font-bold text-[#F1B7F4]">Abrir EVO Coach →</span>
+          </button>
+          <button type="button" onClick={() => goTo('/mi-camino')} className="rounded-3xl border border-[#7A2A7E] bg-[#251126] p-6 text-left transition hover:border-[#D947DF] hover:bg-[#321634]">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#E7B8EA]">Cliente</p>
+            <h2 className="mt-3 font-evo-display text-2xl font-bold">Mi Camino</h2>
+            <p className="mt-3 text-sm leading-6 text-[#D7C6D8]">Consulta solamente tu recorrido privado de EVO.</p>
+            <span className="mt-6 inline-block text-sm font-bold text-[#F1B7F4]">Abrir Mi Camino →</span>
+          </button>
+        </div>
+        <p className="mt-8 text-sm text-[#BFAFC1]">Si no tienes permiso para un espacio, no se mostrará contenido. Tu cuenta no cambia al entrar o salir.</p>
+      </section>
+    </main>
+  )
+}
+
 export default function App() {
   if (!isSupabaseConfigured) {
     return <SupabaseConfigMissing />
+  }
+
+  if (isPortalMode) {
+    return <EvoSpacePortal />
   }
 
   if (isCoachMode) {
     return (
       <Suspense fallback={<AppLoading />}>
         <CoachAuthGate />
+      </Suspense>
+    )
+  }
+  if (isMiCaminoMode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <MiCaminoApp basePath="/mi-camino" />
       </Suspense>
     )
   }
@@ -148,7 +204,15 @@ function ProgrammerApp() {
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className={`hidden md:inline text-[10px] font-bold uppercase tracking-wider ${coachText.muted}`}>Programador</span>
+          <button
+            type="button"
+            onClick={() => window.location.assign('/?v2')}
+            className="hidden sm:inline-flex items-center rounded-xl border border-[#A729AD]/70 bg-[#251126] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#F4C7F6] transition hover:bg-[#321634]"
+            title="Abre la nueva programación con borradores, revisión de Excel y preparación de IA. La programación actual no se modifica."
+          >
+            Nueva programación
+          </button>
+          <span className={`hidden md:inline text-[10px] font-bold uppercase tracking-wider ${coachText.muted}`}>Programación actual</span>
           <div className={`w-9 h-9 rounded-xl ${coachBg.card} border ${coachBorder} flex items-center justify-center text-[#A729AD]`}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />

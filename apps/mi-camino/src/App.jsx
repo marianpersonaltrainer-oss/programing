@@ -27,7 +27,9 @@ import {
   projectionStageLabel,
 } from './miCaminoPilotView.js'
 
+const DEMO_QUERY_ENABLED = new URLSearchParams(globalThis.location?.search || '').has('demo')
 const DEMO_ENABLED = String(import.meta.env.VITE_MI_CAMINO_DEMO_ENABLED || '').toLowerCase() === 'true'
+  || DEMO_QUERY_ENABLED
 const ADMIN_PILOT_ENABLED = String(import.meta.env.VITE_MI_CAMINO_ADMIN_ENABLED || '').toLowerCase() === 'true'
 
 function emailAccessNotice(error) {
@@ -71,6 +73,7 @@ const DEMO_PROJECTION = createMiCaminoProjectionEnvelope({
 function Login({ recoveryMode, onSignedIn }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -139,7 +142,10 @@ function Login({ recoveryMode, onSignedIn }) {
           </label>
         ) : null}
         <label>Contraseña
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={recoveryMode ? 'new-password' : 'current-password'} minLength={8} required={recoveryMode} />
+          <span className="password-field">
+            <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={recoveryMode ? 'new-password' : 'current-password'} minLength={8} required={recoveryMode} />
+            <button type="button" className="password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>{showPassword ? 'Ocultar' : 'Ver'}</button>
+          </span>
         </label>
         <button type="submit" disabled={busy}>{busy ? 'Un momento…' : recoveryMode ? 'Guardar contraseña' : 'Entrar'}</button>
         {!recoveryMode ? <>
@@ -310,11 +316,12 @@ export default function App({ basePath = '' }) {
     MI_CAMINO_ROUTES.JOURNEY,
     MI_CAMINO_ROUTES.EVOLUTION,
     MI_CAMINO_ROUTES.PROFILE,
-    ...(isAdmin ? [MI_CAMINO_ROUTES.ADMIN] : []),
+    ...(isAdmin && !DEMO_ENABLED ? [MI_CAMINO_ROUTES.ADMIN] : []),
   ]
 
   function navigate(nextRoute) {
-    window.history.pushState({}, '', miCaminoPath(nextRoute, basePath))
+    const demoQuery = DEMO_QUERY_ENABLED ? '?demo=1' : ''
+    window.history.pushState({}, '', `${miCaminoPath(nextRoute, basePath)}${demoQuery}`)
     setRoute(nextRoute)
   }
 
@@ -326,7 +333,7 @@ export default function App({ basePath = '' }) {
 
   return (
     <main className="app-shell">
-      <header><div><p className="eyebrow">EVOLUTION</p><strong>Mi Camino</strong></div><button className="text-button" type="button" onClick={() => signOutMiCamino()}>Cerrar sesión</button></header>
+      <header><div><p className="eyebrow">EVOLUTION</p><strong>Mi Camino</strong>{DEMO_ENABLED ? <p className="preview-role">Vista de prueba · cliente ficticio</p> : null}</div><button className="text-button" type="button" onClick={() => signOutMiCamino()}>Cerrar sesión</button></header>
       <nav aria-label="Mi Camino">{nav.map((item) => <button key={item} type="button" className={item === route ? 'active' : ''} onClick={() => navigate(item)}>{routeLabel(item)}</button>)}</nav>
       <PrivateProjection route={route} isAdmin={isAdmin} organizationId={organizationId} projection={projection} projectionError={projectionError} />
     </main>

@@ -23,6 +23,7 @@ describe('Mi Camino independent identity boundary', () => {
 
   it('deja el demo explícito y no incluye datos reales en el bundle', () => {
     expect(app).toContain('VITE_MI_CAMINO_DEMO_ENABLED')
+    expect(app).toContain("has('demo')")
     expect(app).toContain("DEMO_ENABLED ? DEMO_PROJECTION : null")
     expect(app).not.toContain('SUPABASE_SERVICE_ROLE_KEY')
     expect(app).not.toContain('ANTHROPIC_API_KEY')

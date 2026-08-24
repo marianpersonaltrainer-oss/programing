@@ -16,7 +16,10 @@ function wrapPe2Error(error, hint) {
 
 // ── Slot activo (Supabase, no localStorage) ───────────────────────────────────
 
-export async function getPe2ActiveSlot() {
+export async function getPe2ActiveSlot(organizationId) {
+  if (!organizationId) {
+    throw new Error('No existe un contexto único con programming.manage.')
+  }
   const { data: userData, error: userErr } = await supabase.auth.getUser()
   if (userErr) throw wrapPe2Error(userErr)
   const userId = userData.user?.id
@@ -26,31 +29,37 @@ export async function getPe2ActiveSlot() {
     .from('pe2_programmer_state')
     .select('mesociclo, semana, phase, org_id')
     .eq('user_id', userId)
+    .eq('org_id', organizationId)
     .maybeSingle()
 
   if (error) throw wrapPe2Error(error, 'Ejecuta la migración `20260629150000_pe2_structured_auth.sql`.')
   if (data) return data
 
-  const profile = await getPe2ProfileForUser(userId)
-  if (!profile?.org_id) throw new Error('Tu perfil no tiene organización asignada. Ejecuta el seed V2.')
-
-  const fallback = { mesociclo: 'fuerza', semana: 1, phase: null, org_id: profile.org_id }
-  await setPe2ActiveSlot(fallback)
+  const fallback = {
+    mesociclo: 'fuerza',
+    semana: 1,
+    phase: null,
+    org_id: organizationId,
+  }
+  await setPe2ActiveSlot(fallback, organizationId)
   return fallback
 }
 
-export async function setPe2ActiveSlot({ mesociclo, semana, phase = null }) {
+export async function setPe2ActiveSlot(
+  { mesociclo, semana, phase = null },
+  organizationId,
+) {
+  if (!organizationId) {
+    throw new Error('No existe un contexto único con programming.manage.')
+  }
   const { data: userData, error: userErr } = await supabase.auth.getUser()
   if (userErr) throw userErr
   const userId = userData.user?.id
   if (!userId) throw new Error('Inicia sesión para guardar el slot.')
 
-  const profile = await getPe2ProfileForUser(userId)
-  if (!profile?.org_id) throw new Error('Perfil sin org_id.')
-
   const row = {
     user_id: userId,
-    org_id: profile.org_id,
+    org_id: organizationId,
     mesociclo: String(mesociclo).trim(),
     semana: Number(semana),
     phase,
@@ -64,16 +73,6 @@ export async function setPe2ActiveSlot({ mesociclo, semana, phase = null }) {
     .single()
 
   if (error) throw wrapPe2Error(error)
-  return data
-}
-
-async function getPe2ProfileForUser(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, role, org_id, full_name')
-    .eq('id', userId)
-    .maybeSingle()
-  if (error) throw error
   return data
 }
 

@@ -4,8 +4,10 @@ import { EVO_SESSION_CLASS_DEFS } from '../src/constants/evoClasses.js'
 import { EVO_DAY_OUTPUT_SCHEMA } from '../src/constants/evoDayOutputSchema.js'
 import { DEFAULT_PROGRAMMING_MODEL } from '../src/constants/anthropicModels.js'
 import {
-  requestAnthropicStructuredOutput,
-} from './lib/anthropicStructuredRequest.js'
+  DEFAULT_STRUCTURED_AI_PROVIDER,
+  STRUCTURED_AI_PROVIDERS,
+  createStructuredAiRequester,
+} from './lib/structuredAiProvider.js'
 import {
   getGenerationJobSnapshot,
   sanitizeGenerationJob,
@@ -79,13 +81,54 @@ function parseBody(req) {
 }
 
 function getServerConfig() {
+  const structuredAiProvider = String(
+    process.env.STRUCTURED_AI_PROVIDER || DEFAULT_STRUCTURED_AI_PROVIDER,
+  ).trim().toLowerCase()
+  const structuredAiModel = structuredAiProvider === STRUCTURED_AI_PROVIDERS.OPENAI
+    ? String(process.env.OPENAI_PROGRAMMING_MODEL || '').trim()
+    : String(process.env.ANTHROPIC_PROGRAMMING_MODEL || DEFAULT_PROGRAMMING_MODEL).trim()
+  const anthropicApiKey = String(process.env.ANTHROPIC_API_KEY || '').trim()
+  const openAiApiKey = String(process.env.OPENAI_API_KEY || '').trim()
   return {
     supabaseUrl: String(
       process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
     ).trim(),
     serviceKey: String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
     adminSecret: String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim(),
-    anthropicApiKey: String(process.env.ANTHROPIC_API_KEY || '').trim(),
+    structuredAiProvider,
+    structuredAiModel,
+    structuredAiApiKey: structuredAiProvider === STRUCTURED_AI_PROVIDERS.OPENAI
+      ? openAiApiKey
+      : anthropicApiKey,
+    anthropicApiKey,
+    openAiApiKey,
+  }
+}
+
+export function resolveStructuredAiRuntime(config, modelOverride = '') {
+  const provider = String(
+    config?.structuredAiProvider || DEFAULT_STRUCTURED_AI_PROVIDER,
+  ).trim().toLowerCase()
+  const supported = Object.values(STRUCTURED_AI_PROVIDERS).includes(provider)
+  const apiKey = String(
+    config?.structuredAiApiKey
+      || (provider === STRUCTURED_AI_PROVIDERS.OPENAI
+        ? config?.openAiApiKey
+        : config?.anthropicApiKey)
+      || '',
+  ).trim()
+  const selectedModel = String(
+    modelOverride
+      || config?.structuredAiModel
+      || (provider === STRUCTURED_AI_PROVIDERS.ANTHROPIC
+        ? DEFAULT_PROGRAMMING_MODEL
+        : ''),
+  ).trim()
+  return {
+    provider,
+    apiKey,
+    model: selectedModel,
+    configured: supported && Boolean(apiKey) && Boolean(selectedModel),
   }
 }
 
@@ -461,11 +504,11 @@ function sendJson(res, status, payload, {
 export function createProgrammingGenerationStepHandler({
   createClientImpl = createClient,
   checkRateLimitImpl = checkAdminRateLimit,
-  requestStructuredImpl = requestAnthropicStructuredOutput,
+  requestStructuredImpl = null,
   getServerConfigImpl = getServerConfig,
   newRequestIdImpl = newRequestId,
   nowImpl = Date.now,
-  model = DEFAULT_PROGRAMMING_MODEL,
+  model = '',
   startJsonStreamImpl = startJsonStream,
 } = {}) {
   return async function programmingGenerationStepHandler(req, res) {
@@ -478,6 +521,7 @@ export function createProgrammingGenerationStepHandler({
     let supabase = null
     let responseStream = null
     let persistedFailureSnapshot = null
+    let runtimeModel = String(model || '').trim() || DEFAULT_PROGRAMMING_MODEL
 
     const remainingBudgetMs = () =>
       Math.max(0, STEP_TOTAL_BUDGET_MS - Math.max(0, nowImpl() - startedAt))
@@ -506,11 +550,13 @@ export function createProgrammingGenerationStepHandler({
     requestId = cleanText(body.requestId, 200) || requestId
 
     const config = getServerConfigImpl()
+    const structuredAiRuntime = resolveStructuredAiRuntime(config, model)
+    runtimeModel = structuredAiRuntime.model || runtimeModel
     if (
       !config?.supabaseUrl ||
       !config?.serviceKey ||
       !config?.adminSecret ||
-      !config?.anthropicApiKey
+      !structuredAiRuntime.configured
     ) {
       return respond(500, { error: 'generation_step_server_not_configured' })
     }
@@ -676,10 +722,13 @@ export function createProgrammingGenerationStepHandler({
           },
         )
       }
+      const requestStructured = requestStructuredImpl || createStructuredAiRequester({
+        provider: structuredAiRuntime.provider,
+      })
       const ai = await withTimeout(
-        requestStructuredImpl({
-          apiKey: config.anthropicApiKey,
-          model,
+        requestStructured({
+          apiKey: structuredAiRuntime.apiKey,
+          model: runtimeModel,
           system: systemPrompt,
           messages: [
             {
@@ -694,7 +743,7 @@ export function createProgrammingGenerationStepHandler({
         upstreamBudgetMs,
         {
           code: 'generation_step_upstream_timeout',
-          message: 'Anthropic no respondió dentro del presupuesto del día.',
+          message: 'El proveedor de IA no respondió dentro del presupuesto del día.',
         },
       )
       providerRequestId = ai?.providerRequestId || null
@@ -722,7 +771,7 @@ export function createProgrammingGenerationStepHandler({
             p_lease_token: leaseToken,
             p_result: result,
             p_partial_week: partialWeek,
-            p_model: model,
+            p_model: runtimeModel,
             p_request_id: requestId,
             p_provider_request_id: providerRequestId,
             p_duration_ms: durationMs,
@@ -767,7 +816,7 @@ export function createProgrammingGenerationStepHandler({
               p_day_key: day,
               p_lease_token: leaseToken,
               p_error: persistedError,
-              p_model: model,
+              p_model: runtimeModel,
               p_request_id: requestId,
               p_provider_request_id: providerRequestId,
               p_duration_ms: Math.max(0, nowImpl() - startedAt),

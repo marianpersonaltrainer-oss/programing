@@ -8,20 +8,29 @@ import {
   withInferredPublicationStatus,
 } from '../utils/publishedWeeksLegacy.js'
 import { readCoachAdminSecret } from '../utils/coachAdminSecretStorage.js'
+import {
+  isCoachIndividualAuthEnabled,
+  isCoachSharedCodeFallbackEnabled,
+} from '../constants/coachAccess.js'
+import { isPreviewSupabaseTargetSafe } from './vercelSupabaseEnvironment.js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const isPreviewSupabaseTargetAllowed = isPreviewSupabaseTargetSafe({
+  supabaseUrl,
+  vercelEnvironment: import.meta.env.VITE_EVO_VERCEL_ENVIRONMENT,
+})
 
-if (!supabaseUrl || !supabaseKey) {
+if (!supabaseUrl || !supabaseKey || !isPreviewSupabaseTargetAllowed) {
   console.error(
-    'Supabase: Missing environment variables! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env (Vercel: enable Preview too).',
+    'Supabase: missing variables or unsafe Preview target. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
   )
 } else {
   console.log('Supabase: Client initialized with URL:', supabaseUrl.slice(0, 15) + '...')
 }
 
 /** false en previews de Vercel sin variables VITE_* → la app muestra pantalla de configuración. */
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey && isPreviewSupabaseTargetAllowed)
 
 export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null
 
@@ -35,18 +44,58 @@ function readCoachAccessCode() {
   }
 }
 
+export function hasUniqueCoachCapabilityContext(rows = []) {
+  const organizationIds = new Set(
+    rows
+      .filter((row) => row?.capability_key === 'coach.workspace.access')
+      .map((row) => row?.organization_id)
+      .filter(Boolean),
+  )
+  return organizationIds.size === 1
+}
+
+async function getIndividualCoachAccessToken() {
+  if (!isCoachIndividualAuthEnabled() || !supabase) return ''
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  const token = String(sessionData?.session?.access_token || '').trim()
+  if (sessionError || !token) return ''
+
+  const { data: capabilityRows, error: capabilityError } = await supabase
+    .rpc('evo_my_capabilities')
+  if (capabilityError || !hasUniqueCoachCapabilityContext(capabilityRows)) return ''
+
+  return token
+}
+
 async function callOperationalData(action, payload = {}, authorization = 'auto') {
   const body = { action, payload }
-  if (authorization === 'coach' || authorization === 'auto') {
-    body.accessCode = readCoachAccessCode()
-  }
   if (authorization === 'admin' || authorization === 'auto') {
     body.adminSecret = readCoachAdminSecret()
   }
 
+  const headers = { 'Content-Type': 'application/json' }
+  let hasIndividualSession = false
+  try {
+    const token = await getIndividualCoachAccessToken()
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+      hasIndividualSession = true
+    }
+  } catch {
+    // El código compartido temporal sigue disponible durante la transición.
+  }
+  if (
+    (authorization === 'coach' || authorization === 'auto')
+    && !hasIndividualSession
+    && isCoachSharedCodeFallbackEnabled()
+  ) {
+    body.accessCode = readCoachAccessCode()
+  }
+
   const response = await fetch('/api/operational-data', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   })
   const json = await response.json().catch(() => ({}))
@@ -54,6 +103,28 @@ async function callOperationalData(action, payload = {}, authorization = 'auto')
     throw new Error(json?.error || `Error ${response.status} en operación segura.`)
   }
   return json?.data ?? null
+}
+
+export async function verifyCoachAccessCode(accessCode) {
+  const normalized = String(accessCode ?? '').trim()
+  if (!normalized) return false
+
+  // Esta comprobación inicial no usa la clave guardada: verifica justo el
+  // valor introducido contra el secreto que sólo existe en el servidor.
+  try {
+    const response = await fetch('/api/operational-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'verify_coach_access',
+        accessCode: normalized,
+        payload: {},
+      }),
+    })
+    return response.ok
+  } catch {
+    return false
+  }
 }
 
 // ── Semanas publicadas ────────────────────────────────────────────────────────
@@ -603,27 +674,34 @@ function formatWeeklyCheckinWriteError(error) {
 
 const SESSION_EXPIRED_MSG = 'Sesión expirada. Recarga la página e inicia sesión de nuevo.'
 
-async function createWeeklyCheckinViaServer(payload, accessCode) {
+async function createWeeklyCheckinViaServer(
+  payload,
+  { accessCode = '', accessToken = '' } = {},
+) {
   const trimmed = String(accessCode ?? '').trim()
-
-  if (!trimmed) {
+  const token = String(accessToken ?? '').trim()
+  if (!trimmed && !token) {
     throw new Error(SESSION_EXPIRED_MSG)
   }
 
   const apiPath = '/api/coach-weekly-checkin'
 
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const body = {
+    coach_name: payload.coach_name,
+    week_iso: payload.week_iso,
+    mood_score: Number(payload.mood_score),
+    feedback_text: payload.feedback_text ?? null,
+    highlights: payload.highlights ?? null,
+    improvements: payload.improvements ?? null,
+  }
+  if (trimmed) body.accessCode = trimmed
+
   const res = await fetch(apiPath, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      accessCode: trimmed,
-      coach_name: payload.coach_name,
-      week_iso: payload.week_iso,
-      mood_score: Number(payload.mood_score),
-      feedback_text: payload.feedback_text ?? null,
-      highlights: payload.highlights ?? null,
-      improvements: payload.improvements ?? null,
-    }),
+    headers,
+    body: JSON.stringify(body),
   })
 
   let json = {}
@@ -659,7 +737,14 @@ export async function createWeeklyCheckin(payload, options = {}) {
     improvements: payload.improvements ?? null,
   }
 
-  if (session?.user) {
+  const individualAccessToken = await getIndividualCoachAccessToken()
+  if (individualAccessToken) {
+    return createWeeklyCheckinViaServer(payload, {
+      accessToken: individualAccessToken,
+    })
+  }
+
+  if (session?.user && !isCoachIndividualAuthEnabled()) {
     const coachId = session.user.id
     row.coach_id = coachId
 
@@ -671,14 +756,16 @@ export async function createWeeklyCheckin(payload, options = {}) {
     return data
   }
 
-  const accessCode = options.accessCode ?? options.coachAccessCode
+  const accessCode = isCoachSharedCodeFallbackEnabled()
+    ? options.accessCode ?? options.coachAccessCode
+    : ''
 
   if (!String(accessCode ?? '').trim()) {
     console.warn('[weekly_checkins] sin sesión Supabase y sin accessCode — no se llama al insert del cliente')
     throw new Error(SESSION_EXPIRED_MSG)
   }
 
-  return createWeeklyCheckinViaServer(payload, accessCode)
+  return createWeeklyCheckinViaServer(payload, { accessCode })
 }
 
 export async function listWeeklyCheckinsByWeek(weekIso) {

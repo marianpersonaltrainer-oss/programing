@@ -9,91 +9,447 @@ on:
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Controlled recovery operation
+        required: true
+        default: backup_restore
+        type: choice
+        options:
+          - backup_restore
+          - schema_audit
+      confirm_production_backup:
+        description: Type BACKUP_PRODUCTION_READ_ONLY
+        required: true
+        default: ""
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: supabase-production-backup
+  cancel-in-progress: false
 
 jobs:
-  backup:
+  backup-and-restore:
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'backup_restore'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPECTED_PROD_PROJECT_REF: wxrqvcthrkabjllvqghq
+      PROD_POOLER_HOST: aws-1-eu-central-1.pooler.supabase.com
+      BACKUP_RETENTION_DAYS: "7"
+      PGCONNECT_TIMEOUT: "15"
+
     steps:
+      - name: Confirm read-only production operation
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRMATION: ${{ inputs.confirm_production_backup }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRMATION" != "BACKUP_PRODUCTION_READ_ONLY" ]; then
+            echo "Explicit production backup confirmation is required."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install encryption client
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client jq gh
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gnupg jq
 
-      - name: Generate dump
+      - name: Create encrypted production dump
+        id: backup
         env:
-          SUPABASE_POOLER_URL: ${{ secrets.SUPABASE_POOLER_URL }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PROD_PROJECT_REF: ${{ secrets.SUPABASE_PRODUCTION_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
+            echo "BACKUP_ENCRYPTION_PASSPHRASE is required."
+            exit 1
+          fi
+
+          if [ -z "${PROD_PROJECT_REF:-}" ]; then
+            echo "SUPABASE_PRODUCTION_PROJECT_REF is required as a GitHub Actions secret."
+            exit 1
+          fi
+
+          if [ "$PROD_PROJECT_REF" != "$EXPECTED_PROD_PROJECT_REF" ]; then
+            echo "Production project reference does not match the approved project."
+            exit 1
+          fi
+
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "SUPABASE_DB_PASSWORD is required as a GitHub Actions secret."
+            exit 1
+          fi
+
+          DB_USER="postgres.${PROD_PROJECT_REF}"
+          DATE_UTC="$(date -u +%F)"
+          BACKUP_BASENAME="evo-prod-${DATE_UTC}-${GITHUB_RUN_ID}"
+          DUMP_FILE="${BACKUP_BASENAME}.dump"
+          ENCRYPTED_FILE="${DUMP_FILE}.gpg"
+
+          docker run --rm \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" \
+            -e PGSSLMODE=require \
+            postgres:17 \
+            pg_dump \
+              --host="$PROD_POOLER_HOST" \
+              --port=5432 \
+              --username="$DB_USER" \
+              --dbname=postgres \
+              --format=custom \
+              --compress=9 \
+              --no-owner \
+              --no-privileges | \
+            gpg --batch --yes --pinentry-mode loopback \
+              --passphrase-fd 3 \
+              --symmetric --cipher-algo AES256 --compress-algo none \
+              --output "$ENCRYPTED_FILE" 3<<< "$BACKUP_PASSPHRASE"
+
+          docker run --rm \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" \
+            -e PGSSLMODE=require \
+            postgres:17 \
+            psql \
+              --host="$PROD_POOLER_HOST" \
+              --port=5432 \
+              --username="$DB_USER" \
+              --dbname=postgres \
+              --no-psqlrc --tuples-only --no-align --quiet --command="
+              select jsonb_build_object(
+                'schemas', (select count(*) from pg_namespace where nspname in ('public','auth','storage','supabase_migrations')),
+                'public_tables', (select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'),
+                'public_functions', (select count(*) from information_schema.routines where routine_schema='public'),
+                'published_weeks', (select count(*) from public.published_weeks),
+                'coach_sessions', (select count(*) from public.coach_sessions),
+                'coach_messages', (select count(*) from public.coach_messages),
+                'auth_users', (select count(*) from auth.users),
+                'storage_buckets', (select count(*) from storage.buckets),
+                'migration_rows', (select count(*) from supabase_migrations.schema_migrations)
+              );" > source-control.json
+
+          sha256sum "$ENCRYPTED_FILE" > "${ENCRYPTED_FILE}.sha256"
+
+          printf '%s\n' \
+            "backup=${BACKUP_BASENAME}" \
+            "encryption=openpgp-symmetric-aes256-s2k" \
+            "retention_days=${BACKUP_RETENTION_DAYS}" \
+            "source_project_ref=${PROD_PROJECT_REF}" \
+            "postgres_client=17" > backup-metadata.txt
+
+          echo "dump_file=$DUMP_FILE" >> "$GITHUB_OUTPUT"
+          echo "encrypted_file=$ENCRYPTED_FILE" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=supabase-production-${DATE_UTC}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore encrypted dump in isolated ephemeral Postgres
+        env:
+          DUMP_FILE: ${{ steps.backup.outputs.dump_file }}
+          ENCRYPTED_FILE: ${{ steps.backup.outputs.encrypted_file }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          RESTORE_PASSWORD: restore-only-ephemeral
+        run: |
+          set -euo pipefail
+          umask 077
+          RESTORED_DUMP="restored-${DUMP_FILE}"
+
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 3 \
+            --decrypt --output "$RESTORED_DUMP" "$ENCRYPTED_FILE" \
+            3<<< "$BACKUP_PASSPHRASE"
+
+          docker run --detach --rm \
+            --name evo-supabase-restore \
+            --publish 127.0.0.1:55432:5432 \
+            --env POSTGRES_PASSWORD="$RESTORE_PASSWORD" \
+            supabase/postgres:17.6.1.136 \
+            postgres -c config_file=/etc/postgresql/postgresql.conf
+
+          cleanup() {
+            docker stop evo-supabase-restore >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if docker run --rm --network host \
+              --env PGPASSWORD="$RESTORE_PASSWORD" \
+              postgres:17 \
+              pg_isready --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=postgres >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "Ephemeral restore database did not become ready."
+              exit 1
+            fi
+            sleep 2
+          done
+
+          for role in anon authenticated service_role authenticator supabase_admin dashboard_user supabase_auth_admin supabase_storage_admin; do
+            docker run --rm --network host \
+              --env PGPASSWORD="$RESTORE_PASSWORD" \
+              postgres:17 \
+              psql --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=postgres \
+                --no-psqlrc --set=ON_ERROR_STOP=1 \
+                --command="DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN EXECUTE 'CREATE ROLE ${role} NOLOGIN'; END IF; END \$\$;" >/dev/null
+          done
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            postgres:17 \
+            createdb --host=127.0.0.1 --port=55432 --username=supabase_admin --template=template0 evo_restore
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            -v "$PWD:/work" \
+            postgres:17 \
+            pg_restore \
+              --host=127.0.0.1 \
+              --port=55432 \
+              --username=supabase_admin \
+              --dbname=evo_restore \
+              --exit-on-error \
+              --no-owner \
+              --no-privileges \
+              "/work/${RESTORED_DUMP}"
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            postgres:17 \
+            psql --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=evo_restore \
+              --no-psqlrc --tuples-only --no-align --quiet --command="
+                select jsonb_build_object(
+                  'schemas', (select count(*) from pg_namespace where nspname in ('public','auth','storage','supabase_migrations')),
+                  'public_tables', (select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'),
+                  'public_functions', (select count(*) from information_schema.routines where routine_schema='public'),
+                  'published_weeks', (select count(*) from public.published_weeks),
+                  'coach_sessions', (select count(*) from public.coach_sessions),
+                  'coach_messages', (select count(*) from public.coach_messages),
+                  'auth_users', (select count(*) from auth.users),
+                  'storage_buckets', (select count(*) from storage.buckets),
+                  'migration_rows', (select count(*) from supabase_migrations.schema_migrations)
+                );" > restored-control.json
+
+          jq --sort-keys . source-control.json > source-control.sorted.json
+          jq --sort-keys . restored-control.json > restored-control.sorted.json
+          if ! cmp --silent source-control.sorted.json restored-control.sorted.json; then
+            echo "Restored control manifest does not match the source manifest."
+            exit 1
+          fi
+
+          docker run --rm --network host \
+            --env PGPASSWORD="$RESTORE_PASSWORD" \
+            postgres:17 \
+            psql --host=127.0.0.1 --port=55432 --username=supabase_admin --dbname=evo_restore \
+              --no-psqlrc --tuples-only --no-align --quiet --command="
+                select case when
+                  to_regclass('public.published_weeks') is not null
+                  and to_regclass('public.coach_sessions') is not null
+                  and to_regclass('public.coach_messages') is not null
+                  and to_regprocedure('public.pe2_my_org()') is not null
+                  and to_regprocedure('public.save_published_week_draft_v2(text,integer,text,jsonb,uuid,bigint,uuid,text,text,text,integer,jsonb,jsonb,timestamp with time zone)') is not null
+                then 'ok' else 'missing' end;" | grep -qx ok
+
+          printf '%s\n' "restore=pass" "control_manifest=match" >> backup-metadata.txt
+
+      - name: Upload encrypted private backup
+        if: ${{ always() && steps.backup.outputs.encrypted_file != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.backup.outputs.artifact_name }}
+          path: |
+            ${{ steps.backup.outputs.encrypted_file }}
+            ${{ steps.backup.outputs.encrypted_file }}.sha256
+            backup-metadata.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  schema-audit-production:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'schema_audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_PROD_PROJECT_REF: wxrqvcthrkabjllvqghq
+      PROD_POOLER_HOST: aws-1-eu-central-1.pooler.supabase.com
+      PGCONNECT_TIMEOUT: "15"
+    steps:
+      - name: Confirm read-only production audit
+        env:
+          CONFIRMATION: ${{ inputs.confirm_production_backup }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "BACKUP_PRODUCTION_READ_ONLY"
+
+      - name: Capture production catalog read-only
+        env:
+          PROD_PROJECT_REF: ${{ secrets.SUPABASE_PRODUCTION_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          RAW_URL="${SUPABASE_POOLER_URL:-${SUPABASE_DB_URL:-}}"
-          if [ -z "${RAW_URL:-}" ]; then
-            echo "Either SUPABASE_POOLER_URL or SUPABASE_DB_URL secret is required"
-            exit 1
-          fi
-          DB_URL="$(echo "$RAW_URL" | tr -d '\r\n\t' | sed -e 's/^ *//' -e 's/ *$//' -e 's/^"//' -e 's/"$//')"
-          # Guard against the most common copy typo: db-<ref>.supabase.co
-          DB_URL="${DB_URL/@db-/@db.}"
-          # Guard against copied markdown wrappers or separators.
-          DB_URL="${DB_URL//|/}"
-          DB_URL="${DB_URL//[/}"
-          DB_URL="${DB_URL//]/}"
-          if [[ "$DB_URL" == *"YOUR-PASSWORD"* ]]; then
-            if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
-              echo "Connection URI contains YOUR-PASSWORD. Set SUPABASE_DB_PASSWORD secret or replace placeholder in URI."
-              exit 1
-            fi
-            ENCODED_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("SUPABASE_DB_PASSWORD",""), safe=""))')"
-            DB_URL="${DB_URL/YOUR-PASSWORD/${ENCODED_PASSWORD}}"
-          fi
-          if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "SUPABASE_DB_URL must be a full URI starting with postgresql://"
-            exit 1
-          fi
-          if [[ "$DB_URL" != *"sslmode="* ]]; then
-            if [[ "$DB_URL" == *"?"* ]]; then
-              DB_URL="${DB_URL}&sslmode=require"
-            else
-              DB_URL="${DB_URL}?sslmode=require"
-            fi
-          fi
-          echo "::add-mask::$DB_URL"
-          DATE_UTC="$(date -u +%F)"
-          FILE="backup-${DATE_UTC}.sql"
-          pg_dump --dbname="${DB_URL}" --no-owner --no-privileges --format=plain --file "${FILE}"
-          gzip -f "${FILE}"
-          echo "BACKUP_TAG=backup-${DATE_UTC}" >> "$GITHUB_ENV"
-          echo "BACKUP_FILE=${FILE}.gz" >> "$GITHUB_ENV"
+          umask 077
+          test "$PROD_PROJECT_REF" = "$EXPECTED_PROD_PROJECT_REF"
+          test -n "$SUPABASE_DB_PASSWORD"
+          DB_USER="postgres.${PROD_PROJECT_REF}"
 
-      - name: Upload backup as release
-        uses: softprops/action-gh-release@v2
+          docker run --rm \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" \
+            -e PGSSLMODE=require \
+            postgres:17 \
+            psql \
+              --host="$PROD_POOLER_HOST" \
+              --port=5432 \
+              --username="$DB_USER" \
+              --dbname=postgres \
+              --no-psqlrc --quiet --tuples-only --no-align \
+              --set=ON_ERROR_STOP=1 \
+              --command="begin transaction read only;
+                select jsonb_pretty(jsonb_build_object(
+                  'captured_at', now(),
+                  'project_ref', '${PROD_PROJECT_REF}',
+                  'server_version', current_setting('server_version'),
+                  'exposed_schemas', current_setting('pgrst.db_schemas', true),
+                  'schemas', (select coalesce(jsonb_agg(nspname order by nspname), '[]'::jsonb)
+                    from pg_namespace where nspname in ('public','private','auth','storage','supabase_migrations')),
+                  'relations', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', n.nspname, 'name', c.relname, 'kind', c.relkind,
+                      'rls', c.relrowsecurity, 'force_rls', c.relforcerowsecurity,
+                      'owner', pg_get_userbyid(c.relowner),
+                      'security_invoker', case when c.relkind in ('v','m') then coalesce(array_to_string(c.reloptions, ','), '') like '%security_invoker=true%' else null end
+                    ) order by n.nspname, c.relname), '[]'::jsonb)
+                    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+                    where n.nspname in ('public','private') and c.relkind in ('r','p','v','m','S')),
+                  'columns', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', table_schema, 'table', table_name, 'column', column_name,
+                      'type', data_type, 'udt', udt_name, 'nullable', is_nullable
+                    ) order by table_schema, table_name, ordinal_position), '[]'::jsonb)
+                    from information_schema.columns where table_schema in ('public','private')),
+                  'policies', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', schemaname, 'table', tablename, 'name', policyname,
+                      'permissive', permissive, 'roles', roles, 'command', cmd,
+                      'using', qual, 'check', with_check
+                    ) order by schemaname, tablename, policyname), '[]'::jsonb)
+                    from pg_policies where schemaname in ('public','private','storage')),
+                  'table_grants', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', table_schema, 'table', table_name, 'grantee', grantee, 'privilege', privilege_type
+                    ) order by table_schema, table_name, grantee, privilege_type), '[]'::jsonb)
+                    from information_schema.role_table_grants
+                    where table_schema in ('public','private','storage') and grantee in ('PUBLIC','anon','authenticated')),
+                  'functions', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', n.nspname, 'name', p.proname,
+                      'identity_args', pg_get_function_identity_arguments(p.oid),
+                      'returns', pg_get_function_result(p.oid),
+                      'language', l.lanname, 'security_definer', p.prosecdef,
+                      'owner', pg_get_userbyid(p.proowner), 'config', p.proconfig,
+                      'acl', p.proacl
+                    ) order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)), '[]'::jsonb)
+                    from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_language l on l.oid=p.prolang
+                    where n.nspname in ('public','private')),
+                  'triggers', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', n.nspname, 'table', c.relname, 'name', t.tgname,
+                      'function', t.tgfoid::regprocedure::text, 'enabled', t.tgenabled
+                    ) order by n.nspname, c.relname, t.tgname), '[]'::jsonb)
+                    from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
+                    where not t.tgisinternal and n.nspname in ('public','private')),
+                  'enums', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'schema', n.nspname, 'name', t.typname, 'value', e.enumlabel, 'order', e.enumsortorder
+                    ) order by n.nspname, t.typname, e.enumsortorder), '[]'::jsonb)
+                    from pg_type t join pg_enum e on e.enumtypid=t.oid join pg_namespace n on n.oid=t.typnamespace
+                    where n.nspname in ('public','private')),
+                  'migrations', (select coalesce(jsonb_agg(jsonb_build_object('version', version, 'name', name) order by version), '[]'::jsonb)
+                    from supabase_migrations.schema_migrations),
+                  'auth_providers', (select coalesce(jsonb_object_agg(provider, provider_count), '{}'::jsonb)
+                    from (select provider, count(*) provider_count from auth.identities group by provider) providers),
+                  'roles', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'name', rolname, 'superuser', rolsuper, 'inherit', rolinherit,
+                      'create_role', rolcreaterole, 'create_db', rolcreatedb,
+                      'login', rolcanlogin, 'replication', rolreplication, 'bypass_rls', rolbypassrls
+                    ) order by rolname), '[]'::jsonb)
+                    from pg_roles where rolname in ('anon','authenticated','service_role','authenticator','postgres','supabase_admin','dashboard_user')),
+                  'role_memberships', (select coalesce(jsonb_agg(jsonb_build_object(
+                      'role', parent.rolname, 'member', child.rolname
+                    ) order by parent.rolname, child.rolname), '[]'::jsonb)
+                    from pg_auth_members m join pg_roles parent on parent.oid=m.roleid join pg_roles child on child.oid=m.member
+                    where parent.rolname in ('anon','authenticated','service_role','authenticator','postgres','supabase_admin')
+                       or child.rolname in ('anon','authenticated','service_role','authenticator','postgres','supabase_admin'))
+                ));
+                rollback;" > production-schema-audit.json
+
+      - name: Upload production schema audit
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ env.BACKUP_TAG }}
-          name: ${{ env.BACKUP_TAG }}
-          files: ${{ env.BACKUP_FILE }}
-          make_latest: false
-          overwrite_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: f0-production-schema-${{ github.run_id }}
+          path: production-schema-audit.json
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: Retention (keep latest 30 backup releases)
+  schema-audit-staging:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'schema_audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: programing-evo-staging
+    steps:
+      - name: Capture staging exposed contract
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
-          mapfile -t backup_tags < <(gh release list --limit 200 --json tagName --jq '.[] | .tagName' | awk '/^backup-/')
-          if [ "${#backup_tags[@]}" -le 30 ]; then
-            echo "No cleanup needed (${#backup_tags[@]} backups)."
-            exit 0
-          fi
-          for tag in "${backup_tags[@]:30}"; do
-            echo "Deleting old backup release: ${tag}"
-            gh release delete "${tag}" --yes --cleanup-tag
+          umask 077
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -E 's#https://([a-z0-9]+)\\.supabase\\.co.*#\\1#')"
+
+          curl --fail --silent --show-error \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/" | \
+            jq --arg project_ref "$PROJECT_REF" '{
+              captured_at: (now | todate),
+              project_ref: $project_ref,
+              paths: (.paths | keys | sort),
+              definitions: (.definitions | to_entries | map({
+                name: .key,
+                required: (.value.required // []),
+                columns: ((.value.properties // {}) | keys | sort)
+              }) | sort_by(.name))
+            }' > staging-exposed-contract.json
+
+          curl --fail --silent --show-error \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/auth/v1/settings" | \
+            jq '{
+              external_enabled: ((.external // {}) | to_entries | map(select(.value == true) | .key) | sort),
+              disable_signup: (.disable_signup // null),
+              mailer_autoconfirm: (.mailer_autoconfirm // null),
+              phone_autoconfirm: (.phone_autoconfirm // null)
+            }' > staging-auth-settings.json
+
+          : > staging-critical-resources.txt
+          for resource in organizations profiles shift_protocol_logs shift_notes mc_people mc_wodbuster_events mc_wodbuster_reservations mc_wodbuster_attendance mc_wodbuster_coach_sessions mc_sync_state; do
+            status="$(curl --output /dev/null --silent --write-out '%{http_code}' \
+              --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              --header 'Range: 0-0' \
+              "$SUPABASE_URL/rest/v1/${resource}?select=*&limit=1")"
+            printf '%s=%s\n' "$resource" "$status" >> staging-critical-resources.txt
           done
 
+      - name: Upload staging contract audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: f0-staging-contract-${{ github.run_id }}
+          path: |
+            staging-exposed-contract.json
+            staging-auth-settings.json
+            staging-critical-resources.txt
+          if-no-files-found: error
+          retention-days: 1

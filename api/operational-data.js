@@ -3,8 +3,13 @@ import {
   adminSecretsMatch,
   checkAdminRateLimit,
 } from './lib/evoAdminAuth.js'
+import {
+  capabilityAuthErrorResponse,
+  requireEvoCapability,
+} from './lib/evoCapabilityAuth.js'
 
 const COACH_ACTIONS = new Set([
+  'verify_coach_access',
   'create_coach_session',
   'touch_coach_session',
   'insert_coach_message',
@@ -89,25 +94,66 @@ function requireConfigured(action) {
   const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const coachCode = String(process.env.COACH_ACCESS_CODE || '').trim()
   const adminSecret = String(process.env.COACH_GUIDE_ADMIN_SECRET || '').trim()
+  const individualCoachAuthEnabled = String(
+    process.env.COACH_INDIVIDUAL_AUTH_ENABLED || '',
+  ).trim().toLowerCase() === 'true'
+  const sharedCodeFallbackEnabled = String(
+    process.env.COACH_SHARED_CODE_FALLBACK_ENABLED ?? 'true',
+  ).trim().toLowerCase() !== 'false'
   const needsCoachCode = COACH_ACTIONS.has(action)
   const needsAdminSecret = ADMIN_ACTIONS.has(action)
   if (
     !supabaseUrl
     || !serviceKey
-    || (needsCoachCode && !coachCode)
+    || (
+      needsCoachCode
+      && !individualCoachAuthEnabled
+      && (!coachCode || !sharedCodeFallbackEnabled)
+    )
     || (needsAdminSecret && !adminSecret)
   ) {
     throw new Error('server_not_configured')
   }
-  return { supabaseUrl, serviceKey, coachCode, adminSecret }
+  return {
+    supabaseUrl,
+    serviceKey,
+    coachCode,
+    adminSecret,
+    individualCoachAuthEnabled,
+    sharedCodeFallbackEnabled,
+  }
 }
 
-function isAuthorized(action, body, config) {
+async function resolveAuthorization(
+  req,
+  action,
+  body,
+  config,
+  requireCapabilityImpl,
+) {
   const coachAllowed = COACH_ACTIONS.has(action)
+    && config.sharedCodeFallbackEnabled
     && coachCodeMatches(body.accessCode, config.coachCode)
   const adminAllowed = ADMIN_ACTIONS.has(action)
     && adminSecretsMatch(body.adminSecret, config.adminSecret)
-  return coachAllowed || adminAllowed
+  if (adminAllowed) return { method: 'admin_secret' }
+  if (coachAllowed) return { method: 'coach_access_code' }
+  if (!COACH_ACTIONS.has(action)) return null
+
+  if (!config.individualCoachAuthEnabled) return null
+
+  try {
+    const identity = await requireCapabilityImpl(
+      req,
+      'coach.workspace.access',
+    )
+    return { method: 'individual_identity', identity }
+  } catch (error) {
+    if (['authentication_required', 'capability_denied'].includes(error?.code)) {
+      return null
+    }
+    throw error
+  }
 }
 
 function madridDayBounds(now = new Date()) {
@@ -179,6 +225,12 @@ function missingExerciseRow(payload = {}) {
 }
 
 async function executeAction(supabase, action, payload = {}) {
+  if (action === 'verify_coach_access') {
+    // La autorización ya se resolvió antes de ejecutar la acción. No lee ni
+    // escribe datos: valida el bridge temporal sin filtrar el código al build.
+    return { data: { verified: true }, error: null }
+  }
+
   if (action === 'create_coach_session') {
     return supabase.from('coach_sessions').insert({
       week_id: uuid(payload.weekId),
@@ -372,6 +424,7 @@ export function createOperationalDataHandler({
   createClientImpl = createClient,
   checkRateLimitImpl = checkAdminRateLimit,
   executeActionImpl = executeAction,
+  requireCapabilityImpl = requireEvoCapability,
 } = {}) {
   return async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -397,7 +450,21 @@ export function createOperationalDataHandler({
       return res.status(500).json({ error: 'Servidor sin configurar' })
     }
 
-    if (!isAuthorized(action, body, config)) {
+    let authorization
+    try {
+      authorization = await resolveAuthorization(
+        req,
+        action,
+        body,
+        config,
+        requireCapabilityImpl,
+      )
+    } catch (error) {
+      const response = capabilityAuthErrorResponse(error)
+      return res.status(response.status).json(response.body)
+    }
+
+    if (!authorization) {
       return res.status(401).json({ error: 'Credencial incorrecta o ausente' })
     }
 

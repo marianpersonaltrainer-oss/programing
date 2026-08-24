@@ -24,11 +24,19 @@ describe('Staging Mi Camino privacy gate workflow', () => {
     expect(workflow).not.toContain('inputs.migration')
   })
 
-  it('rechaza una URL no identificada como staging y verifica RLS/grants sin datos personales', () => {
+  it('rechaza una URL no identificada como staging y verifica RLS, grants y Nucleus sin datos personales', () => {
     expect(workflow).toContain('STAGING_PROJECT_REF: dgkvaorzuebdloegumai')
     expect(workflow).toContain('Approved staging connection shape.')
     expect(workflow).toContain("has_function_privilege('anon'")
     expect(workflow).toContain("has_table_privilege('authenticated', 'public.mi_camino_projections', 'INSERT')")
+    expect(workflow).toContain("to_regclass('public.evo_events')")
+    expect(workflow).toContain("evo_events_idempotency_uidx")
+    expect(workflow).toContain("evo_prevent_canonical_event_mutation")
+    expect(workflow).toContain("has_table_privilege('anon', 'public.evo_events'")
+    expect(workflow).toContain("to_regclass('public.evo_memberships')")
+    expect(workflow).toContain("public.evo_my_capabilities()'::regprocedure")
+    expect(workflow).toContain("function_def.proname = 'evo_has_capability'")
+    expect(workflow).toContain("function_source not like '%public.evo_memberships%'")
     expect(workflow).not.toContain('select *')
   })
 })

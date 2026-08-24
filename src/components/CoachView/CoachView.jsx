@@ -13,6 +13,7 @@ import {
   createWeeklyCheckin,
   getAssistantWeekContext,
   insertAssistantQuestionHistory,
+  verifyCoachAccessCode,
 } from '../../lib/supabase.js'
 import { AI_CONFIG, COACH_ASSISTANT_MODEL } from '../../constants/config.js'
 import { buildCoachSupportSystemPrompt } from '../../constants/systemPromptCoachSupport.js'
@@ -38,7 +39,11 @@ import {
 } from './CoachGuideViews.jsx'
 import { coachBg, coachBorder, coachText, coachNav, coachUi, coachFieldAuth } from './coachTheme.js'
 import EvoLogo from '../EvoLogo.jsx'
-import { COACH_CODE_KEY, getExpectedCoachCode, coachCodesMatch } from '../../constants/coachAccess.js'
+import {
+  COACH_CODE_KEY,
+  isCoachIndividualAuthEnabled,
+  isCoachSharedCodeFallbackEnabled,
+} from '../../constants/coachAccess.js'
 import { explainAnthropicFetchFailure } from '../../utils/explainAnthropicFetchFailure.js'
 import {
   parseAnthropicProxyBody,
@@ -55,6 +60,8 @@ import CoachToastStack, { useCoachToastQueue } from './CoachToastStack.jsx'
 import WeeklyCheckinModal from './WeeklyCheckinModal.jsx'
 import { isoWeekString, madridCheckinGateParts, madridDateParts, defaultActiveDayNameFromWeek } from '../../utils/coachTime.js'
 import { normalizePublishedWeekForConsumers } from '../../utils/normalizeWeekDataForEditor.js'
+import { hasIndividualCoachAccess } from '../../lib/coachIdentityAccess.js'
+import { resolveCoachAccessMode } from '../../lib/coachAccessMode.js'
 
 const COACH_NAME_KEY = 'evo_coach_name'
 const COACH_SESSION_KEY = 'evo_coach_session'
@@ -783,7 +790,13 @@ export default function CoachView() {
 
     async function init() {
       try {
-        const week = await getActiveWeek()
+        const individualAuthEnabled = isCoachIndividualAuthEnabled()
+        const [week, individualCoachAccess] = await Promise.all([
+          getActiveWeek(),
+          individualAuthEnabled
+            ? hasIndividualCoachAccess().catch(() => false)
+            : Promise.resolve(false),
+        ])
         if (!mounted) return
 
         if (!week) {
@@ -795,14 +808,24 @@ export default function CoachView() {
         setActiveWeekRow({ id: week.id, mesociclo: week.mesociclo, semana: week.semana })
         activeWeekDataSigRef.current = JSON.stringify(normalizedInit ?? null)
 
-        const authed = localStorage.getItem(COACH_AUTH_KEY)
-        const expected = getExpectedCoachCode()
-        const authedNorm = authed?.trim().toUpperCase() ?? ''
-        const expectedNorm = expected.trim().toUpperCase()
+        const accessMode = resolveCoachAccessMode({
+          individualAuthEnabled,
+          sharedCodeFallbackEnabled: isCoachSharedCodeFallbackEnabled(),
+          hasIndividualAccess: individualCoachAccess,
+        })
 
-        if (!authedNorm || authedNorm !== expectedNorm) {
-          setStep('code')
-          return
+        if (accessMode !== 'individual') {
+          if (accessMode === 'denied') {
+            setError('Tu sesión no tiene acceso individual a EVO Coach.')
+            setStep('noweek')
+            return
+          }
+          const savedCode = String(localStorage.getItem(COACH_AUTH_KEY) || '').trim()
+          if (!savedCode || !(await verifyCoachAccessCode(savedCode))) {
+            localStorage.removeItem(COACH_AUTH_KEY)
+            setStep('code')
+            return
+          }
         }
 
         const savedName = localStorage.getItem(COACH_NAME_KEY)
@@ -842,9 +865,9 @@ export default function CoachView() {
 
   async function handleCodeSubmit(e) {
     e.preventDefault()
-    if (coachCodesMatch(codeInput)) {
-      const canonical = getExpectedCoachCode().trim()
-      localStorage.setItem(COACH_AUTH_KEY, canonical)
+    const submittedCode = String(codeInput || '').trim()
+    if (submittedCode && await verifyCoachAccessCode(submittedCode)) {
+      localStorage.setItem(COACH_AUTH_KEY, submittedCode)
       const savedName = localStorage.getItem(COACH_NAME_KEY)
       if (savedName) {
         setCoachName(savedName)
@@ -1419,6 +1442,7 @@ export default function CoachView() {
                       setActiveDay={setActiveDay}
                       exerciseLibrary={exerciseLibrary}
                       todayHandoffs={todayHandoffs}
+                      onOpenFeedback={() => setMainTab('pase')}
                       onConsultAssistant={(ctx) => openSupport('', ctx)}
                     />
                   ) : (

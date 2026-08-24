@@ -14,6 +14,7 @@ import {
   STEP_TOTAL_BUDGET_MS,
   NOT_PROGRAMMED,
   createProgrammingGenerationStepHandler,
+  resolveStructuredAiRuntime,
 } from './programming-generation-step.js'
 
 function makeGeneratedOutput(day = 'LUNES', selectedClasses = ['evofuncional']) {
@@ -293,6 +294,36 @@ function makeHandler({
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('structured AI runtime configuration', () => {
+  it('mantiene Anthropic como proveedor predeterminado', () => {
+    expect(resolveStructuredAiRuntime({
+      anthropicApiKey: 'anthropic-key',
+    })).toEqual({
+      provider: 'anthropic',
+      apiKey: 'anthropic-key',
+      model: DEFAULT_PROGRAMMING_MODEL,
+      configured: true,
+    })
+  })
+
+  it('selecciona OpenAI sólo con clave y modelo explícitos', () => {
+    expect(resolveStructuredAiRuntime({
+      structuredAiProvider: 'openai',
+      openAiApiKey: 'openai-key',
+      structuredAiModel: 'gpt-5.6-terra',
+    })).toEqual({
+      provider: 'openai',
+      apiKey: 'openai-key',
+      model: 'gpt-5.6-terra',
+      configured: true,
+    })
+    expect(resolveStructuredAiRuntime({
+      structuredAiProvider: 'openai',
+      openAiApiKey: 'openai-key',
+    }).configured).toBe(false)
+  })
 })
 
 describe('POST /api/programming-generation-step', () => {

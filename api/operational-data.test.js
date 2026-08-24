@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOperationalDataHandler } from './operational-data.js'
+import { EvoCapabilityAuthError } from './lib/evoCapabilityAuth.js'
 
 function response() {
   return {
@@ -29,6 +30,12 @@ function harness(overrides = {}) {
     createClientImpl: vi.fn(() => ({ kind: 'service-client' })),
     checkRateLimitImpl: vi.fn().mockResolvedValue(false),
     executeActionImpl: vi.fn().mockResolvedValue({ data: { id: 'ok' }, error: null }),
+    requireCapabilityImpl: vi.fn().mockRejectedValue(
+      Object.assign(new Error('authentication_required'), {
+        code: 'authentication_required',
+        status: 401,
+      }),
+    ),
     ...overrides,
   }
   return { handler: createOperationalDataHandler(deps), deps }
@@ -39,6 +46,8 @@ beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
   process.env.COACH_ACCESS_CODE = 'COACH-CODE'
   process.env.COACH_GUIDE_ADMIN_SECRET = 'admin-secret'
+  process.env.COACH_INDIVIDUAL_AUTH_ENABLED = 'true'
+  process.env.COACH_SHARED_CODE_FALLBACK_ENABLED = 'true'
 })
 
 afterEach(() => {
@@ -46,10 +55,31 @@ afterEach(() => {
   delete process.env.SUPABASE_SERVICE_ROLE_KEY
   delete process.env.COACH_ACCESS_CODE
   delete process.env.COACH_GUIDE_ADMIN_SECRET
+  delete process.env.COACH_INDIVIDUAL_AUTH_ENABLED
+  delete process.env.COACH_SHARED_CODE_FALLBACK_ENABLED
   vi.restoreAllMocks()
 })
 
 describe('POST /api/operational-data', () => {
+  it('verifica el bridge coach sólo en servidor sin consultar ni modificar datos', async () => {
+    const { handler, deps } = harness()
+    const res = response()
+
+    await handler(request({
+      action: 'verify_coach_access',
+      accessCode: 'coach-code',
+      payload: {},
+    }), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ ok: true, data: { id: 'ok' } })
+    expect(deps.executeActionImpl).toHaveBeenCalledWith(
+      { kind: 'service-client' },
+      'verify_coach_access',
+      {},
+    )
+  })
+
   it('permite una acción coach con comparación normalizada y rate limit', async () => {
     const { handler, deps } = harness()
     const res = response()
@@ -80,6 +110,121 @@ describe('POST /api/operational-data', () => {
     }), res)
 
     expect(res.statusCode).toBe(401)
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('rechaza el código coach cuando staging exige identidad individual', async () => {
+    process.env.COACH_SHARED_CODE_FALLBACK_ENABLED = 'false'
+    const { handler, deps } = harness()
+    const res = response()
+
+    await handler(request({
+      action: 'handover_status',
+      accessCode: 'COACH-CODE',
+      payload: {},
+    }), res)
+
+    expect(res.statusCode).toBe(401)
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('permite una acción coach con identidad individual y capability', async () => {
+    const requireCapabilityImpl = vi.fn().mockResolvedValue({
+      user: { id: 'user-1' },
+      capability: 'coach.workspace.access',
+      organizationId: 'org-a',
+    })
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({
+      action: 'handover_status',
+      payload: {
+        weekId: '00000000-0000-4000-8000-000000000001',
+        coachName: 'Coach',
+      },
+    })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(requireCapabilityImpl).toHaveBeenCalledWith(
+      req,
+      'coach.workspace.access',
+    )
+    expect(deps.executeActionImpl).toHaveBeenCalledOnce()
+  })
+
+  it('mantiene la identidad individual cerrada cuando el flag está desactivado', async () => {
+    process.env.COACH_INDIVIDUAL_AUTH_ENABLED = 'false'
+    const requireCapabilityImpl = vi.fn().mockResolvedValue({
+      user: { id: 'user-1' },
+      capability: 'coach.workspace.access',
+      organizationId: 'org-a',
+    })
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({ action: 'handover_status', payload: {} })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(401)
+    expect(requireCapabilityImpl).not.toHaveBeenCalled()
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('no convierte una capability coach en permiso administrativo', async () => {
+    const requireCapabilityImpl = vi.fn().mockResolvedValue({
+      user: { id: 'user-1' },
+      capability: 'coach.workspace.access',
+      organizationId: 'org-a',
+    })
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({ action: 'list_weekly_checkins', payload: {} })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(401)
+    expect(requireCapabilityImpl).not.toHaveBeenCalled()
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('falla cerrado si no puede resolver capabilities', async () => {
+    const requireCapabilityImpl = vi.fn().mockRejectedValue(
+      Object.assign(new Error('internal detail'), {
+        code: 'identity_authorization_unavailable',
+        status: 503,
+      }),
+    )
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({ action: 'handover_status', payload: {} })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(503)
+    expect(res.body).toEqual({ error: 'identity_authorization_unavailable' })
+    expect(JSON.stringify(res.body)).not.toContain('internal detail')
+    expect(deps.executeActionImpl).not.toHaveBeenCalled()
+  })
+
+  it('no ejecuta acciones coach si falta elegir organización', async () => {
+    const requireCapabilityImpl = vi.fn().mockRejectedValue(
+      new EvoCapabilityAuthError('organization_context_required', 409),
+    )
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({ action: 'handover_status', payload: {} })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(409)
+    expect(res.body).toEqual({ error: 'organization_context_required' })
     expect(deps.executeActionImpl).not.toHaveBeenCalled()
   })
 

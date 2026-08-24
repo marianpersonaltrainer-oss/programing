@@ -109,7 +109,7 @@ describe('methodPrompt — Método EVO versionado', () => {
 
   it('separa las superficies y modales pesados de la carga inicial', () => {
     const app = readFileSync(join(root, 'src/App.jsx'), 'utf8')
-    expect(app).toContain("lazy(() => import('./components/CoachView/CoachView.jsx'))")
+    expect(app).toContain("lazy(() => import('./components/CoachView/CoachAuthGate.jsx'))")
     expect(app).toContain("lazy(() => import('./components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'))")
     expect(app).not.toContain("import CoachView from './components/CoachView/CoachView.jsx'")
   })

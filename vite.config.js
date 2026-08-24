@@ -14,6 +14,7 @@ function resolveBuildId() {
 }
 
 const EVO_BUILD_ID = resolveBuildId()
+const EVO_VERCEL_ENVIRONMENT = String(process.env.VERCEL_ENV || '').trim()
 
 /**
  * Inyecta <meta name="evo-build-id"> en el HTML. Solo informativo: sirve para comprobar a simple
@@ -57,5 +58,8 @@ export default defineConfig({
   define: {
     'process.browser': 'true',
     __EVO_BUILD_ID__: JSON.stringify(EVO_BUILD_ID),
+    // Exponer solo el nombre del entorno de Vercel (nunca secretos) permite
+    // que el cliente bloquee un Preview configurado accidentalmente contra prod.
+    'import.meta.env.VITE_EVO_VERCEL_ENVIRONMENT': JSON.stringify(EVO_VERCEL_ENVIRONMENT),
   },
 })

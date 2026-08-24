@@ -91,6 +91,15 @@ Ninguna está en el camino de `/` ni de `?coach`: quedan inertes, no rotas. Prin
 1. **Nada se queda sin publicar más de 3 días.** Si una tarea no cabe en tres días, se parte. Publicar es parte del trabajo, no lo que viene después.
 2. **Un frente a la vez.** No abrir una rama nueva mientras haya un PR pendiente de fusionar.
 3. **Un solo agente sobre el código a la vez.** Codex, Claude Code y Cursor trabajan bien por turnos y mal en paralelo: el trabajo duplicado del hardening F0 y la puerta de Mi Camino costó 7 conflictos que hubo que resolver a mano.
+
+   **Excepción vigente desde el 25 de agosto de 2026: reparto por territorio.** Dos frentes a la vez, y solo porque no comparten ni un archivo:
+
+   | Territorio | Quién | Puede tocar | NO puede tocar |
+   |---|---|---|---|
+   | Base de datos e identidad en producción | Claude Code | `supabase/migrations/`, `scripts/` de base de datos | `src/`, `api/`, `apps/` |
+   | Vista estructurada del entrenador (PR #33) | Codex | `src/`, `api/`, `apps/` | `supabase/migrations/` |
+
+   Si un frente necesita cruzar la frontera, **para y avisa a Marian** en vez de invadir. La excepción caduca cuando cualquiera de los dos frentes termine: a partir de ahí, uno cada vez otra vez.
 4. **Ramas, nunca directo a `main`** — salvo actualizaciones de este documento de estado.
 5. **Antes de fusionar:** `npm test` y `npm run build` en verde, y una comprobación que Marian pueda hacer en pantalla.
 6. **Si algo sale mal después de fusionar:** `git revert -m 1 HEAD && git push`. No arreglar a la carrera.

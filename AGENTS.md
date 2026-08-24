@@ -52,9 +52,15 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto |
 | PR #33 · `feat/coach-structured-week-review` | Semanas revisadas para vista estructurada | Borrador, creado el 25 de agosto |
 
-### Siguiente paso pendiente
+### Base de datos: reconciliada el 25 de agosto de 2026
 
-**Paso 3 de la v1: montar la identidad en producción.** Aplicar las migraciones de identidad, crear la organización y una cuenta de administradora para Marian, para que después invite a Javi y Dani desde la propia app. Requiere copia de seguridad de Supabase hecha (la del 24 de agosto existe).
+**Paso 3 de la v1 completado por el lado técnico.** Aplicadas a producción diez migraciones (identidad multirrol, auditoría de identidad, capacidades RLS, relevo de turno, Nucleus y Mi Camino privado) y **reparado el registro: 43 migraciones registradas**. El repositorio y la base de datos vuelven a coincidir.
+
+Creada la organización **Evolution Boutique Fitness** (`evolution-boutique-fitness`).
+
+**Único paso pendiente, y es humano:** Marian debe crear su cuenta desde el panel de Supabase (Authentication → Users → Add user → Send invitation). Hasta entonces `auth.users` sigue vacío y `?v2` no puede dejar entrar a nadie. Después hay que darle la membership `admin` en esa organización.
+
+**No se invita todavía a Javi ni a Dani**: decisión de Marian del 25 de agosto. Siguen entrando por `?coach` con el código compartido, que no ha cambiado.
 
 ---
 
@@ -64,7 +70,7 @@ Todo lo de esta sección está comprobado contra el repositorio y la base de dat
 
 1. **Pe2 (`?v2`) ya NO es código muerto. NO borrarlo.** El traspaso del 2 de agosto ordenaba eliminarlo; hoy eso rompería el restablecimiento de contraseña. `src/App.jsx` enruta a `Pe2App` cuando `isPasswordRecoveryLocation()` es cierto, y `Pe2Login` es la pantalla de recuperación.
 
-2. **El registro de migraciones miente.** Producción tenía 7 migraciones registradas frente a 29 en el repositorio, y 3 de las registradas (`pe2_auth_foundation`, `guided_shift_control` ×2) no existen en el repositorio: se aplicaron a mano. Otras sí se aplicaron pero no se registraron — por ejemplo las columnas de `published_weeks_versioned_publication`, que **sí están** en producción. **Comprobar siempre el esquema real, no el registro.**
+2. **El registro de migraciones mentía. Reparado el 25 de agosto de 2026.** Producción tenía 7 migraciones registradas frente a 29 en el repositorio. Se aplicaron las que faltaban y se registraron las que se habían ejecutado a mano sin dejar rastro: ahora hay **43 registradas** y el repositorio es la verdad. Aun así, la costumbre que lo causó sigue siendo el riesgo: **comprobar el esquema real antes de fiarse de nada.**
 
 3. **Nunca aplicar a mano migraciones de PRs sin fusionar.** Es la causa raíz de casi todos los problemas encontrados: dejó `shift_protocol_logs` y `shift_notes` en producción sin código que las use, y metió datos de clientes reales en staging.
 
@@ -78,11 +84,15 @@ Todo lo de esta sección está comprobado contra el repositorio y la base de dat
 
 8. **Producción tiene 0 cuentas en `auth.users`, 0 `profiles` y 0 `organizations`.** La pantalla `?v2` de correo y contraseña no puede funcionar allí, y "he olvidado mi contraseña" no envía nada porque no hay cuenta que recuperar. No es un fallo: nunca se montó.
 
+9. **La migración `20260417180000_coach_handoffs_checkins_anon_access` está NEUTRALIZADA a propósito.** Abría `weekly_checkins` y `daily_handoffs` a la clave pública del navegador con `USING (true)`. Su fichero se ha vaciado y se ha registrado como aplicada para que `supabase db push` no pueda reabrir el agujero nunca. **No restaurar su contenido.** El original sigue en el historial de git.
+
 ### Tablas que el código usa y que NO existen en producción
 
-`daily_handoffs` · `evo_memberships` · `evo_events` · `mi_camino_person_access` · `mi_camino_projections` · `weeks` · `pe2_sessions` · `pe2_class_types` · `pe2_programmer_state`
+De las 24 que usa el código, **23 existen** tras la reconciliación del 25 de agosto. Solo falta:
 
-Ninguna está en el camino de `/` ni de `?coach`: quedan inertes, no rotas. Principio para la v1: **o existe la tabla, o se retira el código.** No dejar código apuntando al vacío.
+- **`weeks`** — y es cadena muerta: la usa `listWeeksLastYear`, que solo usa `buildLastYearReferenceBlock`, que no importa nadie. Además ya falla en silencio con un `console.warn`. **Lo correcto es retirar ese código, no crear la tabla** — pero vive en `src/`, así que le toca a Codex o a un turno posterior.
+
+Principio para la v1: **o existe la tabla, o se retira el código.** No dejar código apuntando al vacío.
 
 ---
 

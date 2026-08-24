@@ -1,123 +1,29 @@
--- La app ?coach usa el cliente Supabase con rol `anon` (sin auth.uid()).
--- Ajustamos RLS y unicidad para check-ins / handoffs como el resto de tablas coach (p. ej. coach_session_feedback).
+-- ⚠️ MIGRACIÓN NEUTRALIZADA A PROPÓSITO — NO RESTAURAR SU CONTENIDO ORIGINAL.
+--
+-- Esta migración abría `weekly_checkins` y `daily_handoffs` a la clave `anon`
+-- con `USING (true)`. La clave anon viaja dentro del JavaScript del navegador y
+-- es pública por diseño, así que cualquiera podía leer y modificar todos los
+-- check-ins semanales del equipo —incluidos mood_score, feedback_text,
+-- highlights e improvements— mientras la app les prometía en pantalla
+-- "Solo lo ve Marian".
+--
+-- Origen del fallo (auditado el 2 de agosto de 2026): las políticas correctas
+-- comprobaban el rol de admin contra `public.profiles`, que entonces no existía
+-- en producción. Como la comprobación nunca podía funcionar, se sustituyó por
+-- `TO anon USING (true)` como apaño. No fue descuido: fue un parche sobre una
+-- tabla que faltaba.
+--
+-- Estado actual (verificado en producción el 25 de agosto de 2026):
+--   - weekly_checkins solo permite leer y escribir el check-in propio;
+--   - daily_handoffs se creó cerrada al navegador, solo service_role;
+--   - toda la escritura real pasa por api/coach-weekly-checkin.js y
+--     api/operational-data.js, que validan en servidor.
+--
+-- Se conserva el fichero con su timestamp para no romper el orden del
+-- historial, pero vaciado: si alguien ejecutase `supabase db push` sobre una
+-- base limpia, el contenido original reabriría el agujero.
+--
+-- El contenido original sigue en el historial de git si hiciera falta
+-- consultarlo: `git show 8988327:supabase/migrations/20260417180000_coach_handoffs_checkins_anon_access.sql`
 
--- ── weekly_checkins: una fila por semana ISO y nombre de coach (normalizado) ──
-ALTER TABLE public.weekly_checkins DROP CONSTRAINT IF EXISTS weekly_checkins_coach_id_week_iso_key;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'weekly_checkins'
-      AND column_name = 'coach_name_norm'
-  ) THEN
-    ALTER TABLE public.weekly_checkins
-      ADD COLUMN coach_name_norm text GENERATED ALWAYS AS (lower(trim(coach_name))) STORED;
-  END IF;
-END $$;
-
-DROP INDEX IF EXISTS weekly_checkins_week_coach_name_norm_uq;
-CREATE UNIQUE INDEX weekly_checkins_week_coach_name_norm_uq
-  ON public.weekly_checkins (week_iso, coach_name_norm);
-
-DROP POLICY IF EXISTS weekly_checkins_insert_own ON public.weekly_checkins;
-DROP POLICY IF EXISTS weekly_checkins_select_own ON public.weekly_checkins;
-DROP POLICY IF EXISTS weekly_checkins_admin_read ON public.weekly_checkins;
-
-CREATE POLICY weekly_checkins_insert_anon
-  ON public.weekly_checkins
-  FOR INSERT
-  TO anon
-  WITH CHECK (
-    coach_id IS NULL
-    AND length(trim(coach_name)) > 0
-    AND mood_score BETWEEN 1 AND 5
-  );
-
-CREATE POLICY weekly_checkins_update_anon
-  ON public.weekly_checkins
-  FOR UPDATE
-  TO anon
-  USING (coach_id IS NULL)
-  WITH CHECK (
-    coach_id IS NULL
-    AND length(trim(coach_name)) > 0
-    AND mood_score BETWEEN 1 AND 5
-  );
-
-CREATE POLICY weekly_checkins_select_anon
-  ON public.weekly_checkins
-  FOR SELECT
-  TO anon
-  USING (true);
-
-CREATE POLICY weekly_checkins_insert_authenticated
-  ON public.weekly_checkins
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (coach_id = auth.uid());
-
-CREATE POLICY weekly_checkins_select_authenticated_own
-  ON public.weekly_checkins
-  FOR SELECT
-  TO authenticated
-  USING (coach_id = auth.uid());
-
-CREATE POLICY weekly_checkins_admin_read
-  ON public.weekly_checkins
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role = 'admin'
-    )
-  );
-
--- ── daily_handoffs: lectura/escritura con anon (misma app) ─────────────────────
-DROP POLICY IF EXISTS coaches_see_today ON public.daily_handoffs;
-DROP POLICY IF EXISTS coaches_insert_own ON public.daily_handoffs;
-DROP POLICY IF EXISTS admins_see_all_handoffs ON public.daily_handoffs;
-
-CREATE POLICY daily_handoffs_select_anon
-  ON public.daily_handoffs
-  FOR SELECT
-  TO anon
-  USING (true);
-
-CREATE POLICY daily_handoffs_insert_anon
-  ON public.daily_handoffs
-  FOR INSERT
-  TO anon
-  WITH CHECK (coach_id IS NULL AND length(trim(coach_name)) > 0);
-
-CREATE POLICY daily_handoffs_insert_authenticated
-  ON public.daily_handoffs
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (coach_id = auth.uid());
-
-CREATE POLICY daily_handoffs_select_auth_today
-  ON public.daily_handoffs
-  FOR SELECT
-  TO authenticated
-  USING (
-    timezone('Europe/Madrid', created_at)::date = timezone('Europe/Madrid', now())::date
-  );
-
-CREATE POLICY daily_handoffs_select_admin
-  ON public.daily_handoffs
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles p
-      WHERE p.id = auth.uid()
-        AND p.role = 'admin'
-    )
-  );
+select 'migracion_neutralizada_no_reintroducir_acceso_anon' as nota;

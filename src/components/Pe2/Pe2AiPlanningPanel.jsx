@@ -7,10 +7,11 @@ import {
   mergeWeekEvoAiContext,
 } from '../../domain/programming/evoAiContext.js'
 import { projectLegacyWeekForStructuredImport } from '../../domain/programming/legacyWeekImportProjection.js'
+import { projectWeeklyPlanForStructuredReview } from '../../domain/programming/weeklyPlanStructuredProjection.js'
 import Pe2ExcelImportReview from './Pe2ExcelImportReview.jsx'
 import Pe2WeeklyDraftBoard from './Pe2WeeklyDraftBoard.jsx'
 import Pe2WeeklyTeamReview from './Pe2WeeklyTeamReview.jsx'
-import { updatePe2Week } from '../../lib/pe2Supabase.js'
+import { createPe2StructuredReviewSessions, listPe2ClassTypes, updatePe2Week } from '../../lib/pe2Supabase.js'
 import { importProgramingEvoWeekFromXlsxBuffer } from '../../utils/importProgramingEvoWeekXlsx.js'
 
 const LEGACY_DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -19,7 +20,7 @@ function emptyLegacyWeek() {
   return { dias: LEGACY_DAYS.map((nombre) => ({ nombre })) }
 }
 
-export default function Pe2AiPlanningPanel({ week, onSaved }) {
+export default function Pe2AiPlanningPanel({ week, onSaved, onStructuredSaved }) {
   const [context, setContext] = useState(() => getWeekEvoAiContext(week))
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -27,6 +28,7 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
   const [importPreview, setImportPreview] = useState(null)
   const [weeklyPlan, setWeeklyPlan] = useState(() => week?.data?.weekly_plan || null)
   const [teamReviewPrepared, setTeamReviewPrepared] = useState(() => Boolean(week?.data?.team_review_prepared))
+  const [structuring, setStructuring] = useState(false)
   const fileInputRef = useRef(null)
   const preview = useMemo(() => buildEvoAiContextPrompt(context), [context])
 
@@ -114,6 +116,32 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
       setMessage(error.message || 'No se pudo actualizar la revisión del equipo.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const prepareStructuredReview = async () => {
+    if (!week?.id || !week?.org_id || !weeklyPlan) return
+    setStructuring(true)
+    setMessage('')
+    try {
+      const classTypes = await listPe2ClassTypes()
+      const sessions = projectWeeklyPlanForStructuredReview({
+        weeklyPlan,
+        classTypes,
+        weekId: week.id,
+        orgId: week.org_id,
+      })
+      await createPe2StructuredReviewSessions({
+        weekId: week.id,
+        orgId: week.org_id,
+        sessions,
+      })
+      await onStructuredSaved?.()
+      setMessage('La semana ya tiene una vista estructurada privada. Aún no se ha publicado ni enviado al equipo.')
+    } catch (error) {
+      setMessage(error.message || 'No se pudo preparar la revisión estructurada.')
+    } finally {
+      setStructuring(false)
     }
   }
 
@@ -242,6 +270,24 @@ export default function Pe2AiPlanningPanel({ week, onSaved }) {
         onPrepare={() => setReviewPrepared(true)}
         onReturnToDraft={() => setReviewPrepared(false)}
       />
+
+      {teamReviewPrepared ? (
+        <div className="mt-5 rounded-xl border p-4" style={{ borderColor: evoBrand.border, backgroundColor: '#FAF7FC' }}>
+          <p className="text-sm font-bold" style={{ color: evoBrand.text }}>Preparar vista estructurada</p>
+          <p className="mt-1 text-sm" style={{ color: evoBrand.muted }}>
+            Convierte el Excel ya revisado en sesiones privadas y estructuradas. Conserva el texto original y no publica la semana ni da acceso a entrenadores.
+          </p>
+          <button
+            type="button"
+            onClick={prepareStructuredReview}
+            disabled={saving || structuring}
+            className="mt-3 rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+            style={{ backgroundColor: evoBrand.accent }}
+          >
+            {structuring ? 'Preparando estructura…' : 'Preparar revisión estructurada'}
+          </button>
+        </div>
+      ) : null}
 
       {message ? <p className="mt-3 text-sm" style={{ color: message.startsWith('No se pudo') ? '#B42318' : '#18794E' }}>{message}</p> : null}
     </section>

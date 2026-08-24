@@ -320,8 +320,12 @@ export async function createPe2StructuredReviewSessions({ weekId, orgId, session
     if (itemsError) throw wrapPe2Error(itemsError)
     return listPe2SessionsForWeek(weekId)
   } catch (error) {
-    // Foreign-key cascades remove any partial blocks/items as well.
-    await supabase.from('pe2_sessions').delete().eq('week_id', weekId)
+    // Foreign-key cascades remove any partial blocks/items as well. Restrict the
+    // rollback to the rows created by this request; never delete another review.
+    const insertedIds = (insertedSessions || []).map((session) => session.id).filter(Boolean)
+    if (insertedIds.length) {
+      await supabase.from('pe2_sessions').delete().in('id', insertedIds)
+    }
     throw error
   }
 }

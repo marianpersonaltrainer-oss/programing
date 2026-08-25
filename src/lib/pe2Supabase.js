@@ -223,3 +223,109 @@ export function buildPe2SessionMap(sessions) {
   }
   return map
 }
+
+
+/**
+ * Adds a private structured review of an imported week.
+ *
+ * This deliberately refuses to replace existing sessions and never marks a week
+ * ready or published. Publication remains a separate, explicit workflow.
+ */
+export async function createPe2StructuredReviewSessions({ weekId, orgId, sessions }) {
+  if (!weekId || !orgId) throw new Error('Falta la semana u organización para preparar la revisión.')
+  if (!Array.isArray(sessions) || !sessions.length) {
+    throw new Error('No hay sesiones para preparar.')
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('pe2_sessions')
+    .select('id')
+    .eq('week_id', weekId)
+    .is('parent_session_id', null)
+    .limit(1)
+
+  if (existingError) throw wrapPe2Error(existingError)
+  if (existing?.length) {
+    throw new Error('Esta semana ya tiene sesiones estructuradas. No se reemplazarán automáticamente.')
+  }
+
+  const rows = sessions.map(({ blocks, ...session }) => session)
+  const { data: insertedSessions, error: sessionsError } = await supabase
+    .from('pe2_sessions')
+    .insert(rows)
+    .select('id, class_type_id, weekday')
+
+  if (sessionsError) throw wrapPe2Error(sessionsError)
+
+  try {
+    const sessionIds = new Map(
+      (insertedSessions || []).map((session) => [
+        `${session.class_type_id}:${session.weekday}`,
+        session.id,
+      ])
+    )
+
+    const blockRows = []
+    for (const session of sessions) {
+      const sessionId = sessionIds.get(`${session.class_type_id}:${session.weekday}`)
+      for (const block of session.blocks || []) {
+        blockRows.push({
+          session_id: sessionId,
+          org_id: orgId,
+          kind: block.kind,
+          name: block.name,
+          dose: block.dose,
+          duration_min: block.duration_min,
+          sort_order: block.sort_order,
+        })
+      }
+    }
+
+    const { data: insertedBlocks, error: blocksError } = await supabase
+      .from('pe2_blocks')
+      .insert(blockRows)
+      .select('id, session_id, sort_order')
+
+    if (blocksError) throw wrapPe2Error(blocksError)
+
+    const blockIds = new Map(
+      (insertedBlocks || []).map((block) => [
+        `${block.session_id}:${block.sort_order}`,
+        block.id,
+      ])
+    )
+
+    const itemRows = []
+    for (const session of sessions) {
+      const sessionId = sessionIds.get(`${session.class_type_id}:${session.weekday}`)
+      for (const block of session.blocks || []) {
+        const blockId = blockIds.get(`${sessionId}:${block.sort_order}`)
+        for (const item of block.items || []) {
+          itemRows.push({
+            block_id: blockId,
+            org_id: orgId,
+            exercise_ref: null,
+            raw_text: item.raw_text,
+            prescription: item.prescription,
+            sort_order: item.sort_order,
+          })
+        }
+      }
+    }
+
+    const { error: itemsError } = await supabase
+      .from('pe2_block_items')
+      .insert(itemRows)
+
+    if (itemsError) throw wrapPe2Error(itemsError)
+    return listPe2SessionsForWeek(weekId)
+  } catch (error) {
+    // Foreign-key cascades remove any partial blocks/items as well. Restrict the
+    // rollback to the rows created by this request; never delete another review.
+    const insertedIds = (insertedSessions || []).map((session) => session.id).filter(Boolean)
+    if (insertedIds.length) {
+      await supabase.from('pe2_sessions').delete().in('id', insertedIds)
+    }
+    throw error
+  }
+}

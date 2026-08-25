@@ -52,6 +52,12 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto |
 | PR #33 · `feat/coach-structured-week-review` | Semanas revisadas para vista estructurada | Borrador, creado el 25 de agosto |
 
+### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
+
+Las seis clases del método EVO —EvoFuncional, EvoBasics, EvoFit, EvoHybrix, EvoFuerza, EvoGimnástica— y seis ejercicios base están cargados **tanto en producción como en staging**, con `is_active = true`. Sin ellos, el flujo de Programación responde "No hay clases activas en el catálogo" o "No se ha encontrado el tipo de clase X en esta organización".
+
+Organizaciones: producción `Evolution Boutique Fitness`; staging `EVO Staging`. Cada catálogo cuelga de su organización, así que **no hace falta volver a sembrarlos**: si la app dice que faltan, comprobar antes la membership y el rol del usuario, porque lo más probable es que los datos estén y sea la autorización la que los filtra.
+
 ### Base de datos: reconciliada el 25 de agosto de 2026
 
 **Paso 3 de la v1 completado por el lado técnico.** Aplicadas a producción diez migraciones (identidad multirrol, auditoría de identidad, capacidades RLS, relevo de turno, Nucleus y Mi Camino privado) y **reparado el registro: 43 migraciones registradas**. El repositorio y la base de datos vuelven a coincidir.

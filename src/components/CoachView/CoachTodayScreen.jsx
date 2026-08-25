@@ -87,6 +87,9 @@ function CoachTurnChecklist({ dayName, classCount, handoffCount, onOpenFeedback 
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#FFFF4C]">{label}</p>
           <h2 className="mt-1 font-evo-display text-lg font-bold text-white">Prepara, imparte y deja el relevo claro</h2>
+          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#F6E8F9]/72">
+            Esta es una semana publicada por Administración. Puedes consultarla, dirigirla y dejar feedback; los cambios de programación se coordinan con Administración.
+          </p>
         </div>
         <button
           type="button"

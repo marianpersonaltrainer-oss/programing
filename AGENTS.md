@@ -29,7 +29,13 @@ Detenerse y pedir decisión antes de:
 
 ---
 
-## 3. Alcance acordado: v1
+## 3. Alcance acordado: v1 — CERRADA el 25 de agosto de 2026
+
+**La v1 está completa.** Publicado el trabajo pendiente, reconciliadas base de datos y código, cerrado el acceso anónimo a los datos del equipo, montada la identidad en producción y fusionada la vista estructurada. Producción verificada en `7f2a541`: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios intactos.
+
+Cualquier trabajo nuevo a partir de aquí **abre una fase nueva y necesita decisión expresa de Marian**. Lo que queda pendiente es solo limpieza sin riesgo: cerrar los PRs muertos de la sección 7 y retirar la cadena muerta de `weeks`.
+
+## 3 bis. Cómo se acordó la v1
 
 El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segura, sin funcionalidad nueva**: publicar lo pendiente, reconciliar base de datos y código, y retirar la deuda.
 
@@ -49,8 +55,8 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 
 | Rama / PR | Qué es | Estado |
 |---|---|---|
-| `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto |
-| PR #33 · `feat/coach-structured-week-review` | Semanas revisadas para vista estructurada | Borrador, creado el 25 de agosto |
+| PR #33 · vista estructurada | Convierte el Excel revisado en sesiones privadas | **Fusionado el 25 de agosto a las 12:56.** Revisado, probado por Marian de principio a fin y verificado en base de datos |
+| `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto. **Aparcado** |
 
 ### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
 
@@ -115,7 +121,9 @@ Principio para la v1: **o existe la tabla, o se retira el código.** No dejar c�
    | Base de datos e identidad en producción | Claude Code | `supabase/migrations/`, `scripts/` de base de datos | `src/`, `api/`, `apps/` |
    | Vista estructurada del entrenador (PR #33) | Codex | `src/`, `api/`, `apps/` | `supabase/migrations/` |
 
-   Si un frente necesita cruzar la frontera, **para y avisa a Marian** en vez de invadir. La excepción caduca cuando cualquiera de los dos frentes termine: a partir de ahí, uno cada vez otra vez.
+   **CADUCADA el 25 de agosto de 2026**, tal como estaba previsto: los dos frentes terminaron. Vuelve a aplicar la norma de un solo agente sobre el código a la vez. Si se reabre un reparto, tiene que cumplir otra vez las tres condiciones: territorios sin ficheros compartidos, frontera escrita aquí, y ambos frentes cortos.
+
+   Aprendizaje del reparto: funcionó, pero **las dos herramientas no pueden verse trabajar**. Codex pidió sembrar unos tipos de clase que ya estaban cargados desde hacía veinte minutos. Todo estado compartido tiene que acabar escrito en este archivo o se pierde.
 4. **Ramas, nunca directo a `main`** — salvo actualizaciones de este documento de estado.
 5. **Antes de fusionar:** `npm test` y `npm run build` en verde, y una comprobación que Marian pueda hacer en pantalla.
 6. **Si algo sale mal después de fusionar:** `git revert -m 1 HEAD && git push`. No arreglar a la carrera.

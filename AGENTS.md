@@ -2,6 +2,8 @@
 
 **Actualizado:** 25 de agosto de 2026 · **Lee este archivo entero antes de tocar nada.**
 
+> **Al terminar cualquier sesión, actualiza el commit de `main` y el estado de los PR de la sección 4.** Es la parte que más rápido envejece: el 25 de agosto quedó señalando un commit ya superado y lo detectó la otra herramienta, no quien lo escribió.
+
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 
 ---
@@ -47,8 +49,8 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 
 ## 4. Estado real a 25 de agosto de 2026
 
-- **`main` = `cf6b151`.** El PR #32 se fusionó el 24 de agosto: 104 commits que llevaban desde el 11 de agosto sin publicar.
-- **Producción:** `programing-evo.vercel.app`, sirviendo `cf6b151`, verificada y funcionando. La semana activa (21 de agosto) se ve correctamente.
+- **`main` = `7f2a541`** (más los commits de documentación posteriores). El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto— y el PR #33 el 25 de agosto a las 12:56.
+- **Producción:** `programing-evo.vercel.app`, verificada y funcionando: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios. La vista del entrenador (`?coach`) comprobada por Marian en producción el 25 de agosto: entra con el código compartido de siempre y ve la semana, más el checklist guiado del turno que llegó con el PR #32.
 - **`?coach` funciona con el código compartido de siempre.** `COACH_ACCESS_CODE` está configurado en Vercel Production (verificado: el endpoint responde 401, no 500). La identidad individual viene **apagada** por defecto y el fallback de código compartido **activado**.
 
 ### Trabajo en vuelo

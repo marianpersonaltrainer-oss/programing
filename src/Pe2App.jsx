@@ -6,6 +6,7 @@ import Pe2Login from './components/Pe2/Pe2Login.jsx'
 import RoleGate from './components/Pe2/RoleGate.jsx'
 import NucleusPilotPanel from './components/Pe2/NucleusPilotPanel.jsx'
 import Pe2CoachAdminView from './components/Pe2/Pe2CoachAdminView.jsx'
+import Pe2WorkspaceOverview from './components/Pe2/Pe2WorkspaceOverview.jsx'
 import { usePe2Auth } from './hooks/usePe2Auth.js'
 import { getPe2ActiveSlot } from './lib/pe2Supabase.js'
 import { isNucleusPilotVisible } from './lib/nucleusPilot.js'
@@ -13,7 +14,7 @@ import { evoBrand } from './constants/evoBrand.js'
 
 export default function Pe2App() {
   const auth = usePe2Auth()
-  const [view, setView] = useState('home')
+  const [view, setView] = useState('overview')
   const [selectedDraftId, setSelectedDraftId] = useState(null)
   const [slot, setSlot] = useState(null)
   const canManageProgramming = auth.can('programming.manage')
@@ -80,6 +81,15 @@ export default function Pe2App() {
             {showNucleusPilot ? <NucleusPilotPanel /> : null}
             {canManageIdentity && (view === 'trainers' || !canManageProgramming) ? (
               <Pe2CoachAdminView />
+            ) : view === 'overview' ? (
+              <Pe2WorkspaceOverview
+                canManageProgramming={canManageProgramming}
+                canManageIdentity={canManageIdentity}
+                canAccessCoachWorkspace={canAccessCoachWorkspace}
+                onOpenPlanning={() => setView('home')}
+                onOpenReview={() => setView('week')}
+                onOpenTeam={() => setView('trainers')}
+              />
             ) : view === 'week' ? (
               <Pe2WeekView slot={slot} draftId={selectedDraftId} />
             ) : (

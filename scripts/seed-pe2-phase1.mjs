@@ -38,13 +38,17 @@ function loadDotEnv() {
 const PROGRAMMER_EMAIL = 'marianpersonaltrainer@gmail.com'
 const PROGRAMMER_NAME = 'Marian EVO'
 
+// Los slugs DEBEN coincidir con `key` en src/constants/evoClasses.js: el flujo de
+// revisión estructurada busca el tipo de clase por slug, no por etiqueta. Si se
+// desalinean, la app responde "No se ha encontrado el tipo de clase «X»".
 const CLASS_TYPES = [
-  { slug: 'funcional', label: 'EvoFuncional', sort: 1, dna: { objetivo: 'Progreso técnico y rendimiento', duracion_min: 32, material: ['barra', 'KB', 'mancuernas', 'cajón'] } },
-  { slug: 'basics', label: 'EvoBasics', sort: 2, dna: { objetivo: 'Aprendizaje, fuerza y habilidades transferibles', duracion_min: 30, material: ['barra', 'mancuernas', 'bandas'] } },
-  { slug: 'fit', label: 'EvoFit', sort: 3, dna: { objetivo: 'Fuerza real, accesorios y WOD sin bloque de skill', duracion_min: 31, material: ['barra', 'mancuernas', 'landmine'] } },
-  { slug: 'hybrix', label: 'EvoHybrix', sort: 4, dna: { objetivo: 'Esfuerzo híbrido, máquinas y estrategia', duracion_min: 41, material: ['trineo', 'remo', 'ski', 'bicicleta', 'wall ball'] } },
-  { slug: 'fuerza', label: 'EvoFuerza', sort: 5, dna: { objetivo: 'Fuerza máxima', duracion_min: 40, material: ['barra', 'rack'] } },
-  { slug: 'gimnastica', label: 'EvoGimnástica', sort: 6, dna: { objetivo: 'Control corporal', duracion_min: 32, material: ['anillas', 'paralelas'] } },
+  { slug: 'evofuncional', label: 'EvoFuncional', sort: 1, dna: { objetivo: 'Progreso técnico y rendimiento', duracion_min: 32, material: ['barra', 'KB', 'mancuernas', 'cajón'] } },
+  { slug: 'evobasics', label: 'EvoBasics', sort: 2, dna: { objetivo: 'Aprendizaje, fuerza y habilidades transferibles', duracion_min: 30, material: ['barra', 'mancuernas', 'bandas'] } },
+  { slug: 'evofit', label: 'EvoFit', sort: 3, dna: { objetivo: 'Fuerza real, accesorios y WOD sin bloque de skill', duracion_min: 31, material: ['barra', 'mancuernas', 'landmine'] } },
+  { slug: 'evohybrix', label: 'EvoHybrix', sort: 4, dna: { objetivo: 'Esfuerzo híbrido, máquinas y estrategia', duracion_min: 41, material: ['trineo', 'remo', 'ski', 'bicicleta', 'wall ball'] } },
+  { slug: 'evofuerza', label: 'EvoFuerza', sort: 5, dna: { objetivo: 'Fuerza máxima', duracion_min: 40, material: ['barra', 'rack'] } },
+  { slug: 'evogimnastica', label: 'EvoGimnástica', sort: 6, dna: { objetivo: 'Control corporal', duracion_min: 32, material: ['anillas', 'paralelas'] } },
+  { slug: 'evotodos', label: 'EvoTodos', sort: 7, dna: { objetivo: 'Sesión abierta a todos los niveles', duracion_min: 32, material: [] } },
 ]
 
 const EXERCISES = [
@@ -197,12 +201,12 @@ async function main() {
   await admin.from('pe2_sessions').delete().eq('week_id', weekId)
 
   const seedSessions = [
-    { slug: 'funcional', weekday: 1, title: 'Squat + engine', pattern: 'squat', status: 'confirmed', est: 30 },
-    { slug: 'basics', weekday: 1, title: 'Hinge técnica', pattern: 'hinge', status: 'ai_draft', est: 28 },
-    { slug: 'fit', weekday: 1, title: 'Press + accesorios + WOD', pattern: 'push', status: 'confirmed', est: 31 },
-    { slug: 'funcional', weekday: 2, title: 'Pull volume', pattern: 'pull', status: 'confirmed', est: 30 },
-    { slug: 'basics', weekday: 2, title: 'Core + squat', pattern: 'core', status: 'confirmed', est: 28 },
-    { slug: 'fit', weekday: 3, title: 'Deadlift + accesorios + intervalos', pattern: 'hinge', status: 'ai_draft', est: 31 },
+    { slug: 'evofuncional', weekday: 1, title: 'Squat + engine', pattern: 'squat', status: 'confirmed', est: 30 },
+    { slug: 'evobasics', weekday: 1, title: 'Hinge técnica', pattern: 'hinge', status: 'ai_draft', est: 28 },
+    { slug: 'evofit', weekday: 1, title: 'Press + accesorios + WOD', pattern: 'push', status: 'confirmed', est: 31 },
+    { slug: 'evofuncional', weekday: 2, title: 'Pull volume', pattern: 'pull', status: 'confirmed', est: 30 },
+    { slug: 'evobasics', weekday: 2, title: 'Core + squat', pattern: 'core', status: 'confirmed', est: 28 },
+    { slug: 'evofit', weekday: 3, title: 'Deadlift + accesorios + intervalos', pattern: 'hinge', status: 'ai_draft', est: 31 },
   ]
 
   for (const s of seedSessions) {

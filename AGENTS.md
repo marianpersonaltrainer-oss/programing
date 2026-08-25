@@ -33,7 +33,7 @@ Detenerse y pedir decisión antes de:
 
 ## 3. Alcance acordado: v1 — CERRADA el 25 de agosto de 2026
 
-**La v1 está completa.** Publicado el trabajo pendiente, reconciliadas base de datos y código, cerrado el acceso anónimo a los datos del equipo, montada la identidad en producción y fusionada la vista estructurada. Producción verificada en `7f2a541`: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios intactos.
+**La v1 está completa.** Publicado el trabajo pendiente, reconciliadas base de datos y código, cerrado el acceso anónimo a los datos del equipo, montada la identidad en producción y fusionada la vista estructurada. Producción verificada tras `9a07c8b`: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios intactos.
 
 Cualquier trabajo nuevo a partir de aquí **abre una fase nueva y necesita decisión expresa de Marian**. Lo que queda pendiente es solo limpieza sin riesgo: cerrar los PRs muertos de la sección 7 y retirar la cadena muerta de `weeks`.
 
@@ -49,7 +49,7 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 
 ## 4. Estado real a 25 de agosto de 2026
 
-- **`main` = `7f2a541`** (más los commits de documentación posteriores). El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto— y el PR #33 el 25 de agosto a las 12:56.
+- **`main` = `9a07c8b`**. El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto—; el PR #33 el 25 de agosto a las 12:56; y los PR #34 y #35 después, con mejoras de lectura y resumen semanal para el equipo.
 - **Producción:** `programing-evo.vercel.app`, verificada y funcionando: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios. La vista del entrenador (`?coach`) comprobada por Marian en producción el 25 de agosto: entra con el código compartido de siempre y ve la semana, más el checklist guiado del turno que llegó con el PR #32.
 - **`?coach` funciona con el código compartido de siempre.** `COACH_ACCESS_CODE` está configurado en Vercel Production (verificado: el endpoint responde 401, no 500). La identidad individual viene **apagada** por defecto y el fallback de código compartido **activado**.
 
@@ -58,6 +58,8 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | Rama / PR | Qué es | Estado |
 |---|---|---|
 | PR #33 · vista estructurada | Convierte el Excel revisado en sesiones privadas | **Fusionado el 25 de agosto a las 12:56.** Revisado, probado por Marian de principio a fin y verificado en base de datos |
+| PR #34 · Mi turno | Aclara que el equipo consulta, dirige y deja feedback; Administración programa | **Fusionado y publicado el 25 de agosto.** CI y build en verde |
+| PR #35 · resumen semanal | Muestra al equipo el estado de semana publicada y el progreso de feedback | **Fusionado y publicado el 25 de agosto.** CI y build en verde |
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto. **Aparcado** |
 
 ### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
@@ -142,7 +144,9 @@ Principio para la v1: **o existe la tabla, o se retira el código.** No dejar c�
 | #6 Motor de generación | **Revisar antes de cerrar.** Aporta `briefingContextFilter.js` y scripts de staging que hoy no existen |
 | #27 WodBuster | **Dejar abierto.** Diferido por decisión de negocio (política EVO para la API de tornos) |
 | #31 Campaña IG | Marketing, no es la app. Tratar aparte |
-| #33 Vista estructurada | Borrador en curso, creado el 25 de agosto |
+| #33 Vista estructurada | **Fusionado.** Flujo completo probado por Marian |
+| #34 Mi turno | **Fusionado.** Aclara la responsabilidad operativa del entrenador |
+| #35 Resumen semanal Coach | **Fusionado.** Semana publicada y progreso de feedback visibles al equipo |
 
 Las ramas **no se borran** al cerrar un PR: cerrar es reversible, borrar no.
 

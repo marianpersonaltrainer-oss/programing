@@ -20,11 +20,40 @@ export default function CoachWeekOverviewPanel({
   onSelectDay,
 }) {
   const dias = weekData?.dias || []
+  const weekFeedback = dias.reduce(
+    (summary, dia) => {
+      if (isFestivoDay(dia)) return summary
+
+      const { labels, preview } = buildDayQuickSummary(dia, SESSION_BLOCKS)
+      const hasSession = labels.length > 0 || Boolean(preview) || Boolean(sessionText(dia.wodbuster))
+      if (!hasSession) return summary
+
+      const dayKey = dayNombreToFeedbackKey(dia.nombre)
+      const hasDayFeedback =
+        dayKey && weekRow?.id && coachName?.trim() && coachHasFeedbackForDay(weekRow.id, dayKey, coachName)
+
+      summary.programmed += 1
+      if (hasDayFeedback) summary.withFeedback += 1
+      return summary
+    },
+    { programmed: 0, withFeedback: 0 },
+  )
 
   return (
     <div className={`px-4 py-5 space-y-5 ${coachBg.app} min-h-0`}>
+      <section className={`rounded-xl p-4 border ${coachBorder} ${coachBg.card}`} aria-label="Estado de la semana">
+        <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent}`}>Semana publicada por Administración</p>
+        <p className={`text-sm ${coachText.primary} mt-2`}>
+          Consulta las sesiones, dirígelas y deja el feedback al terminar. Los cambios de programación se coordinan con Administración.
+        </p>
+        <p className={`text-xs ${coachText.muted} mt-3`}>
+          {weekFeedback.programmed
+            ? `Feedback registrado: ${weekFeedback.withFeedback} de ${weekFeedback.programmed} día(s) con sesión.`
+            : 'No hay sesiones programadas para esta semana.'}
+        </p>
+      </section>
       <p className={`text-[11px] font-bold uppercase tracking-widest ${coachText.muted}`}>
-        Toca un día para abrirlo en Hoy
+        Toca un día para abrirlo en Mi turno
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         {dias.map((dia) => {
@@ -86,7 +115,7 @@ export default function CoachWeekOverviewPanel({
                   {previewText(dia.wodbuster, 6, 280)}
                 </pre>
               ) : null}
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent} mt-3`}>Abrir en Hoy →</p>
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent} mt-3`}>Abrir en Mi turno →</p>
             </button>
           )
         })}

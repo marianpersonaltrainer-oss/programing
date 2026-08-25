@@ -269,7 +269,7 @@ function IconHoy(props) {
 }
 
 const NAV_DEFS = {
-  hoy: { id: 'hoy', label: 'Hoy', Icon: IconHoy },
+  hoy: { id: 'hoy', label: 'Mi turno', Icon: IconHoy },
   semana: { id: 'semana', label: 'Semana', Icon: IconSemana },
   pase: { id: 'pase', label: 'Feedback', Icon: IconFeedback },
   perfil: { id: 'perfil', label: 'Perfil', Icon: IconMaterial },

@@ -19,6 +19,12 @@ import {
   isMadridCalendarSunday,
 } from '../../utils/coachMadridDay.js'
 import { feedbackClassChrome, sortClassLabelsForFeedback } from '../../utils/coachFeedbackClassChrome.js'
+import {
+  NEXT_FOCUS_OPTIONS,
+  STIMULUS_OPTIONS,
+  TIME_CAUSE_OPTIONS,
+  buildStructuredCoachFeedback,
+} from '../../utils/coachFeedbackStructuredText.js'
 
 const TIME_EXPLAIN = [
   { value: 'si', label: 'Bien de tiempo' },
@@ -242,6 +248,9 @@ export default function CoachSessionFeedbackForm({
   const [changedDetails, setChangedDetails] = useState('')
   const [groupFeelings, setGroupFeelings] = useState('')
   const [notesNextWeek, setNotesNextWeek] = useState('')
+  const [stimulus, setStimulus] = useState('achieved')
+  const [timeCause, setTimeCause] = useState('')
+  const [nextFocus, setNextFocus] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -284,6 +293,19 @@ export default function CoachSessionFeedbackForm({
       setError('Si marcaste que cambiaste algo, describe qué cambiaste.')
       return
     }
+    if (timeExplain !== 'si' && !timeCause) {
+      setError('Indica dónde se fue el tiempo para poder mejorar la clase.')
+      return
+    }
+
+    const structuredFeedback = buildStructuredCoachFeedback({
+      stimulus,
+      timeExplain,
+      timeCause,
+      classNote: groupFeelings,
+      nextFocus,
+      nextNote: notesNextWeek,
+    })
 
     setSaving(true)
     try {
@@ -299,8 +321,8 @@ export default function CoachSessionFeedbackForm({
         time_for_explanation: timeExplain,
         changed_something: changedSomething,
         changed_details: changedSomething ? changedDetails.trim() || null : null,
-        group_feelings: groupFeelings.trim() || null,
-        notes_next_week: notesNextWeek.trim() || null,
+        group_feelings: structuredFeedback.groupFeelings,
+        notes_next_week: structuredFeedback.notesNextWeek,
       })
       appendFeedbackLogEntry({
         week_id: weekRow.id,
@@ -313,8 +335,8 @@ export default function CoachSessionFeedbackForm({
         time_for_explanation: timeExplain,
         changed_something: changedSomething,
         changed_details: changedSomething ? changedDetails.trim() : null,
-        group_feelings: groupFeelings.trim() || null,
-        notes_next_week: notesNextWeek.trim() || null,
+        group_feelings: structuredFeedback.groupFeelings,
+        notes_next_week: structuredFeedback.notesNextWeek,
         source: 'local_save',
       })
       const dayName = DAY_KEY_TO_NAME[dayKey] || ''
@@ -342,6 +364,9 @@ export default function CoachSessionFeedbackForm({
       setGroupFeelings('')
       setNotesNextWeek('')
       setChangedSomething(false)
+      setStimulus('achieved')
+      setTimeCause('')
+      setNextFocus('')
       await onAfterSave?.()
     } catch (err) {
       setError(err?.message || 'No se pudo guardar. Revisa conexión y permisos en Supabase.')
@@ -588,14 +613,36 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Cómo ha ido?
+            ¿Se logró el estímulo?
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {STIMULUS_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStimulus(value)}
+                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                  stimulus === value
+                    ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
+                    : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+            Un detalle útil (opcional)
           </label>
           <textarea
             value={groupFeelings}
             onChange={(e) => setGroupFeelings(e.target.value)}
-            rows={3}
+            rows={2}
             className={coachField}
-            placeholder="Cómo fue la clase: energía del grupo, qué tal salió, sensaciones…"
+            placeholder="Qué funcionó o qué limitó al grupo. Sin nombres ni datos personales."
           />
         </div>
 
@@ -619,6 +666,29 @@ export default function CoachSessionFeedbackForm({
               </button>
             ))}
           </div>
+          {timeExplain !== 'si' ? (
+            <div className="mt-4">
+              <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+                ¿Dónde se fue el tiempo?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {TIME_CAUSE_OPTIONS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTimeCause(value)}
+                    className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                      timeCause === value
+                        ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
+                        : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div>
@@ -649,12 +719,12 @@ export default function CoachSessionFeedbackForm({
           {changedSomething ? (
             <div>
               <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-                ¿Qué modificaste?
+                ¿Qué cambiaste y por qué?
               </label>
               <textarea
                 value={changedDetails}
                 onChange={(e) => setChangedDetails(e.target.value)}
-                placeholder="Ej.: sustituí X por Y, bajé cargas en el bisagra, acorté el WOD…"
+                placeholder="Ej.: bajé una ronda porque la técnica se degradaba…"
                 rows={3}
                 className={coachField}
               />
@@ -664,14 +734,30 @@ export default function CoachSessionFeedbackForm({
 
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            ¿Algo a vigilar?
+            ¿Qué debe vigilar el siguiente coach?
           </label>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {NEXT_FOCUS_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setNextFocus(value)}
+                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                  nextFocus === value
+                    ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
+                    : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <textarea
             value={notesNextWeek}
             onChange={(e) => setNotesNextWeek(e.target.value)}
             rows={2}
             className={coachField}
-            placeholder="Para el siguiente coach que dé esta clase…"
+            placeholder="Una instrucción concreta para repetirla mejor (opcional)."
           />
         </div>
 

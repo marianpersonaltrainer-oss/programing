@@ -4,7 +4,7 @@
 
 > **Al terminar cualquier sesión, actualiza el commit de `main` y el estado de los PR de la sección 4.** Es la parte que más rápido envejece: el 25 de agosto quedó señalando un commit ya superado y lo detectó la otra herramienta, no quien lo escribió.
 
-> **Cierre 31 de agosto:** el formulario guiado de feedback de coach está en la rama `feat/coach-feedback-guidance` (`10ac6b7`) y se desplegó en producción con Vercel (`dpl_7iZmpAuw7cGq1bmYDkDuAxkdb5e7`). Falta abrir y fusionar su PR cuando se recupere la autenticación de GitHub; no redeplegar desde `main` hasta incorporar esa rama, porque el dominio de producción ya sirve ese commit.
+> **Cierre 31 de agosto:** el formulario guiado de feedback de coach (`10ac6b7`) está fusionado en `main` mediante el merge `103cb1b`. Vercel ya había desplegado ese cambio en producción (`dpl_7iZmpAuw7cGq1bmYDkDuAxkdb5e7`); tras subir este registro, comprobar el despliegue automático desde `main` y conservar la rama solo como historial de la revisión.
 
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 

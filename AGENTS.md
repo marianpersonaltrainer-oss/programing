@@ -6,6 +6,8 @@
 
 > **Cierre 31 de agosto:** el formulario guiado de feedback de coach (`10ac6b7`) está fusionado en `main` mediante el merge `103cb1b`. Vercel ya había desplegado ese cambio en producción (`dpl_7iZmpAuw7cGq1bmYDkDuAxkdb5e7`); tras subir este registro, comprobar el despliegue automático desde `main` y conservar la rama solo como historial de la revisión.
 
+> **En curso 2 de septiembre:** `feature/trial-close-shadow` añade un cierre local de clase de prueba al área Feedback. Prepara recomendación, frecuencia, prioridad, adaptaciones y motivo, pero no guarda, envía ni modifica CRM/WodBuster. Prueba unitaria y build local en verde; la comprobación visual local queda bloqueada porque faltan las variables de Supabase en este entorno. No promover a producción hasta decidir almacenamiento, RLS y recorrido operativo.
+
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 
 ---
@@ -49,9 +51,9 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 
 ---
 
-## 4. Estado real a 25 de agosto de 2026
+## 4. Estado real a 2 de septiembre de 2026
 
-- **`main` = `c410cc4`**. El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto—; el PR #33 el 25 de agosto a las 12:56; los PR #34 y #35 añadieron mejoras de lectura y resumen semanal para el equipo; y el PR #36 añadió el Espacio de trabajo seguro de Administración y Coach.
+- **`main` = `3d1e9db`**. El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto—; el PR #33 el 25 de agosto a las 12:56; los PR #34 y #35 añadieron mejoras de lectura y resumen semanal para el equipo; y el PR #36 añadió el Espacio de trabajo seguro de Administración y Coach.
 - **Producción:** `programing-evo.vercel.app`, verificada y funcionando: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios. La vista del entrenador (`?coach`) comprobada por Marian en producción el 25 de agosto: entra con el código compartido de siempre y ve la semana, más el checklist guiado del turno que llegó con el PR #32.
 - **`?coach` funciona con el código compartido de siempre.** `COACH_ACCESS_CODE` está configurado en Vercel Production (verificado: el endpoint responde 401, no 500). La identidad individual viene **apagada** por defecto y el fallback de código compartido **activado**.
 
@@ -64,6 +66,7 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | PR #35 · resumen semanal | Muestra al equipo el estado de semana publicada y el progreso de feedback | **Fusionado y publicado el 25 de agosto.** CI y build en verde |
 | PR #36 · espacio de trabajo | Entrada visible que separa Administración, borradores, equipo y Coach | **Fusionado el 25 de agosto.** CI y build en verde; no modifica sesiones, envíos, identidad ni la semana publicada |
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto. **Aparcado** |
+| `feature/trial-close-shadow` | Cierre local de prueba en Feedback | En local: no persiste ni transmite datos. Pendiente de revisión visual y decisión de datos/RLS; sin PR ni despliegue. |
 
 ### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
 

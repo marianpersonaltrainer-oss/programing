@@ -12,6 +12,7 @@ import {
 import { appendAutoLearnedLines } from '../../utils/methodLearnedStorage.js'
 import { extractMainExerciseFromBlockB } from '../../utils/sessionBlockB.js'
 import { coachBg, coachBorder, coachField, coachText, coachUi } from './coachTheme.js'
+import CoachTrialCloseForm from './CoachTrialCloseForm.jsx'
 import {
   getMadridCoachProgramDayKey,
   formatMadridDateShort,
@@ -785,6 +786,7 @@ export default function CoachSessionFeedbackForm({
         </button>
       </form>
       ) : null}
+      <CoachTrialCloseForm />
     </div>
   )
 }

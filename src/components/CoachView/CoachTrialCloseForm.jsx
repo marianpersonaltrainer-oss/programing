@@ -2,44 +2,36 @@ import { useState } from 'react'
 import {
   buildTrialCloseSummary,
   TRIAL_ENTRY_OPTIONS,
-  TRIAL_FREQUENCY_OPTIONS,
   TRIAL_PRIORITY_OPTIONS,
 } from '../../utils/trialCloseSummary.js'
 import { coachBg, coachBorder, coachField, coachText } from './coachTheme.js'
 
 const INITIAL_VALUES = {
   personReference: '',
+  attendance: 'vino',
   entryPoint: '',
-  frequency: '',
   priority: '',
   adaptations: '',
   reason: '',
 }
 
-function ChoiceButtons({ options, value, onChange }) {
+function ChoiceSelect({ options, value, onChange, placeholder }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-          className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${
-            value === option
-              ? 'bg-[#6A1F6D] text-white border-[#6A1F6D]'
-              : `${coachBg.cardAlt} border-[#6A1F6D]/30 ${coachText.primary} hover:border-[#A729AD]/50`
-          }`}
-        >
-          {option}
-        </button>
-      ))}
-    </div>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className={`${coachField} min-h-11`}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
   )
 }
 
-export default function CoachTrialCloseForm() {
+export default function CoachTrialCloseForm({ trial = null }) {
   const [values, setValues] = useState(INITIAL_VALUES)
   const [result, setResult] = useState(null)
+  const linkedPersonReference = String(trial?.personReference || '').trim()
 
   function setValue(key, value) {
     setValues((previous) => ({ ...previous, [key]: value }))
@@ -48,7 +40,10 @@ export default function CoachTrialCloseForm() {
 
   function handleSubmit(event) {
     event.preventDefault()
-    setResult(buildTrialCloseSummary(values))
+    setResult(buildTrialCloseSummary({
+      ...values,
+      personReference: linkedPersonReference || values.personReference,
+    }))
   }
 
   function reset() {
@@ -63,7 +58,7 @@ export default function CoachTrialCloseForm() {
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#D79BDD]">Clases de prueba</p>
           <h3 className={`mt-1 text-lg font-extrabold ${coachText.primary}`}>Cierre para propuesta</h3>
           <p className={`mt-1.5 text-sm leading-relaxed ${coachText.muted}`}>
-            Deja el resumen que necesita Marian para preparar una recomendación personal. Una idea clara, sin diagnóstico.
+            Solo lo que has visto en la clase. No repitas el chat, no hables de precios y no hagas diagnósticos.
           </p>
         </div>
         <span className="rounded-lg border border-amber-400/40 bg-amber-950/35 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-100">
@@ -76,58 +71,64 @@ export default function CoachTrialCloseForm() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+        {linkedPersonReference ? (
+          <div className="rounded-xl border border-[#A729AD]/35 bg-[#6A1F6D]/15 px-3 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#D79BDD]">Cierre pendiente para</p>
+            <p className={`mt-1 text-sm font-bold ${coachText.primary}`}>{linkedPersonReference}</p>
+          </div>
+        ) : (
         <div>
           <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Nombre o referencia de la persona
+            Persona de la prueba
           </label>
           <input
             value={values.personReference}
             onChange={(event) => setValue('personReference', event.target.value)}
             className={coachField}
-            placeholder="Ej.: Ana G."
+            placeholder="Ej.: Ana G. (cuando aún no esté conectado a la reserva)"
             autoComplete="off"
           />
         </div>
+        )}
 
-        <div>
-          <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Punto de entrada recomendado</p>
-          <ChoiceButtons options={TRIAL_ENTRY_OPTIONS} value={values.entryPoint} onChange={(value) => setValue('entryPoint', value)} />
-        </div>
-
-        <div>
-          <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Frecuencia sugerida</p>
-          <ChoiceButtons options={TRIAL_FREQUENCY_OPTIONS} value={values.frequency} onChange={(value) => setValue('frequency', value)} />
-        </div>
-
-        <div>
-          <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Prioridad inicial</p>
-          <ChoiceButtons options={TRIAL_PRIORITY_OPTIONS} value={values.priority} onChange={(value) => setValue('priority', value)} />
-        </div>
-
-        <div>
-          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Adaptaciones relevantes <span className="normal-case tracking-normal font-medium">(si las hay)</span>
-          </label>
-          <textarea
-            value={values.adaptations}
-            onChange={(event) => setValue('adaptations', event.target.value)}
-            rows={2}
-            className={coachField}
-            placeholder="Solo la adaptación útil para entrenar. Sin diagnóstico ni historial médico."
-          />
-        </div>
-
-        <div>
-          <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
-            Motivo de la recomendación
-          </label>
-          <textarea
-            value={values.reason}
-            onChange={(event) => setValue('reason', event.target.value)}
-            rows={3}
-            className={coachField}
-            placeholder="Por qué este inicio le encaja ahora mismo."
-          />
+        <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#D79BDD]">Tus cinco observaciones de la prueba</p>
+          <div>
+            <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Asistencia</p>
+            <ChoiceSelect options={['vino', 'canceló', 'cambió fecha', 'no vino']} value={values.attendance} onChange={(value) => setValue('attendance', value)} placeholder="Elige una opción" />
+          </div>
+          <div>
+            <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Punto de entrada recomendado</p>
+            <ChoiceSelect options={TRIAL_ENTRY_OPTIONS} value={values.entryPoint} onChange={(value) => setValue('entryPoint', value)} placeholder="Elige el punto de entrada" />
+          </div>
+          <div>
+            <p className={`text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>Prioridad inicial</p>
+            <ChoiceSelect options={TRIAL_PRIORITY_OPTIONS} value={values.priority} onChange={(value) => setValue('priority', value)} placeholder="Elige una prioridad" />
+          </div>
+          <div>
+            <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+              Adaptaciones relevantes <span className="normal-case tracking-normal font-medium">(si las hay)</span>
+            </label>
+            <textarea
+              value={values.adaptations}
+              onChange={(event) => setValue('adaptations', event.target.value)}
+              rows={3}
+              className={coachField}
+              placeholder="Qué hubo que adaptar, cómo se movió o qué referencia técnica conviene saber. Si no hizo falta, escribe «ninguna»."
+            />
+          </div>
+          <div>
+            <label className={`block text-xs font-bold uppercase tracking-widest ${coachText.muted} mb-2`}>
+              ¿Por qué recomiendas este inicio?
+            </label>
+            <textarea
+              value={values.reason}
+              onChange={(event) => setValue('reason', event.target.value)}
+              rows={3}
+              className={coachField}
+              placeholder="Dos frases: cómo fue la clase, qué le cuesta o hace bien y por qué este es el mejor punto de partida. Sin diagnóstico."
+            />
+          </div>
         </div>
 
         {result && !result.ok ? (
@@ -148,6 +149,7 @@ export default function CoachTrialCloseForm() {
         <div className="mt-5 rounded-xl border border-emerald-400/35 bg-emerald-950/30 p-4">
           <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Resumen preparado · siguiente estado: {result.nextStage}</p>
           <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed text-emerald-50">{result.summary}</pre>
+          <p className="mt-3 text-xs leading-relaxed text-emerald-100/85">La frecuencia, el programa y el precio los acuerda Marian con la persona antes de preparar la propuesta.</p>
           <button
             type="button"
             onClick={reset}

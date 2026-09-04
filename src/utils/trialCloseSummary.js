@@ -2,14 +2,14 @@ export const TRIAL_ENTRY_OPTIONS = [
   'EVO Basics',
   'EVO Fit',
   'EVO Funcional',
+  'Revisar con Marian',
 ]
-
-export const TRIAL_FREQUENCY_OPTIONS = ['2 días', '3 días', '4 días', 'A concretar']
 
 export const TRIAL_PRIORITY_OPTIONS = [
   'Retomar y crear constancia',
   'Moverse con seguridad y confianza',
   'Mejorar técnica y fuerza',
+  'Coordinación y aprendizaje de movimientos',
   'Otro objetivo inicial',
 ]
 
@@ -24,16 +24,16 @@ function clean(value) {
  */
 export function buildTrialCloseSummary(values = {}) {
   const personReference = clean(values.personReference)
+  const attendance = clean(values.attendance)
   const entryPoint = clean(values.entryPoint)
-  const frequency = clean(values.frequency)
   const priority = clean(values.priority)
   const adaptations = clean(values.adaptations)
   const reason = clean(values.reason)
 
   const missing = []
   if (!personReference) missing.push('persona')
+  if (!attendance) missing.push('asistencia')
   if (!entryPoint) missing.push('punto de entrada')
-  if (!frequency) missing.push('frecuencia')
   if (!priority) missing.push('prioridad')
   if (!reason) missing.push('motivo')
 
@@ -42,13 +42,14 @@ export function buildTrialCloseSummary(values = {}) {
   }
 
   const lines = [
-    `Persona: ${personReference}`,
-    `Punto de entrada recomendado: ${entryPoint}`,
-    `Frecuencia sugerida: ${frequency}`,
-    `Prioridad inicial: ${priority}`,
+    `CIERRE DE PRUEBA · ${personReference}`,
+    '',
+    `1. Asistencia: ${attendance}`,
+    `2. Punto de entrada recomendado: ${entryPoint}`,
+    `3. Prioridad inicial: ${priority}`,
+    `4. Adaptaciones relevantes: ${adaptations || 'ninguna'}`,
+    `5. Motivo breve: ${reason}`,
   ]
-  if (adaptations) lines.push(`Adaptaciones relevantes: ${adaptations}`)
-  lines.push(`Motivo de la recomendación: ${reason}`)
 
   return {
     ok: true,

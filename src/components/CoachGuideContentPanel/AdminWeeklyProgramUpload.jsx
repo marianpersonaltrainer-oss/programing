@@ -164,7 +164,7 @@ class AdminWeeklyProgramUploadBoundary extends Component {
   }
 }
 
-function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }) {
+function AdminWeeklyProgramUploadInner() {
   const [file, setFile] = useState(null)
   const [batchFiles, setBatchFiles] = useState([])
   const [mesocycle, setMesocycle] = useState('autocarga')
@@ -455,7 +455,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
           try {
             const r = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
               activateForHub: false,
-              adminSecret,
               contentFingerprint: targetFingerprint,
               qualityGate: buildPublicationQualityGate({
                 evaluation: out,
@@ -667,7 +666,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     try {
       const published = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
         activateForHub: true,
-        adminSecret,
         qualityGate: resolvePublishQualityGate(),
         adminDirectPublish: true,
         contextFingerprint: currentAdminContextFingerprint,
@@ -756,7 +754,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     try {
       const published = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
         activateForHub: true,
-        adminSecret,
         qualityGate: resolvePublishQualityGate(),
         adminDirectPublish: true,
         contextFingerprint: currentAdminContextFingerprint,
@@ -806,7 +803,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     try {
       const savedDraft = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
         activateForHub: false,
-        adminSecret,
         contentFingerprint: currentAdminTargetFingerprint,
         qualityGate: currentAdminQualityGate,
         draftId: hubDraftVersion?.id || null,
@@ -853,24 +849,12 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl border border-[#6A1F6D]/60 bg-[#221427]/80 px-4 py-3 space-y-2">
-        <label className="block space-y-1">
-          <span className="text-[10px] uppercase tracking-widest text-[#FFFF4C]/90 font-bold">
-            Clave de administración (obligatoria para guardar)
-          </span>
-          <input
-            type="password"
-            autoComplete="off"
-            value={adminSecret}
-            onChange={(e) => onAdminSecretChange?.(e.target.value)}
-            placeholder="Pega aquí COACH_GUIDE_ADMIN_SECRET (Vercel → programing-evo → Environment Variables)"
-            className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9] placeholder:text-[#F6E8F9]/40"
-          />
-        </label>
-        <p className="text-[10px] text-[#F6E8F9AA] leading-relaxed">
-          {adminSecret.trim()
-            ? 'Clave guardada en esta sesión. Ya puedes usar «Guardar borrador en Hub».'
-            : 'Copia el valor de COACH_GUIDE_ADMIN_SECRET en Vercel y pégalo aquí. Se guarda al escribir (no hace falta ir a otra pestaña).'}
+      <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/25 px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-widest text-emerald-300 font-bold">
+          Acceso desde Mi Oficina EVO
+        </p>
+        <p className="text-xs text-[#F6E8F9CC] leading-relaxed">
+          Ya no necesitas una clave adicional. Guardar y publicar usa tu sesión y tu permiso de programación.
         </p>
       </div>
 

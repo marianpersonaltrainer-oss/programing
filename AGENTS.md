@@ -1,6 +1,6 @@
 # Instrucciones operativas del proyecto EVO
 
-**Actualizado:** 25 de agosto de 2026 · **Lee este archivo entero antes de tocar nada.**
+**Actualizado:** 8 de septiembre de 2026 · **Lee este archivo entero antes de tocar nada.**
 
 > **Al terminar cualquier sesión, actualiza el commit de `main` y el estado de los PR de la sección 4.** Es la parte que más rápido envejece: el 25 de agosto quedó señalando un commit ya superado y lo detectó la otra herramienta, no quien lo escribió.
 
@@ -51,7 +51,7 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 
 ## 4. Estado real a 25 de agosto de 2026
 
-- **`main` = `c410cc4`**. El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto—; el PR #33 el 25 de agosto a las 12:56; los PR #34 y #35 añadieron mejoras de lectura y resumen semanal para el equipo; y el PR #36 añadió el Espacio de trabajo seguro de Administración y Coach.
+- **`main` = `3d1e9db`** (comprobado el 8 de septiembre de 2026). El PR #32 se fusionó el 24 de agosto —104 commits parados desde el 11 de agosto—; el PR #33 el 25 de agosto a las 12:56; los PR #34 y #35 añadieron mejoras de lectura y resumen semanal para el equipo; y el PR #36 añadió el Espacio de trabajo seguro de Administración y Coach.
 - **Producción:** `programing-evo.vercel.app`, verificada y funcionando: 70 semanas publicadas con 1 activa, 20 check-ins y 95 ejercicios. La vista del entrenador (`?coach`) comprobada por Marian en producción el 25 de agosto: entra con el código compartido de siempre y ve la semana, más el checklist guiado del turno que llegó con el PR #32.
 - **`?coach` funciona con el código compartido de siempre.** `COACH_ACCESS_CODE` está configurado en Vercel Production (verificado: el endpoint responde 401, no 500). La identidad individual viene **apagada** por defecto y el fallback de código compartido **activado**.
 
@@ -64,6 +64,7 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | PR #35 · resumen semanal | Muestra al equipo el estado de semana publicada y el progreso de feedback | **Fusionado y publicado el 25 de agosto.** CI y build en verde |
 | PR #36 · espacio de trabajo | Entrada visible que separa Administración, borradores, equipo y Coach | **Fusionado el 25 de agosto.** CI y build en verde; no modifica sesiones, envíos, identidad ni la semana publicada |
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto. **Aparcado** |
+| `fix/publicar-entrenos-sin-clave` | Retira la clave adicional de “Subir programación” y usa la sesión con `programming.manage`; conserva fallback legacy fuera de esa pantalla | Local: 536 tests y build en verde. Pendiente de Preview y revisión de Marian |
 
 ### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
 

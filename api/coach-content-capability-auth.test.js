@@ -28,4 +28,20 @@ describe('autorización del contenido coach', () => {
     expect(library).not.toContain('adminSecret')
     expect(panel).toContain("callProgrammingManagerApi('/api/coach-guide-settings'")
   })
+
+  it('mantiene visible la acción de publicar antes del análisis', () => {
+    const upload = readFileSync(
+      'src/components/CoachGuideContentPanel/AdminWeeklyProgramUpload.jsx',
+      'utf8',
+    )
+    const primaryActions = upload.slice(
+      upload.indexOf('<div className="flex flex-wrap gap-2">'),
+      upload.indexOf('Laboratorio real (lote de semanas)'),
+    )
+    expect(primaryActions).toContain("'Publicar para coaches'")
+    expect(primaryActions.indexOf("'Publicar para coaches'")).toBeLessThan(
+      primaryActions.indexOf('{showSubirHubButton ? ('),
+    )
+    expect(upload).toContain('Primero pulsa «Analizar antes de importar»')
+  })
 })

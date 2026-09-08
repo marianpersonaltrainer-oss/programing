@@ -1008,30 +1008,30 @@ function AdminWeeklyProgramUploadInner() {
         >
           {busy ? 'Analizando…' : 'Analizar antes de importar'}
         </button>
+        <button
+          type="button"
+          onClick={handleGuardarBorradorHub}
+          disabled={!showSubirHubButton || importing || busy || hubActivating}
+          title={showSubirHubButton ? '' : 'Primero analiza el Excel.'}
+          className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
+        >
+          {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
+        </button>
+        <button
+          type="button"
+          onClick={handlePublicarCoachesHub}
+          disabled={!canSubirAlHub || importing || busy || hubActivating}
+          title={
+            canSubirAlHub
+              ? 'Sustituye la semana activa en el Hub por esta (coaches + ?coach=1).'
+              : 'Primero analiza el Excel para activar la publicación.'
+          }
+          className="h-11 px-5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-amber-900/40"
+        >
+          {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
+        </button>
         {showSubirHubButton ? (
           <>
-            <button
-              type="button"
-              onClick={handleGuardarBorradorHub}
-              disabled={importing || busy || hubActivating}
-              title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
-              className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
-            >
-              {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
-            </button>
-            <button
-              type="button"
-              onClick={handlePublicarCoachesHub}
-              disabled={!canSubirAlHub || importing || busy || hubActivating}
-              title={
-                canSubirAlHub
-                  ? 'Sustituye la semana activa en el Hub por esta (coaches + ?coach=1).'
-                  : 'Falta contenido de sesión reconocible en el análisis.'
-              }
-              className="h-11 px-5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-amber-900/40"
-            >
-              {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
-            </button>
             <button
               type="button"
               onClick={handleSoloActivarSemanaSlot}
@@ -1052,6 +1052,11 @@ function AdminWeeklyProgramUploadInner() {
           Exportar informe
         </button>
       </div>
+      {!showSubirHubButton ? (
+        <p className="text-xs text-amber-200/90">
+          Primero pulsa «Analizar antes de importar»; después se activará «Publicar para coaches».
+        </p>
+      ) : null}
 
       <div className="rounded-xl border border-[#6A1F6D]/40 bg-[#221427] p-3 space-y-2">
         <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Laboratorio real (lote de semanas)</p>

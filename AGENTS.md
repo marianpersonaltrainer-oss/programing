@@ -64,7 +64,7 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | PR #35 · resumen semanal | Muestra al equipo el estado de semana publicada y el progreso de feedback | **Fusionado y publicado el 25 de agosto.** CI y build en verde |
 | PR #36 · espacio de trabajo | Entrada visible que separa Administración, borradores, equipo y Coach | **Fusionado el 25 de agosto.** CI y build en verde; no modifica sesiones, envíos, identidad ni la semana publicada |
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto. **Aparcado** |
-| `fix/publicar-entrenos-sin-clave` | Retira la clave visible de Contenido Coach, Biblioteca y “Subir programación”; mantiene “Publicar para coaches” visible desde el inicio y usa la sesión con `programming.manage` | PR #37. Local: 541 tests y build en verde. Pendiente de nueva Preview y revisión de Marian |
+| `fix/publicar-entrenos-sin-clave` | Retira la clave visible, mantiene “Publicar para coaches” visible y permite analizar en Preview sin historial Supabase; la publicación usa sesión con `programming.manage` | PR #37. Local: 542 tests y build en verde. Pendiente de nueva Preview y revisión de Marian |
 
 ### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
 

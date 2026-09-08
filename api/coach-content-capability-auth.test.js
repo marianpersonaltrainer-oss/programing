@@ -44,4 +44,16 @@ describe('autorización del contenido coach', () => {
     )
     expect(upload).toContain('Primero pulsa «Analizar antes de importar»')
   })
+
+  it('permite analizar en Preview sin conexión a Supabase y acerca el error a las acciones', () => {
+    const upload = readFileSync(
+      'src/components/CoachGuideContentPanel/AdminWeeklyProgramUpload.jsx',
+      'utf8',
+    )
+    expect(upload).toContain('if (!isSupabaseConfigured)')
+    expect(upload).toContain("mode: 'exact-cycle-date'")
+    expect(upload.indexOf('{error ? (')).toBeLessThan(
+      upload.indexOf('Laboratorio real (lote de semanas)'),
+    )
+  })
 })

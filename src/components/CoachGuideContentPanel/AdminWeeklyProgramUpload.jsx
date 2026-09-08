@@ -1,6 +1,7 @@
 import { Component, useMemo, useState } from 'react'
 import {
   getPublishedWeekDraftByMesocycleAndWeek,
+  isSupabaseConfigured,
   listPublishedWeekVersionsForMesocycle,
   upsertPublishedWeekBySlot,
 } from '../../lib/supabase.js'
@@ -205,6 +206,18 @@ function AdminWeeklyProgramUploadInner() {
   async function loadExactHistoryContext() {
     if (!cycleStartDate) {
       throw new Error('Indica la fecha real de inicio del ciclo antes de analizar.')
+    }
+    // La Preview puede estar deliberadamente desconectada de Supabase. El
+    // análisis del Excel debe seguir funcionando; guardar/publicar mantiene su
+    // autenticación independiente y seguirá fallando cerrado sin sesión.
+    if (!isSupabaseConfigured) {
+      return {
+        previousRow: null,
+        rows: [],
+        mode: 'exact-cycle-date',
+        selectedWeekIds: [],
+        identity: [],
+      }
     }
     const publishedVersions = await listPublishedWeekVersionsForMesocycle(mesocycle)
     const target = {
@@ -1052,6 +1065,11 @@ function AdminWeeklyProgramUploadInner() {
           Exportar informe
         </button>
       </div>
+      {error ? (
+        <p className="text-sm text-red-200 bg-red-950/50 border border-red-500/40 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      ) : null}
       {!showSubirHubButton ? (
         <p className="text-xs text-amber-200/90">
           Primero pulsa «Analizar antes de importar»; después se activará «Publicar para coaches».
@@ -1117,7 +1135,6 @@ function AdminWeeklyProgramUploadInner() {
         ) : null}
       </div>
 
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
       {importMsg ? <p className="text-sm text-emerald-300">{importMsg}</p> : null}
 
       {result ? (

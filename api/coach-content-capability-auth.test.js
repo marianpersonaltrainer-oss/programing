@@ -29,6 +29,12 @@ describe('autorización del contenido coach', () => {
     expect(panel).toContain("callProgrammingManagerApi('/api/coach-guide-settings'")
   })
 
+  it('conserva de forma invisible el acceso ya autorizado del dispositivo', () => {
+    const client = readFileSync('src/lib/supabase.js', 'utf8')
+    expect(client).toContain('const legacySecret = readCoachAdminSecret()')
+    expect(client).toContain("{ ...payload, secret: legacySecret }")
+  })
+
   it('mantiene visible la acción de publicar antes del análisis', () => {
     const upload = readFileSync(
       'src/components/CoachGuideContentPanel/AdminWeeklyProgramUpload.jsx',

@@ -867,7 +867,8 @@ function AdminWeeklyProgramUploadInner() {
           Acceso desde Mi Oficina EVO
         </p>
         <p className="text-xs text-[#F6E8F9CC] leading-relaxed">
-          Ya no necesitas una clave adicional. Guardar y publicar usa tu sesión y tu permiso de programación.
+          Ya no necesitas introducir una clave adicional. Este dispositivo conserva tu acceso y, cuando esté disponible,
+          usa también tu sesión y permiso de programación.
         </p>
       </div>
 

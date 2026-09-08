@@ -258,17 +258,18 @@ export async function callProgrammingManagerApi(apiPath, payload = {}) {
   }
   const { data, error: sessionError } = await supabase.auth.getSession()
   const accessToken = String(data?.session?.access_token || '').trim()
-  if (sessionError || !accessToken) {
-    throw new Error('Inicia sesión en Mi Oficina EVO para gestionar el contenido de coaches.')
+  const legacySecret = readCoachAdminSecret()
+  if ((sessionError || !accessToken) && !legacySecret) {
+    throw new Error('Este dispositivo no tiene una autorización válida para gestionar el contenido de coaches.')
   }
 
   const response = await fetch(apiPath, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(accessToken ? payload : { ...payload, secret: legacySecret }),
   })
   const json = await response.json().catch(() => ({}))
   if (!response.ok) {

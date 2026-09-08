@@ -19,7 +19,8 @@
     "db:apply-handover-reads": "node scripts/apply-migration-coach-handover-reads.mjs",
     "db:apply-pe2-weeks": "node scripts/apply-migration-pe2-weeks.mjs",
     "db:apply-pe2-structured-auth": "node scripts/apply-migration-pe2-structured-auth.mjs",
-    "db:seed-pe2-phase1": "node scripts/seed-pe2-phase1.mjs"
+    "db:seed-pe2-phase1": "node scripts/seed-pe2-phase1.mjs",
+    "sync:wodbuster": "node scripts/sync-wodbuster.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",

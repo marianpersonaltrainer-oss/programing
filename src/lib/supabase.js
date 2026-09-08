@@ -245,6 +245,42 @@ export function publicationAdminSecret(explicitSecret = '') {
   return readCoachAdminSecret()
 }
 
+const PROGRAMMING_MANAGER_ACCESS_ERRORS = {
+  authentication_required: 'Tu sesión de Mi Oficina EVO ha caducado. Vuelve a iniciar sesión.',
+  capability_denied: 'Tu cuenta no tiene permiso para gestionar la programación.',
+  organization_context_required: 'Tu cuenta debe tener una única organización activa para programar.',
+  identity_authorization_unavailable: 'No se pudo comprobar tu permiso de programación. Inténtalo de nuevo.',
+}
+
+export async function callProgrammingManagerApi(apiPath, payload = {}) {
+  if (!supabase) {
+    throw new Error('La conexión de Mi Oficina EVO no está configurada.')
+  }
+  const { data, error: sessionError } = await supabase.auth.getSession()
+  const accessToken = String(data?.session?.access_token || '').trim()
+  if (sessionError || !accessToken) {
+    throw new Error('Inicia sesión en Mi Oficina EVO para gestionar el contenido de coaches.')
+  }
+
+  const response = await fetch(apiPath, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(
+      PROGRAMMING_MANAGER_ACCESS_ERRORS[json?.error]
+      || json?.error
+      || `Error ${response.status} en la operación.`,
+    )
+  }
+  return json
+}
+
 async function callPublishedWeekVersionsApi(
   payload,
   { allowEmptyRow = false, legacySecret = '' } = {},
@@ -271,14 +307,10 @@ async function callPublishedWeekVersionsApi(
   })
   const json = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const accessErrors = {
-      authentication_required: 'Tu sesión de Mi Oficina EVO ha caducado. Vuelve a iniciar sesión.',
-      capability_denied: 'Tu cuenta no tiene permiso para gestionar la programación.',
-      organization_context_required: 'Tu cuenta debe tener una única organización activa para programar.',
-      identity_authorization_unavailable: 'No se pudo comprobar tu permiso de programación. Inténtalo de nuevo.',
-    }
     const error = new Error(
-      accessErrors[json?.error] || json?.error || `Error ${response.status} al guardar la semana.`,
+      PROGRAMMING_MANAGER_ACCESS_ERRORS[json?.error]
+      || json?.error
+      || `Error ${response.status} al guardar la semana.`,
     )
     error.code = json?.code || response.status
     throw error

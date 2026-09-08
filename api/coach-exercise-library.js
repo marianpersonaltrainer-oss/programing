@@ -2,15 +2,21 @@
  * POST /api/coach-exercise-library
  * Gestión de `coach_exercise_library` con service role (no escritura desde anon).
  *
- * Body: { secret, action, ... }
+ * Body: { action, ... }
  * - action: 'list' — todos los ejercicios (incl. inactivos)
  * - action: 'upsert' — { row } con campos; si row.id es UUID, update; si no, insert
  * - action: 'delete' — { id: uuid }
  *
- * Variables: COACH_GUIDE_ADMIN_SECRET, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL o VITE_SUPABASE_URL
+ * COACH_GUIDE_ADMIN_SECRET solo se conserva como compatibilidad temporal con clientes antiguos.
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { adminSecretsMatch } from './lib/evoAdminAuth.js'
+import {
+  capabilityAuthErrorResponse,
+  readBearerToken,
+  requireEvoCapability,
+} from './lib/evoCapabilityAuth.js'
 
 const CATEGORIES = new Set([
   'bisagra',
@@ -57,9 +63,9 @@ export default async function handler(req, res) {
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
 
-  if (!serverSecret || !serviceKey || !supabaseUrl) {
+  if (!serviceKey || !supabaseUrl) {
     return res.status(500).json({
-      error: 'Servidor sin configurar: COACH_GUIDE_ADMIN_SECRET, SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
+      error: 'Servidor sin configurar: SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
     })
   }
 
@@ -70,9 +76,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'JSON inválido' })
   }
 
-  const { secret, action } = body || {}
-  if (!secret || String(secret).trim() !== serverSecret) {
-    return res.status(401).json({ error: 'Clave de administración incorrecta' })
+  const { action } = body || {}
+  if (readBearerToken(req)) {
+    try {
+      await requireEvoCapability(req, 'programming.manage')
+    } catch (error) {
+      const response = capabilityAuthErrorResponse(error)
+      return res.status(response.status).json(response.body)
+    }
+  } else if (!adminSecretsMatch(body?.secret, serverSecret)) {
+    return res.status(401).json({ error: 'authentication_required' })
   }
 
   const supabase = createClient(supabaseUrl, serviceKey, {

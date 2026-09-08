@@ -6,12 +6,11 @@
  * adivina categoría/nivel, busca un vídeo verificado en YouTube y los da de alta (service role).
  *
  * Body JSON:
- * - secret (obligatorio) — COACH_GUIDE_ADMIN_SECRET
  * - files: [{ name, base64 }] — uno o varios .xlsx en base64
  * - maxResolve (opcional, default 60) — cuántos vídeos buscar como máximo en esta pasada
  * - resolveVideos (opcional, default true)
  *
- * Variables: COACH_GUIDE_ADMIN_SECRET, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL o VITE_SUPABASE_URL
+ * COACH_GUIDE_ADMIN_SECRET solo se conserva como compatibilidad temporal con clientes antiguos.
  */
 
 import ExcelJS from 'exceljs'
@@ -25,6 +24,12 @@ import {
   guessExerciseLevel,
 } from '../src/utils/exerciseNameExtraction.js'
 import { resolveVerifiedWatchUrl } from './lib/youtubeResolve.js'
+import { adminSecretsMatch } from './lib/evoAdminAuth.js'
+import {
+  capabilityAuthErrorResponse,
+  readBearerToken,
+  requireEvoCapability,
+} from './lib/evoCapabilityAuth.js'
 
 export const config = { api: { bodyParser: { sizeLimit: '24mb' } } }
 
@@ -75,18 +80,25 @@ export default async function handler(req, res) {
   const serverSecret = (process.env.COACH_GUIDE_ADMIN_SECRET || '').trim()
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
-  if (!serverSecret || !serviceKey || !supabaseUrl) {
+  if (!serviceKey || !supabaseUrl) {
     return res.status(500).json({
-      error: 'Servidor sin configurar: COACH_GUIDE_ADMIN_SECRET, SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
+      error: 'Servidor sin configurar: SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
     })
   }
 
   const body = parseBody(req)
   if (body === null) return res.status(400).json({ error: 'JSON inválido' })
 
-  const { secret, files, maxResolve = 60, resolveVideos = true } = body || {}
-  if (!secret || String(secret).trim() !== serverSecret) {
-    return res.status(401).json({ error: 'Clave de administración incorrecta' })
+  const { files, maxResolve = 60, resolveVideos = true } = body || {}
+  if (readBearerToken(req)) {
+    try {
+      await requireEvoCapability(req, 'programming.manage')
+    } catch (error) {
+      const response = capabilityAuthErrorResponse(error)
+      return res.status(response.status).json(response.body)
+    }
+  } else if (!adminSecretsMatch(body?.secret, serverSecret)) {
+    return res.status(401).json({ error: 'authentication_required' })
   }
   if (!Array.isArray(files) || files.length === 0) {
     return res.status(400).json({ error: 'Sube al menos un archivo .xlsx' })

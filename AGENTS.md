@@ -2,6 +2,14 @@
 
 ## Avance local 11 septiembre 2026: prueba API de datos
 
+### Resultado publicado 11 septiembre, 10:03 Europe/Madrid
+
+- Produccion: `dpl_DkLwq6KuNRpnAkhGHtyhNAWiRK7y`, commit `be9d5fe`, alias `programing-evo.vercel.app`. Comprobador protegido publicado con autorizacion expresa. Base anterior de produccion `1223763`; diff solo comprobador/tests y esta nota, sin cambios a src/public/apps/configuracion. `origin/main` actualizado a `312a734` (PR #37), NO incorporado a este despliegue; reconciliacion pendiente, no afirmar paridad con main. Estado de otros PRs no consultado.
+- Suite completa inicial: 546 tests; build correcto. Ultima revision del comprobador: 10 tests pasan.
+- Prueba real desde Vercel: WodBuster devuelve HTTP 302 al login; resultado sanitizado `upstream_login_redirect`. NO autenticacion valida confirmada, NO datos importados. Revisar pareja usuario/password de API antes de repetir; no cambiar permisos ni crear accesos por inferencia.
+- Ruta sin autenticacion devuelve 401. Pagina ?coach devuelve HTTP 200 (no prueba de recorrido autenticado). Receptor de eventos sigue devolviendo `wodbuster_coach_events_disabled`.
+- Documentacion Postman leida: Basic Auth, POST urlencoded, Desde/Hasta Epoch. No se sigue ninguna redireccion ni se devuelven valores personales.
+
 - Preparados `api/wodbuster-read-check.js` y `api/lib/wodBusterReadProbe.js`, sin publicar. Consulta solo `CuantoEntrenan`, ultimas 24 horas, devuelve conteo y nombres de campos; no persiste filas ni devuelve valores personales.
 - Ruta protegida con el secreto de administracion existente; throttle por instancia, no global. Pruebas con datos ficticios. Consulta real pendiente.
 - Variables compartidas WODBUSTER_API_USER, WODBUSTER_API_PASSWORD y WODBUSTER_BOX verificadas en pestana Shared de programing-evo, solo Production. La CLI env ls no las enumera y env run no las entrega: no interpretar eso como ausencia en el panel.

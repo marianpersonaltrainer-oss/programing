@@ -22,13 +22,18 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to }) {
       body: new URLSearchParams({ Desde: String(Math.floor(start / 1000)), Hasta: String(Math.floor(end / 1000)) }).toString(),
     })
     if (!response.ok) return { ok: false, error: 'upstream_http_error', status: response.status }
-    const data = await response.json()
+    let data
+    try { data = await response.json() } catch {
+      return { ok: false, error: 'non_json_response', status: response.status }
+    }
     if (!Array.isArray(data)) return { ok: false, error: 'unexpected_response_shape', status: response.status }
     // Report schema only; no names, identifiers, metrics, or row contents escape.
     const fields = [...new Set(data.slice(0, 10).flatMap(row => row && typeof row === 'object' && !Array.isArray(row) ? Object.keys(row) : []))]
       .filter(key => /^[A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ_ 0-9?¿()-]{0,63}$/.test(key)).slice(0, 50)
     return { ok: true, status: response.status, records: data.length, fields }
-  } catch {
-    return { ok: false, error: 'request_failed' }
+  } catch (error) {
+    const codes = new Set(['ENOTFOUND', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'ERR_TLS_CERT_ALTNAME_INVALID'])
+    const reason = error?.name === 'TimeoutError' ? 'timeout' : codes.has(error?.cause?.code) ? error.cause.code : 'network_or_redirect'
+    return { ok: false, error: 'request_failed', reason }
   }
 }

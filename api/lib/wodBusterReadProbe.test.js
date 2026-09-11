@@ -26,7 +26,7 @@ describe('WodBuster minimal read probe', () => {
   })
   it('does not expose upstream errors or response bodies', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('fictional-secret'))
-    expect(await probeWodBuster({ ...options, fetchImpl })).toEqual({ ok: false, error: 'request_failed' })
+    expect(await probeWodBuster({ ...options, fetchImpl })).toEqual({ ok: false, error: 'request_failed', reason: 'network_or_redirect' })
   })
   it('does not interpret a non-array as a successful report', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ error: 'Private upstream message' }) })

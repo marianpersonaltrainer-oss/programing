@@ -4,6 +4,8 @@
 
 ### Resultado publicado 11 septiembre, 10:03 Europe/Madrid
 
+Actualizacion 10:23: compatibilidad de Basic Auth Latin-1 restringida al subconjunto seguro de la macro Excel publicada en `d2207df`, despliegue `dpl_FcYUjMToTFio73vTJ17noGsfgWAL`. 11 tests del comprobador pasan. Prueba real sigue dando `upstream_login_redirect`, `legacyEncodingTried: false`; no concluir contrasena erronea ni codificacion descartada. Valor de WODBUSTER_API_USER no recuperable por estar guardado como Secret; se dejo su editor abierto para que Marian introduzca el nombre exacto de la fila de WodBuster, conservando Production y enlace a programing-evo. No se ha cambiado ese valor ni la contrasena.
+
 - Produccion: `dpl_DkLwq6KuNRpnAkhGHtyhNAWiRK7y`, commit `be9d5fe`, alias `programing-evo.vercel.app`. Comprobador protegido publicado con autorizacion expresa. Base anterior de produccion `1223763`; diff solo comprobador/tests y esta nota, sin cambios a src/public/apps/configuracion. `origin/main` actualizado a `312a734` (PR #37), NO incorporado a este despliegue; reconciliacion pendiente, no afirmar paridad con main. Estado de otros PRs no consultado.
 - Suite completa inicial: 546 tests; build correcto. Ultima revision del comprobador: 10 tests pasan.
 - Prueba real desde Vercel: WodBuster devuelve HTTP 302 al login; resultado sanitizado `upstream_login_redirect`. NO autenticacion valida confirmada, NO datos importados. Revisar pareja usuario/password de API antes de repetir; no cambiar permisos ni crear accesos por inferencia.

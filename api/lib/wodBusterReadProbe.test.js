@@ -3,13 +3,18 @@ import { probeWodBuster } from './wodBusterReadProbe.js'
 
 const options = { env: { WODBUSTER_API_USER: 'fictional-user', WODBUSTER_API_PASSWORD: 'fictional-secret', WODBUSTER_BOX: 'evolution' }, from: '2026-09-10T00:00:00Z', to: '2026-09-11T00:00:00Z' }
 describe('WodBuster minimal read probe', () => {
+  it('reports a login redirect without following it or revealing its URL', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ status: 302, headers: new Headers({ location: 'https://evolution.wodbuster.com/login.aspx?ReturnUrl=private' }) })
+    expect(await probeWodBuster({ ...options, fetchImpl })).toEqual({ ok: false, error: 'upstream_login_redirect', status: 302 })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
   it('returns schema and count, never row contents', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [{ Nombre: 'Fictional Person', Clases: 3 }] })
     const result = await probeWodBuster({ ...options, fetchImpl })
     expect(result).toEqual({ ok: true, status: 200, records: 1, fields: ['Nombre', 'Clases'] })
     const [url, request] = fetchImpl.mock.calls[0]
     expect(url).toBe('https://evolution.wodbuster.com/api/box/CuantoEntrenan')
-    expect(request.redirect).toBe('error')
+    expect(request.redirect).toBe('manual')
     expect(request.method).toBe('POST')
     expect(JSON.stringify(result)).not.toContain('fictional-secret')
     expect(JSON.stringify(result)).not.toContain('Fictional Person')

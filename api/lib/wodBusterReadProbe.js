@@ -12,7 +12,7 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to }) {
   try {
     const response = await fetchImpl('https://evolution.wodbuster.com/api/box/CuantoEntrenan', {
       method: 'POST',
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.timeout(15000),
       headers: {
         Authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`,
@@ -21,6 +21,15 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to }) {
       },
       body: new URLSearchParams({ Desde: String(Math.floor(start / 1000)), Hasta: String(Math.floor(end / 1000)) }).toString(),
     })
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location') || ''
+      let login = false
+      try {
+        const destination = new URL(location, 'https://evolution.wodbuster.com')
+        login = destination.origin === 'https://evolution.wodbuster.com' && destination.pathname.toLowerCase() === '/login.aspx'
+      } catch {}
+      return { ok: false, error: login ? 'upstream_login_redirect' : 'upstream_redirect_blocked', status: response.status }
+    }
     if (!response.ok) return { ok: false, error: 'upstream_http_error', status: response.status }
     let data
     try { data = await response.json() } catch {

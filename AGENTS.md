@@ -1,5 +1,12 @@
 # Instrucciones operativas del proyecto EVO
 
+## Avance local 11 septiembre 2026: prueba API de datos
+
+- Preparados `api/wodbuster-read-check.js` y `api/lib/wodBusterReadProbe.js`, sin publicar. Consulta solo `CuantoEntrenan`, ultimas 24 horas, devuelve conteo y nombres de campos; no persiste filas ni devuelve valores personales.
+- Ruta protegida con el secreto de administracion existente; throttle por instancia, no global. Pruebas con datos ficticios. Consulta real pendiente.
+- Variables compartidas WODBUSTER_API_USER, WODBUSTER_API_PASSWORD y WODBUSTER_BOX verificadas en pestana Shared de programing-evo, solo Production. La CLI env ls no las enumera y env run no las entrega: no interpretar eso como ausencia en el panel.
+- El receptor de eventos sigue sin activarse. No desplegar este checkout entero sin comparar antes con produccion y main actuales. Estado remoto de main y PRs no actualizado en esta comprobacion; las referencias historicas de abajo no son confirmacion actual.
+
 **Actualizado:** 25 de agosto de 2026 · **Lee este archivo entero antes de tocar nada.**
 
 > **Al terminar cualquier sesión, actualiza el commit de `main` y el estado de los PR de la sección 4.** Es la parte que más rápido envejece: el 25 de agosto quedó señalando un commit ya superado y lo detectó la otra herramienta, no quien lo escribió.

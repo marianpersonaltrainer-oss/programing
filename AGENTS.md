@@ -1,5 +1,12 @@
 # Instrucciones operativas del proyecto EVO
 
+## Continuidad y auditoria local — 11 septiembre 2026
+
+- Peticion expresa de Marian de memoria y autonomia guardada tambien en nota de memoria 20260911-105000-autonomia-tecnica-proyecto-evo.md.
+- Continuacion de esta tarea activa cada 30 minutos: automation `avance-t-cnico-oficina-evo`. Solo trabajo tecnico seguro y avisos materiales; no autoriza publicaciones, persistencia real, cambios de acceso ni envios.
+- Preparado `api/lib/wodBusterScheduleJoinAudit.js`, auditor local NO conectado a rutas: compara contrato normalizado explicito (date ISO local, time HH:mm, className exacto) y devuelve solo conteos. Rechaza duplicados, fechas invalidas y coach ausente. 6 tests ficticios pasan. NO valida aun formatos reales API, cancelaciones, identidad ni autoriza distribuir datos.
+- Produccion no modificada en este bloque: sigue `6907332`, dpl_BJgmssKi4CHspxy9mA783HNeLAqx. Main y PRs no vueltos a consultar desde la comprobacion anterior del mismo dia. Siguiente trabajo seguro: revisar formato real con salida minimizada y contrato del adaptador antes de integrar este auditor; no desplegar el checkout completo por inferencia.
+
 ## Comprobacion CuantoEnseñan — 11 septiembre 2026
 
 - Fuente oficial indicada por Marian: el coach asignado a cada clase en WodBuster; los cambios realizados alli prevalecen. No mantener un reparto manual divergente.
@@ -47,6 +54,8 @@ Este documento es el punto de encuentro entre las distintas herramientas que tra
 ---
 
 ## 1. Preferencia permanente de Marian
+
+**Reafirmada expresamente el 11 de septiembre de 2026:** continuar el trabajo tecnico seguro sin esperar «trabaja» o «continua». Autorizadas las revisiones de APIs, comprobaciones de conexion y soluciones reversibles dentro del alcance que no afecten a la aplicacion en uso, clientes, finanzas o permisos. No cerrar dejando un paso tecnico propio ejecutable; detenerse solo por intervencion humana imprescindible o decision material nueva. Dar entonces una unica tarea con pasos, campos y textos exactos. No equivale a permiso para activar sincronizaciones, distribuir datos, modificar acceso o cambiar el producto publicado.
 
 Marian no trabaja con código y delega las decisiones técnicas. Avanzar con máxima autonomía y reducir al mínimo las solicitudes de autorización.
 

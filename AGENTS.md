@@ -1,5 +1,14 @@
 # Instrucciones operativas del proyecto EVO
 
+## Comprobacion CuantoEnseñan — 11 septiembre 2026
+
+- Fuente oficial indicada por Marian: el coach asignado a cada clase en WodBuster; los cambios realizados alli prevalecen. No mantener un reparto manual divergente.
+- Publicado comprobador privado ampliado (commit `6907332`), despliegue `dpl_BJgmssKi4CHspxy9mA783HNeLAqx`, alias programing-evo.vercel.app, READY, build 41s. Cambios solo comprobador/tests y estado, sin interfaz ni sincronizacion.
+- Consulta real `teachers-next`: HTTP 200, ok true, 5 registros para proximas 24h. Esquema exacto: Año, Mes, Día, Fecha, Hora, Coach, Entrenamiento, Plazas. No se devolvieron valores personales. Confirma que el endpoint acepta ventana futura y devuelve campo Coach; NO valida aun identidad/asignacion de cada fila frente al horario.
+- 553 tests / 100 archivos pasan. Ultima referencia main remota verificada: `312a734434c28885431b417984f62fe90b10720b`. PRs no consultados, main no incorporado.
+- Siguiente paso: comprobar formatos de fecha/hora e identificacion inequívoca de clases al cruzar CuantoEntrenan con CuantoEnseñan. La respuesta no expone IDs de clase; no unir solo por nombre/hora ni asumir un coach si hay coincidencias multiples. Antes de mostrar datos a entrenadores, validar vinculacion segura entre identidad de coach WodBuster y acceso al panel.
+- Ninguna importacion, persistencia, aviso o tarea automatica activada. La consulta historica adicional no se necesita para demostrar lectura de proximas clases.
+
 ## Estado vigente 11 septiembre 2026: autenticacion de lectura confirmada
 
 - Marian confirmo guardar el usuario corregido. Republicado exactamente el despliegue anterior d2207df para cargar las variables actuales, sin cambios de codigo: `https://programing-6zqx8b62d-marianpersonaltrainer-oss-projects.vercel.app`, id `dpl_366CXQYCe2Yshho4g7qjP3R9QkeN`, alias `https://programing-evo.vercel.app`.

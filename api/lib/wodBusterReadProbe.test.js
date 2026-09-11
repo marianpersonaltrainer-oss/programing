@@ -3,6 +3,12 @@ import { probeWodBuster } from './wodBusterReadProbe.js'
 
 const options = { env: { WODBUSTER_API_USER: 'fictional-user', WODBUSTER_API_PASSWORD: 'fictional-secret', WODBUSTER_BOX: 'evolution' }, from: '2026-09-10T00:00:00Z', to: '2026-09-11T00:00:00Z' }
 describe('WodBuster minimal read probe', () => {
+  it('allows only the documented teacher report and preserves it on legacy retry', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce({ status: 302, headers: new Headers({ location: '/login.aspx' }) }).mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ Nombre: 'Private coach' }] })
+    const result = await probeWodBuster({ ...options, env: { ...options.env, WODBUSTER_API_USER: 'EVO · Lectura' }, report: 'CuantoEnsenan', fetchImpl })
+    expect(result).toEqual({ ok: true, status: 200, records: 1, fields: ['Nombre'] })
+    expect(fetchImpl.mock.calls.map(call => call[0])).toEqual(Array(2).fill('https://evolution.wodbuster.com/api/box/CuantoEnse%C3%B1an'))
+  })
   it('reports a login redirect without following it or revealing its URL', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ status: 302, headers: new Headers({ location: 'https://evolution.wodbuster.com/login.aspx?ReturnUrl=private' }) })
     expect(await probeWodBuster({ ...options, fetchImpl })).toEqual({ ok: false, error: 'upstream_login_redirect', status: 302, legacyEncodingTried: false })
@@ -33,6 +39,7 @@ describe('WodBuster minimal read probe', () => {
     [{ env: { ...options.env, WODBUSTER_BOX: 'elsewhere' } }, 'unexpected_box'],
     [{ to: '2026-09-12T00:00:00Z' }, 'invalid_window'],
     [{ from: 'bad-date' }, 'invalid_window'],
+    [{ report: 'Pagos' }, 'invalid_report'],
   ])('fails closed before network access', async (overrides, error) => {
     const fetchImpl = vi.fn()
     expect(await probeWodBuster({ ...options, ...overrides, fetchImpl })).toEqual({ ok: false, error })

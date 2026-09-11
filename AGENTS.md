@@ -1,5 +1,15 @@
 # Instrucciones operativas del proyecto EVO
 
+## Estado vigente 11 septiembre 2026: autenticacion de lectura confirmada
+
+- Marian confirmo guardar el usuario corregido. Republicado exactamente el despliegue anterior d2207df para cargar las variables actuales, sin cambios de codigo: `https://programing-6zqx8b62d-marianpersonaltrainer-oss-projects.vercel.app`, id `dpl_366CXQYCe2Yshho4g7qjP3R9QkeN`, alias `https://programing-evo.vercel.app`.
+- Prueba privada real: HTTP 200, `ok: true`, 90 registros en ultimas 24 horas. Solo se devolvieron conteo y nombres de campos, nunca valores personales. NO equivale a 90 clientes ni 90 asistencias: existen campos de cancelacion.
+- Esquema confirmado: Fecha, HoraComienzo, NombreEntrenamiento, Plazas, FechaInscripcion, FechaBorrado, BorradoFueraHora, TipoReserva, Invitado, FechaLecturaTorno, MinutosTarde, IdDistintivo, NombreDistintivo; tambien devuelve identidad/contacto y tarifa, que no deben propagarse indiscriminadamente al panel.
+- No aparece identificador ni nombre del entrenador en este esquema. Pendiente contrastar fuente de asignacion por clase y significado documentado de TipoReserva/Invitado. No inferir clase de prueba por Invitado ni asistencia por mera reserva.
+- Sin persistencia ni sincronizacion activada. Comprobaciones: prueba sin credencial 401; webhook 404 `wodbuster_coach_events_disabled`; pagina coach 200 (no validacion de acceso autenticado).
+- `main` remoto verificado mediante ls-remote: `312a734434c28885431b417984f62fe90b10720b`. PRs no consultados en esta comprobacion. No fusionar main por inferencia.
+- Siguiente fase necesita delimitar el piloto real: fuente/identidad estable, asignacion de entrenadores, minimizacion y permisos antes de persistir o distribuir. El bloqueo de credenciales queda resuelto; no pedir recrear el acceso.
+
 ## Avance local 11 septiembre 2026: prueba API de datos
 
 ### Resultado publicado 11 septiembre, 10:03 Europe/Madrid

@@ -1,5 +1,5 @@
 // Read-only report probe. Never returns credentials or report row values.
-export async function probeWodBuster({ env, fetchImpl = fetch, from, to }) {
+export async function probeWodBuster({ env, fetchImpl = fetch, from, to, legacyEncoding = false }) {
   const user = env.WODBUSTER_API_USER
   const password = env.WODBUSTER_API_PASSWORD
   if (!user || !password || !env.WODBUSTER_BOX) return { ok: false, error: 'missing_configuration' }
@@ -15,7 +15,7 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to }) {
       redirect: 'manual',
       signal: AbortSignal.timeout(15000),
       headers: {
-        Authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`,
+        Authorization: `Basic ${Buffer.from(`${user}:${password}`, legacyEncoding ? 'latin1' : 'utf8').toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'EVO-ReadOnly-Probe',
       },
@@ -28,7 +28,14 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to }) {
         const destination = new URL(location, 'https://evolution.wodbuster.com')
         login = destination.origin === 'https://evolution.wodbuster.com' && destination.pathname.toLowerCase() === '/login.aspx'
       } catch {}
-      return { ok: false, error: login ? 'upstream_login_redirect' : 'upstream_redirect_blocked', status: response.status }
+      // The supplied Windows Excel macro uses vbFromUnicode (legacy codepage).
+      // Retry once only for the safely representable Latin-1 subset, without
+      // following the redirect or altering credentials. Never guess passwords.
+      const credentials = `${user}:${password}`
+      if (login && !legacyEncoding && /[\u00a0-\u00ff]/.test(credentials) && /^[\u0000-\u007f\u00a0-\u00ff]*$/.test(credentials)) {
+        return probeWodBuster({ env, fetchImpl, from, to, legacyEncoding: true })
+      }
+      return { ok: false, error: login ? 'upstream_login_redirect' : 'upstream_redirect_blocked', status: response.status, legacyEncodingTried: legacyEncoding }
     }
     if (!response.ok) return { ok: false, error: 'upstream_http_error', status: response.status }
     let data

@@ -5,8 +5,17 @@ const options = { env: { WODBUSTER_API_USER: 'fictional-user', WODBUSTER_API_PAS
 describe('WodBuster minimal read probe', () => {
   it('reports a login redirect without following it or revealing its URL', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ status: 302, headers: new Headers({ location: 'https://evolution.wodbuster.com/login.aspx?ReturnUrl=private' }) })
-    expect(await probeWodBuster({ ...options, fetchImpl })).toEqual({ ok: false, error: 'upstream_login_redirect', status: 302 })
+    expect(await probeWodBuster({ ...options, fetchImpl })).toEqual({ ok: false, error: 'upstream_login_redirect', status: 302, legacyEncodingTried: false })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+  it('retries once with legacy bytes for the middle dot used in the API user', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce({ status: 302, headers: new Headers({ location: '/login.aspx' }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] })
+    const env = { ...options.env, WODBUSTER_API_USER: 'EVO · Lectura' }
+    expect(await probeWodBuster({ ...options, env, fetchImpl })).toMatchObject({ ok: true, records: 0 })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(fetchImpl.mock.calls[1][1].headers.Authorization).toBe(`Basic ${Buffer.from(`${env.WODBUSTER_API_USER}:${env.WODBUSTER_API_PASSWORD}`, 'latin1').toString('base64')}`)
   })
   it('returns schema and count, never row contents', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [{ Nombre: 'Fictional Person', Clases: 3 }] })

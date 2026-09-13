@@ -45,7 +45,20 @@ it('returns just one published week to the authenticated Atlas reader', async ()
   }, res)
   expect(res.status).toHaveBeenCalledWith(200)
   expect(res.json).toHaveBeenCalledWith({ ok: true, week })
-  expect(load).toHaveBeenCalledWith(expect.objectContaining({ weekStartDate: '2026-09-07' }))
+  expect(load).toHaveBeenCalledWith(expect.objectContaining({ weekStartDate: '2026-09-07', activeOnly: false }))
+})
+
+it('can read exactly one current published week without guessing its date', async () => {
+  const load = vi.fn().mockResolvedValue({ week_start_date: '2026-09-14', data: { dias: [] } })
+  const res = response()
+  await createAtlasPublishedWeek({
+    env, load, createClientImpl: vi.fn().mockReturnValue({}), rateLimit: vi.fn().mockResolvedValue(false),
+  })({
+    method: 'POST', headers: { 'x-atlas-programming-secret': env.ATLAS_PROGRAMMING_READ_SECRET },
+    body: { selection: 'active' },
+  }, res)
+  expect(res.status).toHaveBeenCalledWith(200)
+  expect(load).toHaveBeenCalledWith(expect.objectContaining({ weekStartDate: '', activeOnly: true }))
 })
 
 it('does not choose between multiple or absent weeks', async () => {

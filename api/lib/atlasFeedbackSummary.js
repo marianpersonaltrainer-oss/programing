@@ -9,6 +9,11 @@ const CLASS_LABELS = new Map([
 ])
 
 const SENSITIVE_SIGNAL = /\b(dolor|lesi[oó]n|mareo|desmay(?:o|os|ada|adas|aron|arse)?|accidente|ca[ií]da|urgencia)\b/i
+const MANY_CHANGES_THRESHOLD = Object.freeze({
+  min_feedback: 5,
+  min_change_rate_pct: 30,
+  scope: 'per_week',
+})
 
 function normalized(value) {
   return String(value || '')
@@ -97,6 +102,16 @@ export function summarizeAtlasFeedback({ weekRows, feedbackRows, start, end }) {
     return acc
   }, emptyWeek(null))
 
+  const manyChangeWeeks = weeks
+    .filter((row) => row.feedback_count >= MANY_CHANGES_THRESHOLD.min_feedback
+      && (row.changed_count / row.feedback_count) * 100 >= MANY_CHANGES_THRESHOLD.min_change_rate_pct)
+    .map((row) => ({
+      week_start_date: row.week_start_date,
+      feedback_count: row.feedback_count,
+      changed_count: row.changed_count,
+      change_rate_pct: Math.round((row.changed_count / row.feedback_count) * 1000) / 10,
+    }))
+
   return {
     source: 'coach_session_feedback',
     period: { start, end },
@@ -113,7 +128,11 @@ export function summarizeAtlasFeedback({ weekRows, feedbackRows, start, end }) {
       b.changed_count - a.changed_count || a.class_label.localeCompare(b.class_label)),
     raw_text_returned: false,
     coach_names_returned: false,
-    alert_thresholds: 'not_configured',
+    alert_thresholds: { many_changes: MANY_CHANGES_THRESHOLD },
+    many_changes: {
+      triggered: manyChangeWeeks.length > 0,
+      weeks: manyChangeWeeks,
+    },
   }
 }
 

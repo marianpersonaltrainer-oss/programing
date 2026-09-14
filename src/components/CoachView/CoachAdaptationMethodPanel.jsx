@@ -48,6 +48,25 @@ export default function CoachAdaptationMethodPanel() {
           {method.reviewRecord.map((line) => <li key={line}>{line}</li>)}
         </ul>
       </section>
+
+      <section className={`${coachBg.card} rounded-2xl border ${coachBorder} p-5`}>
+        <h2 className={`font-evo-display text-base font-bold ${coachText.primary}`}>Cómo se consolidará el método</h2>
+        <ol className={`mt-4 space-y-4 ${coachText.muted}`}>
+          {method.contributionFlow.map((step, index) => (
+            <li key={step.role} className="flex gap-3 text-sm leading-relaxed">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#6A1F6D] text-xs font-black text-white">
+                {index + 1}
+              </span>
+              <span>
+                <strong className={coachText.primary}>{step.role}:</strong> {step.action}
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p className={`mt-4 border-t ${coachBorder} pt-4 text-xs leading-relaxed ${coachText.muted}`}>
+          Sara solo recibirá incidencias operativas que tú revises y autorices; no participa en este borrador de método.
+        </p>
+      </section>
     </div>
   )
 }

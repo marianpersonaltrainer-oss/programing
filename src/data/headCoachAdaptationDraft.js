@@ -49,4 +49,22 @@ export const HEAD_COACH_ADAPTATION_DRAFT = Object.freeze({
     'Motivo general y qué ocurrió en la sesión, sin diagnóstico ni datos clínicos.',
     'Solo consolidar una pauta cuando se revise y apruebe como método EVO.',
   ],
+  contributionFlow: [
+    {
+      role: 'Coach',
+      action: 'Comparte una observación general de clase o una duda de método, sin nombres ni información clínica.',
+    },
+    {
+      role: 'Head Coach',
+      action: 'Agrupa patrones repetidos y prepara un borrador de regla; no modifica programación ni decide un caso individual.',
+    },
+    {
+      role: 'Marian',
+      action: 'Revisa y aprueba, corrige o descarta cada regla antes de que pase a ser método EVO.',
+    },
+    {
+      role: 'Agente programador',
+      action: 'Recibe solo las reglas aprobadas que afecten a la programación; nunca el historial personal de alguien.',
+    },
+  ],
 })

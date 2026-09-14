@@ -63,4 +63,27 @@ describe('POST /api/programming-agent-request', () => {
     expect(res.statusCode).toBe(401)
     expect(enqueue).not.toHaveBeenCalled()
   })
+
+  it('devuelve un borrador privado ya terminado sin poner otra tarea en cola', async () => {
+    const enqueue = vi.fn().mockResolvedValue({
+      created: false,
+      request: {
+        ticket: 'private-ticket',
+        status: 'completed',
+        response: { draftMarkdown: '{"title":"Borrador"}' },
+      },
+    })
+    const handler = createProgrammingAgentRequestHandler({
+      env,
+      broker: { enqueue, status: vi.fn() },
+      createClientImpl: vi.fn(() => ({})),
+      checkRateLimitImpl: vi.fn().mockResolvedValue(false),
+      requestIdImpl: () => 'request-3',
+    })
+    const res = response()
+    await handler({ method: 'POST', headers: { origin: 'https://programing-evo.vercel.app' }, body }, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toMatchObject({ ok: true, created: false, requestId: 'request-3' })
+    expect(enqueue).toHaveBeenCalledTimes(1)
+  })
 })

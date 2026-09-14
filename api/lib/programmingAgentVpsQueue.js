@@ -122,6 +122,22 @@ export function createProgrammingAgentVpsQueueBroker({
     async enqueue(input) {
       const request = createWeeklyBriefingRequest(input)
       const supabase = client()
+
+      // A refresh of the planner must recover the same completed private
+      // review, never spend another run or replace it while its inputs match.
+      const existing = await supabase
+        .from('programming_agent_requests')
+        .select('*')
+        .eq('fingerprint', request.fingerprint)
+        .in('status', ['queued', 'processing', 'completed'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (existing.error && existing.error.code !== 'PGRST116') {
+        throw new ProgrammingAgentVpsQueueError('enqueue_unavailable')
+      }
+      if (existing.data) return { created: false, request: snapshot(existing.data) }
+
       const inserted = await supabase
         .from('programming_agent_requests')
         .insert({
@@ -133,10 +149,11 @@ export function createProgrammingAgentVpsQueueBroker({
         .select('*')
         .single()
       if (!inserted.error) return { created: true, request: snapshot(inserted.data) }
-      if (inserted.error.code !== '23505') {
-        throw new ProgrammingAgentVpsQueueError('enqueue_unavailable')
-      }
-      const { data, error } = await supabase
+      if (inserted.error.code !== '23505') throw new ProgrammingAgentVpsQueueError('enqueue_unavailable')
+
+      // A second browser click can race the first insert. In that case,
+      // return the active request instead of producing a duplicate run.
+      const conflicting = await supabase
         .from('programming_agent_requests')
         .select('*')
         .eq('fingerprint', request.fingerprint)
@@ -144,8 +161,10 @@ export function createProgrammingAgentVpsQueueBroker({
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      if (error || !data) throw new ProgrammingAgentVpsQueueError('enqueue_unavailable')
-      return { created: false, request: snapshot(data) }
+      if (conflicting.error || !conflicting.data) {
+        throw new ProgrammingAgentVpsQueueError('enqueue_unavailable')
+      }
+      return { created: false, request: snapshot(conflicting.data) }
     },
 
     async claim() {

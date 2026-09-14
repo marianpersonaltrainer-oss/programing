@@ -1875,7 +1875,15 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       const ticket = String(json?.request?.ticket || '')
       if (!ticket) throw new Error('La cola no devolvió un identificador de solicitud.')
       setOwnAgentReviewTicket(ticket)
-      setOwnAgentReviewStatus('queued')
+      const recoveredDraft = String(json?.request?.response?.draftMarkdown || '').trim()
+      if (json?.request?.status === 'completed' && recoveredDraft) {
+        // Recuperar una propuesta idéntica no vuelve a ejecutar al agente ni
+        // altera la semana publicada: solo la muestra para revisión humana.
+        setOwnAgentReviewDraft(recoveredDraft)
+        setOwnAgentReviewStatus('completed')
+      } else {
+        setOwnAgentReviewStatus('queued')
+      }
     } catch (error) {
       setOwnAgentReviewStatus('error')
       setOwnAgentReviewError(

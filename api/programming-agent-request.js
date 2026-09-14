@@ -69,7 +69,8 @@ export function createProgrammingAgentRequestHandler({
       const action = String(body.action || '').trim()
       if (action === 'create') {
         const result = await broker.enqueue(body)
-        return res.status(202).json({ ok: true, ...result, requestId })
+        const isReady = result?.request?.status === 'completed'
+        return res.status(isReady ? 200 : 202).json({ ok: true, ...result, requestId })
       }
       if (action === 'status') {
         const request = await broker.status(body.ticket)

@@ -30,8 +30,30 @@ it('summarizes changes without returning names or free text', () => {
   expect(summary.changes_by_class).toEqual([
     { class_label: 'EvoFit', feedback_count: 2, changed_count: 1 },
   ])
+  expect(summary).toMatchObject({
+    alert_thresholds: {
+      many_changes: { min_feedback: 5, min_change_rate_pct: 30, scope: 'per_week' },
+    },
+    many_changes: { triggered: false, weeks: [] },
+  })
   expect(JSON.stringify(summary)).not.toContain('PRIVATE')
   expect(JSON.stringify(summary)).not.toContain('dolor')
+})
+
+it('returns only a bounded aggregate contract for a high-change week', () => {
+  const feedbackRows = Array.from({ length: 5 }, (_, index) => ({
+    week_id: 'w', class_label: 'EvoFit', changed_something: index < 2,
+  }))
+  const summary = summarizeAtlasFeedback({
+    start: '2026-09-07', end: '2026-09-07',
+    weekRows: [{ id: 'w', week_start_date: '2026-09-07' }],
+    feedbackRows,
+  })
+  expect(summary.many_changes).toEqual({
+    triggered: true,
+    weeks: [{ week_start_date: '2026-09-07', feedback_count: 5, changed_count: 2, change_rate_pct: 40 }],
+  })
+  expect(JSON.stringify(summary)).not.toContain('changed_details')
 })
 
 it('uses a bounded Madrid calendar-week window', () => {

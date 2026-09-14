@@ -9,6 +9,11 @@ const CLASS_LABELS = new Map([
 ])
 
 const SENSITIVE_SIGNAL = /\b(dolor|lesi[oó]n|mareo|desmay(?:o|os|ada|adas|aron|arse)?|accidente|ca[ií]da|urgencia)\b/i
+const MANY_CHANGES_THRESHOLD = {
+  min_feedback: 5,
+  min_change_rate_pct: 30,
+  scope: 'per_week',
+}
 
 function normalized(value) {
   return String(value || '')
@@ -91,6 +96,17 @@ export function summarizeAtlasFeedback({ weekRows, feedbackRows, start, end }) {
   }
 
   const weeks = [...byWeek.values()].sort((a, b) => a.week_start_date.localeCompare(b.week_start_date))
+  const manyChangeWeeks = weeks
+    .map((row) => ({
+      week_start_date: row.week_start_date,
+      feedback_count: row.feedback_count,
+      changed_count: row.changed_count,
+      change_rate_pct: row.feedback_count
+        ? Math.round((row.changed_count / row.feedback_count) * 1000) / 10
+        : 0,
+    }))
+    .filter((row) => row.feedback_count >= MANY_CHANGES_THRESHOLD.min_feedback
+      && row.change_rate_pct >= MANY_CHANGES_THRESHOLD.min_change_rate_pct)
   const totals = weeks.reduce((acc, row) => {
     for (const key of ['feedback_count', 'changed_count', 'low_rating_count', 'timing_tight_count',
       'notes_next_week_count', 'sensitive_review_count']) acc[key] += row[key]
@@ -113,7 +129,11 @@ export function summarizeAtlasFeedback({ weekRows, feedbackRows, start, end }) {
       b.changed_count - a.changed_count || a.class_label.localeCompare(b.class_label)),
     raw_text_returned: false,
     coach_names_returned: false,
-    alert_thresholds: 'not_configured',
+    alert_thresholds: { many_changes: MANY_CHANGES_THRESHOLD },
+    many_changes: {
+      triggered: manyChangeWeeks.length > 0,
+      weeks: manyChangeWeeks,
+    },
   }
 }
 

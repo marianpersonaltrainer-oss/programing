@@ -700,6 +700,11 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
   const [briefingContextPack, setBriefingContextPack] = useState('')
   const [briefingApiMessages, setBriefingApiMessages] = useState([])
   const [briefingInputFingerprint, setBriefingInputFingerprint] = useState('')
+  /** Borrador privado del Agente Programador propio; nunca rellena ni publica la semana automáticamente. */
+  const [ownAgentReviewStatus, setOwnAgentReviewStatus] = useState('idle') // idle | preparing | queued | completed | error
+  const [ownAgentReviewTicket, setOwnAgentReviewTicket] = useState('')
+  const [ownAgentReviewDraft, setOwnAgentReviewDraft] = useState('')
+  const [ownAgentReviewError, setOwnAgentReviewError] = useState('')
   const briefingRunRef = useRef(0)
   const currentPlanningFingerprintRef = useRef('')
   /** IDs exactos elegidos por el briefing; evita mezclar feedback de otras semanas. */
@@ -1756,6 +1761,174 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     }
   }
 
+  async function requestOwnAgentReview() {
+    if (!weekState?.mesocycle || weekState.week == null) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError('Selecciona mesociclo y semana en el panel izquierdo.')
+      return
+    }
+    if (!targetCycleStartDate) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError('Indica la fecha real de inicio del ciclo antes de solicitar el borrador.')
+      return
+    }
+    if (selectedGenerationDayCount === 0) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError('Selecciona al menos un día para diseñar.')
+      return
+    }
+    const adminSecret = publicationAdminSecret()
+    if (!adminSecret) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError('Activa la sesión de administración antes de solicitar el borrador privado.')
+      return
+    }
+
+    const inputFingerprint = currentPlanningInputFingerprint
+    const instructionsSnapshot = String(addendum || '').trim().slice(0, ADDENDUM_MAX_CHARS)
+    const daysSnapshot = [...selectedGenerationDays]
+    const offerSnapshot = serializeWeeklyOfferSelection(dayClassPicker)
+    const baseBriefingPayload = {
+      secret: adminSecret,
+      mesociclo: weekState.mesocycle,
+      semana: Number(weekState.week),
+      phase: weekState.phase || '',
+      totalWeeks: weekState.totalWeeks ?? null,
+      cycleId: targetCycleId || null,
+      cycleStartDate: targetCycleStartDate,
+      targetWeekStartDate,
+      generationDays: daysSnapshot,
+      weeklyOffer: offerSnapshot,
+    }
+
+    setOwnAgentReviewStatus('preparing')
+    setOwnAgentReviewError('')
+    setOwnAgentReviewDraft('')
+    try {
+      // Esta llamada solo lee y verifica el contexto. No usa Anthropic.
+      const { res: contextRes, json: contextJson, errorMessage: contextErrorMessage } =
+        await postJsonWithRetry(
+          '/api/programming-week-briefing',
+          { ...baseBriefingPayload, action: 'context' },
+          0,
+          {
+            timeoutMs: 45_000,
+            timeoutMessage: 'El histórico ha tardado demasiado en cargar. Vuelve a intentarlo.',
+          },
+        )
+      if (!contextRes.ok) {
+        throw new Error(contextErrorMessage || `Error ${contextRes.status}`)
+      }
+      const contextPack = String(contextJson?.contextPack || '').trim()
+      const contextSelection =
+        contextJson?.contextSelection && typeof contextJson.contextSelection === 'object'
+          ? contextJson.contextSelection
+          : null
+      if (!contextPack || !contextSelection) {
+        throw new Error('No se pudo recuperar un contexto verificable para esta semana.')
+      }
+      const { verified, progression } = await verifyPublicationContextFromSelection(contextSelection)
+      if (!verified) {
+        throw new Error('No se pudo verificar el histórico exacto del ciclo. Revisa las fechas antes de continuar.')
+      }
+
+      // Conserva el mismo contexto verificado para que la propuesta posterior no pueda mezclar ciclos.
+      setBriefingContextPack(contextPack)
+      briefingContextSelectionRef.current = contextSelection
+      setPublicationProgressionWeeks(progression)
+      setPublicationContextVerified(true)
+      setBriefingInputFingerprint(inputFingerprint)
+
+      const fingerprint = hashPublicationValue({
+        version: 'programming-agent-vps-review-v1',
+        planning: inputFingerprint,
+        contextSelection,
+        contextPack,
+        userInstructions: instructionsSnapshot,
+      })
+      const { res, json, errorMessage } = await postJsonWithRetry(
+        '/api/programming-agent-request',
+        {
+          action: 'create',
+          secret: adminSecret,
+          fingerprint,
+          target: {
+            mesocycle: weekState.mesocycle,
+            week: Number(weekState.week),
+            cycleStartDate: targetCycleStartDate,
+            targetWeekStartDate,
+          },
+          contextPack,
+          userInstructions: instructionsSnapshot,
+          generationDays: daysSnapshot,
+        },
+        0,
+        {
+          timeoutMs: 25_000,
+          timeoutMessage: 'No se pudo dejar el encargo en la cola privada. Vuelve a intentarlo.',
+        },
+      )
+      if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
+      const ticket = String(json?.request?.ticket || '')
+      if (!ticket) throw new Error('La cola no devolvió un identificador de solicitud.')
+      setOwnAgentReviewTicket(ticket)
+      setOwnAgentReviewStatus('queued')
+    } catch (error) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError(
+        humanizeNetworkLikeError(error, 'No se pudo preparar el borrador privado del Agente Programador.'),
+      )
+    }
+  }
+
+  async function refreshOwnAgentReviewStatus() {
+    const ticket = String(ownAgentReviewTicket || '').trim()
+    const adminSecret = publicationAdminSecret()
+    if (!ticket || !adminSecret) return
+    try {
+      const { res, json, errorMessage } = await postJsonWithRetry(
+        '/api/programming-agent-request',
+        { action: 'status', secret: adminSecret, ticket },
+        0,
+        {
+          timeoutMs: 20_000,
+          timeoutMessage: 'La comprobación del borrador ha tardado demasiado.',
+        },
+      )
+      if (!res.ok) throw new Error(errorMessage || `Error ${res.status}`)
+      const request = json?.request || {}
+      if (request.status === 'completed' && String(request?.response?.draftMarkdown || '').trim()) {
+        setOwnAgentReviewDraft(String(request.response.draftMarkdown).trim())
+        setOwnAgentReviewStatus('completed')
+        return
+      }
+      if (request.status === 'failed') {
+        throw new Error('El Agente Programador no pudo preparar este borrador. No se ha modificado la semana.')
+      }
+      setOwnAgentReviewStatus('queued')
+    } catch (error) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError(
+        humanizeNetworkLikeError(error, 'No se pudo comprobar el estado del borrador privado.'),
+      )
+    }
+  }
+
+  useEffect(() => {
+    if (ownAgentReviewStatus !== 'queued' || !ownAgentReviewTicket) return undefined
+    let cancelled = false
+    const refresh = async () => {
+      if (cancelled) return
+      await refreshOwnAgentReviewStatus()
+    }
+    // El trabajador consulta la cola cada dos minutos. Comprobar antes solo agotaría el límite administrativo.
+    const id = window.setInterval(refresh, 120_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [ownAgentReviewStatus, ownAgentReviewTicket])
+
   async function activateBriefingAdminSession() {
     const secret = String(briefingAdminSecretInput || '').trim()
     if (!secret) {
@@ -1826,6 +1999,10 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
     setSavedPublishedEdit(false)
     setPublished(false)
     setStatus('idle')
+    setOwnAgentReviewStatus('idle')
+    setOwnAgentReviewTicket('')
+    setOwnAgentReviewDraft('')
+    setOwnAgentReviewError('')
     setEditTitle('')
     setEditSheetName(`S${weekState.week || 1}`)
     lastPersistedDraftRef.current = ''
@@ -4877,6 +5054,69 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                     Has cambiado días, clases o contexto. Actualiza la propuesta para que tenga en cuenta los cambios.
                   </p>
                 ) : null}
+
+                <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 space-y-2.5">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-violet-950">
+                      Agente Programador EVO
+                    </p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-violet-950/80">
+                      Pide un borrador privado al agente propio con el histórico verificado. No rellena, modifica ni publica la semana automáticamente.
+                    </p>
+                  </div>
+
+                  {(ownAgentReviewStatus === 'idle' || ownAgentReviewStatus === 'error') && (
+                    <button
+                      type="button"
+                      onClick={requestOwnAgentReview}
+                      disabled={selectedGenerationDayCount === 0}
+                      className="w-full rounded-xl bg-violet-700 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm hover:bg-violet-800 disabled:opacity-45"
+                    >
+                      Solicitar borrador privado al Agente Programador
+                    </button>
+                  )}
+
+                  {ownAgentReviewStatus === 'preparing' && (
+                    <p className="rounded-lg bg-white px-3 py-2 text-[10px] font-semibold text-violet-900">
+                      Verificando el histórico exacto y preparando el encargo privado…
+                    </p>
+                  )}
+
+                  {ownAgentReviewStatus === 'queued' && (
+                    <div className="rounded-lg bg-white px-3 py-2 space-y-2">
+                      <p className="text-[10px] font-semibold text-violet-900">
+                        Encargo privado en curso. El trabajador lo revisa en segundo plano; esta pantalla se actualizará al terminar.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={refreshOwnAgentReviewStatus}
+                        className="text-[9px] font-bold uppercase tracking-wide text-violet-800 underline underline-offset-2"
+                      >
+                        Comprobar ahora
+                      </button>
+                    </div>
+                  )}
+
+                  {ownAgentReviewStatus === 'completed' && (
+                    <details className="rounded-lg border border-violet-200 bg-white px-3 py-2">
+                      <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wide text-violet-950">
+                        Ver borrador privado listo
+                      </summary>
+                      <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-[#1A0A1A]">
+                        {ownAgentReviewDraft}
+                      </p>
+                      <p className="mt-2 border-t border-violet-100 pt-2 text-[9px] font-semibold text-violet-900/80">
+                        Revísalo antes de usarlo. Este borrador no ha cambiado la programación ni WodBuster.
+                      </p>
+                    </details>
+                  )}
+
+                  {ownAgentReviewStatus === 'error' && ownAgentReviewError ? (
+                    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-semibold text-red-900">
+                      {ownAgentReviewError}
+                    </p>
+                  ) : null}
+                </div>
 
                 {(briefingStatus === 'idle' || briefingStatus === 'error' || briefingIsStale) && (
                   <button

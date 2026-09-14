@@ -12,6 +12,16 @@ const weeklyOffer = {
 const validDraft = JSON.stringify({
   titulo: 'Mixto S1',
   resumen: { foco: 'Progresión controlada' },
+  revision_evo: {
+    estado: 'revisado',
+    controles: [
+      { nombre: 'Oferta', resultado: 'ok' },
+      { nombre: 'Mesociclo', resultado: 'ok' },
+      { nombre: 'Huella horizontal', resultado: 'ok' },
+      { nombre: 'Impartición', resultado: 'ok' },
+      { nombre: 'Feedback', resultado: 'ok' },
+    ],
+  },
   dias: [{
     nombre: 'LUNES',
     evofuncional: 'A) FUERZA · 12\'\nTrabajo técnico con carga controlada.',
@@ -39,5 +49,13 @@ describe('borrador semanal completo del Agente Programador', () => {
     expect(() => normalizeOwnAgentWeeklyDraft(JSON.stringify({
       dias: [{ nombre: 'LUNES', evofuncional: 'Sesión', feedback_funcional: 'Briefing', evobasics: 'Sesión Basics' }],
     }), { semana: 1, mesociclo: 'mixto', weeklyOffer })).toThrow('falta el briefing')
+  })
+
+  it('no abre un borrador sin revisión estricta EVO', () => {
+    const withoutReview = JSON.parse(validDraft)
+    delete withoutReview.revision_evo
+    expect(() => normalizeOwnAgentWeeklyDraft(JSON.stringify(withoutReview), {
+      semana: 1, mesociclo: 'mixto', weeklyOffer,
+    })).toThrow('no incluye la revisión estricta')
   })
 })

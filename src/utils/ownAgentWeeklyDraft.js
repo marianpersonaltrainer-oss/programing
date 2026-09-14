@@ -13,6 +13,37 @@ function selectedClassesForDay(weeklyOffer, day) {
   return Array.isArray(values) ? [...new Set(values.map((value) => String(value || '').trim()))] : []
 }
 
+function normalizeStrictReview(raw) {
+  const review = raw?.revision_evo
+  if (!review || typeof review !== 'object' || Array.isArray(review)) {
+    throw new Error('El borrador semanal no incluye la revisión estricta EVO.')
+  }
+  const status = String(review.estado || '').trim().toLowerCase()
+  const controls = Array.isArray(review.controles) ? review.controles : []
+  if (status !== 'revisado' || controls.length < 5) {
+    throw new Error('La revisión estricta EVO está incompleta.')
+  }
+  for (const control of controls) {
+    if (!control || typeof control !== 'object' || !String(control.nombre || '').trim() || !String(control.resultado || '').trim()) {
+      throw new Error('La revisión estricta EVO contiene un control inválido.')
+    }
+  }
+  return {
+    estado: 'revisado',
+    controles: controls.map((control) => ({
+      nombre: String(control.nombre).trim(),
+      resultado: String(control.resultado).trim(),
+      detalle: String(control.detalle || '').trim(),
+    })),
+    ajustes_aplicados: Array.isArray(review.ajustes_aplicados)
+      ? review.ajustes_aplicados.map((item) => String(item || '').trim()).filter(Boolean)
+      : [],
+    pendientes_para_marian: Array.isArray(review.pendientes_para_marian)
+      ? review.pendientes_para_marian.map((item) => String(item || '').trim()).filter(Boolean)
+      : [],
+  }
+}
+
 /**
  * Convierte el único borrador semanal del Agente Programador al formato de
  * Programing EVO. Exige toda la oferta solicitada y rechaza clases añadidas:
@@ -43,6 +74,7 @@ export function normalizeOwnAgentWeeklyDraft(assistantText, {
     }
     if (row) row.wodbuster = ''
   }
+  const revision_evo = normalizeStrictReview(parsed)
 
   return {
     ...normalized,
@@ -50,5 +82,6 @@ export function normalizeOwnAgentWeeklyDraft(assistantText, {
     semana: Number(semana) || normalized.semana,
     mesociclo: String(mesociclo || normalized.mesociclo || '').trim(),
     oferta_semanal: weeklyOffer,
+    revision_evo,
   }
 }

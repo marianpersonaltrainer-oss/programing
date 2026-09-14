@@ -78,13 +78,13 @@ declare
 begin
   select *
   into candidate
-  from public.programming_agent_requests
-  where expires_at > now()
+  from public.programming_agent_requests as request_row
+  where request_row.expires_at > now()
     and (
-      status = 'queued'
-      or (status = 'processing' and lease_expires_at < now() and attempt_count < 3)
+      request_row.status = 'queued'
+      or (request_row.status = 'processing' and request_row.lease_expires_at < now() and request_row.attempt_count < 3)
     )
-  order by created_at asc
+  order by request_row.created_at asc
   for update skip locked
   limit 1;
 

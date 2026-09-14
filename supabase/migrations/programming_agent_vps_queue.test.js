@@ -62,8 +62,8 @@ describe('migración de cola privada del Agente Programador VPS', () => {
   it('reclama una solicitud de forma atómica y limita los reintentos', () => {
     const claim = functionBody('claim_programming_agent_request')
     expect(claim).toContain('for update skip locked')
-    expect(claim).toContain("status = 'queued'")
-    expect(claim).toContain("status = 'processing' and lease_expires_at < now() and attempt_count < 3")
+    expect(claim).toContain("request_row.status = 'queued'")
+    expect(claim).toContain("request_row.status = 'processing' and request_row.lease_expires_at < now() and request_row.attempt_count < 3")
     expect(claim).toContain("status = 'processing'")
     expect(claim).toContain('attempt_count = candidate.attempt_count + 1')
     expect(claim).toContain("lease_expires_at = now() + interval '5 minutes'")

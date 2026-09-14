@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createHeadCoachEscalation,
+  deriveHeadCoachReviewCandidates,
   HeadCoachEscalationError,
 } from './headCoachEscalation.js'
 
@@ -43,5 +44,30 @@ describe('Head Coach escalation contract', () => {
   it('no permite destinos inventados', () => {
     expect(() => createHeadCoachEscalation({ ...base, destination: 'whatsapp' }))
       .toThrow(new HeadCoachEscalationError('destination_not_allowed'))
+  })
+
+  it('deriva candidatos solo de categorías, sin texto libre ni envío', () => {
+    expect(deriveHeadCoachReviewCandidates({
+      classContext: base.classContext,
+      stimulus: 'hard',
+      timeExplain: 'no',
+      timeCause: 'setup',
+      nextFocus: 'setup_material',
+      changedDetails: 'Este texto nunca debe llegar aquí.',
+    })).toEqual([
+      expect.objectContaining({ destination: 'programmer_review', delivery: 'not_configured' }),
+      expect.objectContaining({ destination: 'programmer_review', delivery: 'not_configured' }),
+      expect.objectContaining({ destination: 'head_coach_library', delivery: 'not_configured' }),
+    ])
+  })
+
+  it('nunca crea una alerta automática para Sara desde feedback categórico', () => {
+    const candidates = deriveHeadCoachReviewCandidates({
+      classContext: base.classContext,
+      stimulus: 'blocked',
+      timeExplain: 'justo',
+      timeCause: 'technique',
+    })
+    expect(candidates.some((candidate) => candidate.destination === 'sara_incident')).toBe(false)
   })
 })

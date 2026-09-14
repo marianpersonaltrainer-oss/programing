@@ -67,3 +67,69 @@ export function escalationDestinationLabel(destination) {
   }
   return labels[destination] || 'Pendiente de revisión'
 }
+
+/**
+ * Traduce solo los campos categóricos del formulario de coaches en candidatos
+ * de revisión. No acepta ni usa texto libre, nombres o detalles de cambios.
+ * Una incidencia para Sara siempre deberá crearse de forma explícita después.
+ */
+export function deriveHeadCoachReviewCandidates({
+  classContext,
+  stimulus,
+  timeExplain,
+  timeCause,
+  nextFocus,
+} = {}) {
+  const context = {
+    dayName: String(classContext?.dayName || '').trim(),
+    classLabel: String(classContext?.classLabel || '').trim(),
+  }
+  const candidates = []
+
+  const stimulusLabel = {
+    short: 'se quedó corto',
+    hard: 'fue demasiado duro',
+    blocked: 'frenó técnica o logística',
+  }[stimulus]
+  if (stimulusLabel) {
+    candidates.push(createHeadCoachEscalation({
+      classContext: context,
+      destination: 'programmer_review',
+      summary: `El estímulo reportado ${stimulusLabel}. Revisar el patrón junto a otros turnos antes de ajustar programación.`,
+    }))
+  }
+
+  if (timeExplain === 'no' || timeExplain === 'justo') {
+    const causeLabel = {
+      explanation: 'explicación',
+      technique: 'técnica',
+      setup: 'montaje',
+      loads: 'cargas',
+      wod: 'estructura del WOD',
+    }[timeCause] || 'ritmo de clase'
+    candidates.push(createHeadCoachEscalation({
+      classContext: context,
+      destination: 'programmer_review',
+      summary: `El tiempo de la clase fue ${timeExplain === 'no' ? 'insuficiente' : 'muy justo'} por ${causeLabel}. Revisar si se repite.`,
+    }))
+  }
+
+  if (nextFocus) {
+    const focusLabel = {
+      load_scale: 'carga o escala',
+      clock_volume: 'reloj o volumen',
+      technique: 'técnica',
+      setup_material: 'montaje o material',
+      fatigue: 'fatiga general',
+    }[nextFocus]
+    if (focusLabel) {
+      candidates.push(createHeadCoachEscalation({
+        classContext: context,
+        destination: 'head_coach_library',
+        summary: `Queda como foco general para la próxima revisión: ${focusLabel}.`,
+      }))
+    }
+  }
+
+  return candidates
+}

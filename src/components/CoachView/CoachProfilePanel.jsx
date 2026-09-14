@@ -7,6 +7,7 @@ export default function CoachProfilePanel({
   coachName,
   onOpenWeeklyCheckin,
   onNavigateLibrary,
+  onNavigateAdaptations,
   onNavigateMesociclos,
   onNavigateMaterial,
   onNavigateCentro,
@@ -36,6 +37,13 @@ export default function CoachProfilePanel({
           className={`w-full text-left px-4 py-3.5 text-sm font-semibold ${coachText.primary} border-b ${coachBorder} hover:bg-white/5`}
         >
           Biblioteca de ejercicios
+        </button>
+        <button
+          type="button"
+          onClick={onNavigateAdaptations}
+          className={`w-full text-left px-4 py-3.5 text-sm font-semibold ${coachText.primary} border-b ${coachBorder} hover:bg-white/5`}
+        >
+          Método y adaptaciones
         </button>
         <button
           type="button"

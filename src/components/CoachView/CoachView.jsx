@@ -29,6 +29,7 @@ import CoachTodayScreenV2 from './CoachTodayScreenV2.jsx'
 import CoachWeekOverviewPanel from './CoachWeekOverviewPanel.jsx'
 import CoachProfilePanel from './CoachProfilePanel.jsx'
 import CoachExerciseLibraryPanel from './CoachExerciseLibraryPanel.jsx'
+import CoachAdaptationMethodPanel from './CoachAdaptationMethodPanel.jsx'
 import CoachSessionFeedbackForm from './CoachSessionFeedbackForm.jsx'
 import {
   CoachGuideCentro,
@@ -1494,6 +1495,7 @@ export default function CoachView() {
                     coachName={coachName}
                     onOpenWeeklyCheckin={() => setShowWeeklyCheckin(true)}
                     onNavigateLibrary={() => selectNav('ejercicios')}
+                    onNavigateAdaptations={() => selectNav('adaptaciones')}
                     onNavigateMesociclos={() => selectNav('mesociclos')}
                     onNavigateMaterial={() => selectNav('material')}
                     onNavigateCentro={() => selectNav('centro')}
@@ -1506,6 +1508,7 @@ export default function CoachView() {
                     error={exerciseLibraryError}
                   />
                 )}
+                {mainTab === 'adaptaciones' && <CoachAdaptationMethodPanel />}
                 {mainTab === 'centro' && <CoachGuideCentro />}
                 {mainTab === 'clases' && <CoachGuideClases />}
                 {mainTab === 'mesociclos' && <CoachGuideMesociclos />}

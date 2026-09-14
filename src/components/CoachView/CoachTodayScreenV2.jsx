@@ -6,6 +6,7 @@ import { findDia, sessionText, hasProgrammedSessionText } from './coachViewUtils
 import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
 import { CoachSessionBriefingPreview } from './CoachSessionBriefing.jsx'
 import CoachFormattedSession from './CoachFormattedSession.jsx'
+import HeadCoachQuestionDialog from './HeadCoachQuestionDialog.jsx'
 
 function shortDayLabel(dayName) {
   const n = String(dayName || '').toLowerCase()
@@ -63,7 +64,7 @@ export default function CoachTodayScreenV2({
   onOpenFeedback,
 }) {
   const [expandedKey, setExpandedKey] = useState(null)
-  const [headCoachNoticeOpen, setHeadCoachNoticeOpen] = useState(false)
+  const [headCoachContext, setHeadCoachContext] = useState(null)
   const days = weekData?.dias || []
   const selectedDay = findDia(days, activeDay)
   const classes = useMemo(() => classEntriesForDay(selectedDay), [selectedDay])
@@ -163,7 +164,11 @@ export default function CoachTodayScreenV2({
                         </p>
                         <button
                           type="button"
-                          onClick={() => setHeadCoachNoticeOpen(true)}
+                          onClick={() => setHeadCoachContext({
+                            dayName: selectedDay.nombre,
+                            classLabel: definition.label,
+                            sessionText: session,
+                          })}
                           className="mt-4 w-full rounded-xl bg-[#A729AD] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#8e2294]"
                         >
                           Preguntar dudas sobre esta clase
@@ -186,20 +191,7 @@ export default function CoachTodayScreenV2({
         </button>
       </main>
 
-      {headCoachNoticeOpen ? (
-        <div className="fixed inset-0 z-[190] flex items-end bg-black/70 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Head Coach en preparación">
-          <div className="w-full max-w-md rounded-2xl border border-[#A729AD]/60 bg-[#1A0F1B] p-6 shadow-2xl">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#FFFF4C]">Head Coach</p>
-            <h2 className="mt-2 font-evo-display text-2xl font-bold text-[#F6E8F9]">Conexión en preparación</h2>
-            <p className="mt-3 text-sm leading-relaxed text-[#F6E8F9]/75">
-              La clase ya está contextualizada. La respuesta del Head Coach se conectará aquí cuando esté lista la vía privada y segura.
-            </p>
-            <button type="button" onClick={() => setHeadCoachNoticeOpen(false)} className="mt-6 w-full rounded-xl border border-[#F6E8F9]/35 px-4 py-3 text-sm font-bold text-[#F6E8F9] hover:border-[#F6E8F9]/70">
-              Entendido
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {headCoachContext ? <HeadCoachQuestionDialog context={headCoachContext} onClose={() => setHeadCoachContext(null)} /> : null}
     </div>
   )
 }

@@ -10,11 +10,13 @@ const context = {
 
 describe('head coach question contract', () => {
   it('solo entrega contexto publicado de la clase para una respuesta', () => {
-    expect(createHeadCoachQuestion({ question: '¿Cómo explico el bloque A?', context })).toEqual(expect.objectContaining({
+    const envelope = createHeadCoachQuestion({ question: '¿Cómo explico el bloque A?', context })
+    expect(envelope).toEqual(expect.objectContaining({
       kind: 'head_coach_class_question',
       permissions: expect.objectContaining({ responseOnly: true }),
       classContext: expect.objectContaining({ dayName: 'Lunes', classLabel: 'EvoFuncional' }),
     }))
+    expect(envelope.classContext.feedbackText).toBe('')
   })
 
   it('rechaza una duda con una persona identificable', () => {
@@ -25,5 +27,10 @@ describe('head coach question contract', () => {
   it('rechaza acciones sobre la programación', () => {
     expect(() => createHeadCoachQuestion({ question: 'Publica esta clase ahora', context }))
       .toThrow(new HeadCoachQuestionError('mutation_not_allowed'))
+  })
+
+  it('no acepta datos de salud ni aunque no identifiquen a una persona', () => {
+    expect(() => createHeadCoachQuestion({ question: '¿Cómo adapto para dolor lumbar?', context }))
+      .toThrow(new HeadCoachQuestionError('personal_context_not_allowed'))
   })
 })

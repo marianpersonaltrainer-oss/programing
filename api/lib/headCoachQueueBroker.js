@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const WORKER_ERROR_CODE_RE = /^[a-z][a-z0-9_]{0,119}$/
 
 export class HeadCoachQueueBrokerError extends Error {
   constructor(code) {
@@ -63,6 +64,27 @@ export function createHeadCoachQueueBroker({
         throw new HeadCoachQueueBrokerError('ticket_unavailable')
       }
       return { ticket: data.id, status: data.status, answeredAt: data.answered_at }
+    },
+
+    async fail({ ticket, errorCode } = {}) {
+      const id = String(ticket || '').trim()
+      const code = String(errorCode || '').trim()
+      if (!UUID_RE.test(id) || !WORKER_ERROR_CODE_RE.test(code)) {
+        throw new HeadCoachQueueBrokerError('invalid_failure')
+      }
+      const { data, error } = await serverClient({ env, createClientImpl })
+        .from('head_coach_questions')
+        .update({ status: 'failed', error_code: code })
+        .eq('id', id)
+        .eq('status', 'processing')
+        .gt('expires_at', now().toISOString())
+        .select('id,status,error_code')
+        .maybeSingle()
+      if (error) throw new HeadCoachQueueBrokerError('failure_unavailable')
+      if (!data?.id || data.status !== 'failed' || data.error_code !== code) {
+        throw new HeadCoachQueueBrokerError('ticket_unavailable')
+      }
+      return { ticket: data.id, status: data.status, errorCode: data.error_code }
     },
 
     async status({ ticket, organizationId, requesterUserId } = {}) {

@@ -56,6 +56,34 @@ describe('Head Coach queue broker', () => {
     expect(unit.query.gt).toHaveBeenCalledWith('expires_at', '2026-09-14T12:00:00.000Z')
   })
 
+  it('cierra de forma segura una pregunta reclamada que el worker rechaza', async () => {
+    const unit = harness()
+    unit.query.maybeSingle.mockResolvedValue({ data: {
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'failed',
+      error_code: 'personal_context_rejected',
+    }, error: null })
+
+    await expect(unit.broker.fail({
+      ticket: '11111111-1111-4111-8111-111111111111',
+      errorCode: 'personal_context_rejected',
+    })).resolves.toEqual({
+      ticket: '11111111-1111-4111-8111-111111111111',
+      status: 'failed',
+      errorCode: 'personal_context_rejected',
+    })
+    expect(unit.query.update).toHaveBeenCalledWith({ status: 'failed', error_code: 'personal_context_rejected' })
+  })
+
+  it('rejects an unsafe worker failure code before querying Supabase', async () => {
+    const unit = harness()
+    await expect(unit.broker.fail({
+      ticket: '11111111-1111-4111-8111-111111111111',
+      errorCode: 'includes personal details',
+    })).rejects.toMatchObject({ code: 'invalid_failure' })
+    expect(unit.client.from).not.toHaveBeenCalled()
+  })
+
   it('rechaza tickets o respuestas que no cumplen el contrato', async () => {
     const unit = harness()
     await expect(unit.broker.answer({ ticket: 'no-es-un-ticket', response: 'hola' }))

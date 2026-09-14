@@ -44,6 +44,10 @@ function normalizeStrictReview(raw) {
   }
 }
 
+export function extractOwnAgentWeeklyDraftReview(assistantText) {
+  return normalizeStrictReview(parseAssistantWeekJson(assistantText))
+}
+
 /**
  * Convierte el único borrador semanal del Agente Programador al formato de
  * Programing EVO. Exige toda la oferta solicitada y rechaza clases añadidas:

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeOwnAgentWeeklyDraft } from './ownAgentWeeklyDraft.js'
+import {
+  extractOwnAgentWeeklyDraftReview,
+  normalizeOwnAgentWeeklyDraft,
+} from './ownAgentWeeklyDraft.js'
 
 const weeklyOffer = {
   version: 1,
@@ -39,6 +42,7 @@ describe('borrador semanal completo del Agente Programador', () => {
     expect(result.semana).toBe(1)
     expect(result.oferta_semanal).toEqual(weeklyOffer)
     expect(result.dias.find((day) => day.nombre === 'LUNES').wodbuster).toBe('')
+    expect(extractOwnAgentWeeklyDraftReview(validDraft).controles).toHaveLength(5)
   })
 
   it('rechaza una clase fuera de la oferta o una clase sin briefing', () => {

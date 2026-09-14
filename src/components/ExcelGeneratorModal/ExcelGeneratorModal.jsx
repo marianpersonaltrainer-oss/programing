@@ -104,7 +104,10 @@ import {
   normalizeWeeklyArchitecturePlan,
   replaceWeeklyArchitectureBlock,
 } from '../../utils/weeklyArchitecturePlan.js'
-import { normalizeOwnAgentWeeklyDraft } from '../../utils/ownAgentWeeklyDraft.js'
+import {
+  extractOwnAgentWeeklyDraftReview,
+  normalizeOwnAgentWeeklyDraft,
+} from '../../utils/ownAgentWeeklyDraft.js'
 import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
 import {
   addProgrammingDays,
@@ -5178,6 +5181,31 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wide text-violet-950">
                         Ver semana completa privada
                       </summary>
+                      {(() => {
+                        try {
+                          const review = extractOwnAgentWeeklyDraftReview(ownAgentReviewDraft)
+                          return (
+                            <div className="mt-2 rounded-lg border border-violet-100 bg-violet-50/60 p-2 text-[9px] text-violet-950">
+                              <p className="font-bold uppercase tracking-wide">Revisión EVO completada</p>
+                              <ul className="mt-1 space-y-0.5">
+                                {review.controles.map((control) => (
+                                  <li key={control.nombre}>
+                                    <span className="font-semibold">{control.nombre}:</span> {control.resultado}
+                                    {control.detalle ? ` · ${control.detalle}` : ''}
+                                  </li>
+                                ))}
+                              </ul>
+                              {review.pendientes_para_marian.length > 0 ? (
+                                <p className="mt-1 border-t border-violet-100 pt-1">
+                                  Pendiente para Marian: {review.pendientes_para_marian.join(' · ')}
+                                </p>
+                              ) : null}
+                            </div>
+                          )
+                        } catch {
+                          return null
+                        }
+                      })()}
                       <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-[#1A0A1A]">
                         {ownAgentReviewDraft}
                       </p>

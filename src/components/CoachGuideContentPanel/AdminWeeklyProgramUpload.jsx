@@ -1,6 +1,7 @@
 import { Component, useMemo, useState } from 'react'
 import {
   getPublishedWeekDraftByMesocycleAndWeek,
+  isSupabaseConfigured,
   listPublishedWeekVersionsForMesocycle,
   upsertPublishedWeekBySlot,
 } from '../../lib/supabase.js'
@@ -164,7 +165,7 @@ class AdminWeeklyProgramUploadBoundary extends Component {
   }
 }
 
-function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }) {
+function AdminWeeklyProgramUploadInner() {
   const [file, setFile] = useState(null)
   const [batchFiles, setBatchFiles] = useState([])
   const [mesocycle, setMesocycle] = useState('autocarga')
@@ -205,6 +206,18 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
   async function loadExactHistoryContext() {
     if (!cycleStartDate) {
       throw new Error('Indica la fecha real de inicio del ciclo antes de analizar.')
+    }
+    // La Preview puede estar deliberadamente desconectada de Supabase. El
+    // análisis del Excel debe seguir funcionando; guardar/publicar mantiene su
+    // autenticación independiente y seguirá fallando cerrado sin sesión.
+    if (!isSupabaseConfigured) {
+      return {
+        previousRow: null,
+        rows: [],
+        mode: 'exact-cycle-date',
+        selectedWeekIds: [],
+        identity: [],
+      }
     }
     const publishedVersions = await listPublishedWeekVersionsForMesocycle(mesocycle)
     const target = {
@@ -455,7 +468,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
           try {
             const r = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
               activateForHub: false,
-              adminSecret,
               contentFingerprint: targetFingerprint,
               qualityGate: buildPublicationQualityGate({
                 evaluation: out,
@@ -667,7 +679,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     try {
       const published = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
         activateForHub: true,
-        adminSecret,
         qualityGate: resolvePublishQualityGate(),
         adminDirectPublish: true,
         contextFingerprint: currentAdminContextFingerprint,
@@ -756,7 +767,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     try {
       const published = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
         activateForHub: true,
-        adminSecret,
         qualityGate: resolvePublishQualityGate(),
         adminDirectPublish: true,
         contextFingerprint: currentAdminContextFingerprint,
@@ -806,7 +816,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
     try {
       const savedDraft = await upsertPublishedWeekBySlot(normalized, mesocycle, Number(week), {
         activateForHub: false,
-        adminSecret,
         contentFingerprint: currentAdminTargetFingerprint,
         qualityGate: currentAdminQualityGate,
         draftId: hubDraftVersion?.id || null,
@@ -853,24 +862,13 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl border border-[#6A1F6D]/60 bg-[#221427]/80 px-4 py-3 space-y-2">
-        <label className="block space-y-1">
-          <span className="text-[10px] uppercase tracking-widest text-[#FFFF4C]/90 font-bold">
-            Clave de administración (obligatoria para guardar)
-          </span>
-          <input
-            type="password"
-            autoComplete="off"
-            value={adminSecret}
-            onChange={(e) => onAdminSecretChange?.(e.target.value)}
-            placeholder="Pega aquí COACH_GUIDE_ADMIN_SECRET (Vercel → programing-evo → Environment Variables)"
-            className="w-full h-11 rounded-lg bg-[#221427] border border-[#6A1F6D] px-3 text-[#F6E8F9] placeholder:text-[#F6E8F9]/40"
-          />
-        </label>
-        <p className="text-[10px] text-[#F6E8F9AA] leading-relaxed">
-          {adminSecret.trim()
-            ? 'Clave guardada en esta sesión. Ya puedes usar «Guardar borrador en Hub».'
-            : 'Copia el valor de COACH_GUIDE_ADMIN_SECRET en Vercel y pégalo aquí. Se guarda al escribir (no hace falta ir a otra pestaña).'}
+      <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/25 px-4 py-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-widest text-emerald-300 font-bold">
+          Acceso desde Mi Oficina EVO
+        </p>
+        <p className="text-xs text-[#F6E8F9CC] leading-relaxed">
+          Ya no necesitas introducir una clave adicional. Este dispositivo conserva tu acceso y, cuando esté disponible,
+          usa también tu sesión y permiso de programación.
         </p>
       </div>
 
@@ -1024,30 +1022,30 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
         >
           {busy ? 'Analizando…' : 'Analizar antes de importar'}
         </button>
+        <button
+          type="button"
+          onClick={handleGuardarBorradorHub}
+          disabled={!showSubirHubButton || importing || busy || hubActivating}
+          title={showSubirHubButton ? '' : 'Primero analiza el Excel.'}
+          className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
+        >
+          {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
+        </button>
+        <button
+          type="button"
+          onClick={handlePublicarCoachesHub}
+          disabled={!canSubirAlHub || importing || busy || hubActivating}
+          title={
+            canSubirAlHub
+              ? 'Sustituye la semana activa en el Hub por esta (coaches + ?coach=1).'
+              : 'Primero analiza el Excel para activar la publicación.'
+          }
+          className="h-11 px-5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-amber-900/40"
+        >
+          {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
+        </button>
         {showSubirHubButton ? (
           <>
-            <button
-              type="button"
-              onClick={handleGuardarBorradorHub}
-              disabled={importing || busy || hubActivating}
-              title={canSubirAlHub ? '' : 'Tras analizar, debería haber texto en Funcional/Basics/Fit. Si no, verás el error al pulsar.'}
-              className="h-11 px-5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-emerald-900/40"
-            >
-              {importing ? 'Guardando…' : 'Guardar borrador en Hub'}
-            </button>
-            <button
-              type="button"
-              onClick={handlePublicarCoachesHub}
-              disabled={!canSubirAlHub || importing || busy || hubActivating}
-              title={
-                canSubirAlHub
-                  ? 'Sustituye la semana activa en el Hub por esta (coaches + ?coach=1).'
-                  : 'Falta contenido de sesión reconocible en el análisis.'
-              }
-              className="h-11 px-5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-evo-display uppercase disabled:opacity-50 shadow-lg shadow-amber-900/40"
-            >
-              {hubActivating ? 'Publicando…' : 'Publicar para coaches'}
-            </button>
             <button
               type="button"
               onClick={handleSoloActivarSemanaSlot}
@@ -1068,6 +1066,16 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
           Exportar informe
         </button>
       </div>
+      {error ? (
+        <p className="text-sm text-red-200 bg-red-950/50 border border-red-500/40 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      ) : null}
+      {!showSubirHubButton ? (
+        <p className="text-xs text-amber-200/90">
+          Primero pulsa «Analizar antes de importar»; después se activará «Publicar para coaches».
+        </p>
+      ) : null}
 
       <div className="rounded-xl border border-[#6A1F6D]/40 bg-[#221427] p-3 space-y-2">
         <p className="text-[10px] uppercase tracking-widest text-[#F6E8F9AA]">Laboratorio real (lote de semanas)</p>
@@ -1128,7 +1136,6 @@ function AdminWeeklyProgramUploadInner({ adminSecret = '', onAdminSecretChange }
         ) : null}
       </div>
 
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
       {importMsg ? <p className="text-sm text-emerald-300">{importMsg}</p> : null}
 
       {result ? (

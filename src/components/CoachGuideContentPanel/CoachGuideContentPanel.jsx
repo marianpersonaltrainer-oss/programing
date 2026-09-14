@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getCoachGuideSettings } from '../../lib/supabase.js'
+import { callProgrammingManagerApi, getCoachGuideSettings } from '../../lib/supabase.js'
 import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
-import { persistCoachAdminSecret, readCoachAdminSecret } from '../../utils/coachAdminSecretStorage.js'
 import CoachSessionFeedbackAdmin from './CoachSessionFeedbackAdmin.jsx'
 import CoachExerciseLibraryAdmin from './CoachExerciseLibraryAdmin.jsx'
 import CoachWeekExportAdmin from './CoachWeekExportAdmin.jsx'
@@ -24,12 +23,6 @@ export default function CoachGuideContentPanel({ onClose }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [adminSecret, setAdminSecret] = useState(() => readCoachAdminSecret())
-
-  function handleAdminSecretChange(value) {
-    setAdminSecret(value)
-    persistCoachAdminSecret(value)
-  }
   const [activeNotice, setActiveNotice] = useState('')
   const [contactChannel, setContactChannel] = useState('')
   const [contactPerson, setContactPerson] = useState('')
@@ -84,10 +77,6 @@ export default function CoachGuideContentPanel({ onClose }) {
 
   async function handleSave(e) {
     e.preventDefault()
-    if (!adminSecret.trim()) {
-      setError('Introduce la clave de administración (la misma que COACH_GUIDE_ADMIN_SECRET en Vercel).')
-      return
-    }
     setSaving(true)
     setError('')
     try {
@@ -102,16 +91,7 @@ export default function CoachGuideContentPanel({ onClose }) {
         material_override: materialOverride.trim() || null,
         material_table,
       }
-      const res = await fetch('/api/coach-guide-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: adminSecret.trim(), patch }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(json.error || `Error ${res.status}`)
-      }
-      persistCoachAdminSecret(adminSecret)
+      await callProgrammingManagerApi('/api/coach-guide-settings', { patch })
       onClose?.()
     } catch (err) {
       setError(err?.message || 'Error al guardar')
@@ -241,7 +221,7 @@ export default function CoachGuideContentPanel({ onClose }) {
           </div>
         ) : adminTab === 'upload_program' ? (
           <div className={`px-6 py-4 max-h-[min(85vh,900px)] overflow-y-auto`}>
-            <AdminWeeklyProgramUpload adminSecret={adminSecret} onAdminSecretChange={handleAdminSecretChange} />
+            <AdminWeeklyProgramUpload />
             <button type="button" onClick={onClose} className={`mt-6 ${coachAdminUi.secondaryBtn}`}>
               Cerrar
             </button>
@@ -255,18 +235,7 @@ export default function CoachGuideContentPanel({ onClose }) {
           </div>
         ) : adminTab === 'biblioteca' ? (
           <div className={`${coachAdminUi.form} max-h-[min(85vh,900px)] overflow-y-auto`}>
-            <div>
-              <label className={coachAdminUi.label}>Clave de administración</label>
-              <input
-                type="password"
-                autoComplete="off"
-                value={adminSecret}
-                onChange={(e) => handleAdminSecretChange(e.target.value)}
-                className={coachField}
-                placeholder="COACH_GUIDE_ADMIN_SECRET (servidor)"
-              />
-            </div>
-            <CoachExerciseLibraryAdmin adminSecret={adminSecret} />
+            <CoachExerciseLibraryAdmin />
             <button type="button" onClick={onClose} className={`${coachAdminUi.secondaryBtn} w-full`}>
               Cerrar
             </button>
@@ -284,22 +253,6 @@ export default function CoachGuideContentPanel({ onClose }) {
           {error && (
             <p className="text-sm text-red-300 bg-red-950/40 border border-red-900/50 rounded-xl px-4 py-3">{error}</p>
           )}
-
-          <div>
-            <label className={coachAdminUi.label}>Clave de administración</label>
-            <input
-              type="password"
-              autoComplete="off"
-              value={adminSecret}
-              onChange={(e) => handleAdminSecretChange(e.target.value)}
-              className={coachField}
-              placeholder="COACH_GUIDE_ADMIN_SECRET (servidor)"
-            />
-            <p className={coachAdminUi.hint}>
-              Debe coincidir con la variable <code className="text-[#FFFF4C]/90">COACH_GUIDE_ADMIN_SECRET</code> en Vercel. No es el código
-              de acceso de los coaches.
-            </p>
-          </div>
 
           <div>
             <label className={coachAdminUi.labelAccent}>Aviso activo (banner en ?coach)</label>

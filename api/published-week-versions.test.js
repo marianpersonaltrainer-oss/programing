@@ -17,13 +17,15 @@ const migration = readFileSync(
 )
 
 describe('endpoint protegido de versiones publicadas', () => {
-  it('exige origen permitido, secreto administrativo y service role', () => {
+  it('exige origen permitido, sesión con capability y service role', () => {
     expect(source).toContain('isEvoOriginAllowed')
-    expect(source).toContain('adminSecretsMatch')
+    expect(source).toContain("requireEvoCapability(req, 'programming.manage')")
+    expect(source).toContain('capabilityAuthErrorResponse')
+    expect(source).toContain('readBearerToken(req)')
     expect(source).toContain('checkAdminRateLimit')
-    expect(source).toContain('COACH_GUIDE_ADMIN_SECRET')
     expect(source).toContain('SUPABASE_SERVICE_ROLE_KEY')
-    expect(source).toContain("error: 'unauthorized'")
+    expect(source).toContain('adminSecretsMatch')
+    expect(source).toContain('COACH_GUIDE_ADMIN_SECRET')
   })
 
   it('sirve borradores solo por la ruta autenticada y con ciclo exacto', () => {

@@ -1,5 +1,12 @@
 # Instrucciones operativas del proyecto EVO
 
+## Estado de integración Head Coach — 14 septiembre 2026
+
+- Referencia remota comprobada: `origin/main` = `249e2f4`. Incorpora el buzón privado y agregado Head Coach → agente programador (`programming_agent_inbox`); solo acepta totales y categorías, sin texto libre, nombres, WODs ni cambios/publicación automáticos.
+- La rama `feature/coach-headquarters-v1` se está integrando con ese avance. Sigue siendo una rama de pruebas: no promocionar a producción, no usar datos reales de personas y no activar la conexión individual de adaptaciones.
+- En esta rama quedan preparados: vista de clase con pregunta segura al Head Coach, vista previa de revisiones categóricas del feedback y borrador local de método/adaptaciones. Los borradores no se guardan, no envían información y no sustituyen una revisión humana.
+- Antes de persistir propuestas de método o adaptaciones individuales hay que decidir retención, lectura, identidad/RLS y circuito de revisión; no crear la tabla ni aplicar migraciones por inferencia.
+
 ## Continuidad y auditoria local — 11 septiembre 2026
 
 - Peticion expresa de Marian de memoria y autonomia guardada tambien en nota de memoria 20260911-105000-autonomia-tecnica-proyecto-evo.md.

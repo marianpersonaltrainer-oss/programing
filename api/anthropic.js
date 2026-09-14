@@ -14,6 +14,11 @@
  */
 
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import { createClient } from '@supabase/supabase-js'
+import {
+  appendProgrammingHeadCoachPrompt,
+  loadProgrammingHeadCoachPrompt,
+} from './lib/programmingHeadCoachInbox.js'
 import { resolveProgrammingModel } from '../src/constants/anthropicModels.js'
 import {
   EVO_WEEK_OUTPUT_SCHEMA,
@@ -211,6 +216,15 @@ ${ctx}
   return `${baseSystem}\n\n${replacement}`
 }
 
+async function loadServerManagedProgrammingContext() {
+  const cfg = getSupabaseAdminConfig()
+  if (!cfg) return ''
+  const supabase = createClient(cfg.url, cfg.serviceKey, {
+    auth: { persistSession: false },
+  })
+  return loadProgrammingHeadCoachPrompt(supabase)
+}
+
 /**
  * Tiempo máximo de espera a api.anthropic.com por petición.
  * Debe ser algo menor que `vercel.json` → functions.maxDuration (300s) para dejar margen
@@ -290,6 +304,15 @@ export default async function handler(req, res) {
     })
   }
 
+  let headCoachPrompt = ''
+  try {
+    headCoachPrompt = await loadServerManagedProgrammingContext()
+  } catch {
+    // El asistente sigue disponible si el relevo agregado aún no está listo;
+    // no se sustituye por feedback bruto ni se inventa contexto.
+    console.error('Head Coach programming inbox unavailable')
+  }
+
   let upstreamTimeoutId = null
   const upstreamAbort = new AbortController()
   let heartbeat = null
@@ -334,7 +357,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: resolvedModel,
         max_tokens: max_tokens || 8000,
-        system: system === undefined ? undefined : injectWeekContext(system, weekContext),
+        system: system === undefined
+          ? undefined
+          : appendProgrammingHeadCoachPrompt(
+              injectWeekContext(system, weekContext),
+              headCoachPrompt,
+            ),
         messages,
         output_config:
           responseFormat === EVO_WEEK_RESPONSE_FORMAT

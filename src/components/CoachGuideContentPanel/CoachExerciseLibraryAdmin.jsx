@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
+import { callProgrammingManagerApi } from '../../lib/supabase.js'
 import { coachAdminUi, coachBorder, coachField, coachText } from '../CoachView/coachTheme.js'
 
 function trimVideoUrl(s) {
@@ -75,7 +76,7 @@ const emptyForm = () => ({
   video_url_verified: true,
 })
 
-export default function CoachExerciseLibraryAdmin({ adminSecret }) {
+export default function CoachExerciseLibraryAdmin() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -90,27 +91,17 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
   const baselineRef = useRef({ video_url: '', video_url_verified: true })
 
   const load = useCallback(async () => {
-    if (!adminSecret?.trim()) {
-      setRows([])
-      return
-    }
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/coach-exercise-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: adminSecret.trim(), action: 'list' }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+      const json = await callProgrammingManagerApi('/api/coach-exercise-library', { action: 'list' })
       setRows(json.data || [])
     } catch (e) {
       setError(e?.message || 'No se pudo cargar')
     } finally {
       setLoading(false)
     }
-  }, [adminSecret])
+  }, [])
 
   useEffect(() => {
     load()
@@ -205,10 +196,6 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
   }
 
   async function handleImportXlsx() {
-    if (!adminSecret?.trim()) {
-      setError('Falta la clave de administración.')
-      return
-    }
     if (!importFiles.length) {
       setError('Elige uno o varios archivos .xlsx primero.')
       return
@@ -222,13 +209,10 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
         const ab = await f.arrayBuffer()
         payloadFiles.push({ name: f.name, base64: arrayBufferToBase64(ab) })
       }
-      const res = await fetch('/api/import-exercise-library-xlsx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: adminSecret.trim(), files: payloadFiles, maxResolve: 80 }),
+      const json = await callProgrammingManagerApi('/api/import-exercise-library-xlsx', {
+        files: payloadFiles,
+        maxResolve: 80,
       })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
       setImportResult(json)
       setImportFiles([])
       await load()
@@ -250,10 +234,6 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
 
   async function handleSave(e) {
     e.preventDefault()
-    if (!adminSecret?.trim()) {
-      setError('Falta la clave de administración.')
-      return
-    }
     if (!form.name.trim()) {
       setError('El nombre es obligatorio.')
       return
@@ -274,13 +254,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
         video_url: vUrl || null,
         video_url_verified: vUrl ? form.video_url_verified === true : true,
       }
-      const res = await fetch('/api/coach-exercise-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: adminSecret.trim(), action: 'upsert', row }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+      await callProgrammingManagerApi('/api/coach-exercise-library', { action: 'upsert', row })
       setForm(emptyForm())
       setEditingId(null)
       await load()
@@ -296,13 +270,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/coach-exercise-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: adminSecret.trim(), action: 'delete', id }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+      await callProgrammingManagerApi('/api/coach-exercise-library', { action: 'delete', id })
       if (editingId === id) {
         setForm(emptyForm())
         setEditingId(null)
@@ -317,11 +285,6 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
 
   return (
     <div className={`space-y-6 ${coachText.primary}`}>
-      {!adminSecret?.trim() && (
-        <p className={`text-sm ${coachText.muted}`}>
-          Introduce la clave de administración arriba (pestaña «Guía / avisos») y vuelve a esta pestaña para cargar y editar ejercicios.
-        </p>
-      )}
       {error && (
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>
       )}
@@ -364,7 +327,7 @@ export default function CoachExerciseLibraryAdmin({ adminSecret }) {
           <button
             type="button"
             onClick={handleImportXlsx}
-            disabled={importing || !importFiles.length || !adminSecret?.trim()}
+            disabled={importing || !importFiles.length}
             className="text-xs font-bold uppercase px-4 py-2 rounded-xl bg-[#A729AD] text-white hover:bg-[#6A1F6D] disabled:opacity-40"
           >
             {importing ? 'Importando… (puede tardar un poco)' : `Importar ${importFiles.length || ''} archivo(s)`}

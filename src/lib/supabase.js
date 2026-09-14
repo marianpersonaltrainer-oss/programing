@@ -227,17 +227,14 @@ export async function getPublishedWeekByMesocycleAndWeek(mesociclo, semana, cycl
 export async function getPublishedWeekDraftByMesocycleAndWeek(mesociclo, semana, cycleId) {
   if (!mesociclo || semana == null) return null
   if (!cycleId) throw new Error('Falta cycleId para abrir un borrador exacto.')
-  const secret = publicationAdminSecret('')
-  if (!secret) return null
   const json = await callPublishedWeekVersionsApi(
     {
       action: 'get_draft',
-      secret,
       mesocycle: mesociclo,
       week: Number(semana),
       cycleId,
     },
-    { allowEmptyRow: true },
+    { allowEmptyRow: true, legacySecret: publicationAdminSecret('') },
   )
   return json?.row || null
 }
@@ -248,15 +245,74 @@ export function publicationAdminSecret(explicitSecret = '') {
   return readCoachAdminSecret()
 }
 
-async function callPublishedWeekVersionsApi(payload, { allowEmptyRow = false } = {}) {
-  const response = await fetch('/api/published-week-versions', {
+const PROGRAMMING_MANAGER_ACCESS_ERRORS = {
+  authentication_required: 'Tu sesión de Mi Oficina EVO ha caducado. Vuelve a iniciar sesión.',
+  capability_denied: 'Tu cuenta no tiene permiso para gestionar la programación.',
+  organization_context_required: 'Tu cuenta debe tener una única organización activa para programar.',
+  identity_authorization_unavailable: 'No se pudo comprobar tu permiso de programación. Inténtalo de nuevo.',
+}
+
+export async function callProgrammingManagerApi(apiPath, payload = {}) {
+  if (!supabase) {
+    throw new Error('La conexión de Mi Oficina EVO no está configurada.')
+  }
+  const { data, error: sessionError } = await supabase.auth.getSession()
+  const accessToken = String(data?.session?.access_token || '').trim()
+  const legacySecret = readCoachAdminSecret()
+  if ((sessionError || !accessToken) && !legacySecret) {
+    throw new Error('Este dispositivo no tiene una autorización válida para gestionar el contenido de coaches.')
+  }
+
+  const response = await fetch(apiPath, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(accessToken ? payload : { ...payload, secret: legacySecret }),
   })
   const json = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const error = new Error(json?.error || `Error ${response.status} al guardar la semana.`)
+    throw new Error(
+      PROGRAMMING_MANAGER_ACCESS_ERRORS[json?.error]
+      || json?.error
+      || `Error ${response.status} en la operación.`,
+    )
+  }
+  return json
+}
+
+async function callPublishedWeekVersionsApi(
+  payload,
+  { allowEmptyRow = false, legacySecret = '' } = {},
+) {
+  if (!supabase) {
+    throw new Error('La conexión de Mi Oficina EVO no está configurada.')
+  }
+  const { data, error: sessionError } = await supabase.auth.getSession()
+  const accessToken = String(data?.session?.access_token || '').trim()
+  const fallbackSecret = String(legacySecret || '').trim()
+  if ((sessionError || !accessToken) && !fallbackSecret) {
+    throw new Error('Inicia sesión en Mi Oficina EVO para guardar o publicar entrenamientos.')
+  }
+  const requestPayload = accessToken
+    ? payload
+    : { ...payload, secret: fallbackSecret }
+  const response = await fetch('/api/published-week-versions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(requestPayload),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const error = new Error(
+      PROGRAMMING_MANAGER_ACCESS_ERRORS[json?.error]
+      || json?.error
+      || `Error ${response.status} al guardar la semana.`,
+    )
     error.code = json?.code || response.status
     throw error
   }
@@ -292,32 +348,27 @@ export async function upsertPublishedWeekBySlot(weekData, mesociclo, semana, opt
   if (!draftId && Number(expectedRevision) !== 0) {
     throw new Error('Un borrador nuevo debe comenzar con revisión esperada 0.')
   }
-  const secret = publicationAdminSecret(adminSecret)
-  if (!secret) {
-    throw new Error(
-      'Falta la clave de administración. Introdúcela en Contenido Coach o Tu método antes de guardar/publicar.',
-    )
-  }
-
   const normalized = {
     ...weekData,
     mesociclo,
     semana: Number(semana),
   }
-  const { row, active } = await callPublishedWeekVersionsApi({
-    action: activateForHub ? 'publish' : 'save_draft',
-    secret,
-    mesocycle: mesociclo,
-    week: Number(semana),
-    weekData: normalized,
-    qualityGate: activateForHub ? qualityGate : null,
-    sourceWeekId,
-    draftId: draftId || null,
-    expectedRevision: Number(expectedRevision),
-    adminDirectPublish: activateForHub && adminDirectPublish,
-    contextFingerprint,
-    selectedWeekIds,
-  })
+  const { row, active } = await callPublishedWeekVersionsApi(
+    {
+      action: activateForHub ? 'publish' : 'save_draft',
+      mesocycle: mesociclo,
+      week: Number(semana),
+      weekData: normalized,
+      qualityGate: activateForHub ? qualityGate : null,
+      sourceWeekId,
+      draftId: draftId || null,
+      expectedRevision: Number(expectedRevision),
+      adminDirectPublish: activateForHub && adminDirectPublish,
+      contextFingerprint,
+      selectedWeekIds,
+    },
+    { legacySecret: publicationAdminSecret(adminSecret) },
+  )
   return {
     ...row,
     mode: activateForHub ? 'publish-version' : 'save-draft',

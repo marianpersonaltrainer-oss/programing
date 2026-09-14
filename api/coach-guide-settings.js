@@ -1,15 +1,21 @@
 /**
  * POST /api/coach-guide-settings
  * Actualiza la fila `coach_guide_settings` (id = default) con service role.
- * Body: { secret, patch } donde patch solo incluye campos permitidos.
+ * Body: { patch } donde patch solo incluye campos permitidos.
  *
  * Variables Vercel:
- * - COACH_GUIDE_ADMIN_SECRET — misma clave que introduce el programador en el panel
+ * - COACH_GUIDE_ADMIN_SECRET — compatibilidad temporal con clientes antiguos
  * - SUPABASE_SERVICE_ROLE_KEY
  * - VITE_SUPABASE_URL o SUPABASE_URL
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { adminSecretsMatch } from './lib/evoAdminAuth.js'
+import {
+  capabilityAuthErrorResponse,
+  readBearerToken,
+  requireEvoCapability,
+} from './lib/evoCapabilityAuth.js'
 
 const ALLOWED_KEYS = [
   'contact_channel',
@@ -31,9 +37,9 @@ export default async function handler(req, res) {
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
 
-  if (!serverSecret || !serviceKey || !supabaseUrl) {
+  if (!serviceKey || !supabaseUrl) {
     return res.status(500).json({
-      error: 'Servidor sin configurar: COACH_GUIDE_ADMIN_SECRET, SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
+      error: 'Servidor sin configurar: SUPABASE_SERVICE_ROLE_KEY y URL de Supabase.',
     })
   }
 
@@ -44,9 +50,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'JSON inválido' })
   }
 
-  const { secret, patch } = body || {}
-  if (!secret || String(secret).trim() !== serverSecret) {
-    return res.status(401).json({ error: 'Clave de administración incorrecta' })
+  const { patch } = body || {}
+  if (readBearerToken(req)) {
+    try {
+      await requireEvoCapability(req, 'programming.manage')
+    } catch (error) {
+      const response = capabilityAuthErrorResponse(error)
+      return res.status(response.status).json(response.body)
+    }
+  } else if (!adminSecretsMatch(body?.secret, serverSecret)) {
+    return res.status(401).json({ error: 'authentication_required' })
   }
 
   if (!patch || typeof patch !== 'object') {

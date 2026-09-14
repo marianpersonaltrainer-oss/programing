@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { getRequestOrigin, isEvoOriginAllowed } from './lib/evoAllowedOrigins.js'
+import { adminSecretsMatch, checkAdminRateLimit } from './lib/evoAdminAuth.js'
 import {
-  adminSecretsMatch,
-  checkAdminRateLimit,
-} from './lib/evoAdminAuth.js'
+  capabilityAuthErrorResponse,
+  readBearerToken,
+  requireEvoCapability,
+} from './lib/evoCapabilityAuth.js'
 import {
   assertPublicationGateApproved,
   buildPublicationTargetFingerprint,
@@ -278,9 +280,8 @@ export default async function handler(req, res) {
   const supabaseUrl = String(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
   ).trim()
-  if (!serverSecret || !serviceKey || !supabaseUrl) {
+  if (!serviceKey || !supabaseUrl) {
     const missing = [
-      !serverSecret ? 'COACH_GUIDE_ADMIN_SECRET' : null,
       !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
       !supabaseUrl ? 'SUPABASE_URL (o VITE_SUPABASE_URL)' : null,
     ].filter(Boolean)
@@ -298,6 +299,18 @@ export default async function handler(req, res) {
   const weekData = body.weekData
   const draftId = String(body.draftId || '').trim() || null
   const expectedRevision = Number(body.expectedRevision)
+
+  if (readBearerToken(req)) {
+    try {
+      await requireEvoCapability(req, 'programming.manage')
+    } catch (error) {
+      const response = capabilityAuthErrorResponse(error)
+      return res.status(response.status).json(response.body)
+    }
+  } else if (!adminSecretsMatch(body.secret, serverSecret)) {
+    return res.status(401).json({ error: 'authentication_required' })
+  }
+
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
 
   try {
@@ -315,10 +328,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('[published-week-versions] rate limit unavailable:', error?.message || error)
     return res.status(503).json({ error: 'rate_limit_unavailable' })
-  }
-
-  if (!adminSecretsMatch(body.secret, serverSecret)) {
-    return res.status(401).json({ error: 'unauthorized' })
   }
 
   if (action === 'get_draft') {

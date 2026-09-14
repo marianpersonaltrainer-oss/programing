@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.hoisted(() => {
+  process.env.VITE_SUPABASE_URL = 'https://test.supabase.co'
+  process.env.VITE_SUPABASE_ANON_KEY = 'test-publishable-key'
+})
+
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
+  getSession: vi.fn(),
 }))
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: mocks.from,
+    auth: { getSession: mocks.getSession },
   }),
 }))
 
@@ -44,16 +51,16 @@ function response(body, { ok = true, status = 200 } = {}) {
 
 describe('published_weeks versionadas en el cliente', () => {
   beforeEach(() => {
-    globalThis.sessionStorage = {
-      getItem: () => 'admin-secret',
-    }
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: 'session-token' } },
+      error: null,
+    })
     globalThis.fetch = vi.fn()
     mocks.from.mockClear()
   })
 
   afterEach(() => {
     delete globalThis.fetch
-    delete globalThis.sessionStorage
   })
 
   it('un guardado normal solo solicita un borrador al endpoint protegido', async () => {
@@ -71,10 +78,10 @@ describe('published_weeks versionadas en el cliente', () => {
     expect(result.active).toBe(false)
     expect(fetch).toHaveBeenCalledTimes(1)
     const [, request] = fetch.mock.calls[0]
+    expect(request.headers.Authorization).toBe('Bearer session-token')
     expect(JSON.parse(request.body)).toEqual(
       expect.objectContaining({
         action: 'save_draft',
-        secret: 'admin-secret',
         mesocycle: 'fuerza',
         week: 5,
         qualityGate: null,
@@ -106,13 +113,41 @@ describe('published_weeks versionadas en el cliente', () => {
     expect(row?.id).toBe('draft-1')
     expect(mocks.from).not.toHaveBeenCalled()
     const [, request] = fetch.mock.calls[0]
+    expect(request.headers.Authorization).toBe('Bearer session-token')
     expect(JSON.parse(request.body)).toEqual({
       action: 'get_draft',
-      secret: 'admin-secret',
       mesocycle: 'fuerza',
       week: 5,
       cycleId: 'fuerza:2026-06-29',
     })
+  })
+
+  it('explica cómo recuperar el acceso si no existe una sesión', async () => {
+    mocks.getSession.mockResolvedValueOnce({ data: { session: null }, error: null })
+
+    await expect(
+      upsertPublishedWeekBySlot(weekData, 'fuerza', 5, { activateForHub: false }),
+    ).rejects.toThrow(/Inicia sesión en Mi Oficina EVO/)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('conserva la clave legacy solo como respaldo invisible de flujos antiguos', async () => {
+    mocks.getSession.mockResolvedValueOnce({ data: { session: null }, error: null })
+    fetch.mockResolvedValue(
+      response({
+        row: { id: 'draft-legacy', revision: 1, publication_status: 'draft' },
+        active: false,
+      }),
+    )
+
+    await upsertPublishedWeekBySlot(weekData, 'fuerza', 5, {
+      activateForHub: false,
+      adminSecret: 'legacy-secret',
+    })
+
+    const [, request] = fetch.mock.calls[0]
+    expect(request.headers.Authorization).toBeUndefined()
+    expect(JSON.parse(request.body).secret).toBe('legacy-secret')
   })
 
   it('envía la identidad y revisión capturadas al actualizar un borrador', async () => {
@@ -182,7 +217,6 @@ describe('published_weeks versionadas en el cliente', () => {
       activateForHub: true,
       qualityGate: approvedGate,
       sourceWeekId: 'published-1',
-      adminSecret: 'explicit-secret',
     })
 
     expect(result.active).toBe(true)
@@ -190,7 +224,6 @@ describe('published_weeks versionadas en el cliente', () => {
     expect(JSON.parse(request.body)).toEqual(
       expect.objectContaining({
         action: 'publish',
-        secret: 'explicit-secret',
         sourceWeekId: 'published-1',
         qualityGate: approvedGate,
         draftId: null,

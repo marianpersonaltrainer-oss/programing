@@ -25,6 +25,10 @@ import {
   TIME_CAUSE_OPTIONS,
   buildStructuredCoachFeedback,
 } from '../../utils/coachFeedbackStructuredText.js'
+import {
+  deriveHeadCoachReviewCandidates,
+  escalationDestinationLabel,
+} from '../../domain/coach/headCoachEscalation.js'
 
 const TIME_EXPLAIN = [
   { value: 'si', label: 'Bien de tiempo' },
@@ -442,6 +446,20 @@ export default function CoachSessionFeedbackForm({
 
   const timeSummaryLine = buildTimeSummaryLine(timeStats)
   const dayTitle = madridProgramDayKey ? DAYS_ES[madridProgramDayKey] || madridProgramDayKey : 'Semana'
+  const headCoachReviewCandidates = useMemo(
+    () =>
+      deriveHeadCoachReviewCandidates({
+        classContext: {
+          dayName: DAY_KEY_TO_NAME[dayKey] || dayKey,
+          classLabel,
+        },
+        stimulus,
+        timeExplain,
+        timeCause,
+        nextFocus,
+      }),
+    [dayKey, classLabel, stimulus, timeExplain, timeCause, nextFocus],
+  )
 
   return (
     <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-2xl mx-auto`}>
@@ -760,6 +778,30 @@ export default function CoachSessionFeedbackForm({
             placeholder="Una instrucción concreta para repetirla mejor (opcional)."
           />
         </div>
+
+        {headCoachReviewCandidates.length > 0 ? (
+          <section
+            className="rounded-xl border border-violet-400/35 bg-violet-950/25 px-4 py-3.5"
+            aria-label="Vista previa de revisión Head Coach"
+          >
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-violet-100">
+              Vista previa de revisión
+            </h3>
+            <p className={`mt-1 text-xs leading-relaxed ${coachText.muted}`}>
+              Solo toma las opciones generales de arriba. Aún no se guarda ni se envía, y no incluye los detalles escritos.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {headCoachReviewCandidates.map((candidate) => (
+                <li key={`${candidate.destination}-${candidate.summary}`} className="rounded-lg border border-white/10 bg-black/15 px-3 py-2">
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-violet-200">
+                    Para revisar: {escalationDestinationLabel(candidate.destination)}
+                  </p>
+                  <p className={`mt-1 text-xs leading-relaxed ${coachText.primary}`}>{candidate.summary}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {error && (
           <p className="text-sm text-red-200 bg-red-950/50 border border-red-400/40 rounded-xl px-4 py-3 font-medium">

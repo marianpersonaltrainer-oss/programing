@@ -32,6 +32,7 @@ export default function Pe2Login({
   const [showPassword, setShowPassword] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
   const [passwordUpdated, setPasswordUpdated] = useState(false)
 
   async function handleSubmit(e) {
@@ -41,9 +42,13 @@ export default function Pe2Login({
 
   async function handleRequestReset() {
     setResetting(true)
+    setResetSent(false)
+    setResetError('')
     try {
       await onRequestPasswordReset(email.trim())
       setResetSent(true)
+    } catch (nextError) {
+      setResetError(nextError?.message || 'No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.')
     } finally {
       setResetting(false)
     }
@@ -129,9 +134,9 @@ export default function Pe2Login({
           {description}
         </p>
 
-        {error ? (
+        {error || resetError ? (
           <div className="mb-4 rounded-xl border px-3 py-2 text-sm" style={{ backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', color: '#991B1B' }}>
-            {error}
+            {error || resetError}
           </div>
         ) : null}
 
@@ -181,8 +186,13 @@ export default function Pe2Login({
         >
           {resetting ? 'Enviando…' : 'He olvidado mi contraseña'}
         </button>
+        {!email.trim() ? (
+          <p className="mt-2 text-xs text-center" style={{ color: evoBrand.muted }}>
+            Escribe primero tu correo para activar la recuperación.
+          </p>
+        ) : null}
         {resetSent ? (
-          <p className="mt-3 text-sm text-center" style={{ color: evoBrand.muted }}>
+          <p className="mt-3 text-sm text-center" style={{ color: evoBrand.muted }} aria-live="polite">
             Revisa tu correo y abre el enlace de recuperación.
           </p>
         ) : null}

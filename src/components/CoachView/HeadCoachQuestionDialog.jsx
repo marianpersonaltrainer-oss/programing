@@ -106,7 +106,13 @@ export default function HeadCoachQuestionDialog({ context, onClose }) {
           Pregunta sobre cómo explicar, organizar o impartir la clase. Esta primera vía no acepta nombres, situaciones de salud ni cambios en la programación.
         </p>
 
-        {answer ? (
+        {!enabled ? (
+          <div className="mt-5 rounded-xl border border-[#F6E8F9]/15 bg-[#0C0B0C] p-4">
+            <p className="text-sm leading-relaxed text-[#F6E8F9]/75">
+              La conexión privada está en preparación. No se guardará ni enviará ninguna duda desde esta pantalla hasta que esté lista la base de pruebas.
+            </p>
+          </div>
+        ) : answer ? (
           <div className="mt-5 rounded-xl border border-[#FFFF4C]/45 bg-[#0C0B0C] p-4">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#FFFF4C]">Respuesta del Head Coach</p>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F6E8F9]">{answer}</p>
@@ -136,7 +142,7 @@ export default function HeadCoachQuestionDialog({ context, onClose }) {
         )}
 
         <button type="button" onClick={onClose} className="mt-4 w-full rounded-xl border border-[#F6E8F9]/35 px-4 py-3 text-sm font-bold text-[#F6E8F9] hover:border-[#F6E8F9]/70">
-          {answer ? 'Cerrar' : 'Cancelar'}
+          {answer || !enabled ? 'Cerrar' : 'Cancelar'}
         </button>
       </div>
     </div>

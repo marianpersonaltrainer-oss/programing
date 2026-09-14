@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createHeadCoachQuestionHandler } from './head-coach-question.js'
+import { HeadCoachQuestionQueueError } from './lib/headCoachQuestionQueue.js'
 
 function response() {
   return {
@@ -32,6 +33,7 @@ describe('POST /api/head-coach-question', () => {
   it('no responde mediante un proveedor externo si el gateway propio no existe', async () => {
     const handler = createHeadCoachQuestionHandler({
       requireCapabilityImpl: vi.fn().mockResolvedValue({ user: { id: 'coach-1' } }),
+      dispatchImpl: vi.fn().mockRejectedValue(new HeadCoachQuestionQueueError('queue_not_configured')),
       requestIdImpl: () => 'request-1',
     })
     const res = response()
@@ -68,8 +70,11 @@ describe('POST /api/head-coach-question', () => {
 
     expect(res.statusCode).toBe(202)
     expect(dispatchImpl).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'head_coach_class_question',
-      permissions: expect.objectContaining({ responseOnly: true }),
+      envelope: expect.objectContaining({
+        kind: 'head_coach_class_question',
+        permissions: expect.objectContaining({ responseOnly: true }),
+      }),
+      authorization: expect.objectContaining({ user: { id: 'coach-1' } }),
     }))
   })
 })

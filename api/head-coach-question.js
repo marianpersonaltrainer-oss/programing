@@ -7,6 +7,10 @@ import {
   createHeadCoachQuestion,
   HeadCoachQuestionError,
 } from '../src/domain/coach/headCoachQuestion.js'
+import {
+  createHeadCoachQueueDispatcher,
+  HeadCoachQuestionQueueError,
+} from './lib/headCoachQuestionQueue.js'
 
 function parseBody(req) {
   try {
@@ -25,7 +29,7 @@ function parseBody(req) {
  */
 export function createHeadCoachQuestionHandler({
   requireCapabilityImpl = requireEvoCapability,
-  dispatchImpl = null,
+  dispatchImpl = createHeadCoachQueueDispatcher(),
   requestIdImpl = () => crypto.randomUUID(),
 } = {}) {
   return async function headCoachQuestionHandler(req, res) {
@@ -42,7 +46,7 @@ export function createHeadCoachQuestionHandler({
     if (!body) return res.status(400).json({ error: 'invalid_json', requestId })
 
     try {
-      await requireCapabilityImpl(req, 'coach.workspace.access')
+      var authorization = await requireCapabilityImpl(req, 'coach.workspace.access')
     } catch (error) {
       const response = capabilityAuthErrorResponse(error)
       return res.status(response.status).json({ ...response.body, requestId })
@@ -58,14 +62,13 @@ export function createHeadCoachQuestionHandler({
       return res.status(400).json({ error: 'invalid_question', requestId })
     }
 
-    if (typeof dispatchImpl !== 'function') {
-      return res.status(503).json({ error: 'head_coach_gateway_not_configured', requestId })
-    }
-
     try {
-      const result = await dispatchImpl(envelope)
+      const result = await dispatchImpl({ envelope, authorization })
       return res.status(202).json({ ok: true, status: 'accepted', requestId, result })
-    } catch {
+    } catch (error) {
+      if (error instanceof HeadCoachQuestionQueueError && error.code === 'queue_not_configured') {
+        return res.status(503).json({ error: 'head_coach_gateway_not_configured', requestId })
+      }
       return res.status(503).json({ error: 'head_coach_gateway_unavailable', requestId })
     }
   }

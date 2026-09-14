@@ -3,6 +3,7 @@ import WeekPanel from './components/WeekPanel/WeekPanel.jsx'
 import AgentChat from './components/AgentChat/AgentChat.jsx'
 import ExportPanel from './components/ExportPanel/ExportPanel.jsx'
 import SupabaseConfigMissing from './components/SupabaseConfigMissing.jsx'
+import CoachTodayStaticPreview from './components/CoachView/CoachTodayStaticPreview.jsx'
 import { isSupabaseConfigured } from './lib/supabase.js'
 import {
   COACH_CODE_KEY,
@@ -34,6 +35,7 @@ const isCoachMode = appSearch.has('coach')
 const isPortalMode = appSearch.has('portal')
 const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
 const isMiCaminoMode = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')
+const isCoachTodayStaticPreview = import.meta.env.DEV && appSearch.has('coachTodayStaticPreview')
 
 function AppLoading() {
   return (
@@ -93,6 +95,10 @@ function EvoSpacePortal() {
 }
 
 export default function App() {
+  if (isCoachTodayStaticPreview) {
+    return <CoachTodayStaticPreview />
+  }
+
   if (!isSupabaseConfigured) {
     return <SupabaseConfigMissing />
   }

@@ -25,6 +25,7 @@ import {
   questionHasExplicitCoachContext,
 } from '../../utils/coachSupportContext.js'
 import CoachTodayScreen from './CoachTodayScreen.jsx'
+import CoachTodayScreenV2 from './CoachTodayScreenV2.jsx'
 import CoachWeekOverviewPanel from './CoachWeekOverviewPanel.jsx'
 import CoachProfilePanel from './CoachProfilePanel.jsx'
 import CoachExerciseLibraryPanel from './CoachExerciseLibraryPanel.jsx'
@@ -69,6 +70,14 @@ const COACH_AUTH_KEY = 'evo_coach_auth'
 const COACH_LAST_SEEN_WEEK_KEY = 'evo_coach_last_seen_week_id'
 const COACH_NOTICE_READ_KEY = 'evo_coach_notice_read_v1'
 const COACH_NOTICE_READ_MAX = 20
+
+function isCoachTodayPreviewEnabled() {
+  try {
+    return new URLSearchParams(window.location.search).get('coachTodayPreview') === '1'
+  } catch {
+    return false
+  }
+}
 
 export { COACH_CODE_KEY }
 
@@ -1435,6 +1444,15 @@ export default function CoachView() {
               >
                 {mainTab === 'hoy' &&
                   (weekData?.dias?.length ? (
+                    isCoachTodayPreviewEnabled() ? (
+                    <CoachTodayScreenV2
+                      weekData={weekData}
+                      activeDay={activeDay}
+                      setActiveDay={setActiveDay}
+                      todayHandoffs={todayHandoffs}
+                      onOpenFeedback={() => setMainTab('pase')}
+                    />
+                    ) : (
                     <CoachTodayScreen
                       weekData={weekData}
                       activeWeekRow={activeWeekRow}
@@ -1445,6 +1463,7 @@ export default function CoachView() {
                       onOpenFeedback={() => setMainTab('pase')}
                       onConsultAssistant={(ctx) => openSupport('', ctx)}
                     />
+                    )
                   ) : (
                     <div className="p-6 text-center text-sm text-[#F6E8F966]">Sin programación para mostrar.</div>
                   ))}

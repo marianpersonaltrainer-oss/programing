@@ -15,6 +15,12 @@ const valid = {
   contextPack: 'Contexto de programación ya verificado.',
   userInstructions: 'Protege la fatiga acumulada.',
   generationDays: ['LUNES', 'MIÉRCOLES'],
+  weeklyOffer: {
+    dias: {
+      LUNES: ['evofuncional'],
+      MIÉRCOLES: ['evofuncional', 'evofit'],
+    },
+  },
 }
 
 describe('contrato de la cola propia del Agente Programador', () => {
@@ -28,6 +34,7 @@ describe('contrato de la cola propia del Agente Programador', () => {
         cycleStartDate: '2026-09-07',
         targetWeekStartDate: '2026-09-14',
         generationDays: ['LUNES', 'MIÉRCOLES'],
+        weeklyOffer: { version: 1, ...valid.weeklyOffer },
       },
       requestPayload: {
         contextPack: valid.contextPack,
@@ -41,6 +48,7 @@ describe('contrato de la cola propia del Agente Programador', () => {
       { ...valid, contextPack: '' },
       { ...valid, target: { ...valid.target, targetWeekStartDate: 'mañana' } },
       { ...valid, generationDays: ['DOMINGO'] },
+      { ...valid, weeklyOffer: { dias: { LUNES: ['evofuncional'] } } },
       { ...valid, fingerprint: 'corto' },
     ]) {
       expect(() => createWeeklyBriefingRequest(value)).toThrow(ProgrammingAgentVpsQueueError)

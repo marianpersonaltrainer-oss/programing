@@ -1863,6 +1863,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           contextPack,
           userInstructions: instructionsSnapshot,
           generationDays: daysSnapshot,
+          weeklyOffer: offerSnapshot,
         },
         0,
         {

@@ -5,6 +5,7 @@ const FINGERPRINT_RE = /^[a-z0-9:_-]{16,512}$/i
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const ERROR_CODE_RE = /^[a-z][a-z0-9_]{0,119}$/
 const VALID_DAYS = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
+const VALID_CLASS_KEYS = new Set(['evofuncional', 'evobasics', 'evofit', 'evohybrix', 'evogimnastica', 'evofuerza'])
 
 export class ProgrammingAgentVpsQueueError extends Error {
   constructor(code) {
@@ -42,6 +43,26 @@ function normalizedDays(value) {
   return days
 }
 
+function normalizedWeeklyOffer(value, generationDays) {
+  const rawDays = value?.dias
+  if (!rawDays || typeof rawDays !== 'object' || Array.isArray(rawDays)) {
+    throw new ProgrammingAgentVpsQueueError('invalid_request')
+  }
+  const dias = {}
+  for (const day of generationDays) {
+    const rawClasses = rawDays[day]
+    if (!Array.isArray(rawClasses) || rawClasses.length === 0) {
+      throw new ProgrammingAgentVpsQueueError('invalid_request')
+    }
+    const classes = rawClasses.map((item) => cleanText(item, 40))
+    if (classes.some((key) => !VALID_CLASS_KEYS.has(key)) || new Set(classes).size !== classes.length) {
+      throw new ProgrammingAgentVpsQueueError('invalid_request')
+    }
+    dias[day] = classes
+  }
+  return { version: 1, dias }
+}
+
 export function createWeeklyBriefingRequest(input = {}) {
   const fingerprint = cleanText(input.fingerprint, 512)
   const target = input.target && typeof input.target === 'object' && !Array.isArray(input.target)
@@ -54,6 +75,7 @@ export function createWeeklyBriefingRequest(input = {}) {
   const contextPack = cleanText(input.contextPack, 48_000)
   const userInstructions = cleanText(input.userInstructions, 4_000)
   const generationDays = normalizedDays(input.generationDays)
+  const weeklyOffer = normalizedWeeklyOffer(input.weeklyOffer, generationDays)
 
   if (
     !FINGERPRINT_RE.test(fingerprint)
@@ -71,7 +93,7 @@ export function createWeeklyBriefingRequest(input = {}) {
   return {
     requestType: 'weekly_briefing',
     fingerprint,
-    target: { mesocycle, week, cycleStartDate, targetWeekStartDate, generationDays },
+    target: { mesocycle, week, cycleStartDate, targetWeekStartDate, generationDays, weeklyOffer },
     requestPayload: { contextPack, userInstructions },
   }
 }

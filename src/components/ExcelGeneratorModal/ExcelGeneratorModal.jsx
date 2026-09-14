@@ -100,8 +100,10 @@ import {
 } from '../../utils/weeklyOffer.js'
 import {
   extractWeeklyArchitectureBlock,
+  normalizeWeeklyArchitecturePlan,
   replaceWeeklyArchitectureBlock,
 } from '../../utils/weeklyArchitecturePlan.js'
+import { parseAssistantBriefingJson } from '../../utils/parseAssistantWeekJson.js'
 import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
 import {
   addProgrammingDays,
@@ -1910,6 +1912,36 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setOwnAgentReviewStatus('error')
       setOwnAgentReviewError(
         humanizeNetworkLikeError(error, 'No se pudo comprobar el estado del borrador privado.'),
+      )
+    }
+  }
+
+  function useOwnAgentReviewAsProposal() {
+    try {
+      const proposal = parseAssistantBriefingJson(ownAgentReviewDraft)
+      const weeklyArchitecture = normalizeWeeklyArchitecturePlan(proposal.weeklyArchitecture, {
+        generationDays: selectedGenerationDays,
+        weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+      })
+      if (!String(briefingContextPack || '').trim()) {
+        throw new Error('Falta el contexto verificado de esta semana.')
+      }
+      const nextContextPack = replaceWeeklyArchitectureBlock(briefingContextPack, weeklyArchitecture)
+      setBriefingContextPack(nextContextPack)
+      setProposalTitle(String(proposal.title || '').trim())
+      setProposalNarrative(String(proposal.narrative || '').trim())
+      setProposalSuggestedFocus(String(proposal.suggestedFocus || '').trim())
+      setProposalSource('own_agent')
+      setProposalAccepted(false)
+      setProposalStep('review')
+      setBriefingStatus('ready')
+      setOwnAgentReviewError('')
+    } catch (error) {
+      setOwnAgentReviewError(
+        humanizeNetworkLikeError(
+          error,
+          'El borrador no tiene el formato verificable necesario para usarlo como propuesta.',
+        ),
       )
     }
   }
@@ -5108,6 +5140,13 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       <p className="mt-2 border-t border-violet-100 pt-2 text-[9px] font-semibold text-violet-900/80">
                         Revísalo antes de usarlo. Este borrador no ha cambiado la programación ni WodBuster.
                       </p>
+                      <button
+                        type="button"
+                        onClick={useOwnAgentReviewAsProposal}
+                        className="mt-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-violet-900 hover:bg-violet-100"
+                      >
+                        Usar como propuesta revisable
+                      </button>
                     </details>
                   )}
 

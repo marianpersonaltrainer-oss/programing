@@ -27,6 +27,7 @@ export default function WodModal({
   accentColor,
   exerciseLibrary,
   onConsultAssistant,
+  headCoachEnabled = false,
 }) {
   const [mounted, setMounted] = useState(false)
 
@@ -175,10 +176,12 @@ export default function WodModal({
 
             <div className="pt-3 border-t border-[#A729AD]/12">
               <p className="text-[13px] sm:text-[15px] font-evo-display font-bold uppercase tracking-wide text-[#1a1a1a] mb-2">
-                🤖 Asistente EVO
+                🤖 {headCoachEnabled ? 'Head Coach' : 'Asistente EVO'}
               </p>
               <p className="text-xs text-neutral-600 mb-3">
-                Dudas sobre el WOD de hoy; enviamos el día, clase y texto programado automáticamente.
+                {headCoachEnabled
+                  ? 'Dudas generales sobre cómo explicar, organizar o impartir esta clase. No admite datos de personas, salud ni cambios de programación.'
+                  : 'Dudas sobre el WOD de hoy; enviamos el día, clase y texto programado automáticamente.'}
               </p>
               <button
                 type="button"
@@ -193,7 +196,7 @@ export default function WodModal({
                 className="w-full py-4 px-4 rounded-xl text-[15px] sm:text-[16px] font-bold uppercase tracking-wide text-white shadow-lg shadow-[#6A1F6D]/30 transition-all hover:brightness-110 hover:shadow-xl active:scale-[0.99]"
                 style={{ backgroundColor: accentColor || '#6A1F6D' }}
               >
-                Consultar al asistente
+                {headCoachEnabled ? 'Preguntar al Head Coach' : 'Consultar al asistente'}
               </button>
             </div>
           </div>

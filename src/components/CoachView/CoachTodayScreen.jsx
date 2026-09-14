@@ -7,6 +7,8 @@ import { findDia, sessionText, hasProgrammedSessionText } from './coachViewUtils
 import { classAccentBySessionKey, classDisplayTitle } from './coachTheme.js'
 import { CoachSessionBriefingPreview } from './CoachSessionBriefing.jsx'
 import WodModal from './WodModal.jsx'
+import HeadCoachQuestionDialog from './HeadCoachQuestionDialog.jsx'
+import { isHeadCoachGatewayEnabled } from '../../lib/headCoachGateway.js'
 
 /** Solo clases que tienen programación real ese día (evita mostrar columnas vacías). */
 function classDefsWithContentForDay(dia) {
@@ -227,6 +229,7 @@ export default function CoachTodayScreen({
   onOpenFeedback,
 }) {
   const [wodModal, setWodModal] = useState(null)
+  const [headCoachContext, setHeadCoachContext] = useState(null)
   const dias = weekData?.dias || []
   const workWeek = useMemo(() => dias, [dias])
 
@@ -323,12 +326,18 @@ export default function CoachTodayScreen({
           dailyFeedback={wodModal.dailyFeedback}
           accentColor={wodModal.accentColor}
           exerciseLibrary={exerciseLibrary}
+          headCoachEnabled={isHeadCoachGatewayEnabled()}
           onConsultAssistant={(ctx) => {
             setWodModal(null)
+            if (isHeadCoachGatewayEnabled()) {
+              setHeadCoachContext(ctx)
+              return
+            }
             onConsultAssistant(ctx)
           }}
         />
       ) : null}
+      {headCoachContext ? <HeadCoachQuestionDialog context={headCoachContext} onClose={() => setHeadCoachContext(null)} /> : null}
     </div>
   )
 }

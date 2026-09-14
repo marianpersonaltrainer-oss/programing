@@ -6,6 +6,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const ERROR_CODE_RE = /^[a-z][a-z0-9_]{0,119}$/
 const VALID_DAYS = new Set(['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'])
 const VALID_CLASS_KEYS = new Set(['evofuncional', 'evobasics', 'evofit', 'evohybrix', 'evogimnastica', 'evofuerza'])
+const VALID_DRAFT_SCOPES = new Set(['weekly_architecture', 'full_week'])
+const MAX_DRAFT_CHARS = 52_000
 
 export class ProgrammingAgentVpsQueueError extends Error {
   constructor(code) {
@@ -63,6 +65,12 @@ function normalizedWeeklyOffer(value, generationDays) {
   return { version: 1, dias }
 }
 
+function normalizedDraftScope(value) {
+  const scope = cleanText(value || 'weekly_architecture', 40)
+  if (!VALID_DRAFT_SCOPES.has(scope)) throw new ProgrammingAgentVpsQueueError('invalid_request')
+  return scope
+}
+
 export function createWeeklyBriefingRequest(input = {}) {
   const fingerprint = cleanText(input.fingerprint, 512)
   const target = input.target && typeof input.target === 'object' && !Array.isArray(input.target)
@@ -76,6 +84,7 @@ export function createWeeklyBriefingRequest(input = {}) {
   const userInstructions = cleanText(input.userInstructions, 4_000)
   const generationDays = normalizedDays(input.generationDays)
   const weeklyOffer = normalizedWeeklyOffer(input.weeklyOffer, generationDays)
+  const draftScope = normalizedDraftScope(input.draftScope)
 
   if (
     !FINGERPRINT_RE.test(fingerprint)
@@ -93,7 +102,7 @@ export function createWeeklyBriefingRequest(input = {}) {
   return {
     requestType: 'weekly_briefing',
     fingerprint,
-    target: { mesocycle, week, cycleStartDate, targetWeekStartDate, generationDays, weeklyOffer },
+    target: { mesocycle, week, cycleStartDate, targetWeekStartDate, generationDays, weeklyOffer, draftScope },
     requestPayload: { contextPack, userInstructions },
   }
 }
@@ -185,11 +194,13 @@ export function createProgrammingAgentVpsQueueBroker({
 
     async answer({ ticket, draftMarkdown } = {}) {
       const id = cleanText(ticket, 100)
-      const draft = cleanText(draftMarkdown, 24_000)
-      if (!UUID_RE.test(id) || !draft) throw new ProgrammingAgentVpsQueueError('invalid_answer')
+      const rawDraft = String(draftMarkdown || '').trim()
+      if (!UUID_RE.test(id) || !rawDraft || rawDraft.length > MAX_DRAFT_CHARS) {
+        throw new ProgrammingAgentVpsQueueError('invalid_answer')
+      }
       const { data, error } = await client().rpc('complete_programming_agent_request', {
         p_request_id: id,
-        p_response_payload: { draftMarkdown: draft },
+        p_response_payload: { draftMarkdown: rawDraft },
       })
       if (error) throw new ProgrammingAgentVpsQueueError('answer_unavailable')
       if (data !== true) throw new ProgrammingAgentVpsQueueError('ticket_unavailable')

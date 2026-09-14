@@ -93,6 +93,7 @@ import {
 import {
   buildCurrentWeeklyOfferSelection,
   getSelectedClassKeysForDay,
+  getSelectedOfferDays,
   parseWeeklyOfferSelection,
   serializeWeeklyOfferSelection,
   weeklyOfferSelectionFromWeekData,
@@ -103,7 +104,7 @@ import {
   normalizeWeeklyArchitecturePlan,
   replaceWeeklyArchitectureBlock,
 } from '../../utils/weeklyArchitecturePlan.js'
-import { parseAssistantBriefingJson } from '../../utils/parseAssistantWeekJson.js'
+import { normalizeOwnAgentWeeklyDraft } from '../../utils/ownAgentWeeklyDraft.js'
 import { METHOD_EVO_V1_LABEL } from '../../domain/method/methodEvoV1.js'
 import {
   addProgrammingDays,
@@ -1774,11 +1775,6 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setOwnAgentReviewError('Indica la fecha real de inicio del ciclo antes de solicitar el borrador.')
       return
     }
-    if (selectedGenerationDayCount === 0) {
-      setOwnAgentReviewStatus('error')
-      setOwnAgentReviewError('Selecciona al menos un día para diseñar.')
-      return
-    }
     const adminSecret = publicationAdminSecret()
     if (!adminSecret) {
       setOwnAgentReviewStatus('error')
@@ -1786,10 +1782,21 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       return
     }
 
-    const inputFingerprint = currentPlanningInputFingerprint
     const instructionsSnapshot = String(addendum || '').trim().slice(0, ADDENDUM_MAX_CHARS)
-    const daysSnapshot = [...selectedGenerationDays]
     const offerSnapshot = serializeWeeklyOfferSelection(dayClassPicker)
+    // El agente propio diseña siempre la oferta semanal completa: no se le
+    // pueden encargar clases sueltas que rompan la progresión horizontal.
+    const daysSnapshot = getSelectedOfferDays(dayClassPicker)
+    if (daysSnapshot.length === 0) {
+      setOwnAgentReviewStatus('error')
+      setOwnAgentReviewError('Marca la oferta de clases de la semana antes de solicitar el borrador completo.')
+      return
+    }
+    const inputFingerprint = hashPublicationValue({
+      planning: currentPlanningInputFingerprint,
+      generationDays: daysSnapshot,
+      weeklyOffer: offerSnapshot,
+    })
     const baseBriefingPayload = {
       secret: adminSecret,
       mesociclo: weekState.mesocycle,
@@ -1842,7 +1849,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
       setBriefingInputFingerprint(inputFingerprint)
 
       const fingerprint = hashPublicationValue({
-        version: 'programming-agent-vps-review-v1',
+        version: 'programming-agent-vps-full-week-v1',
         planning: inputFingerprint,
         contextSelection,
         contextPack,
@@ -1864,6 +1871,7 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
           userInstructions: instructionsSnapshot,
           generationDays: daysSnapshot,
           weeklyOffer: offerSnapshot,
+          draftScope: 'full_week',
         },
         0,
         {
@@ -1927,29 +1935,56 @@ export default function ExcelGeneratorModal({ weekState, onClose, onSyncWeekFrom
 
   function useOwnAgentReviewAsProposal() {
     try {
-      const proposal = parseAssistantBriefingJson(ownAgentReviewDraft)
-      const weeklyArchitecture = normalizeWeeklyArchitecturePlan(proposal.weeklyArchitecture, {
-        generationDays: selectedGenerationDays,
-        weeklyOffer: serializeWeeklyOfferSelection(dayClassPicker),
+      const weeklyOffer = serializeWeeklyOfferSelection(dayClassPicker)
+      const generationDays = getSelectedOfferDays(dayClassPicker)
+      const draft = normalizeOwnAgentWeeklyDraft(ownAgentReviewDraft, {
+        semana: weekState.week,
+        mesociclo: weekState.mesocycle,
+        weeklyOffer,
+      })
+      const weeklyArchitecture = normalizeWeeklyArchitecturePlan(draft.weeklyArchitecture, {
+        generationDays,
+        weeklyOffer,
       })
       if (!String(briefingContextPack || '').trim()) {
         throw new Error('Falta el contexto verificado de esta semana.')
       }
       const nextContextPack = replaceWeeklyArchitectureBlock(briefingContextPack, weeklyArchitecture)
+      const completeDraft = attachExactCycleIdentity({
+        ...draft,
+        cycle_id: targetCycleId || null,
+        cycle_start_date: targetCycleStartDate || null,
+        week_start_date: targetWeekStartDate || null,
+        oferta_semanal: weeklyOffer,
+      }, weekState.week)
       setBriefingContextPack(nextContextPack)
-      setProposalTitle(String(proposal.title || '').trim())
-      setProposalNarrative(String(proposal.narrative || '').trim())
-      setProposalSuggestedFocus(String(proposal.suggestedFocus || '').trim())
+      setProposalTitle(String(completeDraft.titulo || '').trim())
+      setProposalNarrative(String(completeDraft?.resumen?.nota || '').trim())
+      setProposalSuggestedFocus(String(completeDraft?.resumen?.foco || '').trim())
       setProposalSource('own_agent')
       setProposalAccepted(false)
       setProposalStep('review')
       setBriefingStatus('ready')
+      setWeekData(completeDraft)
+      setRawJson(JSON.stringify(completeDraft, null, 2))
+      setEditTitle(completeDraft.titulo || '')
+      setEditSheetName(`S${weekState.week || 1}`)
+      lastPersistedDraftRef.current = JSON.stringify(completeDraft)
+      saveWeekToHistory(
+        weekState.mesocycle,
+        weekState.week,
+        completeDraft,
+      )
+      setHistory(readExactLocalHistory())
+      setSavedPublishedEdit(false)
+      setStatus('previewing')
+      runScoring(completeDraft)
       setOwnAgentReviewError('')
     } catch (error) {
       setOwnAgentReviewError(
         humanizeNetworkLikeError(
           error,
-          'El borrador no tiene el formato verificable necesario para usarlo como propuesta.',
+          'El borrador semanal no tiene un formato verificable completo. La semana publicada sigue intacta.',
         ),
       )
     }
@@ -5102,7 +5137,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                       Agente Programador EVO
                     </p>
                     <p className="mt-1 text-[10px] leading-relaxed text-violet-950/80">
-                      Pide un borrador privado al agente propio con el histórico verificado. No rellena, modifica ni publica la semana automáticamente.
+                      Diseña toda la oferta semanal con histórico y progresión verificados. No modifica ni publica la semana automáticamente.
                     </p>
                   </div>
 
@@ -5110,10 +5145,10 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                     <button
                       type="button"
                       onClick={requestOwnAgentReview}
-                      disabled={selectedGenerationDayCount === 0}
+                      disabled={getSelectedOfferDays(dayClassPicker).length === 0}
                       className="w-full rounded-xl bg-violet-700 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm hover:bg-violet-800 disabled:opacity-45"
                     >
-                      Solicitar borrador privado al Agente Programador
+                      Solicitar semana completa al Agente Programador
                     </button>
                   )}
 
@@ -5126,7 +5161,7 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {ownAgentReviewStatus === 'queued' && (
                     <div className="rounded-lg bg-white px-3 py-2 space-y-2">
                       <p className="text-[10px] font-semibold text-violet-900">
-                        Encargo privado en curso. El trabajador lo revisa en segundo plano; esta pantalla se actualizará al terminar.
+                        Encargo semanal privado en curso. El trabajador diseña el conjunto completo; esta pantalla se actualizará al terminar.
                       </p>
                       <button
                         type="button"
@@ -5141,20 +5176,20 @@ Si la instrucción dice cambiar algo, NO devuelvas texto idéntico al original.`
                   {ownAgentReviewStatus === 'completed' && (
                     <details className="rounded-lg border border-violet-200 bg-white px-3 py-2">
                       <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wide text-violet-950">
-                        Ver borrador privado listo
+                        Ver semana completa privada
                       </summary>
                       <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-[#1A0A1A]">
                         {ownAgentReviewDraft}
                       </p>
                       <p className="mt-2 border-t border-violet-100 pt-2 text-[9px] font-semibold text-violet-900/80">
-                        Revísalo antes de usarlo. Este borrador no ha cambiado la programación ni WodBuster.
+                        Revísala antes de abrirla en el editor. Este borrador no ha cambiado la programación publicada ni WodBuster.
                       </p>
                       <button
                         type="button"
                         onClick={useOwnAgentReviewAsProposal}
                         className="mt-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-violet-900 hover:bg-violet-100"
                       >
-                        Usar como propuesta revisable
+                        Abrir semana completa como borrador editable
                       </button>
                     </details>
                   )}

@@ -33,8 +33,9 @@ describe('contrato de la cola propia del Agente Programador', () => {
         week: 2,
         cycleStartDate: '2026-09-07',
         targetWeekStartDate: '2026-09-14',
-        generationDays: ['LUNES', 'MIÉRCOLES'],
-        weeklyOffer: { version: 1, ...valid.weeklyOffer },
+      generationDays: ['LUNES', 'MIÉRCOLES'],
+      weeklyOffer: { version: 1, ...valid.weeklyOffer },
+      draftScope: 'weekly_architecture',
       },
       requestPayload: {
         contextPack: valid.contextPack,
@@ -49,6 +50,7 @@ describe('contrato de la cola propia del Agente Programador', () => {
       { ...valid, target: { ...valid.target, targetWeekStartDate: 'mañana' } },
       { ...valid, generationDays: ['DOMINGO'] },
       { ...valid, weeklyOffer: { dias: { LUNES: ['evofuncional'] } } },
+      { ...valid, draftScope: 'one_class' },
       { ...valid, fingerprint: 'corto' },
     ]) {
       expect(() => createWeeklyBriefingRequest(value)).toThrow(ProgrammingAgentVpsQueueError)

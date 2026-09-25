@@ -56,7 +56,7 @@ Actualizacion 10:23: compatibilidad de Basic Auth Latin-1 restringida al subconj
 
 > **Cierre 31 de agosto:** el formulario guiado de feedback de coach (`10ac6b7`) está fusionado en `main` mediante el merge `103cb1b`. Vercel ya había desplegado ese cambio en producción (`dpl_7iZmpAuw7cGq1bmYDkDuAxkdb5e7`); tras subir este registro, comprobar el despliegue automático desde `main` y conservar la rama solo como historial de la revisión.
 
-> **En curso 25 de septiembre:** `feature/trial-close-protected` sustituye el borrador local por un cierre protegido de clase de prueba. Solo una sesión individual con la capability Coach puede guardar el registro privado append-only en `evo_events`; el código compartido no puede hacerlo. No envía mensajes ni modifica CRM/WodBuster. Esquema real comprobado: RLS forzado y permisos `SELECT`/`INSERT` exclusivamente para `service_role`. Pruebas unitarias y build local en verde; pendiente de despliegue y comprobación visual en producción.
+> **Cierre 25 de septiembre:** `feature/trial-close-protected` sustituye el borrador local por un cierre protegido de clase de prueba. Solo una sesión individual con la capability Coach puede guardar el registro privado append-only en `evo_events`; el código compartido no puede hacerlo. No envía mensajes ni modifica CRM/WodBuster. Esquema real comprobado: RLS forzado y permisos `SELECT`/`INSERT` exclusivamente para `service_role`. Publicado desde `d925123` y comprobado en `https://programing-evo.vercel.app/?coach`: el formulario aparece en Feedback y el endpoint rechaza sin sesión individual con `401 authentication_required`.
 
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 
@@ -118,7 +118,7 @@ El 24 de agosto de 2026 Marian decidió que **"app cerrada" = v1 estable y segur
 | PR #35 · resumen semanal | Muestra al equipo el estado de semana publicada y el progreso de feedback | **Fusionado y publicado el 25 de agosto.** CI y build en verde |
 | PR #36 · espacio de trabajo | Entrada visible que separa Administración, borradores, equipo y Coach | **Fusionado el 25 de agosto.** CI y build en verde; no modifica sesiones, envíos, identidad ni la semana publicada |
 | `integracion/equipo-evo` | Equipo EVO integrado sobre main (22 commits) | Verde, 559 tests. Inerte tras `?incorporaciones`. Sin PR abierto. **Aparcado** |
-| `feature/trial-close-protected` | Cierre protegido de prueba en Feedback | Pendiente de despliegue: persiste solo tras pulsación explícita y sesión Coach individual; no envía ni modifica CRM/WodBuster. |
+| `feature/trial-close-protected` | Cierre protegido de prueba en Feedback | Publicado y verificado el 25 de septiembre: persiste solo tras pulsación explícita y sesión Coach individual; no envía ni modifica CRM/WodBuster. |
 
 ### Catálogo de clases sembrado en las dos bases (25 de agosto de 2026)
 

@@ -60,6 +60,8 @@ Actualizacion 10:23: compatibilidad de Basic Auth Latin-1 restringida al subconj
 
 > **Preparación 25 de septiembre:** el contrato local `trialCloseCommercialHandoff` reduce ese cierre a asistencia, recomendación y prioridad, exige vinculación manual del lead y excluye `coach_id`, adaptaciones y motivo libre. Sus 3 pruebas pasan junto a las 4 del cierre. No existe todavía lector, conexión o despliegue hacia la mesa de Ventas: no se han movido datos reales ni creado/modificado fichas.
 
+> **Conexión 25 de septiembre:** se publicó el lector privado `GET /api/trial-close-handoffs` y la bandeja privada de Ventas. La conexión usa una clave exclusiva de servidor a servidor; solo transmite el contrato reducido y la oficina la consulta al abrir Ventas. La tabla `trial_close_handoffs` existe en la D1 de la oficina y la lectura autenticada devolvió `200` con `0` cierres, sin exponer filas. No crea ni actualiza leads, no vincula por nombre y no envía mensajes. Si la lectura fallara, el evento original seguirá siendo append-only en `evo_events`.
+
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 
 ---

@@ -58,6 +58,8 @@ Actualizacion 10:23: compatibilidad de Basic Auth Latin-1 restringida al subconj
 
 > **Cierre 25 de septiembre:** `feature/trial-close-protected` sustituye el borrador local por un cierre protegido de clase de prueba. Solo una sesión individual con la capability Coach puede guardar el registro privado append-only en `evo_events`; el código compartido no puede hacerlo. No envía mensajes ni modifica CRM/WodBuster. Esquema real comprobado: RLS forzado y permisos `SELECT`/`INSERT` exclusivamente para `service_role`. Publicado desde `d925123` y comprobado en `https://programing-evo.vercel.app/?coach`: el formulario aparece en Feedback y el endpoint rechaza sin sesión individual con `401 authentication_required`.
 
+> **Preparación 25 de septiembre:** el contrato local `trialCloseCommercialHandoff` reduce ese cierre a asistencia, recomendación y prioridad, exige vinculación manual del lead y excluye `coach_id`, adaptaciones y motivo libre. Sus 3 pruebas pasan junto a las 4 del cierre. No existe todavía lector, conexión o despliegue hacia la mesa de Ventas: no se han movido datos reales ni creado/modificado fichas.
+
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 
 ---

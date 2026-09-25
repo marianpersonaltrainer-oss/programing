@@ -68,6 +68,44 @@ async function getIndividualCoachAccessToken() {
   return token
 }
 
+/**
+ * El cierre de una primera clase no acepta nunca el código compartido. Aunque
+ * la transición de acceso de coach siga activa para ver "Mi turno", guardar
+ * este registro exige una sesión individual con la capacidad correspondiente.
+ */
+async function getProtectedCoachAccessToken() {
+  if (!supabase) return ''
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  const token = String(sessionData?.session?.access_token || '').trim()
+  if (sessionError || !token) return ''
+
+  const { data: capabilityRows, error: capabilityError } = await supabase
+    .rpc('evo_my_capabilities')
+  if (capabilityError || !hasUniqueCoachCapabilityContext(capabilityRows)) return ''
+
+  return token
+}
+
+export async function saveCoachTrialClose(payload) {
+  const token = await getProtectedCoachAccessToken()
+  if (!token) throw new Error('individual_coach_identity_required')
+
+  const response = await fetch('/api/coach-trial-close', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(json?.error || 'trial_close_write_unavailable')
+  }
+  return json
+}
+
 async function callOperationalData(action, payload = {}, authorization = 'auto') {
   const body = { action, payload }
   if (authorization === 'admin' || authorization === 'auto') {

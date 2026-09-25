@@ -58,11 +58,11 @@ export function createTrialCloseHandoffsHandler({
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed', requestId })
 
     const config = readConfigImpl(process.env)
-    if (!config.secret || !config.organizationId || !config.serviceKey || !config.supabaseUrl) {
-      return res.status(503).json({ error: 'sales_handoff_not_configured', requestId })
-    }
     const supplied = String(req?.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim()
     if (!sameSecret(supplied, config.secret)) return res.status(401).json({ error: 'not_authorized', requestId })
+    if (!config.organizationId || !config.serviceKey || !config.supabaseUrl) {
+      return res.status(503).json({ error: 'sales_handoff_not_configured', requestId })
+    }
 
     const supabase = createClientImpl(config.supabaseUrl, config.serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },

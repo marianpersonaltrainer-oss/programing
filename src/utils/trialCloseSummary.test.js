@@ -28,7 +28,7 @@ describe('buildTrialCloseSummary', () => {
     expect(result.ok).toBe(true)
     expect(result.nextStage).toBe('📄 Propuesta preparada')
     expect(result.summary).toContain('1. Asistencia: vino')
-    expect(result.summary).toContain('2. Punto de entrada recomendado: EVO Basics')
+    expect(result.summary).toContain('2. Nivel recomendado: EVO Basics')
     expect(result.summary).toContain('4. Adaptaciones relevantes: ninguna')
     expect(result.summary).not.toContain('Frecuencia sugerida')
   })

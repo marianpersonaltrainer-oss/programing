@@ -1,0 +1,511 @@
+/*
+ * Espacio Coach: una capa visual común para que la app se lea como una ruta
+ * de trabajo y no como un panel técnico. La identidad se mantiene en EVO;
+ * el acento morado solo señala la acción o estado que importa.
+ */
+.coach-workspace {
+  --coach-ink: #212121;
+  --coach-muted: #6f6b68;
+  --coach-line: #ddd2c2;
+  --coach-surface: #fcfaf5;
+  --coach-raised: #ffffff;
+  --coach-soft: #f8f3ed;
+  --coach-accent: #6a1f6d;
+  --coach-accent-soft: #f6e9ef;
+  --coach-success: #edf7f0;
+  background: var(--coach-surface);
+  color: var(--coach-ink);
+}
+
+.coach-workspace .coach-app-header {
+  min-height: 70px;
+  border-color: var(--coach-line);
+  background: rgba(255, 253, 249, 0.96);
+}
+
+.coach-workspace .coach-app-section {
+  font-family: 'Montserrat', 'DM Sans', sans-serif;
+  letter-spacing: -0.015em;
+  text-transform: none;
+}
+
+.coach-workspace .coach-app-meta {
+  color: var(--coach-muted);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.coach-workspace .coach-bottom-nav {
+  border-color: var(--coach-line);
+  background: rgba(255, 253, 249, 0.98);
+  box-shadow: 0 -5px 20px rgba(33, 33, 33, 0.06);
+}
+
+.coach-workspace .coach-bottom-nav-active {
+  background: var(--coach-accent-soft);
+  color: var(--coach-accent);
+}
+
+.coach-workspace .coach-page {
+  background: var(--coach-surface);
+}
+
+.coach-workspace .coach-turn-cover {
+  background: var(--coach-surface);
+}
+
+.coach-workspace .coach-turn-cover-inner {
+  min-height: 244px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: 20px;
+  background: #241020;
+  color: #fffdf9;
+  box-shadow: 0 12px 28px rgba(36, 16, 32, 0.16);
+}
+
+.coach-workspace .coach-turn-cover-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.coach-workspace .coach-turn-cover-top > span {
+  border: 1px solid rgba(255, 253, 249, 0.32);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: rgba(255, 253, 249, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.coach-workspace .coach-turn-cover-copy {
+  padding-top: 26px;
+}
+
+.coach-workspace .coach-turn-cover-copy p {
+  margin: 0;
+  color: #ffff4c;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.coach-workspace .coach-turn-cover-copy h1 {
+  margin: 8px 0 0;
+  max-width: 380px;
+  color: #fffdf9;
+  font-family: 'Montserrat', 'DM Sans', sans-serif;
+  font-size: clamp(36px, 9vw, 58px);
+  font-weight: 700;
+  letter-spacing: -0.07em;
+  line-height: 0.92;
+}
+
+.coach-workspace .coach-turn-cover-copy span {
+  display: inline-block;
+  margin-top: 15px;
+  color: rgba(255, 253, 249, 0.74);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.coach-workspace .coach-turn-cover-note {
+  max-width: 300px;
+  margin: 23px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255, 253, 249, 0.18);
+  color: rgba(255, 253, 249, 0.7);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.coach-workspace .coach-eyebrow {
+  margin: 0;
+  color: var(--coach-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.coach-workspace .coach-page-title {
+  margin: 6px 0 0;
+  color: var(--coach-ink);
+  font-family: 'Montserrat', 'DM Sans', sans-serif;
+  font-size: clamp(28px, 6vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+.coach-workspace .coach-page-copy {
+  max-width: 580px;
+  margin: 9px 0 0;
+  color: var(--coach-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.coach-workspace .coach-day-tabs {
+  scrollbar-width: none;
+}
+
+.coach-workspace .coach-day-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.coach-workspace .coach-day-tab {
+  min-width: 58px;
+  border-color: var(--coach-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--coach-muted);
+  font-size: 13px;
+}
+
+.coach-workspace .coach-day-tab:hover {
+  border-color: var(--coach-accent);
+  color: var(--coach-accent);
+}
+
+.coach-workspace .coach-day-tab[data-active='true'] {
+  border-color: var(--coach-accent);
+  background: var(--coach-accent);
+  color: #fff;
+}
+
+.coach-workspace .coach-day-today {
+  position: absolute;
+  right: 9px;
+  top: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #ffff4c;
+}
+
+.coach-workspace .coach-primary-task {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 13px;
+  align-items: start;
+  border: 0;
+  border-radius: 18px;
+  background: #e4eee9;
+  padding: 19px;
+}
+
+.coach-workspace .coach-primary-task-number {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 999px;
+  background: #2d7253;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.coach-workspace .coach-primary-task h2 {
+  margin: 0;
+  color: var(--coach-ink);
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.coach-workspace .coach-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.coach-workspace .coach-section-heading p {
+  margin: 0;
+  color: var(--coach-ink);
+  font-family: 'Montserrat', 'DM Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+
+.coach-workspace .coach-section-heading span {
+  color: var(--coach-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.coach-workspace .coach-primary-task p {
+  margin: 5px 0 0;
+  color: var(--coach-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.coach-workspace .coach-today-glance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--coach-line);
+  border-radius: 18px;
+  background: var(--coach-raised);
+}
+
+.coach-workspace .coach-today-glance > div {
+  display: flex;
+  min-width: 0;
+  min-height: 112px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px;
+}
+
+.coach-workspace .coach-today-glance > div + div {
+  border-left: 1px solid var(--coach-line);
+}
+
+.coach-workspace .coach-today-glance span,
+.coach-workspace .coach-today-glance small {
+  color: var(--coach-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.coach-workspace .coach-today-glance span {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.coach-workspace .coach-today-glance strong {
+  margin: 6px 0 3px;
+  color: var(--coach-ink);
+  font-family: 'Montserrat', 'DM Sans', sans-serif;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+}
+
+.coach-workspace .coach-today-glance .coach-glance-warning { color: #9d552c; }
+
+.coach-workspace .coach-roster-status { box-shadow: none; }
+.coach-workspace .coach-roster-status-warning { background: #fff8eb; border-color: #e8c992; }
+
+.coach-workspace .coach-today-checklist {
+  border: 1px solid var(--coach-line);
+  border-radius: 18px;
+  background: var(--coach-raised);
+  padding: 18px;
+}
+
+.coach-workspace .coach-today-checklist h2 {
+  margin: 4px 0 0;
+  color: var(--coach-ink);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.coach-workspace .coach-today-checklist > div > span {
+  color: var(--coach-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.coach-workspace .coach-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-radius: 12px;
+  padding: 10px;
+  color: var(--coach-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.coach-workspace .coach-checklist-row:hover { background: var(--coach-soft); }
+
+.coach-workspace .coach-checklist-row > span:first-child {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--coach-line);
+  border-radius: 8px;
+  background: white;
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.coach-workspace .coach-checklist-row[data-complete='true'] { color: #557061; text-decoration: line-through; }
+.coach-workspace .coach-checklist-row[data-complete='true'] > span:first-child { border-color: #2d7253; background: #2d7253; }
+
+.coach-workspace .coach-resource-hub {
+  border-color: var(--coach-line);
+  border-radius: 18px;
+  background: var(--coach-raised);
+}
+
+.coach-workspace .coach-resource-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--coach-line);
+  border-radius: 14px;
+  padding: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.coach-workspace .coach-resource-link:hover { border-color: var(--coach-accent); background: var(--coach-soft); }
+.coach-workspace .coach-resource-link strong { display: block; color: var(--coach-ink); font-size: 14px; }
+.coach-workspace .coach-resource-link small { display: block; margin-top: 4px; color: var(--coach-muted); font-size: 12px; line-height: 1.35; }
+.coach-workspace .coach-resource-link b { color: var(--coach-accent); font-size: 20px; }
+
+.coach-workspace .coach-class-list {
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
+  background: var(--coach-raised);
+  box-shadow: 0 1px 0 var(--coach-line), 0 8px 22px rgba(33, 33, 33, 0.045);
+}
+
+.coach-workspace .coach-class-row {
+  border-color: var(--coach-line);
+}
+
+.coach-workspace .coach-class-row-button {
+  min-height: 82px;
+  border-left: 5px solid var(--coach-session-accent, var(--coach-accent));
+}
+
+.coach-workspace .coach-class-index {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--coach-session-accent, var(--coach-accent)) 12%, white);
+  color: var(--coach-session-accent, var(--coach-accent));
+}
+
+.coach-workspace .coach-class-index[data-open='true'] {
+  background: var(--coach-session-accent, var(--coach-accent));
+  color: #fff;
+}
+
+.coach-workspace .coach-class-name {
+  color: var(--coach-ink);
+  font-family: 'Montserrat', 'DM Sans', sans-serif;
+  font-size: 17px;
+  letter-spacing: -0.025em;
+}
+
+.coach-workspace .coach-class-help {
+  color: var(--coach-muted);
+  font-size: 12px;
+}
+
+.coach-workspace .coach-class-action {
+  border-color: color-mix(in srgb, var(--coach-session-accent, var(--coach-accent)) 26%, white);
+  background: color-mix(in srgb, var(--coach-session-accent, var(--coach-accent)) 8%, white);
+  color: var(--coach-session-accent, var(--coach-accent));
+  font-size: 11px;
+}
+
+.coach-workspace .coach-class-expanded {
+  border-color: var(--coach-line);
+  background: #fbf7f3;
+}
+
+.coach-workspace .coach-neutral-button {
+  border-color: var(--coach-line);
+  background: var(--coach-raised);
+  color: var(--coach-accent);
+}
+
+.coach-workspace .coach-primary-button {
+  border: 1px solid var(--coach-accent);
+  border-radius: 13px;
+  background: var(--coach-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.coach-workspace .coach-primary-button:hover {
+  background: #531755;
+}
+
+.coach-workspace .coach-roster,
+.coach-workspace .coach-trial-form {
+  border-color: var(--coach-line);
+  border-radius: 18px;
+  background: var(--coach-raised);
+  box-shadow: 0 8px 22px rgba(33, 33, 33, 0.045);
+}
+
+.coach-workspace .coach-roster-count,
+.coach-workspace .coach-status-chip {
+  border-color: var(--coach-line);
+  border-radius: 10px;
+  background: var(--coach-soft);
+  color: var(--coach-accent);
+}
+
+.coach-workspace .coach-roster-list {
+  border-color: var(--coach-line);
+  border-radius: 14px;
+}
+
+.coach-workspace .coach-roster-list > li {
+  border-color: var(--coach-line);
+}
+
+.coach-workspace .coach-trial-card {
+  background: var(--coach-soft);
+}
+
+.coach-workspace .coach-trial-note {
+  border-color: #b8d4c1;
+  background: var(--coach-success);
+  color: #41584a;
+}
+
+.coach-workspace .coach-trial-note strong {
+  color: #286b42;
+}
+
+.coach-workspace .coach-trial-ready {
+  flex: none;
+  border-radius: 999px;
+  background: #e4eee9;
+  color: #2d7253;
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+  .coach-workspace .coach-turn-cover-inner {
+    min-height: 278px;
+    padding: 28px;
+  }
+
+  .coach-workspace .coach-desktop-sidebar {
+    border-color: var(--coach-line);
+    background: var(--coach-raised);
+  }
+}

@@ -9,7 +9,7 @@ export function CoachSessionBriefingPreview({ text, lineClamp = 4 }) {
 
   return (
     <p
-      className={`text-[13px] text-[#F6E8F9]/95 ${clamp} leading-snug whitespace-pre-line`}
+      className={`text-[13px] text-[#0C0B0C]/75 ${clamp} leading-snug whitespace-pre-line`}
       style={{ fontFamily: 'Montserrat, var(--font-evo-body), sans-serif' }}
     >
       {body}

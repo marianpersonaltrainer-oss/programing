@@ -123,8 +123,8 @@ function FeedbackEntryCard({
     <article
       className={`rounded-xl border p-3.5 text-sm ${
         unreadChange
-          ? 'border-amber-400/70 bg-amber-950/35 ring-1 ring-amber-400/25'
-          : `border-white/10 ${coachBg.rowB}`
+          ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200'
+          : `border-[#6A1F6D]/15 ${coachBg.rowB}`
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -133,7 +133,7 @@ function FeedbackEntryCard({
             Tú
           </span>
         ) : null}
-        <span className="font-bold text-[#F3EAF8]">{row.coach_name?.trim() || 'Coach'}</span>
+        <span className="font-bold text-[#0C0B0C]">{row.coach_name?.trim() || 'Coach'}</span>
         {when ? <span className={`text-xs ${coachText.muted}`}>{when}</span> : null}
         {row.time_for_explanation && TIME_EXPLAIN_SHORT[row.time_for_explanation] ? (
           <span
@@ -147,22 +147,22 @@ function FeedbackEntryCard({
       </div>
 
       {changed ? (
-        <div className="mt-2.5 rounded-lg border border-orange-400/35 bg-orange-950/30 px-3 py-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-orange-300/90 mb-1">Cambió en sesión</p>
-          <p className="leading-snug whitespace-pre-wrap text-orange-50/95">
+        <div className="mt-2.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-orange-800 mb-1">Cambió en sesión</p>
+          <p className="leading-snug whitespace-pre-wrap text-orange-950">
             {changeText || 'Indicó cambios sin detalle.'}
           </p>
         </div>
       ) : null}
 
       {feelings ? (
-        <p className="mt-2.5 leading-relaxed whitespace-pre-wrap text-[#F3EAF8]/92">{feelings}</p>
+        <p className="mt-2.5 leading-relaxed whitespace-pre-wrap text-[#0C0B0C]/78">{feelings}</p>
       ) : null}
 
       {vigil ? (
-        <div className="mt-2.5 rounded-lg border border-yellow-500/30 bg-yellow-950/25 px-3 py-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-300/80 mb-1">A vigilar</p>
-          <p className="leading-snug whitespace-pre-wrap text-yellow-50/90">{vigil}</p>
+        <div className="mt-2.5 rounded-lg border border-yellow-300 bg-[#FFFFE2] px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#6A1F6D] mb-1">A vigilar</p>
+          <p className="leading-snug whitespace-pre-wrap text-[#0C0B0C]/85">{vigil}</p>
         </div>
       ) : null}
 
@@ -245,6 +245,7 @@ export default function CoachSessionFeedbackForm({
   onAfterSave,
   /** { token: number, dayKey: string, classLabel: string } — se aplica al cambiar token (desde Semana). */
   prefill = null,
+  trialClose = null,
 }) {
   const [dayKey, setDayKey] = useState('monday')
   const [classLabel, setClassLabel] = useState(ALL_CLASS_LABELS[0] || 'EvoFuncional')
@@ -464,11 +465,11 @@ export default function CoachSessionFeedbackForm({
 
   return (
     <div className={`${coachUi.scroll} pb-24 px-6 py-8 max-w-2xl mx-auto`}>
-      <h2 className={coachUi.h2}>Feedback</h2>
+      <h2 className={coachUi.h2}>Notas del turno</h2>
       <p className={`text-sm ${coachText.muted} mb-6 leading-relaxed`}>
         {madridProgramDayKey ? (
           <>
-            <span className="font-semibold text-[#F3EAF8]">{dayTitle}</span> · {formatMadridDateShort()}
+            <span className="font-semibold text-[#0C0B0C]">{dayTitle}</span> · {formatMadridDateShort()}
           </>
         ) : (
           <>Semana · {formatMadridDateShort()}</>
@@ -482,7 +483,7 @@ export default function CoachSessionFeedbackForm({
 
       <section
         className={`mb-8 ${coachBg.card} border ${coachBorder} rounded-2xl p-5 shadow-sm space-y-4`}
-        aria-label="Feedback del equipo hoy"
+        aria-label="Notas del equipo hoy"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -496,7 +497,7 @@ export default function CoachSessionFeedbackForm({
               </p>
             ) : (
               <p className={`text-xs ${coachText.muted} mt-1`}>
-                {madridProgramDayKey ? 'Aún no hay feedback de hoy.' : 'Sin envíos esta semana.'}
+                {madridProgramDayKey ? 'Aún no hay notas del equipo hoy.' : 'Sin notas esta semana.'}
               </p>
             )}
           </div>
@@ -577,7 +578,7 @@ export default function CoachSessionFeedbackForm({
                       className={`rounded-lg border p-2.5 text-xs ${coachBorder} ${coachBg.cardAlt}`}
                       style={{ borderLeftWidth: 3, borderLeftColor: ch.bar }}
                     >
-                      <span className="font-bold text-[#F3EAF8]/90">
+                      <span className="font-bold text-[#0C0B0C]">
                         {dayLabel} · {row.class_label || '—'} · {row.coach_name?.trim() || 'Coach'}
                       </span>
                       {when ? <span className={`${coachText.muted}`}> · {when}</span> : null}
@@ -599,7 +600,7 @@ export default function CoachSessionFeedbackForm({
           onClick={() => setShowFeedbackForm((v) => !v)}
           className={`w-full text-left flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl border ${coachBorder} ${coachBg.card} ${coachText.primary} hover:opacity-95`}
         >
-          <span className="text-sm font-extrabold uppercase tracking-widest">Enviar tu feedback</span>
+          <span className="text-sm font-extrabold uppercase tracking-widest">Dejar una nota del turno</span>
           <span className={`text-xs font-bold ${coachText.muted}`}>{showFeedbackForm ? '▼' : '▶'}</span>
         </button>
       </div>
@@ -782,19 +783,19 @@ export default function CoachSessionFeedbackForm({
 
         {headCoachReviewCandidates.length > 0 ? (
           <section
-            className="rounded-xl border border-violet-400/35 bg-violet-950/25 px-4 py-3.5"
+            className="rounded-xl border border-[#6A1F6D]/20 bg-[#F6E8F9]/65 px-4 py-3.5"
             aria-label="Vista previa de revisión Head Coach"
           >
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-violet-100">
-              Vista previa de revisión
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#6A1F6D]">
+              Para revisar después
             </h3>
             <p className={`mt-1 text-xs leading-relaxed ${coachText.muted}`}>
               Solo toma las opciones generales de arriba. Aún no se guarda ni se envía, y no incluye los detalles escritos.
             </p>
             <ul className="mt-3 space-y-2">
               {headCoachReviewCandidates.map((candidate) => (
-                <li key={`${candidate.destination}-${candidate.summary}`} className="rounded-lg border border-white/10 bg-black/15 px-3 py-2">
-                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-violet-200">
+                <li key={`${candidate.destination}-${candidate.summary}`} className="rounded-lg border border-[#6A1F6D]/15 bg-white px-3 py-2">
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#6A1F6D]">
                     Para revisar: {escalationDestinationLabel(candidate.destination)}
                   </p>
                   <p className={`mt-1 text-xs leading-relaxed ${coachText.primary}`}>{candidate.summary}</p>
@@ -805,13 +806,13 @@ export default function CoachSessionFeedbackForm({
         ) : null}
 
         {error && (
-          <p className="text-sm text-red-200 bg-red-950/50 border border-red-400/40 rounded-xl px-4 py-3 font-medium">
+          <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-medium">
             {error}
           </p>
         )}
         {message && (
           <p
-            className="text-sm text-emerald-200 bg-emerald-950/40 border border-emerald-400/35 rounded-xl px-4 py-3 font-medium"
+            className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-medium"
             role="status"
             aria-live="polite"
           >
@@ -824,11 +825,11 @@ export default function CoachSessionFeedbackForm({
           disabled={saving}
           className="w-full py-4 rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] disabled:opacity-40 text-white font-bold text-sm uppercase tracking-widest transition-colors"
         >
-          {saving ? 'Guardando…' : 'Guardar'}
+          {saving ? 'Guardando…' : 'Guardar nota'}
         </button>
       </form>
       ) : null}
-      <CoachTrialCloseForm />
+      <CoachTrialCloseForm trial={trialClose} />
     </div>
   )
 }

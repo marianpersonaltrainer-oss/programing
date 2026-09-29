@@ -31,7 +31,9 @@ const MiCaminoApp = lazy(async () => {
 })
 
 const appSearch = new URLSearchParams(window.location.search)
-const isCoachMode = appSearch.has('coach')
+// Ruta fija para móviles: algunas apps eliminan los parámetros de los enlaces
+// compartidos, por lo que `/coach` debe abrir el puesto sin depender de `?coach`.
+const isCoachMode = appSearch.has('coach') || window.location.pathname === '/coach' || window.location.pathname.startsWith('/coach/')
 const isPortalMode = appSearch.has('portal')
 const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
 const isMiCaminoMode = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')

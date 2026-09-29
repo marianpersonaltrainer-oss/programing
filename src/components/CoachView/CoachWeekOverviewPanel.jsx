@@ -40,11 +40,11 @@ export default function CoachWeekOverviewPanel({
   )
 
   return (
-    <div className={`px-4 py-5 space-y-5 ${coachBg.app} min-h-0`}>
-      <section className={`rounded-xl p-4 border ${coachBorder} ${coachBg.card}`} aria-label="Estado de la semana">
-        <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent}`}>Semana publicada por Administración</p>
-        <p className={`text-sm ${coachText.primary} mt-2`}>
-          Consulta las sesiones, dirígelas y deja el feedback al terminar. Los cambios de programación se coordinan con Administración.
+    <div className={`mx-auto w-full max-w-5xl px-5 py-6 space-y-5 ${coachBg.app} min-h-0`}>
+      <section className={`coach-roster p-5 border ${coachBorder} ${coachBg.card}`} aria-label="Estado de la semana">
+        <p className="coach-eyebrow">Esta semana</p>
+        <p className={`text-lg font-bold ${coachText.primary} mt-2`}>
+          Lo que tienes por delante, sin abrir cada sesión todavía.
         </p>
         <p className={`text-xs ${coachText.muted} mt-3`}>
           {weekFeedback.programmed
@@ -53,7 +53,7 @@ export default function CoachWeekOverviewPanel({
         </p>
       </section>
       <p className={`text-[11px] font-bold uppercase tracking-widest ${coachText.muted}`}>
-        Toca un día para abrirlo en Mi turno
+        Toca un día para ver sus clases
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         {dias.map((dia) => {
@@ -68,7 +68,7 @@ export default function CoachWeekOverviewPanel({
             return (
               <div
                 key={dia.nombre}
-                className={`rounded-xl p-5 border ${coachBorder} opacity-50 ${coachBg.card}`}
+              className={`coach-roster p-5 border ${coachBorder} opacity-55 ${coachBg.card}`}
               >
                 <p className={`text-sm font-bold ${coachText.primary} uppercase`}>{dia.nombre}</p>
                 <p className={`text-xs ${coachText.muted} mt-2`}>Festivo · sin sesión</p>
@@ -81,14 +81,12 @@ export default function CoachWeekOverviewPanel({
               key={dia.nombre}
               type="button"
               onClick={() => onSelectDay(dia.nombre)}
-              className={`text-left rounded-xl p-5 border ${coachBorder} ${coachBg.card} hover:border-[#A729AD]/50 transition-colors active:scale-[0.99]`}
+              className={`coach-roster text-left p-5 border ${coachBorder} ${coachBg.card} hover:border-[#6A1F6D]/45 hover:bg-[#F8F3ED] transition-colors active:scale-[0.99]`}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <p className={`text-base font-black ${coachText.primary} uppercase tracking-tight`}>{dia.nombre}</p>
                 {hasDayFeedback ? (
-                  <span className="text-emerald-400 text-lg font-black" title="Feedback registrado" aria-hidden>
-                    ✓
-                  </span>
+                  <span className="rounded-full bg-[#F6E8F9] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6A1F6D]">Nota lista</span>
                 ) : null}
               </div>
               {focus ? (
@@ -115,7 +113,7 @@ export default function CoachWeekOverviewPanel({
                   {previewText(dia.wodbuster, 6, 280)}
                 </pre>
               ) : null}
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent} mt-3`}>Abrir en Mi turno →</p>
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${coachText.accent} mt-3`}>Ver clases de este día</p>
             </button>
           )
         })}

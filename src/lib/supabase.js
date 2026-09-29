@@ -106,6 +106,19 @@ export async function saveCoachTrialClose(payload) {
   return json
 }
 
+/** Lectura mínima de pruebas próximas asignadas a la cuenta Coach actual. */
+export async function listCoachTrialRoster() {
+  const token = await getProtectedCoachAccessToken()
+  if (!token) throw new Error('individual_coach_identity_required')
+  const response = await fetch('/api/coach-trial-roster', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(json?.error || 'trial_roster_unavailable')
+  return Array.isArray(json?.roster) ? json.roster : []
+}
+
 async function callOperationalData(action, payload = {}, authorization = 'auto') {
   const body = { action, payload }
   if (authorization === 'admin' || authorization === 'auto') {

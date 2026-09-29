@@ -239,7 +239,7 @@ function renderBlockLines(
                       ? 'text-[#1a1a1a] text-[14px] leading-relaxed pl-0'
                       : modalLight
                         ? 'text-[#1a1a1a] text-[13px] leading-snug'
-                        : 'text-[#F6E8F9] leading-[1.6]'
+                  : 'text-[#0C0B0C]/80 leading-[1.6]'
                   }
                 >
                   {!modalProse ? (
@@ -268,8 +268,8 @@ function renderBlockLines(
               : modalLight
                 ? 'text-[#1a1a1a] text-[13px] leading-snug'
                 : bare
-                  ? 'text-[#F6E8F9] leading-[1.6]'
-                  : 'text-[#F6E8F9] leading-relaxed'
+                  ? 'text-[#0C0B0C]/80 leading-[1.6]'
+                  : 'text-[#0C0B0C]/80 leading-relaxed'
           }
         >
           {!modalProse ? (
@@ -306,8 +306,8 @@ export default function CoachFormattedSession({
     : modalLight
       ? 'coach-formatted-session space-y-2 text-[13px] leading-snug font-evo-body text-[#1a1a1a]'
       : bare
-        ? 'coach-formatted-session space-y-5 text-[14px] leading-[1.6] font-evo-body text-[#F6E8F9]'
-        : 'coach-formatted-session space-y-3 text-sm font-evo-body'
+        ? 'coach-formatted-session space-y-5 text-[14px] leading-[1.6] font-evo-body text-[#0C0B0C]'
+        : 'coach-formatted-session space-y-3 text-sm font-evo-body text-[#0C0B0C]'
 
   return (
     <div className={rootClass}>
@@ -324,7 +324,7 @@ export default function CoachFormattedSession({
                   ? 'pb-2 mb-2 border-b border-neutral-200 last:border-0 last:pb-0 last:mb-0'
                   : bare
                     ? 'pb-5 border-b border-[#6A1F6D]/25 last:border-0 last:pb-0'
-                    : 'rounded-[12px] bg-[#1a0f1b] border border-[#6A1F6D]/30 border-l-[3px] px-4 py-4'
+                    : 'rounded-xl bg-white border border-[#6A1F6D]/18 border-l-[3px] px-4 py-4 shadow-sm'
             }
           >
             {modalProse ? (

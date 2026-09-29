@@ -10,6 +10,7 @@ const validBody = {
   adaptations: 'ninguna',
   reason: 'Buena experiencia inicial; necesita empezar poco a poco.',
   submission_id: '00000000-0000-4000-8000-000000000001',
+  source_event_id: '00000000-0000-4000-8000-000000000010',
 }
 
 function request(body = validBody) {
@@ -86,8 +87,10 @@ describe('POST /api/coach-trial-close', () => {
         sync_status: 'pending',
         payload: expect.objectContaining({
           coach_id: '00000000-0000-4000-8000-000000000002',
+          source_event_id: '00000000-0000-4000-8000-000000000010',
           attendance: 'vino',
         }),
+        causation_id: '00000000-0000-4000-8000-000000000010',
       }),
     )
   })

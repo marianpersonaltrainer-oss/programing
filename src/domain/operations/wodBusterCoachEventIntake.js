@@ -16,12 +16,25 @@ const PERSON_FIELDS = new Set([
   'reference',
   'phase',
   'sessionAt',
+  'classLabel',
   'objective',
   'experience',
   'context',
   'precaution',
   'observe',
   'close',
+])
+
+const EVENT_FIELDS = new Set([
+  'id',
+  'type',
+  'coachId',
+  'occurredAt',
+  'person',
+  'coachName',
+  'observation',
+  'adaptation',
+  'note',
 ])
 
 const FORBIDDEN_FIELDS = new Set([
@@ -47,6 +60,15 @@ function assertNoForbiddenFields(value, path = 'event') {
   }
 }
 
+function assertOnlyAllowedFields(value, allowedFields, path) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new WodBusterCoachEventError(`${path}_invalid`)
+  }
+  for (const key of Object.keys(value)) {
+    if (!allowedFields.has(key)) throw new WodBusterCoachEventError(`${path}.${key}_not_allowed`)
+  }
+}
+
 function minimalPerson(raw = {}) {
   const person = {}
   for (const field of PERSON_FIELDS) {
@@ -62,6 +84,7 @@ export class WodBusterCoachEventError extends Error {
 }
 
 export function normalizeWodBusterCoachEvent(input = {}) {
+  assertOnlyAllowedFields(input, EVENT_FIELDS, 'event')
   assertNoForbiddenFields(input)
   const type = safeText(input.type, 'type')
   if (!EVENT_TYPES.has(type)) throw new WodBusterCoachEventError('event_type_not_allowed')
@@ -79,7 +102,10 @@ export function normalizeWodBusterCoachEvent(input = {}) {
     source: 'wodbuster',
     coachId,
     occurredAt: new Date(occurredAt).toISOString(),
-    person: minimalPerson(input.person),
+    person: (() => {
+      assertOnlyAllowedFields(input.person, PERSON_FIELDS, 'person')
+      return minimalPerson(input.person)
+    })(),
   }
   for (const field of ['coachName', 'observation', 'adaptation', 'note']) {
     const value = safeText(input[field], field)

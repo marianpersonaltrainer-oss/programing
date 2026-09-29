@@ -1,5 +1,7 @@
 /**
- * Tema oscuro oficial EVO para la vista coach.
+ * Tema Coach EVO v3.
+ * Inspirado en la claridad operativa de ADAPLATO: base crema, tipografía
+ * tranquila y un único acento EVO para orientar acciones, no inundar pantallas.
  */
 
 import { EVO_SESSION_CLASS_DEFS } from '../../constants/evoClasses.js'
@@ -41,35 +43,35 @@ export function classDisplayTitle(sessionKey) {
 }
 
 export const coachBg = {
-  app: 'bg-[#0C0B0C]',
-  sidebar: 'bg-[#0C0B0C]',
-  sidebarHover: 'hover:bg-white/10',
-  card: 'bg-[#1a0f1b]',
-  cardAlt: 'bg-[#1a0f1b]',
-  cardMuted: 'bg-[#1a0f1b]',
-  rowA: 'bg-[#1a0f1b]',
-  rowB: 'bg-[#151015]',
-  overlay: 'bg-black/60',
+  app: 'bg-[#FCFAF5]',
+  sidebar: 'bg-[#FFFDF9]',
+  sidebarHover: 'hover:bg-[#F6E9EF]',
+  card: 'bg-white',
+  cardAlt: 'bg-[#F8F3ED]',
+  cardMuted: 'bg-[#F4EFE9]',
+  rowA: 'bg-white',
+  rowB: 'bg-[#F8F3ED]',
+  overlay: 'bg-[#212121]/45',
 }
 
-export const coachBorder = 'border-[#6A1F6D]/40'
+export const coachBorder = 'border-[#DDD2C2]'
 
 export const coachText = {
-  primary: 'text-[#FFFFFF]',
-  muted: 'text-[#F6E8F9]/85',
-  accent: 'text-[#A729AD]',
-  title: 'text-[#FFFFFF]',
-  onSidebar: 'text-[#F6E8F9]',
-  mutedOnSidebar: 'text-[#F6E8F9]/60',
+  primary: 'text-[#212121]',
+  muted: 'text-[#6F6B68]',
+  accent: 'text-[#6A1F6D]',
+  title: 'text-[#212121]',
+  onSidebar: 'text-[#212121]',
+  mutedOnSidebar: 'text-[#6F6B68]',
 }
 
 export const coachNav = {
-  active: 'bg-[#A729AD] text-white shadow-md border border-[#6A1F6D]/50',
-  idle: `${coachText.onSidebar} ${coachBg.sidebarHover} hover:text-[#FFFF4C]`,
+  active: 'bg-[#6A1F6D] text-white shadow-sm border border-[#6A1F6D]',
+  idle: `${coachText.onSidebar} ${coachBg.sidebarHover} hover:text-[#6A1F6D]`,
 }
 
 const coachInputBase =
-  'w-full text-base bg-[#1a0f1b] border border-[#6A1F6D] !text-[#FFFFFF] caret-[#FFFFFF] placeholder:!text-[#F6E8F9]/50 placeholder:opacity-100 focus:outline-none focus:border-[#A729AD] focus:ring-1 focus:ring-[#A729AD]/25'
+  'w-full text-base bg-white border border-[#DDD2C2] !text-[#212121] caret-[#212121] placeholder:!text-[#9A9590] placeholder:opacity-100 focus:outline-none focus:border-[#6A1F6D] focus:ring-2 focus:ring-[#6A1F6D]/15'
 
 export const coachField = `${coachInputBase} rounded-xl px-4 py-3`
 
@@ -81,15 +83,15 @@ export const coachUi = {
   scroll: `w-full px-8 py-8 ${coachText.primary}`,
   prose: `text-base leading-relaxed space-y-6 ${coachText.primary} font-evo-body`,
   proseMuted: coachText.muted,
-  h2: `font-evo-display text-xl sm:text-2xl font-bold uppercase tracking-wide border-b ${coachBorder} pb-3 mb-1 ${coachText.title}`,
-  h3: `font-evo-display text-lg font-bold mt-8 mb-3 ${coachText.primary}`,
+  h2: `text-xl sm:text-2xl font-bold tracking-tight border-b ${coachBorder} pb-3 mb-1 ${coachText.title}`,
+  h3: `text-lg font-bold mt-8 mb-3 ${coachText.primary}`,
   card: `rounded-xl border ${coachBorder} ${coachBg.card} p-5 shadow-sm`,
   cardInner: `rounded-xl border ${coachBorder} ${coachBg.cardAlt} p-4`,
   tableWrap: `overflow-x-auto rounded-xl border ${coachBorder} ${coachBg.card}`,
-  tableHead: 'bg-[#6A1F6D] text-white font-evo-display',
+  tableHead: 'bg-[#6A1F6D] text-white font-evo-body',
   chip: 'text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border',
   btnPrimary: 'rounded-xl bg-[#A729AD] hover:bg-[#6A1F6D] text-white font-evo-body font-semibold transition-colors',
-  supportHighlight: 'text-[#FFFF4C] font-bold',
+  supportHighlight: 'text-[#6A1F6D] font-bold',
 }
 
 export const coachAdminUi = {
@@ -110,15 +112,15 @@ export const coachAdminUi = {
 
 /** Badges de clase — fondos claros */
 export const CLASS_BADGE_CLASS = {
-  EvoFuncional: 'bg-[#6A1F6D]/25 text-[#F6E8F9] border-[#6A1F6D]/45',
-  EvoBasics: 'bg-[#A729AD]/20 text-[#F6E8F9] border-[#A729AD]/45',
-  EvoFit: 'bg-[#6A1F6D]/20 text-[#F6E8F9] border-[#6A1F6D]/45',
-  EvoHybrix: 'bg-[#A729AD]/20 text-[#F6E8F9] border-[#A729AD]/45',
-  EvoFuerza: 'bg-[#6A1F6D]/20 text-[#F6E8F9] border-[#6A1F6D]/45',
-  'EvoGimnástica': 'bg-[#6A1F6D]/20 text-[#F6E8F9] border-[#6A1F6D]/45',
-  EvoTodos: 'bg-[#A729AD]/20 text-[#F6E8F9] border-[#A729AD]/45',
+  EvoFuncional: 'bg-[#F6E8F9] text-[#6A1F6D] border-[#6A1F6D]/30',
+  EvoBasics: 'bg-[#FFFFE2] text-[#6A1F6D] border-[#A729AD]/30',
+  EvoFit: 'bg-[#F6E8F9] text-[#6A1F6D] border-[#6A1F6D]/30',
+  EvoHybrix: 'bg-[#FFFFE2] text-[#6A1F6D] border-[#A729AD]/30',
+  EvoFuerza: 'bg-[#F6E8F9] text-[#6A1F6D] border-[#6A1F6D]/30',
+  'EvoGimnástica': 'bg-[#F6E8F9] text-[#6A1F6D] border-[#6A1F6D]/30',
+  EvoTodos: 'bg-[#FFFFE2] text-[#6A1F6D] border-[#A729AD]/30',
 }
 
 export function classBadgeClass(label) {
-  return CLASS_BADGE_CLASS[label] || 'bg-[#1a0f1b] text-[#F6E8F9] border-[#6A1F6D]/40'
+  return CLASS_BADGE_CLASS[label] || 'bg-[#F6E8F9] text-[#6A1F6D] border-[#6A1F6D]/30'
 }

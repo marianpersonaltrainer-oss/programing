@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import CoachTodayScreenV2 from './CoachTodayScreenV2.jsx'
+import '../../styles/coach-workspace.css'
 
 const previewWeek = {
   dias: [
@@ -23,7 +24,7 @@ export default function CoachTodayStaticPreview() {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   return (
-    <>
+    <div className="coach-workspace fixed inset-0 overflow-hidden">
       <CoachTodayScreenV2
         weekData={previewWeek}
         activeDay={activeDay}
@@ -41,6 +42,6 @@ export default function CoachTodayStaticPreview() {
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   )
 }

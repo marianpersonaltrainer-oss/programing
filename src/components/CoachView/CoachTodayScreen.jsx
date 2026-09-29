@@ -9,6 +9,7 @@ import { CoachSessionBriefingPreview } from './CoachSessionBriefing.jsx'
 import WodModal from './WodModal.jsx'
 import HeadCoachQuestionDialog from './HeadCoachQuestionDialog.jsx'
 import { isHeadCoachGatewayEnabled } from '../../lib/headCoachGateway.js'
+import CoachTrialRosterPanel from './CoachTrialRosterPanel.jsx'
 
 /** Solo clases que tienen programación real ese día (evita mostrar columnas vacías). */
 function classDefsWithContentForDay(dia) {
@@ -82,6 +83,15 @@ function CardDivider() {
 }
 
 function CoachTurnChecklist({ dayName, classCount, handoffCount, onOpenFeedback }) {
+  function openTrialClose() {
+    onOpenFeedback()
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById('cierre-prueba')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    })
+  }
+
   const label = dayName ? `Tu turno · ${dayName}` : 'Tu turno de hoy'
   return (
     <section className="mx-4 mb-4 rounded-2xl border border-[#A729AD]/45 bg-[#1a0f1b] p-4 shadow-sm">
@@ -93,13 +103,22 @@ function CoachTurnChecklist({ dayName, classCount, handoffCount, onOpenFeedback 
             Esta es una semana publicada por Administración. Puedes consultarla, dirigirla y dejar feedback; los cambios de programación se coordinan con Administración.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onOpenFeedback}
-          className="shrink-0 rounded-lg border border-[#A729AD] bg-[#A729AD] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-[#8e2294]"
-        >
-          Abrir feedback
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={openTrialClose}
+            className="shrink-0 rounded-lg border border-[#FFFF4C]/70 bg-[#FFFF4C]/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#FFFF4C] hover:bg-[#FFFF4C]/20"
+          >
+            Cierre de prueba
+          </button>
+          <button
+            type="button"
+            onClick={onOpenFeedback}
+            className="shrink-0 rounded-lg border border-[#A729AD] bg-[#A729AD] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-[#8e2294]"
+          >
+            Abrir feedback
+          </button>
+        </div>
       </div>
       <ol className="mt-4 grid gap-2 sm:grid-cols-3">
         <li className="rounded-lg border border-white/10 bg-black/15 px-3 py-2.5">
@@ -227,6 +246,7 @@ export default function CoachTodayScreen({
   exerciseLibrary = [],
   todayHandoffs = [],
   onOpenFeedback,
+  onOpenTrial,
 }) {
   const [wodModal, setWodModal] = useState(null)
   const [headCoachContext, setHeadCoachContext] = useState(null)
@@ -289,6 +309,7 @@ export default function CoachTodayScreen({
           handoffCount={useDailyHandoffs ? todayHandoffs.length : 0}
           onOpenFeedback={onOpenFeedback}
         />
+        <CoachTrialRosterPanel onOpenTrial={onOpenTrial} />
 
         <div className="px-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {!dia ? (

@@ -14,7 +14,7 @@ import {
 const ATTENDANCE_OPTIONS = new Set(['vino', 'canceló', 'cambió fecha', 'no vino'])
 const ENTRY_OPTIONS = new Set([
   'EVO Basics',
-  'EVO Fit',
+  'EVO Intermedio',
   'EVO Funcional',
   'Revisar con Marian',
 ])
@@ -65,8 +65,10 @@ function trialCloseInput(body = {}) {
   const reason = requiredText(body.reason, 1000)
   const adaptations = optionalText(body.adaptations, 1000)
   const submissionId = requiredText(body.submission_id, 80)
+  const sourceEventId = optionalText(body.source_event_id, 80)
 
   if (!UUID_RE.test(submissionId)) throw new Error('invalid_trial_close_input')
+  if (sourceEventId && !UUID_RE.test(sourceEventId)) throw new Error('invalid_trial_close_input')
   if (!ATTENDANCE_OPTIONS.has(attendance)) throw new Error('invalid_trial_close_input')
   if (!ENTRY_OPTIONS.has(entryPoint)) throw new Error('invalid_trial_close_input')
   if (!PRIORITY_OPTIONS.has(priority)) throw new Error('invalid_trial_close_input')
@@ -79,6 +81,7 @@ function trialCloseInput(body = {}) {
     adaptations,
     reason,
     submissionId,
+    sourceEventId,
   }
 }
 
@@ -162,6 +165,7 @@ export function createCoachTrialCloseHandler({
         schema_version: 1,
         payload: {
           coach_id: identity.user.id,
+          source_event_id: input.sourceEventId,
           attendance: input.attendance,
           entry_point: input.entryPoint,
           priority: input.priority,
@@ -169,7 +173,7 @@ export function createCoachTrialCloseHandler({
           reason: input.reason,
         },
         idempotency_key: `coach-trial-close:${identity.user.id}:${input.submissionId}`,
-        causation_id: null,
+        causation_id: input.sourceEventId,
         source_updated_at: null,
         reconciled_at: null,
         sync_status: 'pending',

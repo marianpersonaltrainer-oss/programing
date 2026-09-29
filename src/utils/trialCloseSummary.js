@@ -1,6 +1,6 @@
 export const TRIAL_ENTRY_OPTIONS = [
   'EVO Basics',
-  'EVO Fit',
+  'EVO Intermedio',
   'EVO Funcional',
   'Revisar con Marian',
 ]
@@ -42,10 +42,10 @@ export function buildTrialCloseSummary(values = {}) {
   }
 
   const lines = [
-    `CIERRE DE PRUEBA · ${personReference}`,
+    `NOTA TRAS PRUEBA · ${personReference}`,
     '',
     `1. Asistencia: ${attendance}`,
-    `2. Punto de entrada recomendado: ${entryPoint}`,
+    `2. Nivel recomendado: ${entryPoint}`,
     `3. Prioridad inicial: ${priority}`,
     `4. Adaptaciones relevantes: ${adaptations || 'ninguna'}`,
     `5. Motivo breve: ${reason}`,

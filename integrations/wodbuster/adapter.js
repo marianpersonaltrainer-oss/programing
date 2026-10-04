@@ -53,6 +53,35 @@ function safeShape(body, resource) {
         FechaBorrado: body.filter((row) => String(row?.FechaBorrado || '').trim()).length,
       }
     }
+    if (resource === 'athletes') {
+      const parseDate = (value) => {
+        const raw = String(value || '').trim()
+        if (!raw) return null
+        const m = raw.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})/)
+        if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])))
+        const d = new Date(raw)
+        return Number.isNaN(d.valueOf()) ? null : d
+      }
+      const octStart = new Date(Date.UTC(2026, 9, 1))
+      const octEnd = new Date(Date.UTC(2026, 9, 31, 23, 59, 59))
+      const notDeleted = body.filter((row) => !/^(1|true|sí|si|yes)$/i.test(String(row?.Borrado || '').trim()))
+      const tariffActive = notDeleted.filter((row) => {
+        const paidUntil = parseDate(row?.['Pagado hasta:'])
+        return String(row?.Tarifa || '').trim() && paidUntil && paidUntil >= octStart
+      })
+      const bonusActive = notDeleted.filter((row) => Number(String(row?.ClasesSueltas || '0').replace(',', '.')) > 0)
+      const uniqueActive = new Set([...tariffActive, ...bonusActive].map((row) => String(row?.Email || row?.['Código del torno'] || row?.Nombre || JSON.stringify(row)) ))
+      shape.october2026 = {
+        notDeleted: notDeleted.length,
+        tariffActive: tariffActive.length,
+        bonusOrLooseClassesActive: bonusActive.length,
+        uniqueActiveWithTariffOrBonus: uniqueActive.size,
+        paidUntilInOctober: notDeleted.filter((row) => {
+          const d = parseDate(row?.['Pagado hasta:'])
+          return d && d >= octStart && d <= octEnd
+        }).length,
+      }
+    }
     return shape
   }
   if (body && typeof body === 'object') {

@@ -63,5 +63,7 @@ jobs:
           else
             echo "value=frequent" >> "$GITHUB_OUTPUT"
           fi
+      - name: Diagnose WodBuster active members
+        run: node --input-type=module -e "import { createWodBusterAdapter } from './integrations/wodbuster/adapter.js'; await createWodBusterAdapter().listAthletes();"
       - name: Reconcile WodBuster into Nucleus staging
         run: npm run sync:wodbuster -- --mode=${{ steps.mode.outputs.value }}

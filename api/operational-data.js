@@ -7,6 +7,9 @@ import {
   capabilityAuthErrorResponse,
   requireEvoCapability,
 } from './lib/evoCapabilityAuth.js'
+import {
+  buildCoachOperationsDashboard,
+} from '../src/domain/operations/coachOperationsProjection.js'
 
 const COACH_ACTIONS = new Set([
   'verify_coach_access',
@@ -22,6 +25,12 @@ const COACH_ACTIONS = new Set([
   'list_today_handoffs',
   'insert_daily_handoff',
   'get_weekly_checkin',
+])
+
+// Estas acciones nunca pueden usar el código compartido. Enseñan un relevo
+// vinculado a una persona concreta, por lo que exigen identidad individual.
+const INDIVIDUAL_COACH_ACTIONS = new Set([
+  'list_coach_operations',
 ])
 
 const ADMIN_ACTIONS = new Set([
@@ -102,6 +111,7 @@ function requireConfigured(action) {
   ).trim().toLowerCase() !== 'false'
   const needsCoachCode = COACH_ACTIONS.has(action)
   const needsAdminSecret = ADMIN_ACTIONS.has(action)
+  const needsIndividualCoachIdentity = INDIVIDUAL_COACH_ACTIONS.has(action)
   if (
     !supabaseUrl
     || !serviceKey
@@ -111,6 +121,7 @@ function requireConfigured(action) {
       && (!coachCode || !sharedCodeFallbackEnabled)
     )
     || (needsAdminSecret && !adminSecret)
+    || (needsIndividualCoachIdentity && !individualCoachAuthEnabled)
   ) {
     throw new Error('server_not_configured')
   }
@@ -131,6 +142,22 @@ async function resolveAuthorization(
   config,
   requireCapabilityImpl,
 ) {
+  if (INDIVIDUAL_COACH_ACTIONS.has(action)) {
+    if (!config.individualCoachAuthEnabled) return null
+    try {
+      const identity = await requireCapabilityImpl(
+        req,
+        'coach.workspace.access',
+      )
+      return { method: 'individual_identity', identity }
+    } catch (error) {
+      if (['authentication_required', 'capability_denied'].includes(error?.code)) {
+        return null
+      }
+      throw error
+    }
+  }
+
   const coachAllowed = COACH_ACTIONS.has(action)
     && config.sharedCodeFallbackEnabled
     && coachCodeMatches(body.accessCode, config.coachCode)
@@ -153,6 +180,84 @@ async function resolveAuthorization(
       return null
     }
     throw error
+  }
+}
+
+function stringValue(value, max = 500) {
+  const normalized = String(value ?? '').trim()
+  return normalized && normalized.length <= max ? normalized : ''
+}
+
+function safeCoachEvent(row = {}) {
+  const payload = row?.payload && typeof row.payload === 'object' ? row.payload : {}
+  const personInput = payload.person && typeof payload.person === 'object' ? payload.person : {}
+  const allowedPersonFields = [
+    'reference', 'phase', 'sessionAt', 'objective', 'experience', 'context',
+    'precaution', 'observe', 'close',
+  ]
+  const person = Object.fromEntries(
+    allowedPersonFields
+      .map((field) => [field, stringValue(personInput[field])])
+      .filter(([, value]) => Boolean(value)),
+  )
+
+  return {
+    id: stringValue(row?.external_id || row?.id, 180),
+    type: stringValue(row?.event_type, 80),
+    occurredAt: stringValue(row?.occurred_at, 80),
+    coachId: stringValue(payload.coach_id, 180),
+    coachName: stringValue(payload.coach_name, 120),
+    person,
+    observation: stringValue(payload.observation),
+    adaptation: stringValue(payload.adaptation),
+    note: stringValue(payload.note),
+  }
+}
+
+async function listCoachOperations(supabase, identity) {
+  const organizationId = stringValue(identity?.organizationId, 80)
+  const coachId = stringValue(identity?.user?.id, 180)
+  if (!organizationId || !coachId) throw new Error('individual_identity_required')
+
+  // La lectura está acotada: fuente WodBuster, 60 días, máximo 500 eventos y
+  // únicamente los campos operativos que ya pasaron el filtro de entrada.
+  const from = new Date()
+  from.setDate(from.getDate() - 60)
+  const { data, error } = await supabase.from('evo_events')
+    .select('id, external_id, event_type, occurred_at, payload')
+    .eq('organization_id', organizationId)
+    .eq('source', 'wodbuster')
+    .in('event_type', [
+      'trial.confirmed', 'trial.completed', 'onboarding.started', 'coach.note.created',
+    ])
+    .gte('occurred_at', from.toISOString())
+    .order('occurred_at', { ascending: false })
+    .limit(500)
+  if (error) return { data: null, error }
+
+  const allEvents = (data || []).map(safeCoachEvent)
+    .filter((event) => event.id && event.type && event.occurredAt && event.coachId)
+  const assignments = allEvents
+    .filter((event) => event.coachId === coachId)
+    .filter((event) => ['trial.confirmed', 'onboarding.started'].includes(event.type))
+    .filter((event) => event.person?.reference)
+    .map((event) => ({
+      coachId,
+      personReference: event.person.reference,
+      status: 'planned',
+    }))
+  const dashboard = buildCoachOperationsDashboard({
+    coachId,
+    events: allEvents,
+    assignments,
+  })
+  return {
+    data: {
+      dashboard,
+      refreshedAt: new Date().toISOString(),
+      source: 'wodbuster',
+    },
+    error: null,
   }
 }
 
@@ -224,7 +329,10 @@ function missingExerciseRow(payload = {}) {
   }
 }
 
-async function executeAction(supabase, action, payload = {}) {
+async function executeAction(supabase, action, payload = {}, authorization = null) {
+  if (action === 'list_coach_operations') {
+    return listCoachOperations(supabase, authorization?.identity)
+  }
   if (action === 'verify_coach_access') {
     // La autorización ya se resolvió antes de ejecutar la acción. No lee ni
     // escribe datos: valida el bridge temporal sin filtrar el código al build.
@@ -439,7 +547,7 @@ export function createOperationalDataHandler({
     }
 
     const action = String(body?.action || '').trim()
-    if (!COACH_ACTIONS.has(action) && !ADMIN_ACTIONS.has(action)) {
+    if (!COACH_ACTIONS.has(action) && !ADMIN_ACTIONS.has(action) && !INDIVIDUAL_COACH_ACTIONS.has(action)) {
       return res.status(400).json({ error: 'Acción no permitida' })
     }
 
@@ -480,7 +588,7 @@ export function createOperationalDataHandler({
       })
       if (exceeded) return res.status(429).json({ error: 'Demasiadas solicitudes' })
 
-      const { data, error } = await executeActionImpl(supabase, action, body.payload || {})
+      const { data, error } = await executeActionImpl(supabase, action, body.payload || {}, authorization)
       if (error) {
         console.error('[operational-data] database operation failed', {
           action,

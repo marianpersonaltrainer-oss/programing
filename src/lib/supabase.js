@@ -611,6 +611,16 @@ export async function listTodayHandoffs() {
   return data || []
 }
 
+/**
+ * Relevo operativo mínimo desde WodBuster para la identidad individual del
+ * entrenador. Nunca cae al código compartido: si no hay sesión personal, no
+ * se devuelve ningún dato de personas.
+ */
+export async function listCoachOperations() {
+  const data = await callOperationalData('list_coach_operations', {}, 'individual')
+  return data || null
+}
+
 export async function createDailyHandoff(payload) {
   return callOperationalData('insert_daily_handoff', payload, 'coach')
 }

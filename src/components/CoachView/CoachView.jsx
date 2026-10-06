@@ -10,6 +10,7 @@ import {
   coachHasReadHandoverForWeek,
   recordCoachHandoverRead,
   listTodayHandoffs,
+  listCoachOperations,
   createWeeklyCheckin,
   getAssistantWeekContext,
   insertAssistantQuestionHistory,
@@ -25,6 +26,7 @@ import {
   questionHasExplicitCoachContext,
 } from '../../utils/coachSupportContext.js'
 import CoachTodayScreen from './CoachTodayScreen.jsx'
+import CoachNewPeoplePanel from './CoachNewPeoplePanel.jsx'
 import CoachWeekOverviewPanel from './CoachWeekOverviewPanel.jsx'
 import CoachProfilePanel from './CoachProfilePanel.jsx'
 import CoachExerciseLibraryPanel from './CoachExerciseLibraryPanel.jsx'
@@ -279,12 +281,13 @@ const NAV_DEFS = {
   material: { id: 'material', label: 'Material', Icon: IconMaterial },
   centro: { id: 'centro', label: 'Centro', Icon: IconCentro },
   clases: { id: 'clases', label: 'Clases', Icon: IconClases },
+  personas: { id: 'personas', label: 'Personas nuevas', Icon: IconFeedback },
   uso: { id: 'uso', label: 'Uso app', Icon: IconUso },
 }
 const SECTION_TITLE_BY_TAB = Object.fromEntries(Object.values(NAV_DEFS).map((d) => [d.id, d.label]))
 
 /** Desktop: 4 pestañas principales + guía en acordeón */
-const PRIMARY_NAV_IDS = ['hoy', 'semana', 'pase', 'perfil']
+const PRIMARY_NAV_IDS = ['hoy', 'personas', 'semana', 'pase', 'perfil']
 const GUIDE_CENTRE_IDS = ['centro', 'clases', 'uso']
 const BOTTOM_NAV_IDS = ['hoy', 'semana', 'pase', 'perfil']
 
@@ -377,6 +380,9 @@ export default function CoachView() {
   /** Evita flash de datos antiguos mientras cambia la semana activa. */
   const [isWeekSwitching, setIsWeekSwitching] = useState(false)
   const [todayHandoffs, setTodayHandoffs] = useState([])
+  const [coachOperations, setCoachOperations] = useState(null)
+  const [coachOperationsLoading, setCoachOperationsLoading] = useState(false)
+  const [coachOperationsError, setCoachOperationsError] = useState('')
   const [showWeeklyCheckin, setShowWeeklyCheckin] = useState(false)
   const [weeklyCheckinForm, setWeeklyCheckinForm] = useState({
     moodScore: 0,
@@ -564,6 +570,29 @@ export default function CoachView() {
   useEffect(() => {
     if (step !== 'chat') return
     setSupportUsedToday(getSupportMessagesUsedToday())
+  }, [step, mainTab])
+
+  useEffect(() => {
+    if (step !== 'chat' || mainTab !== 'personas') return
+    let cancelled = false
+    setCoachOperationsLoading(true)
+    setCoachOperationsError('')
+    listCoachOperations()
+      .then((data) => {
+        if (!cancelled) setCoachOperations(data?.dashboard || null)
+      })
+      .catch((requestError) => {
+        if (!cancelled) {
+          setCoachOperations(null)
+          setCoachOperationsError(requestError?.message || 'No se pudo actualizar el relevo.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCoachOperationsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [step, mainTab])
 
   useEffect(() => {
@@ -1443,6 +1472,7 @@ export default function CoachView() {
                       exerciseLibrary={exerciseLibrary}
                       todayHandoffs={todayHandoffs}
                       onOpenFeedback={() => setMainTab('pase')}
+                      onOpenPeople={() => setMainTab('personas')}
                       onConsultAssistant={(ctx) => openSupport('', ctx)}
                     />
                   ) : (
@@ -1457,6 +1487,14 @@ export default function CoachView() {
                       setActiveDay(dayName)
                       setMainTab('hoy')
                     }}
+                  />
+                )}
+                {mainTab === 'personas' && (
+                  <CoachNewPeoplePanel
+                    onOpenFeedback={() => setMainTab('pase')}
+                    dashboard={coachOperations}
+                    loading={coachOperationsLoading}
+                    error={coachOperationsError}
                   />
                 )}
                 {mainTab === 'pase' && (

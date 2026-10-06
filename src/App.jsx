@@ -19,6 +19,7 @@ import { isPasswordRecoveryLocation } from './lib/passwordRecoveryUrl.js'
 const EditModal = lazy(() => import('./components/EditModal/EditModal.jsx'))
 const ExcelGeneratorModal = lazy(() => import('./components/ExcelGeneratorModal/ExcelGeneratorModal.jsx'))
 const CoachAuthGate = lazy(() => import('./components/CoachView/CoachAuthGate.jsx'))
+const CoachPilotPreview = lazy(() => import('./components/CoachView/CoachPilotPreview.jsx'))
 const CoachReview = lazy(() => import('./components/CoachReview/CoachReview.jsx'))
 const MethodPanel = lazy(() => import('./components/MethodPanel/MethodPanel.jsx'))
 const ExerciseLibrary = lazy(() => import('./components/ExerciseLibrary/ExerciseLibrary.jsx'))
@@ -31,6 +32,7 @@ const MiCaminoApp = lazy(async () => {
 
 const appSearch = new URLSearchParams(window.location.search)
 const isCoachMode = appSearch.has('coach')
+const isCoachPilotMode = appSearch.has('coachPilot')
 const isPortalMode = appSearch.has('portal')
 const isPe2Mode = appSearch.has('v2') || isPasswordRecoveryLocation(window.location)
 const isMiCaminoMode = window.location.pathname === '/mi-camino' || window.location.pathname.startsWith('/mi-camino/')
@@ -93,6 +95,16 @@ function EvoSpacePortal() {
 }
 
 export default function App() {
+  // Ruta aislada para que Marian pueda validar el panel con casos ficticios
+  // sin acceder a la base de datos ni al acceso habitual de entrenadores.
+  if (isCoachPilotMode) {
+    return (
+      <Suspense fallback={<AppLoading />}>
+        <CoachPilotPreview />
+      </Suspense>
+    )
+  }
+
   if (!isSupabaseConfigured) {
     return <SupabaseConfigMissing />
   }

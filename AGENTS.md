@@ -6,7 +6,7 @@
 
 > **Cierre 31 de agosto:** el formulario guiado de feedback de coach (`10ac6b7`) está fusionado en `main` mediante el merge `103cb1b`. Vercel ya había desplegado ese cambio en producción (`dpl_7iZmpAuw7cGq1bmYDkDuAxkdb5e7`); tras subir este registro, comprobar el despliegue automático desde `main` y conservar la rama solo como historial de la revisión.
 
-> **En curso 2 de septiembre:** `feature/trial-close-shadow` añade un cierre local de clase de prueba al área Feedback. Prepara recomendación, frecuencia, prioridad, adaptaciones y motivo, pero no guarda, envía ni modifica CRM/WodBuster. Prueba unitaria y build local en verde. Existe además `public/preview-cierre-prueba.html` para revisión interactiva aislada, verificada con un caso ficticio. No promover a producción hasta decidir almacenamiento, RLS y recorrido operativo.
+> **Estado 6 de octubre:** el relevo mínimo WodBuster → ProgrammingEVO está publicado. El panel de personas nuevas no usa casos ficticios: exige identidad individual del coach y consulta solo sus eventos operativos filtrados. El receptor publicado rechaza fuentes sin clave. Falta verificar en Make el mapeo de eventos reales de WodBuster y la equivalencia entre entrenador de WodBuster y cuenta individual de EVO antes de afirmar que el panel ya se alimenta solo.
 
 Este documento es el punto de encuentro entre las distintas herramientas que trabajan en este repositorio (Codex, Claude Code, Cursor). Ninguna puede hablar con las otras: **esta nota es la única memoria compartida.** Si la dejas desactualizada, la siguiente empieza desde una mentira.
 

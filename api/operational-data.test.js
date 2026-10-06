@@ -77,6 +77,7 @@ describe('POST /api/operational-data', () => {
       { kind: 'service-client' },
       'verify_coach_access',
       {},
+      expect.objectContaining({ method: 'coach_access_code' }),
     )
   })
 
@@ -129,10 +130,18 @@ describe('POST /api/operational-data', () => {
   })
 
   it('permite una acción coach con identidad individual y capability', async () => {
-    const requireCapabilityImpl = vi.fn().mockResolvedValue({
-      user: { id: 'user-1' },
-      capability: 'coach.workspace.access',
-      organizationId: 'org-a',
+    const requireCapabilityImpl = vi.fn().mockImplementation(async (req) => {
+      if (!req.headers.authorization) {
+        throw Object.assign(new Error('authentication_required'), {
+          code: 'authentication_required',
+          status: 401,
+        })
+      }
+      return {
+        user: { id: 'user-1' },
+        capability: 'coach.workspace.access',
+        organizationId: 'org-a',
+      }
     })
     const { handler, deps } = harness({ requireCapabilityImpl })
     const req = request({
@@ -153,6 +162,47 @@ describe('POST /api/operational-data', () => {
       'coach.workspace.access',
     )
     expect(deps.executeActionImpl).toHaveBeenCalledOnce()
+  })
+
+  it('lee el relevo operativo solo con identidad individual, nunca con código compartido', async () => {
+    const requireCapabilityImpl = vi.fn().mockImplementation(async (req) => {
+      if (!req.headers.authorization) {
+        throw Object.assign(new Error('authentication_required'), {
+          code: 'authentication_required',
+          status: 401,
+        })
+      }
+      return {
+        user: { id: 'user-1' },
+        capability: 'coach.workspace.access',
+        organizationId: 'org-a',
+      }
+    })
+    const { handler, deps } = harness({ requireCapabilityImpl })
+    const req = request({ action: 'list_coach_operations', payload: {} })
+    req.headers.authorization = 'Bearer individual-jwt'
+    const res = response()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(deps.executeActionImpl).toHaveBeenCalledWith(
+      { kind: 'service-client' },
+      'list_coach_operations',
+      {},
+      expect.objectContaining({
+        method: 'individual_identity',
+        identity: expect.objectContaining({ organizationId: 'org-a' }),
+      }),
+    )
+
+    const withSharedCode = response()
+    await handler(request({
+      action: 'list_coach_operations',
+      accessCode: 'COACH-CODE',
+      payload: {},
+    }), withSharedCode)
+    expect(withSharedCode.statusCode).toBe(401)
   })
 
   it('mantiene la identidad individual cerrada cuando el flag está desactivado', async () => {

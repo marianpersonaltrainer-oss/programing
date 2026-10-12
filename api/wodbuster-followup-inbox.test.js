@@ -29,7 +29,7 @@ describe('GET /api/wodbuster-followup-inbox', () => {
   it('uses the dedicated Office reader for current inactivity, returning only the minimal signal', async () => {
     const currentSettings = { ...settings, officeReaderUser: 'office-reader', officeReaderPassword: 'office-password' }
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [
-      { Dni: 'private-identity', Nombre: 'Lucía Apellido', 'Días sin entrenar': 7, Email: 'private@example.test' },
+      { Dni: 'private-identity', Nombre: 'Lucía Apellido', 'Nombre para mostrar': 'legacy-handle', 'Días sin entrenar': 7, Email: 'private@example.test' },
       { Dni: 'recent-identity', Nombre: 'Ana Apellido', 'Días sin entrenar': 2 },
     ] })
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(), readConfigImpl: () => currentSettings, fetchImpl, nowImpl: () => new Date('2026-10-12T12:00:00.000Z') })

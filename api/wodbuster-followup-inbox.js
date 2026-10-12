@@ -50,7 +50,9 @@ function opaqueReference(row, secret) {
 
 function directFollowup(row, secret, observedAt) {
   const inactiveDays = nonNegative(row?.['Días sin entrenar'])
-  const memberFirstName = firstName(row?.['Nombre para mostrar'] || row?.Nombre)
+  // WodBuster's display name can be a legacy alias or a social handle. Prefer
+  // the actual name entered in the member record for a human follow-up list.
+  const memberFirstName = firstName(row?.Nombre || row?.['Nombre para mostrar'])
   const memberReference = opaqueReference(row, secret)
   // The active-athlete report does not confirm a future reservation. Keep the
   // signal explicit so nobody reads it as a cancellation or missed booking.

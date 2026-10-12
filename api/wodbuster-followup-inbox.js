@@ -39,12 +39,12 @@ export function toFollowupInboxItem(row) {
   const inactiveDays = numberOrNull(signal?.inactiveDays)
   const nextBookingDays = numberOrNull(signal?.nextBookingDays)
   const occurredAt = text(row.occurred_at, 40)
-  if (!reference || !memberFirstName || signal?.code !== FOLLOWUP_SIGNAL || inactiveDays === null || !occurredAt || Number.isNaN(new Date(occurredAt).getTime())) return null
+  if (!reference || signal?.code !== FOLLOWUP_SIGNAL || inactiveDays === null || !occurredAt || Number.isNaN(new Date(occurredAt).getTime())) return null
   return {
     sourceEventId: text(row.event_id, 80),
     occurredAt: new Date(occurredAt).toISOString(),
     memberReference: reference,
-    memberFirstName,
+    memberFirstName: memberFirstName || null,
     signal: FOLLOWUP_SIGNAL,
     inactiveDays,
     nextBookingDays,

@@ -1,14 +1,19 @@
 // Read-only report probe. Never returns credentials or report row values.
 export async function probeWodBuster({ env, fetchImpl = fetch, from, to, legacyEncoding = false, report = 'CuantoEntrenan' }) {
-  const endpoints = { CuantoEntrenan: 'https://evolution.wodbuster.com/api/box/CuantoEntrenan', CuantoEnsenan: 'https://evolution.wodbuster.com/api/box/CuantoEnse%C3%B1an' }
+  const endpoints = {
+    CuantoEntrenan: 'https://evolution.wodbuster.com/api/box/CuantoEntrenan',
+    CuantoEnsenan: 'https://evolution.wodbuster.com/api/box/CuantoEnse%C3%B1an',
+    Atletas: 'https://evolution.wodbuster.com/api/box/Atletas',
+  }
   if (!Object.hasOwn(endpoints, report)) return { ok: false, error: 'invalid_report' }
   const user = env.WODBUSTER_API_USER
   const password = env.WODBUSTER_API_PASSWORD
   if (!user || !password || !env.WODBUSTER_BOX) return { ok: false, error: 'missing_configuration' }
   if (env.WODBUSTER_BOX !== 'evolution') return { ok: false, error: 'unexpected_box' }
+  const isWindowedReport = report !== 'Atletas'
   const start = Date.parse(from)
   const end = Date.parse(to)
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 86400000) {
+  if (isWindowedReport && (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 86400000)) {
     return { ok: false, error: 'invalid_window' }
   }
   try {
@@ -21,7 +26,9 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to, legacyE
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'EVO-ReadOnly-Probe',
       },
-      body: new URLSearchParams({ Desde: String(Math.floor(start / 1000)), Hasta: String(Math.floor(end / 1000)) }).toString(),
+      body: report === 'Atletas'
+        ? new URLSearchParams({ SoloActivos: 'true' }).toString()
+        : new URLSearchParams({ Desde: String(Math.floor(start / 1000)), Hasta: String(Math.floor(end / 1000)) }).toString(),
     })
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location') || ''

@@ -34,6 +34,13 @@ describe('WodBuster minimal read probe', () => {
     expect(JSON.stringify(result)).not.toContain('fictional-secret')
     expect(JSON.stringify(result)).not.toContain('Fictional Person')
   })
+  it('checks active athletes without asking WodBuster for a date range', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [{ Nombre: 'Fictional Person', Activo: true }] })
+    const result = await probeWodBuster({ env: options.env, report: 'Atletas', fetchImpl })
+    expect(result).toEqual({ ok: true, status: 200, records: 1, fields: ['Nombre', 'Activo'] })
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://evolution.wodbuster.com/api/box/Atletas')
+    expect(fetchImpl.mock.calls[0][1].body).toBe('SoloActivos=true')
+  })
   it.each([
     [{ env: {} }, 'missing_configuration'],
     [{ env: { ...options.env, WODBUSTER_BOX: 'elsewhere' } }, 'unexpected_box'],

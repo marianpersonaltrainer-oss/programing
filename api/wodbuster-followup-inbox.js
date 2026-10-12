@@ -5,6 +5,8 @@ const FOLLOWUP_EVENT_TYPE = 'member.followup_signal'
 const FOLLOWUP_SIGNAL = 'inactive_no_next_booking'
 const DIRECT_FOLLOWUP_SIGNAL = 'inactive_needs_check'
 const ACTIVE_ATHLETES_URL = 'https://evolution.wodbuster.com/api/box/Atletas'
+const USER_IDS_URL = 'https://evolution.wodbuster.com/api/users/Get'
+const WODBUSTER_PROFILE_URL = 'https://evolution.wodbuster.com/admin/edituser.aspx?id='
 
 function text(value, maximum = 240) {
   return typeof value === 'string' ? value.trim().slice(0, maximum) : ''
@@ -30,6 +32,7 @@ function config(env) {
     supabaseUrl: String(env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim(),
     officeReaderUser: String(env.WODBUSTER_OFFICE_READ_USER || '').trim(),
     officeReaderPassword: String(env.WODBUSTER_OFFICE_READ_PASSWORD || '').trim(),
+    officeUsersApiKey: String(env.WODBUSTER_OFFICE_USER_IDS_KEY || '').trim(),
   }
 }
 
@@ -56,7 +59,18 @@ function opaqueReference(row, secret) {
   return `wb_${createHash('sha256').update(`${secret}:${upstreamReference}`).digest('hex').slice(0, 24)}`
 }
 
-function directFollowup(row, secret, observedAt) {
+function profileUrlForId(profileId) {
+  const normalizedId = String(profileId || '').trim()
+  return /^\d{1,12}$/.test(normalizedId) ? `${WODBUSTER_PROFILE_URL}${normalizedId}` : null
+}
+
+function profileUrlForAthlete(row, profileIdsByEmail) {
+  const email = String(row?.Email || '').trim().toLowerCase()
+  if (!email) return null
+  return profileUrlForId(profileIdsByEmail.get(email))
+}
+
+function directFollowup(row, secret, observedAt, profileIdsByEmail = new Map()) {
   const inactiveDays = nonNegative(row?.['Días sin entrenar'])
   // WodBuster's display name can be a legacy alias or a social handle. Prefer
   // the actual name entered in the member record for a human follow-up list.
@@ -72,10 +86,35 @@ function directFollowup(row, secret, observedAt) {
     memberReference,
     memberFirstName,
     memberFullName,
+    memberProfileUrl: profileUrlForAthlete(row, profileIdsByEmail),
     signal: DIRECT_FOLLOWUP_SIGNAL,
     inactiveDays,
     nextBookingDays: null,
   }
+}
+
+async function readProfileIds(settings, fetchImpl) {
+  if (!settings.officeUsersApiKey) return new Map()
+  const response = await fetchImpl(USER_IDS_URL, {
+    method: 'GET',
+    redirect: 'manual',
+    signal: AbortSignal.timeout(15000),
+    headers: {
+      API_ACCESS_KEY: settings.officeUsersApiKey,
+      'User-Agent': 'EVO-Office-Followups-ReadOnly',
+    },
+  })
+  if (!response.ok) throw new Error('wodbuster_user_ids_unavailable')
+  const payload = await response.json()
+  if (!payload?.EsOk || !Array.isArray(payload.Data)) throw new Error('wodbuster_user_ids_invalid')
+
+  // Do not retain the full WodBuster response. This reader deliberately keeps
+  // only the short-lived email -> internal-id lookup needed to open a ficha.
+  return new Map(payload.Data.flatMap(item => {
+    const email = String(item?.email || '').trim().toLowerCase()
+    const id = String(item?.id || '').trim()
+    return email && /^\d{1,12}$/.test(id) ? [[email, id]] : []
+  }))
 }
 
 async function readCurrentFollowups(settings, fetchImpl, now) {
@@ -94,7 +133,14 @@ async function readCurrentFollowups(settings, fetchImpl, now) {
   const rows = await response.json()
   if (!Array.isArray(rows)) throw new Error('wodbuster_active_athletes_invalid')
   const observedAt = now().toISOString()
-  return rows.map(row => directFollowup(row, settings.secret, observedAt)).filter(Boolean)
+  let profileIdsByEmail = new Map()
+  try {
+    profileIdsByEmail = await readProfileIds(settings, fetchImpl)
+  } catch {
+    // The current follow-up list remains available if profile deep-links are
+    // temporarily unavailable; it never falls back to matching people by name.
+  }
+  return rows.map(row => directFollowup(row, settings.secret, observedAt, profileIdsByEmail)).filter(Boolean)
 }
 
 /** Redacta la señal antes de que salga del núcleo: nunca el evento bruto. */
@@ -115,6 +161,7 @@ export function toFollowupInboxItem(row) {
     memberReference: reference,
     memberFirstName: memberFirstName || null,
     memberFullName: memberFullName || memberFirstName || null,
+    memberProfileUrl: null,
     signal: FOLLOWUP_SIGNAL,
     inactiveDays,
     nextBookingDays,

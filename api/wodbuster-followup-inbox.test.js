@@ -11,7 +11,7 @@ describe('GET /api/wodbuster-followup-inbox', () => {
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(() => client), readConfigImpl: () => settings })
     const res = response(); await handler({ method: 'GET', headers: { authorization: `Bearer ${settings.secret}` } }, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({ ok: true, followups: [{ sourceEventId: 'event-1', occurredAt: '2026-10-07T09:00:00.000Z', memberReference: 'athlete-123', memberFirstName: 'Lucía', memberFullName: 'Lucía', signal: 'inactive_no_next_booking', inactiveDays: 7, nextBookingDays: null }] })
+    expect(res.body).toEqual({ ok: true, followups: [{ sourceEventId: 'event-1', occurredAt: '2026-10-07T09:00:00.000Z', memberReference: 'athlete-123', memberFirstName: 'Lucía', memberFullName: 'Lucía', memberProfileUrl: null, signal: 'inactive_no_next_booking', inactiveDays: 7, nextBookingDays: null }] })
   })
   it('rejects unauthorised reads', async () => {
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(), readConfigImpl: () => settings })
@@ -44,5 +44,26 @@ describe('GET /api/wodbuster-followup-inbox', () => {
     })
     expect(JSON.stringify(res.body)).not.toContain('private-identity')
     expect(JSON.stringify(res.body)).not.toContain('private@example.test')
+  })
+
+  it('adds a direct WodBuster ficha link only from the dedicated ID lookup', async () => {
+    const currentSettings = { ...settings, officeReaderUser: 'office-reader', officeReaderPassword: 'office-password', officeUsersApiKey: 'office-user-ids-key' }
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [
+        { Dni: 'private-identity', Nombre: 'Lucía', Apellido1: 'Apellido', 'Días sin entrenar': 8, Email: 'lucia@example.test' },
+      ] })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({
+        EsOk: true,
+        Data: [{ email: 'lucia@example.test', id: 1901, iban: 'never-returned', pagadoHasta: 'never-returned' }],
+      }) })
+    const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(), readConfigImpl: () => currentSettings, fetchImpl, nowImpl: () => new Date('2026-10-12T12:00:00.000Z') })
+    const res = response(); await handler({ method: 'GET', headers: { authorization: `Bearer ${settings.secret}` } }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(fetchImpl.mock.calls[1][0]).toBe('https://evolution.wodbuster.com/api/users/Get')
+    expect(fetchImpl.mock.calls[1][1].headers.API_ACCESS_KEY).toBe('office-user-ids-key')
+    expect(res.body.followups[0].memberProfileUrl).toBe('https://evolution.wodbuster.com/admin/edituser.aspx?id=1901')
+    expect(JSON.stringify(res.body)).not.toContain('lucia@example.test')
+    expect(JSON.stringify(res.body)).not.toContain('never-returned')
   })
 })

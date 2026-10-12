@@ -25,4 +25,24 @@ describe('GET /api/wodbuster-followup-inbox', () => {
     const res = response(); await handler({ method: 'GET', headers: { authorization: `Bearer ${settings.secret}` } }, res)
     expect(res.body.followups[0]).toMatchObject({ memberReference: 'athlete-legacy', memberFirstName: null })
   })
+
+  it('uses the dedicated Office reader for current inactivity, returning only the minimal signal', async () => {
+    const currentSettings = { ...settings, officeReaderUser: 'office-reader', officeReaderPassword: 'office-password' }
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [
+      { Dni: 'private-identity', Nombre: 'Lucía Apellido', 'Días sin entrenar': 7, Email: 'private@example.test' },
+      { Dni: 'recent-identity', Nombre: 'Ana Apellido', 'Días sin entrenar': 2 },
+    ] })
+    const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(), readConfigImpl: () => currentSettings, fetchImpl, nowImpl: () => new Date('2026-10-12T12:00:00.000Z') })
+    const res = response(); await handler({ method: 'GET', headers: { authorization: `Bearer ${settings.secret}` } }, res)
+    expect(res.statusCode).toBe(200)
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://evolution.wodbuster.com/api/box/Atletas')
+    expect(fetchImpl.mock.calls[0][1].body).toBe('SoloActivos=true')
+    expect(res.body).toEqual({
+      ok: true,
+      source: 'wodbuster_active_athletes',
+      followups: [expect.objectContaining({ memberFirstName: 'Lucía', signal: 'inactive_needs_check', inactiveDays: 7, nextBookingDays: null })],
+    })
+    expect(JSON.stringify(res.body)).not.toContain('private-identity')
+    expect(JSON.stringify(res.body)).not.toContain('private@example.test')
+  })
 })

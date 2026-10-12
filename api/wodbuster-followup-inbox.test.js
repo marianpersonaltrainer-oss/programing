@@ -11,7 +11,7 @@ describe('GET /api/wodbuster-followup-inbox', () => {
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(() => client), readConfigImpl: () => settings })
     const res = response(); await handler({ method: 'GET', headers: { authorization: `Bearer ${settings.secret}` } }, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({ ok: true, followups: [{ sourceEventId: 'event-1', occurredAt: '2026-10-07T09:00:00.000Z', memberReference: 'athlete-123', memberFirstName: 'Lucía', signal: 'inactive_no_next_booking', inactiveDays: 7, nextBookingDays: null }] })
+    expect(res.body).toEqual({ ok: true, followups: [{ sourceEventId: 'event-1', occurredAt: '2026-10-07T09:00:00.000Z', memberReference: 'athlete-123', memberFirstName: 'Lucía', memberFullName: 'Lucía', signal: 'inactive_no_next_booking', inactiveDays: 7, nextBookingDays: null }] })
   })
   it('rejects unauthorised reads', async () => {
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(), readConfigImpl: () => settings })
@@ -23,13 +23,13 @@ describe('GET /api/wodbuster-followup-inbox', () => {
     const client = query([{ event_id: 'event-legacy', event_type: 'member.followup_signal', occurred_at: '2026-10-06T09:00:00.000Z', payload: { member: { reference: 'athlete-legacy' }, signal: { code: 'inactive_no_next_booking', inactiveDays: 7, nextBookingDays: null } } }])
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(() => client), readConfigImpl: () => settings })
     const res = response(); await handler({ method: 'GET', headers: { authorization: `Bearer ${settings.secret}` } }, res)
-    expect(res.body.followups[0]).toMatchObject({ memberReference: 'athlete-legacy', memberFirstName: null })
+    expect(res.body.followups[0]).toMatchObject({ memberReference: 'athlete-legacy', memberFirstName: null, memberFullName: null })
   })
 
   it('uses the dedicated Office reader for current inactivity, returning only the minimal signal', async () => {
     const currentSettings = { ...settings, officeReaderUser: 'office-reader', officeReaderPassword: 'office-password' }
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [
-      { Dni: 'private-identity', Nombre: 'Lucía Apellido', 'Nombre para mostrar': 'legacy-handle', 'Días sin entrenar': 7, Email: 'private@example.test' },
+      { Dni: 'private-identity', Nombre: 'Lucía', Apellido1: 'Apellido', Apellido2: 'Segundo', 'Nombre para mostrar': 'legacy-handle', 'Días sin entrenar': 7, Email: 'private@example.test' },
       { Dni: 'recent-identity', Nombre: 'Ana Apellido', 'Días sin entrenar': 2 },
     ] })
     const handler = createWodBusterFollowupInboxHandler({ createClientImpl: vi.fn(), readConfigImpl: () => currentSettings, fetchImpl, nowImpl: () => new Date('2026-10-12T12:00:00.000Z') })
@@ -40,7 +40,7 @@ describe('GET /api/wodbuster-followup-inbox', () => {
     expect(res.body).toEqual({
       ok: true,
       source: 'wodbuster_active_athletes',
-      followups: [expect.objectContaining({ memberFirstName: 'Lucía', signal: 'inactive_needs_check', inactiveDays: 7, nextBookingDays: null })],
+      followups: [expect.objectContaining({ memberFirstName: 'Lucía', memberFullName: 'Lucía Apellido Segundo', signal: 'inactive_needs_check', inactiveDays: 7, nextBookingDays: null })],
     })
     expect(JSON.stringify(res.body)).not.toContain('private-identity')
     expect(JSON.stringify(res.body)).not.toContain('private@example.test')

@@ -38,6 +38,14 @@ function nonNegative(value) {
   return Number.isFinite(number) && number >= 0 ? number : null
 }
 
+function fullName(row) {
+  const parts = [row?.Nombre, row?.Apellido1, row?.Apellido2]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+  const result = parts.join(' ').replace(/\s+/g, ' ').trim()
+  return result.slice(0, 140) || null
+}
+
 function firstName(value) {
   return String(value || '').trim().split(/\s+/)[0]?.slice(0, 60) || null
 }
@@ -52,16 +60,18 @@ function directFollowup(row, secret, observedAt) {
   const inactiveDays = nonNegative(row?.['Días sin entrenar'])
   // WodBuster's display name can be a legacy alias or a social handle. Prefer
   // the actual name entered in the member record for a human follow-up list.
-  const memberFirstName = firstName(row?.Nombre || row?.['Nombre para mostrar'])
+  const memberFullName = fullName(row) || String(row?.['Nombre para mostrar'] || '').trim().slice(0, 140) || null
+  const memberFirstName = firstName(memberFullName)
   const memberReference = opaqueReference(row, secret)
   // The active-athlete report does not confirm a future reservation. Keep the
   // signal explicit so nobody reads it as a cancellation or missed booking.
-  if (inactiveDays === null || inactiveDays < 7 || inactiveDays > 30 || !memberFirstName || !memberReference) return null
+  if (inactiveDays === null || inactiveDays < 7 || inactiveDays > 30 || !memberFullName || !memberReference) return null
   return {
     sourceEventId: `wodbuster-direct-${memberReference}`,
     occurredAt: observedAt,
     memberReference,
     memberFirstName,
+    memberFullName,
     signal: DIRECT_FOLLOWUP_SIGNAL,
     inactiveDays,
     nextBookingDays: null,
@@ -94,6 +104,7 @@ export function toFollowupInboxItem(row) {
   const signal = row.payload.signal
   const reference = text(member?.reference, 120)
   const memberFirstName = text(member?.firstName, 60)
+  const memberFullName = text(member?.fullName, 140)
   const inactiveDays = numberOrNull(signal?.inactiveDays)
   const nextBookingDays = numberOrNull(signal?.nextBookingDays)
   const occurredAt = text(row.occurred_at, 40)
@@ -103,6 +114,7 @@ export function toFollowupInboxItem(row) {
     occurredAt: new Date(occurredAt).toISOString(),
     memberReference: reference,
     memberFirstName: memberFirstName || null,
+    memberFullName: memberFullName || memberFirstName || null,
     signal: FOLLOWUP_SIGNAL,
     inactiveDays,
     nextBookingDays,

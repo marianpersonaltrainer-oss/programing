@@ -16,6 +16,7 @@ const PERSON_FIELDS = new Set([
   'reference',
   'phase',
   'sessionAt',
+  'classLabel',
   'objective',
   'experience',
   'context',

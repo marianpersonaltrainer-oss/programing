@@ -1,5 +1,12 @@
 # Instrucciones operativas del proyecto EVO
 
+## Corrección de relevo de pruebas — 14 octubre 2026
+
+- Publicada la corrección mínima `92b48c3` en producción: despliegue `dpl_6GKRkERwv1vrKrrKg1SdFBenP8Sp`, alias `https://programing-evo.vercel.app`, estado READY.
+- El receptor de relevo ya conserva `person.classLabel` (por ejemplo, `EvoBasics`) en un evento `trial.confirmed`; la prueba específica de la API y la compilación pasaron antes de publicar.
+- La fuente WodBuster todavía no genera esos eventos automáticamente: Make sigue siendo un receptor que reenvía una carga ya preparada. La regla de negocio confirmada por Marian es que una reserva marcada como `Invitado` debe tratarse como clase de prueba, pero queda pendiente conectar esa detección a una fuente con identidad de coach y horario inequívocos.
+- No se han creado ni modificado reservas, pagos, mensajes ni fichas reales. La clase identificada de martes 13 a las 19:00 ya había pasado al hacer esta corrección, por lo que no se insertó una prueba ficticia como pendiente.
+
 ## Estado de integración Head Coach — 14 septiembre 2026
 
 - Referencia remota comprobada: `origin/main` = `249e2f4`. Incorpora el buzón privado y agregado Head Coach → agente programador (`programming_agent_inbox`); solo acepta totales y categorías, sin texto libre, nombres, WODs ni cambios/publicación automáticos.

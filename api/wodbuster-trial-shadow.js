@@ -8,16 +8,23 @@ function configuration(env) {
     password: String(env.WODBUSTER_API_PASSWORD || '').trim(),
     box: String(env.WODBUSTER_BOX || '').trim(),
     adminSecret: String(env.COACH_GUIDE_ADMIN_SECRET || '').trim(),
+    cronSecret: String(env.CRON_SECRET || '').trim(),
   }
+}
+
+function cronSecretsMatch(received, expected) {
+  return Boolean(expected) && String(received || '') === `Bearer ${expected}`
 }
 
 export function createWodBusterTrialShadowHandler({ env = process.env, read = readWodBusterReport, now = Date.now } = {}) {
   let lastAttempt = 0
   return async (req, res) => {
     res.setHeader('Cache-Control', 'no-store')
-    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
+    if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ error: 'method_not_allowed' })
     const settings = configuration(env)
-    if (!adminSecretsMatch(req.headers?.['x-evo-admin-secret'], settings.adminSecret)) return res.status(401).json({ error: 'unauthorized' })
+    const authorizedAdmin = req.method === 'POST' && adminSecretsMatch(req.headers?.['x-evo-admin-secret'], settings.adminSecret)
+    const authorizedCron = req.method === 'GET' && cronSecretsMatch(req.headers?.authorization, settings.cronSecret)
+    if (!authorizedAdmin && !authorizedCron) return res.status(401).json({ error: 'unauthorized' })
     if (!settings.user || !settings.password || settings.box !== 'evolution') return res.status(503).json({ error: 'wodbuster_trial_shadow_not_configured' })
 
     const instant = now()

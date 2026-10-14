@@ -1,4 +1,11 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/wodbuster-trial-shadow",
+      "schedule": "0 5 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

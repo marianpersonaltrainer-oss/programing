@@ -25,6 +25,23 @@ it('does not call WodBuster without the admin secret', async () => {
   expect(read).not.toHaveBeenCalled()
 })
 
+it('allows only Vercel cron GET calls carrying its dedicated secret', async () => {
+  const read = vi.fn().mockImplementation(({ report }) => Promise.resolve({ ok: true, rows: report === 'CuantoEntrenan' ? [booking] : [schedule] }))
+  const handler = createWodBusterTrialShadowHandler({ env: { ...env, CRON_SECRET: 'cron-secret' }, read, now: () => Date.parse('2026-10-14T08:00:00Z') })
+  const res = response()
+  await handler({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, res)
+  expect(res.status).toHaveBeenCalledWith(200)
+  expect(read).toHaveBeenCalledTimes(2)
+})
+
+it('rejects a GET call when the cron secret is missing or wrong', async () => {
+  const read = vi.fn()
+  const res = response()
+  await createWodBusterTrialShadowHandler({ env: { ...env, CRON_SECRET: 'cron-secret' }, read })({ method: 'GET', headers: { authorization: 'Bearer wrong' } }, res)
+  expect(res.status).toHaveBeenCalledWith(401)
+  expect(read).not.toHaveBeenCalled()
+})
+
 it('fails closed when either source cannot be read', async () => {
   const read = vi.fn().mockResolvedValue({ ok: false, error: 'timeout' })
   const res = response()

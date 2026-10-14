@@ -1,5 +1,11 @@
 # Instrucciones operativas del proyecto EVO
 
+## Restauración del panel de pruebas — 14 octubre 2026
+
+- Producción restaurada con autorización expresa de Marian al despliegue que conserva el panel de pruebas del equipo y añade la corrección de `person.classLabel`: `dpl_6biSLfQW6fcYKEf1kmJc9PcDeZ1K`, alias `https://programing-evo.vercel.app`, READY.
+- No se alteraron reservas, pagos, WhatsApp ni fichas. La corrección solo conserva la clase recibida por el receptor `trial.confirmed`.
+- La detección automática desde WodBuster sigue pendiente de una validación en sombra: `Invitado` es la regla de negocio para prueba, pero el lector debe cruzar fecha, hora, clase y coach sin ambigüedad antes de crear eventos reales.
+
 ## Continuidad y auditoria local — 11 septiembre 2026
 
 - Peticion expresa de Marian de memoria y autonomia guardada tambien en nota de memoria 20260911-105000-autonomia-tecnica-proyecto-evo.md.

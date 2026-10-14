@@ -6,6 +6,12 @@
 - No se alteraron reservas, pagos, WhatsApp ni fichas. La corrección solo conserva la clase recibida por el receptor `trial.confirmed`.
 - La detección automática desde WodBuster sigue pendiente de una validación en sombra: `Invitado` es la regla de negocio para prueba, pero el lector debe cruzar fecha, hora, clase y coach sin ambigüedad antes de crear eventos reales.
 
+## Sombra de pruebas WodBuster — 14 octubre 2026
+
+- Preparado localmente `api/wodbuster-trial-shadow.js`: ruta privada que solo devuelve recuentos de reservas `Invitado` cruzadas con fecha, hora, clase y coach durante las próximas 24 horas. No persiste filas, no expone nombres/contactos ni crea `trial.confirmed`.
+- Una reserva cancelada, una fecha/formato no verificable, una clase sin coach o una coincidencia duplicada quedan excluidas. La salida solo puede declarar `uniquelyMatched` como número, nunca revelar quién ni a qué coach corresponde.
+- Pruebas específicas: 35/35 verdes junto a lector, auditor y receptor. Build verde. Falta autorización de promoción y una ejecución privada real para registrar el formato y los recuentos antes de activar la escritura hacia el panel coach.
+
 ## Continuidad y auditoria local — 11 septiembre 2026
 
 - Peticion expresa de Marian de memoria y autonomia guardada tambien en nota de memoria 20260911-105000-autonomia-tecnica-proyecto-evo.md.

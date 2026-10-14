@@ -1,5 +1,6 @@
-// Read-only report probe. Never returns credentials or report row values.
-export async function probeWodBuster({ env, fetchImpl = fetch, from, to, legacyEncoding = false, report = 'CuantoEntrenan' }) {
+// Server-only reader. Callers must reduce its output before responding. It is
+// intentionally not used by browser code and never persists WodBuster rows.
+export async function readWodBusterReport({ env, fetchImpl = fetch, from, to, legacyEncoding = false, report = 'CuantoEntrenan' }) {
   const endpoints = {
     CuantoEntrenan: 'https://evolution.wodbuster.com/api/box/CuantoEntrenan',
     CuantoEnsenan: 'https://evolution.wodbuster.com/api/box/CuantoEnse%C3%B1an',
@@ -42,7 +43,7 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to, legacyE
       // following the redirect or altering credentials. Never guess passwords.
       const credentials = `${user}:${password}`
       if (login && !legacyEncoding && /[\u00a0-\u00ff]/.test(credentials) && /^[\u0000-\u007f\u00a0-\u00ff]*$/.test(credentials)) {
-        return probeWodBuster({ env, fetchImpl, from, to, legacyEncoding: true, report })
+        return readWodBusterReport({ env, fetchImpl, from, to, legacyEncoding: true, report })
       }
       return { ok: false, error: login ? 'upstream_login_redirect' : 'upstream_redirect_blocked', status: response.status, legacyEncodingTried: legacyEncoding }
     }
@@ -52,13 +53,20 @@ export async function probeWodBuster({ env, fetchImpl = fetch, from, to, legacyE
       return { ok: false, error: 'non_json_response', status: response.status }
     }
     if (!Array.isArray(data)) return { ok: false, error: 'unexpected_response_shape', status: response.status }
-    // Report schema only; no names, identifiers, metrics, or row contents escape.
-    const fields = [...new Set(data.slice(0, 10).flatMap(row => row && typeof row === 'object' && !Array.isArray(row) ? Object.keys(row) : []))]
-      .filter(key => /^[A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ_ 0-9?¿()-]{0,63}$/.test(key)).slice(0, 50)
-    return { ok: true, status: response.status, records: data.length, fields }
+    return { ok: true, status: response.status, rows: data }
   } catch (error) {
     const codes = new Set(['ENOTFOUND', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'ERR_TLS_CERT_ALTNAME_INVALID'])
     const reason = error?.name === 'TimeoutError' ? 'timeout' : codes.has(error?.cause?.code) ? error.cause.code : 'network_or_redirect'
     return { ok: false, error: 'request_failed', reason }
   }
+}
+
+// Read-only report probe. Never returns credentials or report row values.
+export async function probeWodBuster(options) {
+  const result = await readWodBusterReport(options)
+  if (!result.ok) return result
+  // Report schema only; no names, identifiers, metrics, or row contents escape.
+  const fields = [...new Set(result.rows.slice(0, 10).flatMap(row => row && typeof row === 'object' && !Array.isArray(row) ? Object.keys(row) : []))]
+    .filter(key => /^[A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ_ 0-9?¿()-]{0,63}$/.test(key)).slice(0, 50)
+  return { ok: true, status: result.status, records: result.rows.length, fields }
 }

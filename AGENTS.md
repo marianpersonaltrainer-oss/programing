@@ -11,7 +11,8 @@
 - Preparado localmente `api/wodbuster-trial-shadow.js`: ruta privada que solo devuelve recuentos de reservas `Invitado` cruzadas con fecha, hora, clase y coach durante las próximas 24 horas. No persiste filas, no expone nombres/contactos ni crea `trial.confirmed`.
 - Una reserva cancelada, una fecha/formato no verificable, una clase sin coach o una coincidencia duplicada quedan excluidas. La salida solo puede declarar `uniquelyMatched` como número, nunca revelar quién ni a qué coach corresponde.
 - Publicado en producción con autorización de Marian. La ruta sin credenciales responde 405 y no puede ejecutar una lectura. Primera ejecución privada real: 85 reservas y 8 sesiones en próximas 24 h; 0 marcadas como `Invitado`, por lo que no se creó ningún evento ni ficha. El archivo temporal de entorno usado para autenticar la comprobación se eliminó al terminar.
-- Pruebas específicas: 35/35 verdes junto a lector, auditor y receptor. Build verde. Antes de activar escritura hacia el panel coach, repetir una lectura con una reserva `Invitado` real y comprobar que el cruce es único; una recurrencia no aporta valor hasta decidir dónde registrar y mostrar el resultado de sombra.
+- La lectura en sombra queda programada en Vercel una vez al día a las `05:00 UTC` mediante `vercel.json`, protegida por un `CRON_SECRET` exclusivo. La ruta rechaza las llamadas sin esa cabecera (401 comprobado); no se crea ninguna tarea, evento ni aviso a partir del resultado de cron.
+- Pruebas específicas: 28/28 verdes en la tarea programada, lector y auditor; build verde. Antes de activar escritura hacia el panel coach, repetir una lectura con una reserva `Invitado` real y comprobar que el cruce es único; esta recurrencia es evidencia técnica, no una bandeja ni una notificación para Marian.
 
 ## Continuidad y auditoria local — 11 septiembre 2026
 
